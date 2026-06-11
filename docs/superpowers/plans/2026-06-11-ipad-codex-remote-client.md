@@ -2642,7 +2642,7 @@ git commit -m "feat(conversation): steer (with expectedTurnId), queue, interrupt
 - Create: `ios/CodexRemote/Views/ApprovalCardView.swift`
 - Test: `ios/CodexRemoteTests/ApprovalStoreTests.swift`
 
-- [ ] **Step 1：写失败测试（识别 v2/legacy 请求 + 三种 decision 回传正确形状）**
+- [x] **Step 1：写失败测试（识别 v2/legacy 请求 + 三种 decision 回传正确形状）**
 
 `ios/CodexRemoteTests/ApprovalStoreTests.swift`：
 
@@ -2690,7 +2690,7 @@ final class ApprovalStoreTests: XCTestCase {
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ApprovalStoreTests`
 Expected：编译失败（`ApprovalStore` 未定义）。
 
-- [ ] **Step 3：实现 ApprovalStore（统一多选项决定 → 按方法映射到 v2/legacy 形状）**
+- [x] **Step 3：实现 ApprovalStore（统一多选项决定 → 按方法映射到 v2/legacy 形状）**
 
 `ios/CodexRemote/Stores/ApprovalStore.swift`：
 
@@ -2796,7 +2796,7 @@ struct AnyEncodable: Encodable {
 
 > 测试中 `responseBody(for:decision:)` 返回 `some Encodable`，但测试用 `JSONEncoder().encode(resp)` 直接编码 `AnyEncodable`，可行。若编译器对 `some Encodable` 在测试调用处推断不便，把返回类型显式改为 `AnyEncodable`。
 
-- [ ] **Step 4：实现审批卡 UI（多选项）**
+- [x] **Step 4：实现审批卡 UI（多选项）**
 
 `ios/CodexRemote/Views/ApprovalCardView.swift`：
 
@@ -2844,7 +2844,7 @@ struct ApprovalCardView: View {
 
 并在 `ConversationView` 的 item 列表上方/下方插入属于当前线程的审批卡（从 `ApprovalStore.cards` 过滤 `threadId == threadId`）。
 
-- [ ] **Step 5：把 ApprovalStore 接到 JSONRPCClient 的 server-request handler**
+- [x] **Step 5：把 ApprovalStore 接到 JSONRPCClient 的 server-request handler**
 
 在 App 装配处（`CodexRemoteApp` 或一个协调器）注册：`connection.rpc?.setServerRequestHandler` 内部把请求交给 `ApprovalStore.handle(request:)`，并通过 `withCheckedContinuation` 等待用户在 UI 选择后由 `resolver` 回填响应。把 `ApprovalStore.resolver` 设为「完成对应 continuation」。注入 `onPendingChange` 调 `ProjectsStore.setPendingApproval`。
 
@@ -2866,12 +2866,12 @@ approvals.resolver = { id, body in
 
 > 为此在 `ApprovalStore` 增 `var pendingContinuations: [RequestId: CheckedContinuation<AnyCodable, Never>] = [:]`。
 
-- [ ] **Step 6：运行测试确认通过 + 编译**
+- [x] **Step 6：运行测试确认通过 + 编译**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ApprovalStoreTests`
 Expected：全部 PASS。再 `xcodebuild build …`。
 
-- [ ] **Step 7：Commit**
+- [x] **Step 7：Commit**
 
 ```bash
 git add ios/CodexRemote/Stores/ApprovalStore.swift ios/CodexRemote/Views/ApprovalCardView.swift ios/CodexRemote/App ios/CodexRemoteTests/ApprovalStoreTests.swift
