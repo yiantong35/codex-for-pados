@@ -2012,7 +2012,7 @@ git commit -m "feat(stores): ProjectsStore groups threads by cwd, desktop source
 - Create: `ios/CodexRemote/Views/SidebarView.swift`
 - Modify: `ios/CodexRemote/App/CodexRemoteApp.swift`（从 SpikeView 切到正式根）
 
-- [ ] **Step 1：实现三栏骨架**
+- [x] **Step 1：实现三栏骨架**
 
 `ios/CodexRemote/Views/RootSplitView.swift`：
 
@@ -2043,7 +2043,7 @@ struct InspectorPlaceholderView: View {
 }
 ```
 
-- [ ] **Step 2：实现左栏（项目→对话树 + 待批准徽标）**
+- [x] **Step 2：实现左栏（项目→对话树 + 待批准徽标）**
 
 `ios/CodexRemote/Views/SidebarView.swift`：
 
@@ -2088,7 +2088,7 @@ struct SidebarView: View {
 }
 ```
 
-- [ ] **Step 3：切换 App 根视图并装配 Stores**
+- [x] **Step 3：切换 App 根视图并装配 Stores**
 
 修改 `ios/CodexRemote/App/CodexRemoteApp.swift`：根据连接状态在 `ConnectionConfigView` 与 `RootSplitView` 间切换，并把 Stores 注入环境：
 
@@ -2123,7 +2123,7 @@ struct CodexRemoteApp: App {
 }
 ```
 
-- [ ] **Step 4：编译验证 + 模拟器目视**
+- [x] **Step 4：编译验证 + 模拟器目视**
 
 Run：`xcodebuild build -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)'`
 Expected：编译成功。在模拟器运行应看到连接配置界面（未连接态）；连接后切到三栏空壳。

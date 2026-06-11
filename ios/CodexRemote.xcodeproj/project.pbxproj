@@ -24,6 +24,7 @@
 		46E575375B31BBDD1B4241BB /* JSONRPCClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FF7AFB1095E4D55F8F9B48E /* JSONRPCClientTests.swift */; };
 		47846F97DD20DAA3B56C454D /* SpikeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A71BFD40267DB1A681CD764 /* SpikeView.swift */; };
 		51A6B737CEFC17965BF8AAE5 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF050AC90C38320E8F8E0D52 /* KeychainStore.swift */; };
+		60B8027EA88C6844E4528DEE /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE6EE6E276995AE35699CCF /* SidebarView.swift */; };
 		6166961C795F332ADF8397E9 /* ProjectsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29E4DEA2725E8A3517A77141 /* ProjectsStoreTests.swift */; };
 		621495768AAB9EBBF750AC79 /* ThreadReducerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 665E5D286E79DF598F867D8E /* ThreadReducerTests.swift */; };
 		62753040920C67B96CE44594 /* ApprovalTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 402523179862EC8236FEA0CA /* ApprovalTypes.swift */; };
@@ -42,6 +43,7 @@
 		D70B6AACE385E2B532842EC5 /* TurnTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8F51BD06F0FA6F6B8896FEA /* TurnTypes.swift */; };
 		F370141604AEBDF313F80D49 /* ThreadReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC6C6C5BA4E33943DED8B45A /* ThreadReducer.swift */; };
 		FF3225FE3ECC3EFFECDD3484 /* ProxyChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 538E3EC9A90E5AA65ECEC7A1 /* ProxyChannel.swift */; };
+		FFA2F39B69D91D29675AC2E5 /* RootSplitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5213B70EFC0F91FF7C6EAF29 /* RootSplitView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -71,6 +73,7 @@
 		3A46B0F715AC99CD902533D4 /* JSONRPCEnvelopeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONRPCEnvelopeTests.swift; sourceTree = "<group>"; };
 		402523179862EC8236FEA0CA /* ApprovalTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalTypes.swift; sourceTree = "<group>"; };
 		4D2197F6A2B7E899050437AB /* CodexRemoteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexRemoteTests.swift; sourceTree = "<group>"; };
+		5213B70EFC0F91FF7C6EAF29 /* RootSplitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootSplitView.swift; sourceTree = "<group>"; };
 		538E3EC9A90E5AA65ECEC7A1 /* ProxyChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyChannel.swift; sourceTree = "<group>"; };
 		5A71BFD40267DB1A681CD764 /* SpikeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeView.swift; sourceTree = "<group>"; };
 		5FF7AFB1095E4D55F8F9B48E /* JSONRPCClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONRPCClientTests.swift; sourceTree = "<group>"; };
@@ -97,6 +100,7 @@
 		F6C01C7EC77E19B927C5E72B /* CodexRemoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexRemoteApp.swift; sourceTree = "<group>"; };
 		FA7C5D102DC860D73AE1ADE9 /* CodexRemote.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CodexRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FB0BD4E81945814B56FD25C0 /* MockTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockTransport.swift; sourceTree = "<group>"; };
+		FCE6EE6E276995AE35699CCF /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		FFBA120F4EEB38BFB307D900 /* CodexRemoteTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CodexRemoteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -146,6 +150,8 @@
 			children = (
 				9DC1E8FE94E8A15D040ECBA7 /* .gitkeep */,
 				9B894142E63413C7F50ACF58 /* ConnectionConfigView.swift */,
+				5213B70EFC0F91FF7C6EAF29 /* RootSplitView.swift */,
+				FCE6EE6E276995AE35699CCF /* SidebarView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -379,7 +385,9 @@
 				768F24B3698500CD6C53C0DA /* Methods.swift in Sources */,
 				046D60CECEF36F595B491834 /* ProjectsStore.swift in Sources */,
 				FF3225FE3ECC3EFFECDD3484 /* ProxyChannel.swift in Sources */,
+				FFA2F39B69D91D29675AC2E5 /* RootSplitView.swift in Sources */,
 				63920F05BE49A3245FE7CAA3 /* SSHClient.swift in Sources */,
+				60B8027EA88C6844E4528DEE /* SidebarView.swift in Sources */,
 				D2A8C908330E777DD8F5DF97 /* SpikeRunner.swift in Sources */,
 				47846F97DD20DAA3B56C454D /* SpikeView.swift in Sources */,
 				322911E06AEA9F543AC79DB9 /* SpikeWire.swift in Sources */,
