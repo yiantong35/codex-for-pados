@@ -2147,7 +2147,7 @@ git commit -m "feat(ui): three-pane NavigationSplitView + sidebar project/thread
 - Create: `ios/CodexRemote/Stores/ConversationStore.swift`
 - Test: `ios/CodexRemoteTests/ConversationStoreTests.swift`
 
-- [ ] **Step 1：写失败测试（resume 加载 + 流式 delta 归约进 state）**
+- [x] **Step 1：写失败测试（resume 加载 + 流式 delta 归约进 state）**
 
 `ios/CodexRemoteTests/ConversationStoreTests.swift`：
 
@@ -2190,7 +2190,7 @@ final class ConversationStoreTests: XCTestCase {
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ConversationStoreTests`
 Expected：编译失败（`ConversationStore` 未定义）。
 
-- [ ] **Step 3：实现 ConversationStore**
+- [x] **Step 3：实现 ConversationStore**
 
 `ios/CodexRemote/Stores/ConversationStore.swift`：
 
