@@ -16,6 +16,7 @@
 		2E22F5B05273F39AC264E778 /* ProtocolTypesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFD990BEF80BA894D65E3CC8 /* ProtocolTypesTests.swift */; };
 		322911E06AEA9F543AC79DB9 /* SpikeWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76E9EB3A0175BAA7B5A503AD /* SpikeWire.swift */; };
 		33AC004C9A4D4DBB4DD0E93E /* ThreadTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2FC01F7E01FE2DD6E33085E /* ThreadTypes.swift */; };
+		46E575375B31BBDD1B4241BB /* JSONRPCClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FF7AFB1095E4D55F8F9B48E /* JSONRPCClientTests.swift */; };
 		47846F97DD20DAA3B56C454D /* SpikeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A71BFD40267DB1A681CD764 /* SpikeView.swift */; };
 		62753040920C67B96CE44594 /* ApprovalTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 402523179862EC8236FEA0CA /* ApprovalTypes.swift */; };
 		63920F05BE49A3245FE7CAA3 /* SSHClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A8CF06540ED3E7C246131C8 /* SSHClient.swift */; };
@@ -23,6 +24,7 @@
 		72FE542A0B5F413DFD6BF3A5 /* MessageTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F31A93FB90F22CE40924C1E9 /* MessageTransport.swift */; };
 		768F24B3698500CD6C53C0DA /* Methods.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1ED1C6167187E761CB4F080 /* Methods.swift */; };
 		778221A116B554E3EA194D10 /* JSONRPCEnvelopeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A46B0F715AC99CD902533D4 /* JSONRPCEnvelopeTests.swift */; };
+		9E265052FF22A341C5FCADDA /* JSONRPCClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 164835E5F53DB4EC1BCAB13B /* JSONRPCClient.swift */; };
 		C2F8DADF2BC6D387BDF605C0 /* CodexRemoteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D2197F6A2B7E899050437AB /* CodexRemoteTests.swift */; };
 		D2A8C908330E777DD8F5DF97 /* SpikeRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E1DB34FCBBD8FBD8DDEF19D /* SpikeRunner.swift */; };
 		D70B6AACE385E2B532842EC5 /* TurnTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8F51BD06F0FA6F6B8896FEA /* TurnTypes.swift */; };
@@ -45,6 +47,7 @@
 		0497AFEB2BBEEB2BA956BB6B /* AnyCodable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnyCodable.swift; sourceTree = "<group>"; };
 		0A271F024062297B9E0875E5 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		0E1DB34FCBBD8FBD8DDEF19D /* SpikeRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeRunner.swift; sourceTree = "<group>"; };
+		164835E5F53DB4EC1BCAB13B /* JSONRPCClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONRPCClient.swift; sourceTree = "<group>"; };
 		1A8CF06540ED3E7C246131C8 /* SSHClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHClient.swift; sourceTree = "<group>"; };
 		2B8A2809870EB2C408134910 /* JSONRPCEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONRPCEnvelope.swift; sourceTree = "<group>"; };
 		3A46B0F715AC99CD902533D4 /* JSONRPCEnvelopeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONRPCEnvelopeTests.swift; sourceTree = "<group>"; };
@@ -52,6 +55,7 @@
 		4D2197F6A2B7E899050437AB /* CodexRemoteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexRemoteTests.swift; sourceTree = "<group>"; };
 		538E3EC9A90E5AA65ECEC7A1 /* ProxyChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyChannel.swift; sourceTree = "<group>"; };
 		5A71BFD40267DB1A681CD764 /* SpikeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeView.swift; sourceTree = "<group>"; };
+		5FF7AFB1095E4D55F8F9B48E /* JSONRPCClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONRPCClientTests.swift; sourceTree = "<group>"; };
 		76E9EB3A0175BAA7B5A503AD /* SpikeWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeWire.swift; sourceTree = "<group>"; };
 		99A9FA53DC2DFA3F7E44AD28 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		9DC1E8FE94E8A15D040ECBA7 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
@@ -177,6 +181,7 @@
 			children = (
 				EE826C2EEEFE8229D048565F /* .gitkeep */,
 				0497AFEB2BBEEB2BA956BB6B /* AnyCodable.swift */,
+				164835E5F53DB4EC1BCAB13B /* JSONRPCClient.swift */,
 				2B8A2809870EB2C408134910 /* JSONRPCEnvelope.swift */,
 			);
 			path = RPC;
@@ -205,6 +210,7 @@
 			isa = PBXGroup;
 			children = (
 				4D2197F6A2B7E899050437AB /* CodexRemoteTests.swift */,
+				5FF7AFB1095E4D55F8F9B48E /* JSONRPCClientTests.swift */,
 				3A46B0F715AC99CD902533D4 /* JSONRPCEnvelopeTests.swift */,
 				FB0BD4E81945814B56FD25C0 /* MockTransport.swift */,
 				AFD990BEF80BA894D65E3CC8 /* ProtocolTypesTests.swift */,
@@ -301,6 +307,7 @@
 				62753040920C67B96CE44594 /* ApprovalTypes.swift in Sources */,
 				00D035F4CCE176BD3E53D4F1 /* CodexRemoteApp.swift in Sources */,
 				27868CE1EA50E45AA73B6C43 /* InitializeTypes.swift in Sources */,
+				9E265052FF22A341C5FCADDA /* JSONRPCClient.swift in Sources */,
 				19D62A239106D552D1C812A9 /* JSONRPCEnvelope.swift in Sources */,
 				72FE542A0B5F413DFD6BF3A5 /* MessageTransport.swift in Sources */,
 				768F24B3698500CD6C53C0DA /* Methods.swift in Sources */,
@@ -320,6 +327,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C2F8DADF2BC6D387BDF605C0 /* CodexRemoteTests.swift in Sources */,
+				46E575375B31BBDD1B4241BB /* JSONRPCClientTests.swift in Sources */,
 				778221A116B554E3EA194D10 /* JSONRPCEnvelopeTests.swift in Sources */,
 				13472DEE88E768A9DEF5651A /* MockTransport.swift in Sources */,
 				2E22F5B05273F39AC264E778 /* ProtocolTypesTests.swift in Sources */,

@@ -13,27 +13,27 @@ enum RequestId: Codable, Hashable {
     }
 }
 
-struct JSONRPCRequest: Codable {
+struct JSONRPCRequest: Codable, Sendable {
     var jsonrpc = "2.0"
     let id: RequestId
     let method: String
     var params: AnyCodable?
 }
 
-struct JSONRPCNotification: Codable {
+struct JSONRPCNotification: Codable, Sendable {
     var jsonrpc = "2.0"
     let method: String
     var params: AnyCodable?
 }
 
-struct JSONRPCResponse: Codable {
+struct JSONRPCResponse: Codable, Sendable {
     var jsonrpc = "2.0"
     let id: RequestId
     let result: AnyCodable
 }
 
-struct JSONRPCErrorBody: Codable { let code: Int; let message: String; var data: AnyCodable? }
-struct JSONRPCError: Codable {
+struct JSONRPCErrorBody: Codable, Sendable { let code: Int; let message: String; var data: AnyCodable? }
+struct JSONRPCError: Codable, Sendable {
     var jsonrpc = "2.0"
     let id: RequestId
     let error: JSONRPCErrorBody

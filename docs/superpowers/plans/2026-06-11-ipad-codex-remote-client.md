@@ -1212,7 +1212,7 @@ git commit -m "feat(transport): MessageTransport protocol + ProxyChannel (newlin
 - Create: `ios/CodexRemote/RPC/JSONRPCClient.swift`
 - Test: `ios/CodexRemoteTests/JSONRPCClientTests.swift`
 
-- [ ] **Step 1：写失败测试（请求-响应 id 关联 + 通知流 + server 请求分发）**
+- [x] **Step 1：写失败测试（请求-响应 id 关联 + 通知流 + server 请求分发）**
 
 `ios/CodexRemoteTests/JSONRPCClientTests.swift`：
 
@@ -1266,12 +1266,12 @@ final class JSONRPCClientTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2：运行测试确认失败**
+- [x] **Step 2：运行测试确认失败**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/JSONRPCClientTests`
 Expected：编译失败（`JSONRPCClient` 未定义）。
 
-- [ ] **Step 3：实现 JSONRPCClient actor**
+- [x] **Step 3：实现 JSONRPCClient actor**
 
 `ios/CodexRemote/RPC/JSONRPCClient.swift`：
 
@@ -1359,12 +1359,12 @@ actor JSONRPCClient {
 }
 ```
 
-- [ ] **Step 4：运行测试确认通过**
+- [x] **Step 4：运行测试确认通过**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/JSONRPCClientTests`
 Expected：全部 PASS。
 
-- [ ] **Step 5：Commit**
+- [x] **Step 5：Commit**
 
 ```bash
 git add ios/CodexRemote/RPC/JSONRPCClient.swift ios/CodexRemoteTests/JSONRPCClientTests.swift
@@ -1478,7 +1478,7 @@ final class ThreadReducerTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 3：运行测试确认失败**
+- [x] **Step 3：运行测试确认失败**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ThreadReducerTests`
 Expected：编译失败（`ThreadReducer` 未定义）。
@@ -1556,7 +1556,7 @@ struct ThreadReducer {
 
 > 字段名（`itemId`/`delta`/`itemType`/`command`/`kind`）按真实 `ServerNotification.json` 核对；Task 20 录制真实帧后若有出入，回此处校正（这是设计 §13 留待 build 确认项之一）。
 
-- [ ] **Step 5：运行测试确认通过**
+- [x] **Step 5：运行测试确认通过**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ThreadReducerTests`
 Expected：全部 PASS。
@@ -1616,7 +1616,7 @@ final class ConnectionStoreTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2：运行测试确认失败**
+- [x] **Step 2：运行测试确认失败**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ConnectionStoreTests`
 Expected：编译失败（`ConnectionStore` 未定义）。
@@ -1725,7 +1725,7 @@ func liveTransportFactory(_ config: ConnectionConfig) async throws -> MessageTra
 }
 ```
 
-- [ ] **Step 5：运行测试确认通过**
+- [x] **Step 5：运行测试确认通过**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ConnectionStoreTests`
 Expected：全部 PASS。
@@ -1767,7 +1767,7 @@ final class KeychainStoreTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2：运行测试确认失败**
+- [x] **Step 2：运行测试确认失败**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/KeychainStoreTests`
 Expected：编译失败（`KeychainStore` 未定义）。
@@ -1821,7 +1821,7 @@ struct KeychainStore {
 }
 ```
 
-- [ ] **Step 4：运行测试确认通过**
+- [x] **Step 4：运行测试确认通过**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/KeychainStoreTests`
 Expected：PASS。
@@ -1932,7 +1932,7 @@ final class ProjectsStoreTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2：运行测试确认失败**
+- [x] **Step 2：运行测试确认失败**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ProjectsStoreTests`
 Expected：编译失败（`ProjectsStore` 未定义）。
@@ -1990,12 +1990,12 @@ final class ProjectsStore {
 }
 ```
 
-- [ ] **Step 4：运行测试确认通过**
+- [x] **Step 4：运行测试确认通过**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ProjectsStoreTests`
 Expected：全部 PASS。
 
-- [ ] **Step 5：Commit**
+- [x] **Step 5：Commit**
 
 ```bash
 git add ios/CodexRemote/Stores/ProjectsStore.swift ios/CodexRemoteTests/ProjectsStoreTests.swift
@@ -2131,7 +2131,7 @@ Expected：编译成功。在模拟器运行应看到连接配置界面（未连
 
 > UI 真功能（拉到真实会话）在 Task 20 真机 E2E 验证；此处仅验证骨架与目视无崩溃。
 
-- [ ] **Step 5：Commit**
+- [x] **Step 5：Commit**
 
 ```bash
 git add ios/CodexRemote/Views/RootSplitView.swift ios/CodexRemote/Views/SidebarView.swift ios/CodexRemote/App/CodexRemoteApp.swift
@@ -2186,7 +2186,7 @@ final class ConversationStoreTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2：运行测试确认失败**
+- [x] **Step 2：运行测试确认失败**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ConversationStoreTests`
 Expected：编译失败（`ConversationStore` 未定义）。
@@ -2252,12 +2252,12 @@ final class ConversationStore {
 }
 ```
 
-- [ ] **Step 4：运行测试确认通过**
+- [x] **Step 4：运行测试确认通过**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ConversationStoreTests`
 Expected：全部 PASS。
 
-- [ ] **Step 5：Commit**
+- [x] **Step 5：Commit**
 
 ```bash
 git add ios/CodexRemote/Stores/ConversationStore.swift ios/CodexRemoteTests/ConversationStoreTests.swift
@@ -2382,7 +2382,7 @@ struct DiffView: View {
 Run：`xcodebuild build -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)'`
 Expected：编译成功（功能性渲染在 Task 20 真机 E2E 验证）。
 
-- [ ] **Step 4：Commit**
+- [x] **Step 4：Commit**
 
 ```bash
 git add ios/CodexRemote/Views/ConversationView.swift ios/CodexRemote/Views/ItemCards.swift
@@ -2470,7 +2470,7 @@ struct ComposerView: View {
 Run：`xcodebuild build -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)'`
 Expected：编译成功。
 
-- [ ] **Step 4：Commit**
+- [x] **Step 4：Commit**
 
 ```bash
 git add ios/CodexRemote/Views/ComposerView.swift ios/CodexRemote/Views/ConversationView.swift
@@ -2542,7 +2542,7 @@ final class MidTurnControlTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2：运行测试确认失败**
+- [x] **Step 2：运行测试确认失败**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/MidTurnControlTests`
 Expected：编译失败（`steer`/`interrupt`/`enqueue` 未定义）。
@@ -2686,7 +2686,7 @@ final class ApprovalStoreTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2：运行测试确认失败**
+- [x] **Step 2：运行测试确认失败**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ApprovalStoreTests`
 Expected：编译失败（`ApprovalStore` 未定义）。
@@ -2926,7 +2926,7 @@ final class ApprovalBoundaryTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2：运行测试确认失败**
+- [x] **Step 2：运行测试确认失败**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ApprovalBoundaryTests`
 Expected：编译失败（方法/字段未定义）。
@@ -2960,7 +2960,7 @@ extension ApprovalStore {
 
 在 App 协调处，订阅 `rpc.notifications()`：遇到 `serverRequest/resolved` → 解析 requestId/threadId → `approvals.handleServerRequestResolved`；在 `ConnectionStore.phase` 变为 `.reconnecting` 时调 `approvals.handleConnectionLost()`。
 
-- [ ] **Step 5：运行测试确认通过**
+- [x] **Step 5：运行测试确认通过**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ApprovalBoundaryTests`
 Expected：全部 PASS。

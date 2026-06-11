@@ -1,6 +1,6 @@
 import Foundation
 
-struct AnyCodable: Codable {
+struct AnyCodable: Codable, @unchecked Sendable {
     let value: Any
     init(_ v: Any) { value = v }
     init(from d: Decoder) throws {
