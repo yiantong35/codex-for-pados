@@ -5,6 +5,13 @@ options:
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
+  developmentLanguage: zh-Hans
+
+# appearance-locale：声明已知区域，确保 String Catalog 编出 zh-Hans 与 en .lproj。
+knownRegions:
+  - zh-Hans
+  - en
+  - Base
 
 settings:
   base:

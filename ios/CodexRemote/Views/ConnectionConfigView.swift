@@ -16,28 +16,31 @@ struct ConnectionConfigView: View {
 
     var body: some View {
         Form {
-            Section("Mac 连接") {
-                TextField("主机 / IP", text: $host)
+            Section("conn.section.mac") {
+                TextField("conn.host", text: $host)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                TextField("SSH 端口", text: $sshPort)
+                TextField("conn.sshPort", text: $sshPort)
                     .keyboardType(.numberPad)
-                TextField("SSH 用户名", text: $user)
+                TextField("conn.sshUser", text: $user)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                Toggle("使用私钥（ed25519）", isOn: $usePrivateKey)
-                SecureField(usePrivateKey ? "私钥 PEM（-----BEGIN OPENSSH PRIVATE KEY-----）" : "密码",
+                Toggle("conn.usePrivateKey", isOn: $usePrivateKey)
+                SecureField(usePrivateKey ? "conn.privateKeyPlaceholder" : "conn.passwordPlaceholder",
                             text: $secret)
             }
             if let e = errorText {
                 Section { Text(e).foregroundStyle(.red) }
             }
             Section {
-                Button("连接") { Task { await connect() } }
+                Button("conn.connect") { Task { await connect() } }
                     .disabled(host.isEmpty || user.isEmpty)
             }
         }
-        .navigationTitle("连接配置")
+        .navigationTitle("conn.title")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { SettingsMenu() }
+        }
     }
 
     private func connect() async {
@@ -58,11 +61,11 @@ struct ConnectionConfigView: View {
             try await connection.connect(config: cfg)
             errorText = nil
         } catch TransportError.sshAuthFailed(let m) {
-            errorText = "SSH 鉴权失败：\(m)"
+            errorText = String(localized: "conn.error.authFailed \(m)")
         } catch TransportError.appServerUnreachable {
-            errorText = "app-server 不可达，请检查 Mac 端启动脚本是否已启用受管 daemon 远程控制。"
+            errorText = String(localized: "conn.error.appServerUnreachable")
         } catch {
-            errorText = "连接失败：\(error)"
+            errorText = String(localized: "conn.error.generic \(String(describing: error))")
         }
     }
 }

@@ -21,11 +21,11 @@ struct SidebarView: View {
                 }
             }
         }
-        .navigationTitle("项目")
+        .navigationTitle("sidebar.title")
         .overlay {
             if projects.projects.isEmpty {
-                ContentUnavailableView("暂无对话", systemImage: "tray",
-                                       description: Text("连接成功后将自动拉取会话列表。"))
+                ContentUnavailableView("sidebar.empty.title", systemImage: "tray",
+                                       description: Text("sidebar.empty.desc"))
             }
         }
         .task(id: connection.phase) {
@@ -46,17 +46,17 @@ struct SidebarView: View {
             }
             Spacer()
             if projects.hasPendingApproval(thread.id) {
-                Label("等待批准", systemImage: "clock.badge.exclamationmark")
+                Label("sidebar.pendingApproval", systemImage: "clock.badge.exclamationmark")
                     .labelStyle(.iconOnly)
                     .foregroundStyle(.orange)
-                    .accessibilityLabel("等待批准")
+                    .accessibilityLabel(Text("sidebar.pendingApproval"))
             }
         }
     }
 
     private func displayTitle(_ thread: ThreadSummary) -> String {
         if let name = thread.name, !name.isEmpty { return name }
-        return thread.preview.isEmpty ? "(无标题)" : thread.preview
+        return thread.preview.isEmpty ? String(localized: "sidebar.untitled") : thread.preview
     }
 
     private static let formatter = RelativeDateTimeFormatter()

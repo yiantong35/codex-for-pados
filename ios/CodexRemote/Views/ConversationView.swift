@@ -43,17 +43,17 @@ struct ConversationView: View {
                 ComposerView(store: store)
             }
         }
-        .navigationTitle("对话")
+        .navigationTitle("conv.title")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if store?.state.isTurnRunning == true {
-                    Label("进行中", systemImage: "circle.fill")
+                    Label("conv.running", systemImage: "circle.fill")
                         .labelStyle(.titleAndIcon)
                         .font(.caption)
                         .foregroundStyle(.orange)
                 } else if store != nil {
-                    Label("空闲", systemImage: "checkmark.circle")
+                    Label("conv.idle", systemImage: "checkmark.circle")
                         .labelStyle(.titleAndIcon)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -76,7 +76,7 @@ struct ConversationView: View {
     private var turnRunningIndicator: some View {
         HStack(spacing: 8) {
             ProgressView().controlSize(.small)
-            Text("生成中…").font(.footnote).foregroundStyle(.secondary)
+            Text("conv.generating").font(.footnote).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

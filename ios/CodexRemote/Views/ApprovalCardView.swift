@@ -8,11 +8,11 @@ struct ApprovalCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label(card.isFileChange ? "文件改动审批" : "命令执行审批",
+            Label(card.isFileChange ? "approval.fileTitle" : "approval.commandTitle",
                   systemImage: card.isFileChange ? "doc.badge.gearshape" : "terminal")
                 .font(.headline)
             if card.awaitingRecovery {
-                Label("连接已断开，等待重连后恢复", systemImage: "wifi.exclamationmark")
+                Label("approval.awaitingRecovery", systemImage: "wifi.exclamationmark")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -24,13 +24,13 @@ struct ApprovalCardView: View {
                     .lineLimit(8)
             }
             HStack {
-                Button("是") { resolve(.approve) }
+                Button("approval.yes") { resolve(.approve) }
                     .buttonStyle(.borderedProminent)
                 if !card.isFileChange, let prefix = card.proposedPrefix ?? defaultPrefix(card.title) {
-                    Button("是，且本会话放行此前缀") { resolve(.approveForSessionPrefix(prefix)) }
+                    Button("approval.yesPrefix") { resolve(.approveForSessionPrefix(prefix)) }
                 }
                 Spacer()
-                Button("否", role: .destructive) { resolve(.deny) }
+                Button("approval.no", role: .destructive) { resolve(.deny) }
             }
             .disabled(card.awaitingRecovery)
         }

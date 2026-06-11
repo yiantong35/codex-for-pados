@@ -16,11 +16,14 @@ struct RootSplitView: View {
                 ConversationView(threadId: id)
                     .id(id)
             } else {
-                ContentUnavailableView("选择一个对话",
+                ContentUnavailableView("split.selectConversation",
                                        systemImage: "bubble.left.and.bubble.right")
             }
         } detail: {
             InspectorPlaceholderView()
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { SettingsMenu() }
         }
     }
 }
@@ -28,6 +31,6 @@ struct RootSplitView: View {
 /// 右栏检视器占位（v1 简态，富态留 v2+）。
 struct InspectorPlaceholderView: View {
     var body: some View {
-        ContentUnavailableView("输出 / 来源", systemImage: "sidebar.right")
+        ContentUnavailableView("split.inspector", systemImage: "sidebar.right")
     }
 }

@@ -28,9 +28,9 @@ struct ComposerView: View {
             if imageDataURL != nil {
                 HStack(spacing: 6) {
                     Image(systemName: "photo").foregroundStyle(.blue)
-                    Text("已附加图片").font(.footnote).foregroundStyle(.secondary)
+                    Text("composer.imageAttached").font(.footnote).foregroundStyle(.secondary)
                     Spacer()
-                    Button("移除") { imageDataURL = nil; photoItem = nil }
+                    Button("composer.remove") { imageDataURL = nil; photoItem = nil }
                         .font(.footnote)
                 }
             }
@@ -39,17 +39,17 @@ struct ComposerView: View {
                     Image(systemName: "plus.circle").font(.title3)
                 }
                 Menu {
-                    Picker("模型", selection: $model) {
+                    Picker("composer.model", selection: $model) {
                         ForEach(Self.models, id: \.self) { Text($0).tag($0) }
                     }
-                    Picker("推理强度", selection: $effort) {
+                    Picker("composer.effort", selection: $effort) {
                         ForEach(Self.efforts, id: \.self) { Text($0.rawValue).tag($0) }
                     }
                 } label: {
                     Image(systemName: "slider.horizontal.3").font(.title3)
                 }
 
-                TextField("发消息…", text: $text, axis: .vertical)
+                TextField("composer.placeholder", text: $text, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(1...5)
 
@@ -61,11 +61,11 @@ struct ComposerView: View {
                         Image(systemName: "stop.circle.fill").font(.title2)
                     }
                     Menu {
-                        Button("转向当前回合") { Task { await trySteer() } }
+                        Button("composer.steer") { Task { await trySteer() } }
                             .disabled(store.state.activeTurnKind != nil)
-                        Button("排队，回合结束后发送") { enqueueCurrent() }
+                        Button("composer.enqueue") { enqueueCurrent() }
                         if let kind = store.state.activeTurnKind {
-                            Text("本回合（\(kind.rawValue)）不支持转向")
+                            Text("composer.noSteer \(kind.rawValue)")
                         }
                     } label: {
                         Image(systemName: "arrow.up.circle.fill").font(.title2)

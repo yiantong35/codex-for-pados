@@ -46,7 +46,7 @@ final class ApprovalStore {
             id: req.id,
             method: req.method,
             threadId: threadId,
-            title: isFile ? (p["file"] as? String ?? "文件改动") : (p["command"] as? String ?? "命令"),
+            title: isFile ? (p["file"] as? String ?? String(localized: "approval.fallback.file")) : (p["command"] as? String ?? String(localized: "approval.fallback.command")),
             detail: isFile ? (p["diff"] as? String ?? "") : (p["cwd"] as? String ?? ""),
             proposedPrefix: p["proposedExecpolicyAmendment"] as? [String],
             isFileChange: isFile)

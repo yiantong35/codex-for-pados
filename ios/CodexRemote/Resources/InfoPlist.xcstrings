@@ -1,0 +1,13 @@
+{
+  "sourceLanguage" : "zh-Hans",
+  "strings" : {
+    "NSLocalNetworkUsageDescription" : {
+      "comment" : "Local network permission prompt",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connect to the Codex service running on your Mac on the same local network." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接同一局域网内你的 Mac 上运行的 Codex 服务。" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

@@ -7,6 +7,9 @@ struct CodexRemoteApp: App {
     @State private var connection = ConnectionStore(transportFactory: liveTransportFactory)
     @State private var projects = ProjectsStore()
     @State private var approvals = ApprovalStore()
+    // appearance-locale：语言/主题 manager 在根持有并注入；驱动运行时切换。
+    @State private var localeManager = LocaleManager()
+    @State private var themeManager = ThemeManager()
 
     var body: some Scene {
         WindowGroup {
@@ -14,6 +17,12 @@ struct CodexRemoteApp: App {
                 .environment(connection)
                 .environment(projects)
                 .environment(approvals)
+                .environment(localeManager)
+                .environment(themeManager)
+                // 运行时换语言：注入选定 locale，所有 Text(LocalizedStringKey) 跟随刷新。
+                .environment(\.locale, localeManager.locale)
+                // 运行时换主题：nil = 跟随系统。
+                .preferredColorScheme(themeManager.colorScheme)
         }
     }
 }
@@ -56,7 +65,7 @@ struct RootView: View {
 
     @ViewBuilder private var reconnectBanner: some View {
         if connection.phase == .reconnecting {
-            Text("重连中…")
+            Text("root.reconnecting")
                 .font(.callout)
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(.yellow.opacity(0.3), in: Capsule())
