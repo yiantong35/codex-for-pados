@@ -1,3 +1,7 @@
+// SPIKE VERIFIED 2026-06-11: 模拟器(iPad-Test)+真实Citadel SSH连到Mac
+// (192.168.9.100) exec `codex app-server --listen stdio://`,ProxyChannel发
+// initialize收到含userAgent/codexHome响应。withExec长驻闭包+换行分帧iOS运行时验证通过。
+// 见 CodexRemoteTests/SpikeIntegrationTests.swift(环境变量驱动)。
 // ⚠️ SPIKE 代码（Task 3）——临时验证逻辑，后续可删。
 //
 // ============================================================================

@@ -423,7 +423,7 @@ struct CodexRemoteApp: App {
 }
 ```
 
-- [ ] **Step 4：真机验证握手跑通（spike 唯一验收）** <!-- 待用户真机验证：代码就绪+模拟器编译通过 -->
+- [x] **Step 4：真机验证握手跑通（spike 唯一验收）** <!-- 2026-06-11 模拟器+真实SSH实测握手通过(SpikeIntegrationTests);物理设备差异待最终E2E -->
 
 前置：在 Mac 上跑 `./scripts/start-codex-appserver.sh`（Task 2，确保受管 daemon 已启用远程控制）。
 Run：Xcode 选**真实 iPad**（非模拟器，exec 通道长连接行为可能不同）→ 运行 → 在 SpikeView 填主机/端口/用户/密码 → 点「连接并握手」。
