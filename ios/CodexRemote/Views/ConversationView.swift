@@ -6,8 +6,14 @@ import SwiftUI
 /// composer（底部输入）在 Task 16 实现，此处先留只读占位。
 struct ConversationView: View {
     @Environment(ConnectionStore.self) private var connection
+    @Environment(ApprovalStore.self) private var approvals
     let threadId: String
     @State private var store: ConversationStore?
+
+    /// 属于当前线程的待处理审批卡（内联在对话流末尾）。
+    private var threadApprovals: [ApprovalCard] {
+        approvals.cards.filter { $0.threadId == threadId }
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -15,6 +21,9 @@ struct ConversationView: View {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     ForEach(store?.state.items ?? []) { item in
                         ItemCard(item: item).id(item.id)
+                    }
+                    ForEach(threadApprovals) { card in
+                        ApprovalCardView(card: card).id(card.id)
                     }
                     if store?.state.isTurnRunning == true {
                         turnRunningIndicator.id(Self.turnIndicatorID)

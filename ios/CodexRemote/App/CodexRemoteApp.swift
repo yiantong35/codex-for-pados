@@ -6,12 +6,14 @@ struct CodexRemoteApp: App {
     // 生产传 liveTransportFactory（SSH + codex app-server exec proxy）。
     @State private var connection = ConnectionStore(transportFactory: liveTransportFactory)
     @State private var projects = ProjectsStore()
+    @State private var approvals = ApprovalStore()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(connection)
                 .environment(projects)
+                .environment(approvals)
         }
     }
 }
@@ -21,6 +23,9 @@ struct CodexRemoteApp: App {
 /// 注：SpikeView（Task 3 临时握手验证视图）保留在 Spike/ 目录，不再作为根视图。
 struct RootView: View {
     @Environment(ConnectionStore.self) private var connection
+    @Environment(ProjectsStore.self) private var projects
+    @Environment(ApprovalStore.self) private var approvals
+    @State private var coordinator: ApprovalCoordinator?
 
     var body: some View {
         Group {
@@ -32,6 +37,22 @@ struct RootView: View {
             }
         }
         .overlay(alignment: .top) { reconnectBanner }
+        // 连接就绪/重连成功后把审批层接到当前 rpc；断线（reconnecting）时标记待恢复（绝不自动批准）。
+        .onChange(of: rpcIdentity) { _, _ in
+            let coord = coordinator ?? ApprovalCoordinator(store: approvals, projects: projects)
+            coordinator = coord
+            if connection.phase == .ready, let rpc = connection.rpc {
+                coord.bind(rpc: rpc)
+            }
+        }
+        .onChange(of: connection.phase) { _, phase in
+            if phase == .reconnecting { coordinator?.connectionLost() }
+        }
+    }
+
+    /// rpc 实例变化的探测键（ObjectIdentifier 字符串），用于在(重)连后重新 bind。
+    private var rpcIdentity: String {
+        connection.rpc.map { "\(ObjectIdentifier($0))" } ?? "nil"
     }
 
     @ViewBuilder private var reconnectBanner: some View {
