@@ -2273,7 +2273,7 @@ git commit -m "feat(stores): ConversationStore wires turn/start, resume, streami
 - Create: `ios/CodexRemote/Views/ConversationView.swift`
 - Create: `ios/CodexRemote/Views/ItemCards.swift`
 
-- [ ] **Step 1：实现对话流视图（按 item 类型分发卡片）**
+- [x] **Step 1：实现对话流视图（按 item 类型分发卡片）**
 
 `ios/CodexRemote/Views/ConversationView.swift`：
 
@@ -2313,7 +2313,7 @@ struct ConversationView: View {
 }
 ```
 
-- [ ] **Step 2：实现各类 item 卡片（正文 Markdown / 命令输出 / 文件 diff）**
+- [x] **Step 2：实现各类 item 卡片（正文 Markdown / 命令输出 / 文件 diff）**
 
 `ios/CodexRemote/Views/ItemCards.swift`：
 
@@ -2376,7 +2376,7 @@ struct DiffView: View {
 
 > `ComposerView` 在 Task 16 实现；此处先引用其签名 `ComposerView(store:)`。若 Task 16 尚未做，临时用 `Text("composer")` 占位编译，待 Task 16 替换。
 
-- [ ] **Step 3：编译验证**
+- [x] **Step 3：编译验证**
 
 Run：`xcodebuild build -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)'`
 Expected：编译成功（功能性渲染在 Task 20 真机 E2E 验证）。

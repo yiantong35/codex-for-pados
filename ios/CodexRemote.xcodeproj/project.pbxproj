@@ -40,10 +40,12 @@
 		BEAA956A0743B18240709DE1 /* agentDeltaSequence.json in Resources */ = {isa = PBXBuildFile; fileRef = 063B0130DD0BA4DB96BC3109 /* agentDeltaSequence.json */; };
 		C2F8DADF2BC6D387BDF605C0 /* CodexRemoteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D2197F6A2B7E899050437AB /* CodexRemoteTests.swift */; };
 		C4237168B6B2008767CC37C2 /* SpikeIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F9AA0558F0DFBF8808437B4 /* SpikeIntegrationTests.swift */; };
+		CF8F6B2441D5F2864FF029F2 /* ConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9267A14CDE31BC18019A9A4 /* ConversationView.swift */; };
 		D2A8C908330E777DD8F5DF97 /* SpikeRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E1DB34FCBBD8FBD8DDEF19D /* SpikeRunner.swift */; };
 		D5B6DA068B60C12A08A999F2 /* KeychainStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 882D98A278D8B64C660B8A05 /* KeychainStoreTests.swift */; };
 		D70B6AACE385E2B532842EC5 /* TurnTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8F51BD06F0FA6F6B8896FEA /* TurnTypes.swift */; };
 		F370141604AEBDF313F80D49 /* ThreadReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC6C6C5BA4E33943DED8B45A /* ThreadReducer.swift */; };
+		F598655776CA55B9B356105C /* ItemCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3F2D64D4DBE754E71DE9785 /* ItemCards.swift */; };
 		FF3225FE3ECC3EFFECDD3484 /* ProxyChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 538E3EC9A90E5AA65ECEC7A1 /* ProxyChannel.swift */; };
 		FFA2F39B69D91D29675AC2E5 /* RootSplitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5213B70EFC0F91FF7C6EAF29 /* RootSplitView.swift */; };
 /* End PBXBuildFile section */
@@ -91,8 +93,10 @@
 		A2FC01F7E01FE2DD6E33085E /* ThreadTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadTypes.swift; sourceTree = "<group>"; };
 		AC6C6C5BA4E33943DED8B45A /* ThreadReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadReducer.swift; sourceTree = "<group>"; };
 		AFD990BEF80BA894D65E3CC8 /* ProtocolTypesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolTypesTests.swift; sourceTree = "<group>"; };
+		C3F2D64D4DBE754E71DE9785 /* ItemCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemCards.swift; sourceTree = "<group>"; };
 		C8F51BD06F0FA6F6B8896FEA /* TurnTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnTypes.swift; sourceTree = "<group>"; };
 		CC4B92A18365176499E0BFAD /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		D9267A14CDE31BC18019A9A4 /* ConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationView.swift; sourceTree = "<group>"; };
 		DE1457298E5D37A14AAB29D9 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		DF050AC90C38320E8F8E0D52 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		E215C9203892AFED56C0141C /* InitializeTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InitializeTypes.swift; sourceTree = "<group>"; };
@@ -155,6 +159,8 @@
 			children = (
 				9DC1E8FE94E8A15D040ECBA7 /* .gitkeep */,
 				9B894142E63413C7F50ACF58 /* ConnectionConfigView.swift */,
+				D9267A14CDE31BC18019A9A4 /* ConversationView.swift */,
+				C3F2D64D4DBE754E71DE9785 /* ItemCards.swift */,
 				5213B70EFC0F91FF7C6EAF29 /* RootSplitView.swift */,
 				FCE6EE6E276995AE35699CCF /* SidebarView.swift */,
 			);
@@ -383,7 +389,9 @@
 				2DFB2CAF97BD2AB649FA006C /* ConnectionStore.swift in Sources */,
 				A5E3135117192215A58A0725 /* ConversationModels.swift in Sources */,
 				A0657FFE6724B05B96DEEF24 /* ConversationStore.swift in Sources */,
+				CF8F6B2441D5F2864FF029F2 /* ConversationView.swift in Sources */,
 				27868CE1EA50E45AA73B6C43 /* InitializeTypes.swift in Sources */,
+				F598655776CA55B9B356105C /* ItemCards.swift in Sources */,
 				9E265052FF22A341C5FCADDA /* JSONRPCClient.swift in Sources */,
 				19D62A239106D552D1C812A9 /* JSONRPCEnvelope.swift in Sources */,
 				51A6B737CEFC17965BF8AAE5 /* KeychainStore.swift in Sources */,

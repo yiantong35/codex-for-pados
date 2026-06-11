@@ -11,12 +11,10 @@ struct RootSplitView: View {
             SidebarView(selectedThreadId: $selectedThreadId)
         } content: {
             if let id = selectedThreadId {
-                // 真正的对话流在 Task 15（ConversationView）接入，这里先占位显示选中 id。
-                ContentUnavailableView {
-                    Label("对话", systemImage: "bubble.left.and.bubble.right")
-                } description: {
-                    Text("已选中对话：\(id)\n（对话流将在后续任务接入）")
-                }
+                // 选中对话时装配 ConversationStore（ConversationView 内用 connection.rpc 构造）。
+                // id 作为 .task(id:) 触发键，切换对话时重建 store + startObserving + resume。
+                ConversationView(threadId: id)
+                    .id(id)
             } else {
                 ContentUnavailableView("选择一个对话",
                                        systemImage: "bubble.left.and.bubble.right")
