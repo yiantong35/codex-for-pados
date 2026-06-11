@@ -454,7 +454,7 @@ git commit -m "spike: verify Citadel SSH exec codex app-server proxy + stdio ini
 - Create: `ios/CodexRemote/RPC/JSONRPCEnvelope.swift`
 - Test: `ios/CodexRemoteTests/JSONRPCEnvelopeTests.swift`
 
-- [ ] **Step 1：写失败测试（解码四类消息 + RequestId 双形）**
+- [x] **Step 1：写失败测试（解码四类消息 + RequestId 双形）**
 
 `ios/CodexRemoteTests/JSONRPCEnvelopeTests.swift`：
 
@@ -499,12 +499,12 @@ final class JSONRPCEnvelopeTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2：运行测试确认失败**
+- [x] **Step 2：运行测试确认失败**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/JSONRPCEnvelopeTests`
 Expected：编译失败 / 测试失败，因 `JSONRPCMessage` 等类型尚未定义。
 
-- [ ] **Step 3：实现信封类型**
+- [x] **Step 3：实现信封类型**
 
 `ios/CodexRemote/RPC/JSONRPCEnvelope.swift`：
 
@@ -609,12 +609,12 @@ struct AnyCodable: Codable {
 }
 ```
 
-- [ ] **Step 4：运行测试确认通过**
+- [x] **Step 4：运行测试确认通过**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/JSONRPCEnvelopeTests`
 Expected：全部 PASS。
 
-- [ ] **Step 5：Commit**
+- [x] **Step 5：Commit**
 
 ```bash
 git add ios/CodexRemote/RPC ios/CodexRemoteTests/JSONRPCEnvelopeTests.swift
