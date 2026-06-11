@@ -217,7 +217,7 @@ git commit -m "feat(protocol): generate app-server schema/ts into repo, pin code
 
 > 本任务无 Swift 代码，纯 shell。可与 Task 3 spike 并行。验证靠在真实 Mac 上运行脚本（手动），无单元测试。
 
-- [ ] **Step 1：写启动脚本骨架与参数**
+- [x] **Step 1：写启动脚本骨架与参数**
 
 `scripts/start-codex-appserver.sh`：
 
@@ -244,7 +244,7 @@ if echo "$REMOTE_LOGIN" | grep -qi 'Off'; then
 fi
 ```
 
-- [ ] **Step 2：确保受管 daemon 启用远程控制**
+- [x] **Step 2：确保受管 daemon 启用远程控制**
 
 接上文，追加：经 `codex app-server daemon bootstrap --remote-control` 拉起受管 daemon 并启用远程控制；若 daemon 已运行则不重复创建，仅经 `enable-remote-control` 确保远程控制启用，并报告 daemon 状态/版本。**不**自起 `--listen ws://` 进程；iPad 经 SSH exec `codex app-server proxy` 桥接到 control socket（`~/.codex/app-server-control/app-server-control.sock`，仅属主可读）。
 
@@ -263,7 +263,7 @@ echo "  daemon 版本 : $DAEMON_VERSION"
 echo "  control sock: $SOCK"
 ```
 
-- [ ] **Step 3：追加连接信息输出**
+- [x] **Step 3：追加连接信息输出**
 
 接上文，追加：打印 LAN IP / SSH 用户名，以及 iPad 经 SSH exec `codex app-server proxy` 接入的说明。daemon 已由 Step 2 拉起并在后台常驻，本脚本不再持有前台进程。
 
@@ -281,7 +281,7 @@ echo "  control sock: $SOCK（仅属主可读，与桌面 app 共享受管 daemo
 echo "──────────────────────────────────────────"
 ```
 
-- [ ] **Step 4：本地手动验证四个场景**
+- [x] **Step 4：本地手动验证四个场景**
 
 Run（在真实 Mac）：
 
@@ -301,6 +301,13 @@ Expected：打印 daemon 版本、control socket 路径、LAN IP / SSH 用户名
 Expected：打印“受管 daemon 已在运行，仅确保远程控制启用（不重复创建实例）”，不重复 bootstrap，退出码 0。
 
 > 场景 B（sshd 未开）与场景 D（版本不符）若当前 Mac 不满足触发条件，逐行 review 分支逻辑确认正确；在 E2E（Task 20）时再实测一次。
+
+> **2026-06-11 实机验证发现（worktree 实跑）：**
+> - 初版脚本用 `daemon version` 退出码两态判活有缺陷：`version` 报 `status:running` 只代表 control socket 上有 app-server 应答，**不保证它是 bootstrap 注册的“受管”实例**。本机 socket 实际被一个非受管 app-server（PID 51034，`~/.local/bin/codex app-server --listen unix://`，PPID=1，无 LaunchAgent）占用，导致 `enable-remote-control` 返回 `app server is running but is not managed by codex app-server daemon`（退出码 1，无副作用）。
+> - 已修为三态：受管已运行→enable 成功；非受管占用→明确提示（列占用进程 + 给出退出占用或 `daemon restart --remote-control` 接管选项），**不自动 stop/restart 以免破坏 desktop**；无实例→bootstrap。
+> - 场景 A/C 在“非受管占用”态下走的是新提示分支（符合 spec“不与 desktop app 的 app-server 冲突”）；待本机 socket 由受管 daemon 接管后即走 enable 成功分支，留待 Task 20 E2E 实测。
+> - sshd 检测：`systemsetup -getremotelogin` 无 sudo 时输出 `You need administrator access... exiting!`（退出码 0，不匹配 On/Off），脚本正确回退到 `launchctl print system/com.openssh.sshd`（loaded → 视为开启）。本机 `pgrep -x sshd` 无常驻进程属 macOS 按需拉起的正常现象，launchctl 判据比 pgrep 更可靠。
+> - 全程 desktop app-server 进程数 4→4 不变，受管 daemon 仍 running，零破坏。回退方式：`codex app-server daemon disable-remote-control`。
 
 - [ ] **Step 5：Commit**
 
