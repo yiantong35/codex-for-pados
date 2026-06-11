@@ -10,7 +10,12 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     DEVELOPMENT_TEAM: ""
-    CODE_SIGNING_ALLOWED: NO
+    # 模拟器 keychain entitlement 需 entitlements 实际签入二进制：
+    # CODE_SIGNING_ALLOWED=NO 会丢弃 entitlements 导致 SecItemAdd 返回 errSecMissingEntitlement(-34018)。
+    # 故启用本地 ad-hoc 签名（"Sign to Run Locally"），keychain-access-groups 方能生效。
+    CODE_SIGNING_ALLOWED: YES
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
 
 packages:
   Citadel:
@@ -26,12 +31,14 @@ targets:
       - path: CodexRemote
         excludes:
           - "Info.plist"
+          - "CodexRemote.entitlements"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.codexremote
         TARGETED_DEVICE_FAMILY: "2"
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: CodexRemote/Info.plist
+        CODE_SIGN_ENTITLEMENTS: CodexRemote/CodexRemote.entitlements
         SWIFT_VERSION: "6.0"
     dependencies:
       - package: Citadel
