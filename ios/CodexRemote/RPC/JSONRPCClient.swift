@@ -56,7 +56,15 @@ actor JSONRPCClient {
             } catch {
                 await self.failAllPending(error)
             }
+            // 底层 transport 流结束/出错即连接关闭：终结对外的通知与 server-request 流，
+            // 让上层（ConnectionStore）能据此感知断线并触发重连。
+            await self.finishStreams()
         }
+    }
+
+    private func finishStreams() {
+        notifContinuation.finish()
+        serverRequestContinuation.finish()
     }
 
     func stop() {

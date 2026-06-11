@@ -1578,7 +1578,7 @@ git commit -m "feat(domain): ThreadReducer reduces notifications to conversation
 - Create: `ios/CodexRemote/Stores/ConnectionStore.swift`
 - Test: `ios/CodexRemoteTests/ConnectionStoreTests.swift`
 
-- [ ] **Step 1：写失败测试（状态机转移 + 握手 + 鉴权失败映射）**
+- [x] **Step 1：写失败测试（状态机转移 + 握手 + 鉴权失败映射）**
 
 `ios/CodexRemoteTests/ConnectionStoreTests.swift`：
 
@@ -1621,7 +1621,7 @@ final class ConnectionStoreTests: XCTestCase {
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ConnectionStoreTests`
 Expected：编译失败（`ConnectionStore` 未定义）。
 
-- [ ] **Step 3：实现 ConnectionStore（@Observable 状态机，设计 §7）**
+- [x] **Step 3：实现 ConnectionStore（@Observable 状态机，设计 §7）**
 
 `ios/CodexRemote/Stores/ConnectionStore.swift`：
 
@@ -1709,7 +1709,7 @@ final class ConnectionStore {
 }
 ```
 
-- [ ] **Step 4：把真实工厂接线（SSH → exec codex app-server proxy）放在 App 装配处**
+- [x] **Step 4：把真实工厂接线（SSH → exec codex app-server proxy）放在 App 装配处**
 
 在 `ios/CodexRemote/App/` 增加一个装配函数（生产用），把 Task 6/7 组合成 `transportFactory`：
 
@@ -1718,10 +1718,9 @@ final class ConnectionStore {
 import Foundation
 
 func liveTransportFactory(_ config: ConnectionConfig) async throws -> MessageTransport {
-    let ssh = SSHClientWrapper()
-    let channel = try await ssh.connect(
+    // Task 6/7 后：SSHClientWrapper 为 enum，connect 直接返回已 start 的 ProxyChannel（即 MessageTransport）。
+    try await SSHClientWrapper.connect(
         host: config.host, sshPort: config.sshPort, auth: config.auth)
-    return ProxyChannel(channel: channel)
 }
 ```
 
