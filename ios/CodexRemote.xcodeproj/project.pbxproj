@@ -9,7 +9,10 @@
 /* Begin PBXBuildFile section */
 		00D035F4CCE176BD3E53D4F1 /* CodexRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C01C7EC77E19B927C5E72B /* CodexRemoteApp.swift */; };
 		01BE5A03B6CE5A4875A7AD98 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 55AF6C40AC2043794D057E06 /* Citadel */; };
+		322911E06AEA9F543AC79DB9 /* SpikeWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76E9EB3A0175BAA7B5A503AD /* SpikeWire.swift */; };
+		47846F97DD20DAA3B56C454D /* SpikeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A71BFD40267DB1A681CD764 /* SpikeView.swift */; };
 		C2F8DADF2BC6D387BDF605C0 /* CodexRemoteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D2197F6A2B7E899050437AB /* CodexRemoteTests.swift */; };
+		D2A8C908330E777DD8F5DF97 /* SpikeRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E1DB34FCBBD8FBD8DDEF19D /* SpikeRunner.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -25,7 +28,10 @@
 /* Begin PBXFileReference section */
 		044B2FFC23DFE4CE15D6EABC /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		0A271F024062297B9E0875E5 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		0E1DB34FCBBD8FBD8DDEF19D /* SpikeRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeRunner.swift; sourceTree = "<group>"; };
 		4D2197F6A2B7E899050437AB /* CodexRemoteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexRemoteTests.swift; sourceTree = "<group>"; };
+		5A71BFD40267DB1A681CD764 /* SpikeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeView.swift; sourceTree = "<group>"; };
+		76E9EB3A0175BAA7B5A503AD /* SpikeWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeWire.swift; sourceTree = "<group>"; };
 		99A9FA53DC2DFA3F7E44AD28 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		9DC1E8FE94E8A15D040ECBA7 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		CC4B92A18365176499E0BFAD /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
@@ -113,6 +119,7 @@
 				7031D82AFA3F7B1048E6BC92 /* Protocol */,
 				8AF8A5A053BA2082AE37258B /* RPC */,
 				4216DAAF73C2AA95BEC2DAF9 /* Security */,
+				F1F75BF0B0205AFDD1A0017E /* Spike */,
 				4DC2508353D071036D1C5EE4 /* Stores */,
 				89DA1C49302F32C7D9DB5333 /* Transport */,
 				5208BDFB1DB8FEC37E7C4D01 /* Views */,
@@ -143,6 +150,16 @@
 				FFBA120F4EEB38BFB307D900 /* CodexRemoteTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		F1F75BF0B0205AFDD1A0017E /* Spike */ = {
+			isa = PBXGroup;
+			children = (
+				0E1DB34FCBBD8FBD8DDEF19D /* SpikeRunner.swift */,
+				5A71BFD40267DB1A681CD764 /* SpikeView.swift */,
+				76E9EB3A0175BAA7B5A503AD /* SpikeWire.swift */,
+			);
+			path = Spike;
 			sourceTree = "<group>";
 		};
 		FD5327EB046E26D0A91F32DE /* CodexRemoteTests */ = {
@@ -239,6 +256,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				00D035F4CCE176BD3E53D4F1 /* CodexRemoteApp.swift in Sources */,
+				D2A8C908330E777DD8F5DF97 /* SpikeRunner.swift in Sources */,
+				47846F97DD20DAA3B56C454D /* SpikeView.swift in Sources */,
+				322911E06AEA9F543AC79DB9 /* SpikeWire.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

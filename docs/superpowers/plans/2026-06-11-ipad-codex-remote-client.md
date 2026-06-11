@@ -328,7 +328,7 @@ git commit -m "feat(mac-launcher): one-shot script to bootstrap managed daemon w
 - Create: `ios/CodexRemote/Spike/SpikeView.swift`（临时验证视图，后续可删）
 - Create: `ios/CodexRemote/Spike/SpikeRunner.swift`（临时验证逻辑）
 
-- [ ] **Step 1：写 spike 入口视图**
+- [x] **Step 1：写 spike 入口视图**
 
 `ios/CodexRemote/Spike/SpikeView.swift` —— 一个有「连接」按钮和日志文本区的最简视图，把主机/端口/用户/密码硬编码为 `@State` 默认值（spike 期间可手填，不走 Keychain）：
 
@@ -365,7 +365,7 @@ struct SpikeView: View {
 }
 ```
 
-- [ ] **Step 2：写 spike 运行逻辑（SSH + exec proxy + initialize）**
+- [x] **Step 2：写 spike 运行逻辑（SSH + exec proxy + initialize）**
 
 `ios/CodexRemote/Spike/SpikeRunner.swift` —— 用 Citadel 建 SSH，开 exec 通道运行远端命令 `codex app-server proxy`（它把 stdio 字节透明桥接到受管 daemon 的 control socket），在该 exec 通道的 stdout/stdin 上发送一条 `initialize` JSON-RPC（换行结尾），读回响应后发 `initialized` 通知：
 
@@ -408,7 +408,7 @@ struct SpikeRunner {
 
 > `SpikeWire` 是 spike 内联的极小帮手（一个 enum + 两个静态 async 方法），负责经 exec 通道 stdio 把字符串（换行结尾）写出并读回第一条完整 JSON。spike 不追求工程化，只要**真机上能跑通握手**。若 Citadel 的 exec 通道 API 命名/签名与上文不符，以 Citadel 当前版本源码/文档为准，但语义不变：建立 exec 通道运行 `codex app-server proxy` 并在其 stdio 上收发换行分隔 JSON。
 
-- [ ] **Step 3：把 spike 视图挂到 App 根（临时）**
+- [x] **Step 3：把 spike 视图挂到 App 根（临时）** <!-- 已挂载 + 模拟器 BUILD SUCCEEDED (iPad-Test) 2026-06-11 -->
 
 修改 `ios/CodexRemote/App/CodexRemoteApp.swift`，临时 `SpikeView()` 作根视图：
 
@@ -423,7 +423,7 @@ struct CodexRemoteApp: App {
 }
 ```
 
-- [ ] **Step 4：真机验证握手跑通（spike 唯一验收）**
+- [ ] **Step 4：真机验证握手跑通（spike 唯一验收）** <!-- 待用户真机验证：代码就绪+模拟器编译通过 -->
 
 前置：在 Mac 上跑 `./scripts/start-codex-appserver.sh`（Task 2，确保受管 daemon 已启用远程控制）。
 Run：Xcode 选**真实 iPad**（非模拟器，exec 通道长连接行为可能不同）→ 运行 → 在 SpikeView 填主机/端口/用户/密码 → 点「连接并握手」。
@@ -431,7 +431,7 @@ Expected：日志区显示「握手成功 ✅」并打印含 `userAgent` / `code
 
 > 若失败：加载 **superpowers:systematic-debugging** skill 定位（Citadel SSH 是否建立？exec 通道是否成功运行 `codex app-server proxy`？JSON 是否被 app-server 接受？）。**根因未定位前不得继续 Task 6+**，因为后续传输层完全建立在此之上。
 
-- [ ] **Step 5：记录 spike 结论**
+- [x] **Step 5：记录 spike 结论** <!-- 已记录于 SpikeRunner.swift 顶部：Citadel withExec 真实 API + 与伪代码偏差 -->
 
 在 `ios/CodexRemote/Spike/SpikeRunner.swift` 顶部用一行注释记录验证结论（如：`// SPIKE PASS 2026-06-11: Citadel SSH exec codex app-server proxy + stdio initialize 握手在 iPad 真机跑通`），并记录任何 API 偏差，供 Task 6 复用。
 
