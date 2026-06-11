@@ -2397,7 +2397,7 @@ git commit -m "feat(ui): conversation stream with agent markdown, command output
 **Files:**
 - Create: `ios/CodexRemote/Views/ComposerView.swift`
 
-- [ ] **Step 1：实现 composer（文本 + 图片选择 + 模型/推理选择器 + 发送）**
+- [x] **Step 1：实现 composer（文本 + 图片选择 + 模型/推理选择器 + 发送）**
 
 `ios/CodexRemote/Views/ComposerView.swift` —— 图片经 `PhotosPicker` 选取，转 base64 data URL 作 `UserInput.image`（或本地路径不可用，故用内联 url）；模型/推理映射 `turn/start` 的 `model`/`effort`：
 
@@ -2460,11 +2460,11 @@ struct ComposerView: View {
 }
 ```
 
-- [ ] **Step 2：把 Task 15 的占位换成真实 ComposerView**
+- [x] **Step 2：把 Task 15 的占位换成真实 ComposerView**
 
 确认 `ConversationView` 的 `safeAreaInset` 使用 `ComposerView(store: store)`（若 Task 15 用了占位文本，替换之）。
 
-- [ ] **Step 3：编译验证**
+- [x] **Step 3：编译验证**
 
 Run：`xcodebuild build -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)'`
 Expected：编译成功。

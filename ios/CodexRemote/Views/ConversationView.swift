@@ -30,7 +30,9 @@ struct ConversationView: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            composerPlaceholder
+            if let store {
+                ComposerView(store: store)
+            }
         }
         .navigationTitle("对话")
         .navigationBarTitleDisplayMode(.inline)
@@ -68,18 +70,6 @@ struct ConversationView: View {
             Text("生成中…").font(.footnote).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// Task 16 替换为真正的 ComposerView(store:)。此处只读占位（不实现发送）。
-    private var composerPlaceholder: some View {
-        HStack {
-            Text("输入框将在后续任务接入")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            Spacer()
-        }
-        .padding(12)
-        .background(.bar)
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
