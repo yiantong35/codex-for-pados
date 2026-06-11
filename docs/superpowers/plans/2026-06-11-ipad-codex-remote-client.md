@@ -2888,7 +2888,7 @@ git commit -m "feat(approval): multi-option approval store + card, v2/legacy dec
 - Modify: `ios/CodexRemote/Stores/ApprovalStore.swift`
 - Test: `ios/CodexRemoteTests/ApprovalBoundaryTests.swift`
 
-- [ ] **Step 1：写失败测试（resolved 移除卡片 / 断线不自动批准、标记待恢复）**
+- [x] **Step 1：写失败测试（resolved 移除卡片 / 断线不自动批准、标记待恢复）**
 
 `ios/CodexRemoteTests/ApprovalBoundaryTests.swift`：
 
@@ -2930,7 +2930,7 @@ final class ApprovalBoundaryTests: XCTestCase {
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ApprovalBoundaryTests`
 Expected：编译失败（方法/字段未定义）。
 
-- [ ] **Step 3：在 ApprovalStore 实现边界处理**
+- [x] **Step 3：在 ApprovalStore 实现边界处理**
 
 向 `ApprovalStore` 增加（并给 `ApprovalCard` 加 `var awaitingRecovery = false`，改为可变 struct 字段）：
 
@@ -2955,7 +2955,7 @@ extension ApprovalStore {
 
 > `serverRequest/resolved` 通知的 `requestId` 字段名以真实 `ServerNotification.json` 为准；Task 20 录制真实帧后核对（设计 §13）。
 
-- [ ] **Step 4：把通知接线到 ApprovalStore**
+- [x] **Step 4：把通知接线到 ApprovalStore**
 
 在 App 协调处，订阅 `rpc.notifications()`：遇到 `serverRequest/resolved` → 解析 requestId/threadId → `approvals.handleServerRequestResolved`；在 `ConnectionStore.phase` 变为 `.reconnecting` 时调 `approvals.handleConnectionLost()`。
 
