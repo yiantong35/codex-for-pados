@@ -20,7 +20,6 @@ struct CodexRemoteApp: App {
 
 /// 正式根视图：未连接（ready/reconnecting 之外）展示连接配置；连接就绪后切到三栏骨架。
 /// 重连中顶部叠加横幅，但保留三栏可见（不打断浏览）。
-/// 注：SpikeView（Task 3 临时握手验证视图）保留在 Spike/ 目录，不再作为根视图。
 struct RootView: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(ProjectsStore.self) private var projects

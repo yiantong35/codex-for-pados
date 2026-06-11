@@ -3016,18 +3016,18 @@ Expected（对应 `remote-connection` 验收）：三种情形均符合 spec。
 
 用 E2E 录制的真实帧：①核对并校正 `ThreadReducer` 中的字段名（`itemId`/`delta`/`itemType`/`command`/`kind`/diff 字段）；②校正 `ApprovalStore.handle` 取的参数键；③校正 `serverRequest/resolved` 的 requestId 字段名；④把若干真实帧序列存为新的 fixture，补一条 `ThreadReducerTests` 用真实帧回归。每次校正后重跑相关单测确认仍 PASS。
 
-- [ ] **Step 7：移除 spike 临时代码**
+- [x] **Step 7：移除 spike 临时代码**
 
 确认 `SpikeView`/`SpikeRunner` 已不被引用（App 根已切到正式视图），删除 `ios/CodexRemote/Spike/` 目录。
 
 Run：`xcodebuild build -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)'`
 Expected：编译成功，无对 Spike 的悬空引用。
 
-- [ ] **Step 8：写验收清单文档并勾选 tasks.md**
+- [x] **Step 8：写验收清单文档并勾选 tasks.md**
 
 `docs/superpowers/plans/e2e-checklist-ipad-codex-remote-client.md` 记录四场景的实测结果与录制帧归档位置。把 `openspec/changes/ipad-codex-remote-client/tasks.md` 中对应条目打勾。
 
-- [ ] **Step 9：全量测试 + Commit**
+- [x] **Step 9：全量测试 + Commit**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)'`
 Expected：所有单测 PASS。
