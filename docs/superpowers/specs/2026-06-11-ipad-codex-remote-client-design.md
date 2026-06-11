@@ -12,14 +12,14 @@ canonical_spec: openspec
 
 OpenAI 已开源 `codex app-server`（JSON-RPC 2.0），它是 Codex 官方富客户端（VS Code 扩展、桌面 app）的统一连接层，暴露 Codex 完整控制面。第三方客户端无需逆向，直接讲 JSON-RPC 即可获得对等能力。
 
-已基于用户 Mac 上真实的 **codex 0.133.0** 探查协议（`codex app-server generate-ts/generate-json-schema`），确认：`--listen ws://IP:PORT` 真实存在；客户端方法、服务端审批请求、流式事件齐备（见 §4）。用户日常用**本地 Codex 桌面 app（Local 模式）**，会话写入 `~/.codex/sessions/`，iPad 经本地 app-server 可 `thread/resume` 这些会话。鉴权为 `OPENAI_API_KEY`，存于 `~/.codex/auth.json`。
+已基于用户 Mac 上真实的 **codex 0.133.0** 探查协议（`codex app-server generate-ts/generate-json-schema`），确认：客户端方法、服务端审批请求、流式事件齐备（见 §4）。**并实测发现 codex 内建官方 SSH 远程控制机制**：`codex app-server daemon bootstrap --remote-control`（"durable local app-server management for SSH-driven use"）+ `codex app-server proxy`（把 stdio 桥接到 control socket）。Mac 上 desktop app 已运行多个 app-server 实例与受管 daemon；采用官方 daemon+proxy 路径可与 desktop 共存、共享受管 daemon，避免自起独立 ws 进程。用户日常用**本地 Codex 桌面 app（Local 模式）**，会话写入 `~/.codex/sessions/`，iPad 经此可 `thread/resume` 这些会话。鉴权为 `OPENAI_API_KEY`，存于 `~/.codex/auth.json`。
 
 **北极星**：完全对等桌面 app 体验。协议层面可行，差距只在各面板的 SwiftUI 重做工时。策略：架构按对等设计（协议层一次性订阅全事件、UI 面板可插拔），v1 先交核心。
 
 ## 2. Goals / Non-Goals
 
 **Goals（v1）：**
-- iPad 经 **SSH 隧道**连接 Mac 上仅绑 `127.0.0.1` 的 `codex app-server`，零 LAN 暴露面。
+- iPad 经 **SSH + codex 官方 proxy** 连接 Mac 上受管 app-server daemon（control socket 仅属主、零网络端口暴露）。
 - 复刻桌面三栏布局的**左栏（项目→对话树）+ 中栏（对话）**。
 - 完整远程控制：发指令、流式查看、**多选项审批**（命令/文件/权限）、命令输出、文件 diff。
 - 恢复 Mac 上已有对话线程（含桌面 app 会话）。
@@ -47,15 +47,19 @@ SwiftUI 层    NavigationSplitView（三列：侧栏｜对话｜inspector）
 JSON-RPC 层 (actor)  请求/响应按 id 关联 · 通知 async 流 ·
                      server→client 请求(审批)处理器分发
 ─────────────────────────────────────────────────────────
-传输层 (actor)  SSH 隧道(Citadel direct-tcpip) →
-                URLSessionWebSocketTask
+传输层 (actor)  SSH(Citadel) exec 通道 → 远端
+                `codex app-server proxy` → JSON-RPC(stdio) ↔ control socket
 ```
 
 每层单一职责、接口清晰、可独立测试。传输层与 JSON-RPC 层用 `actor` 隔离并发；状态层用 `@Observable`（Observation 框架）驱动 SwiftUI。
 
+> **传输机制（采用 codex 官方 SSH 远程控制路径）**：codex 内建为 SSH 远程控制设计的机制——`codex app-server daemon bootstrap --remote-control` 在 Mac 上拉起受管 daemon 并暴露 control socket（`~/.codex/app-server-control/app-server-control.sock`，`srw-------` 仅属主）；`codex app-server proxy` 把 stdio 字节透明桥接到该 control socket。iPad 经 SSH **exec** 远端 `codex app-server proxy`，直接在 SSH 通道的 stdio 上讲 JSON-RPC 2.0（换行分隔），**无需 WebSocket、无需 direct-tcpip 端口转发**。与 desktop **共享受管 daemon**，活动 turn/审批状态互通（`serverRequest/resolved` 正为此），并为多端共存设计。
+
 ## 4. 协议事实（codex 0.133.0，节选 MVP 相关）
 
 **客户端→服务端方法**：`initialize` + `initialized`(notif)；`thread/list`·`resume`·`start`·`read`·`archive`·`name/set`；`turn/start`·`steer`·`interrupt`；`model/list`·`skills/list`。
+
+**远程控制 daemon/proxy（codex 0.133.0 实测）**：`codex app-server daemon bootstrap [--remote-control]`（"durable local app-server management for SSH-driven use"）、`daemon enable-remote-control`、`daemon start/restart/stop`；`codex app-server proxy [--sock <path>]`（"Proxy stdio bytes to the running app-server control socket"）。这是官方 SSH 远程控制接入路径。
 
 **服务端→客户端请求（审批，需注册处理器）**：v2 `item/commandExecution/requestApproval`、`item/fileChange/requestApproval`、`item/permissions/requestApproval`；legacy `execCommandApproval`、`applyPatchApproval`。
 
@@ -68,11 +72,11 @@ JSON-RPC 层 (actor)  请求/响应按 id 关联 · 通知 async 流 ·
 
 ## 5. Decisions
 
-### D1：连接层用 SSH 隧道
-iPad 用 Citadel 建 SSH 连接 + direct-tcpip 端口转发到 Mac `127.0.0.1:<port>`，WebSocket 跑在转发端口。app-server 仅绑 loopback、零网络暴露；SSH 提供加密 + 密钥鉴权。**备选**：明文 ws + capability token（暴露面大）；两者都支持（MVP 不做）。
+### D1：连接层用 codex 官方 SSH 远程控制（daemon + proxy）
+Mac 端用 `codex app-server daemon bootstrap --remote-control` 拉起受管 daemon（暴露仅属主可读的 control socket）。iPad 用 Citadel 建 SSH 连接，经 **exec 通道**运行远端 `codex app-server proxy`，在 SSH 通道 stdio 上直接讲 JSON-RPC 2.0。app-server 不暴露任何网络端口（control socket 是本机 unix socket）；SSH 提供加密 + 密钥鉴权；与 desktop 共享受管 daemon、为多端共存设计。**备选**：自起 `codex app-server --listen ws://127.0.0.1` 独立实例 + SSH direct-tcpip 端口转发 + WebSocket（ws 传输官方标"实验性/unsupported"，且是独立进程、活动态与 desktop 隔离）——本设计不采用，仅作降级备选。
 
-### D2：技术栈 SwiftUI + URLSessionWebSocketTask + Citadel
-UI 用 SwiftUI + Observation；WebSocket 用系统 `URLSessionWebSocketTask`；SSH 隧道用 Citadel（基于 Apple swift-nio-ssh，支持 TCP 转发，SPM）。全 Swift/一方依赖。**备选**：直接 swift-nio-ssh（更底层）；NMSSH（Obj-C，旧）。
+### D2：技术栈 SwiftUI + Citadel（SSH exec）+ 系统 JSON
+UI 用 SwiftUI + Observation；SSH 用 Citadel（基于 Apple swift-nio-ssh），经 **exec 通道**跑远端 `codex app-server proxy`；JSON-RPC 走 SSH stdio 的换行分隔 JSON（系统 `JSONEncoder/Decoder`，不需要 WebSocket）。全 Swift/一方依赖。**备选**：direct-tcpip 端口转发 + `URLSessionWebSocketTask`（方案 B 才需要）。
 
 ### D3：协议类型从 schema 生成 + pin 版本
 用 `generate-ts`/`generate-json-schema` 生成 schema 纳入仓库，据此建模 Swift `Codable` 类型；pin codex 0.133.0。协议层隔离，升级时只换生成层。**理由**：WS 传输官方标"实验性"。
@@ -108,24 +112,24 @@ ServerRequest(item/commandExecution/requestApproval ...)
 ## 7. 连接生命周期（状态机）
 
 ```
-disconnected → sshConnecting → forwarding → wsConnecting
+disconnected → sshConnecting → execProxy(codex app-server proxy)
   → initializing(initialize→initialized) → ready
-ready --断线--> reconnecting --(重建隧道+WS)--> initializing
+ready --断线--> reconnecting --(重建 SSH + 重 exec proxy)--> initializing
   → thread/resume 当前线程（依赖服务端持久态，不靠内存）
 ```
-指数退避重连；iOS 后台 socket 被回收时，恢复依赖 `thread/resume` 而非内存态；前台优先，后台保活列 v2+。
+指数退避重连；iOS 后台 socket 被回收时，恢复依赖 `thread/resume` 而非内存态；前台优先，后台保活列 v2+。受管 daemon 由 Mac 侧维持，iPad 断开不影响 daemon 与 desktop。
 
 ## 8. Mac 端启动器
 
-Shell 脚本：① 起 `codex app-server --listen ws://127.0.0.1:<port>`（仅 loopback）② 打印 Mac LAN IP / SSH 用户 / 端口 ③ 校验 sshd（`systemsetup -getremotelogin`）④ 校验 codex 版本符合 pin ⑤ 端口占用检测、优雅退出/清理。
+Shell 脚本（一次性 + 日常便捷）：① `codex app-server daemon bootstrap --remote-control`（或 daemon 已运行则 `daemon enable-remote-control`）拉起受管 daemon 并开启远程控制 ② 校验 sshd（`systemsetup -getremotelogin`）③ 校验 codex 版本符合 pin ④ 打印 Mac LAN IP / SSH 用户 / 提示 iPad 经 SSH exec `codex app-server proxy` 接入 ⑤ `daemon version` 自检、`daemon stop` 清理选项。**不**自起 `--listen ws://` 进程，不与 desktop 的 app-server 冲突。
 
 ## 9. 模块边界（可独立理解/测试）
 
 | 单元 | 做什么 | 依赖 |
 |---|---|---|
-| `SSHTunnel` | 建 SSH + 端口转发，暴露本地端口 | Citadel |
-| `WebSocketTransport` | 收发原始 JSON 帧 | URLSession |
-| `JSONRPCClient` (actor) | id 关联、通知流、server 请求分发 | 上两者 |
+| `SSHClient` | 建 SSH 连接 + exec 远端命令 | Citadel |
+| `ProxyChannel` | exec `codex app-server proxy`，暴露 stdio 双向字节流 | SSHClient |
+| `JSONRPCClient` (actor) | 换行分隔 JSON 帧、id 关联、通知流、server 请求分发 | ProxyChannel |
 | `CodexProtocol` | schema 派生的 Codable 类型 | 生成层 |
 | `ThreadReducer` | notification → 会话状态 | CodexProtocol |
 | `*Store` | 可观察应用状态 | reducer |
@@ -134,16 +138,16 @@ Shell 脚本：① 起 `codex app-server --listen ws://127.0.0.1:<port>`（仅 l
 ## 10. 测试策略
 
 - **协议层/归约层（可脱真机）**：录制真实 app-server 帧为 fixture，mock 传输层重放，单元测试 JSON-RPC 编解码、审批映射、`ThreadReducer` 对合成事件序列的归约。
-- **SSH 隧道 + WebSocket**：技术验证 spike（最小转发 + `initialize` 握手）+ 手动 E2E，无法纯单元测试。
+- **SSH exec proxy 通道**：技术验证 spike（exec `codex app-server proxy` + `initialize` 握手）+ 手动 E2E，无法纯单元测试。
 - **验收 E2E**（对应 delta spec 场景）：连+发+流式；恢复桌面会话；审批批准+拒绝+前缀放行；断线重连。
 
 ## 11. Risks / Trade-offs
 
-- WS 传输实验性、协议可能变 → pin 版本 + 生成类型 + 隔离协议层。
-- Citadel 在 iPadOS 端口转发稳定性未知 → **build 首步做 spike 验证**后再铺开。
+- WS 传输实验性、协议可能变 → 采用 daemon+proxy 官方路径规避 ws；pin 版本 + 生成类型 + 隔离协议层。
+- Citadel 在 iPadOS 的 **SSH exec 通道**长连接 + 双向流式稳定性未知 → **build 首步做 spike 验证**（exec `codex app-server proxy` + `initialize` 握手）后再铺开。
 - iOS 后台 socket 限制 → 断线重连 + thread/resume 恢复。
-- 审批时序复杂（反向请求 + 多选项 + 多端并发）→ §6 状态机；超时不自动批准。
-- 桌面 app 内部进程模型未公开 → 不依赖，只依赖共享 `~/.codex/sessions/`。
+- 审批时序复杂（反向请求 + 多选项 + 多端并发，含 desktop 同连一个 daemon）→ §6 状态机；超时不自动批准。
+- 受管 daemon 状态/版本与 desktop 共享 → 不依赖 desktop 内部进程模型，只依赖官方 daemon/proxy 接口与共享 `~/.codex/sessions/`。
 
 ## 12. Migration Plan
 
@@ -151,6 +155,7 @@ Shell 脚本：① 起 `codex app-server --listen ws://127.0.0.1:<port>`（仅 l
 
 ## 13. Open Questions（带入 build）
 
-- Citadel 端口转发真机可靠性与后台行为（spike 验证）。
+- Citadel **SSH exec 通道**真机可靠性与后台行为，及 `codex app-server proxy` 长连接稳定性（spike 验证）。
+- 受管 daemon 的 remote-control 是否需 desktop 配合开启、以及 desktop 与 daemon 的活动态共享边界（build 时实测）。
 - `thread/list` 默认 `sourceKinds` 是否已含桌面 app 的 `atlas` 来源（实测确认，否则显式传 sourceKinds）。
 - 审批前缀放行的 `ExecPolicyAmendment` 精确字段形状（build 时对照 schema 落地）。
