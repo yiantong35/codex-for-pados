@@ -1,0 +1,515 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		00D035F4CCE176BD3E53D4F1 /* CodexRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C01C7EC77E19B927C5E72B /* CodexRemoteApp.swift */; };
+		01BE5A03B6CE5A4875A7AD98 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 55AF6C40AC2043794D057E06 /* Citadel */; };
+		C2F8DADF2BC6D387BDF605C0 /* CodexRemoteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D2197F6A2B7E899050437AB /* CodexRemoteTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		30E393F962EA28B6C364AD0A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 123073DF2A1E467EE83C90DF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5C6152924FE6EC6FE4049E1E;
+			remoteInfo = CodexRemote;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		044B2FFC23DFE4CE15D6EABC /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		0A271F024062297B9E0875E5 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		4D2197F6A2B7E899050437AB /* CodexRemoteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexRemoteTests.swift; sourceTree = "<group>"; };
+		99A9FA53DC2DFA3F7E44AD28 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		9DC1E8FE94E8A15D040ECBA7 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		CC4B92A18365176499E0BFAD /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		DE1457298E5D37A14AAB29D9 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		EE826C2EEEFE8229D048565F /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		F6C01C7EC77E19B927C5E72B /* CodexRemoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexRemoteApp.swift; sourceTree = "<group>"; };
+		FA7C5D102DC860D73AE1ADE9 /* CodexRemote.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CodexRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FFBA120F4EEB38BFB307D900 /* CodexRemoteTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CodexRemoteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		19CBFC54B7F6EF69F7664F3B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				01BE5A03B6CE5A4875A7AD98 /* Citadel in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		3479E133AD8B5499AD636555 /* Domain */ = {
+			isa = PBXGroup;
+			children = (
+				044B2FFC23DFE4CE15D6EABC /* .gitkeep */,
+			);
+			path = Domain;
+			sourceTree = "<group>";
+		};
+		4216DAAF73C2AA95BEC2DAF9 /* Security */ = {
+			isa = PBXGroup;
+			children = (
+				DE1457298E5D37A14AAB29D9 /* .gitkeep */,
+			);
+			path = Security;
+			sourceTree = "<group>";
+		};
+		4DC2508353D071036D1C5EE4 /* Stores */ = {
+			isa = PBXGroup;
+			children = (
+				CC4B92A18365176499E0BFAD /* .gitkeep */,
+			);
+			path = Stores;
+			sourceTree = "<group>";
+		};
+		5208BDFB1DB8FEC37E7C4D01 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				9DC1E8FE94E8A15D040ECBA7 /* .gitkeep */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		63C68933680BE3B3F3CEF73D /* App */ = {
+			isa = PBXGroup;
+			children = (
+				F6C01C7EC77E19B927C5E72B /* CodexRemoteApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		7031D82AFA3F7B1048E6BC92 /* Protocol */ = {
+			isa = PBXGroup;
+			children = (
+				99A9FA53DC2DFA3F7E44AD28 /* .gitkeep */,
+			);
+			path = Protocol;
+			sourceTree = "<group>";
+		};
+		712AD02F05D26361AF729D70 = {
+			isa = PBXGroup;
+			children = (
+				87E3E9BC06AA82C3710B1920 /* CodexRemote */,
+				FD5327EB046E26D0A91F32DE /* CodexRemoteTests */,
+				CA7B3B413DBEC4A5D2B2B3C3 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		87E3E9BC06AA82C3710B1920 /* CodexRemote */ = {
+			isa = PBXGroup;
+			children = (
+				63C68933680BE3B3F3CEF73D /* App */,
+				3479E133AD8B5499AD636555 /* Domain */,
+				7031D82AFA3F7B1048E6BC92 /* Protocol */,
+				8AF8A5A053BA2082AE37258B /* RPC */,
+				4216DAAF73C2AA95BEC2DAF9 /* Security */,
+				4DC2508353D071036D1C5EE4 /* Stores */,
+				89DA1C49302F32C7D9DB5333 /* Transport */,
+				5208BDFB1DB8FEC37E7C4D01 /* Views */,
+			);
+			path = CodexRemote;
+			sourceTree = "<group>";
+		};
+		89DA1C49302F32C7D9DB5333 /* Transport */ = {
+			isa = PBXGroup;
+			children = (
+				0A271F024062297B9E0875E5 /* .gitkeep */,
+			);
+			path = Transport;
+			sourceTree = "<group>";
+		};
+		8AF8A5A053BA2082AE37258B /* RPC */ = {
+			isa = PBXGroup;
+			children = (
+				EE826C2EEEFE8229D048565F /* .gitkeep */,
+			);
+			path = RPC;
+			sourceTree = "<group>";
+		};
+		CA7B3B413DBEC4A5D2B2B3C3 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				FA7C5D102DC860D73AE1ADE9 /* CodexRemote.app */,
+				FFBA120F4EEB38BFB307D900 /* CodexRemoteTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		FD5327EB046E26D0A91F32DE /* CodexRemoteTests */ = {
+			isa = PBXGroup;
+			children = (
+				4D2197F6A2B7E899050437AB /* CodexRemoteTests.swift */,
+			);
+			path = CodexRemoteTests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5C6152924FE6EC6FE4049E1E /* CodexRemote */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 26B26785CCD5B8A7BAD25DC3 /* Build configuration list for PBXNativeTarget "CodexRemote" */;
+			buildPhases = (
+				219244036FF2F3C4FF8E50FD /* Sources */,
+				19CBFC54B7F6EF69F7664F3B /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CodexRemote;
+			packageProductDependencies = (
+				55AF6C40AC2043794D057E06 /* Citadel */,
+			);
+			productName = CodexRemote;
+			productReference = FA7C5D102DC860D73AE1ADE9 /* CodexRemote.app */;
+			productType = "com.apple.product-type.application";
+		};
+		C375F6E12FD30E2C2C0FD74F /* CodexRemoteTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6178AE60C622B85B11661E3E /* Build configuration list for PBXNativeTarget "CodexRemoteTests" */;
+			buildPhases = (
+				22A335605493ED8EF2865B2B /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C99FCCBB70C2AE8DE964987B /* PBXTargetDependency */,
+			);
+			name = CodexRemoteTests;
+			packageProductDependencies = (
+			);
+			productName = CodexRemoteTests;
+			productReference = FFBA120F4EEB38BFB307D900 /* CodexRemoteTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		123073DF2A1E467EE83C90DF /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					5C6152924FE6EC6FE4049E1E = {
+						DevelopmentTeam = "";
+					};
+					C375F6E12FD30E2C2C0FD74F = {
+						DevelopmentTeam = "";
+					};
+				};
+			};
+			buildConfigurationList = 2FC9F936BC773118469CCA36 /* Build configuration list for PBXProject "CodexRemote" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 712AD02F05D26361AF729D70;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				935CA715DF2ED02C0C97E7BA /* XCRemoteSwiftPackageReference "Citadel" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = CA7B3B413DBEC4A5D2B2B3C3 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5C6152924FE6EC6FE4049E1E /* CodexRemote */,
+				C375F6E12FD30E2C2C0FD74F /* CodexRemoteTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		219244036FF2F3C4FF8E50FD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				00D035F4CCE176BD3E53D4F1 /* CodexRemoteApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		22A335605493ED8EF2865B2B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C2F8DADF2BC6D387BDF605C0 /* CodexRemoteTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C99FCCBB70C2AE8DE964987B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5C6152924FE6EC6FE4049E1E /* CodexRemote */;
+			targetProxy = 30E393F962EA28B6C364AD0A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0FC5D0A908D4A99DF3E3E6C6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.CodexRemoteTests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CodexRemote.app/CodexRemote";
+			};
+			name = Debug;
+		};
+		32614D2C674A5F294F6F89F8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		4BA705865E241AE80CAC977F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.CodexRemoteTests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CodexRemote.app/CodexRemote";
+			};
+			name = Release;
+		};
+		E5A05AF578A1EB6B112E919E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		E8030E0A83AD8E30B88820D8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CodexRemote/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.codexremote;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Release;
+		};
+		E821C7D2EB13C9D3DB7F7EF7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CodexRemote/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.codexremote;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		26B26785CCD5B8A7BAD25DC3 /* Build configuration list for PBXNativeTarget "CodexRemote" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E821C7D2EB13C9D3DB7F7EF7 /* Debug */,
+				E8030E0A83AD8E30B88820D8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		2FC9F936BC773118469CCA36 /* Build configuration list for PBXProject "CodexRemote" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				32614D2C674A5F294F6F89F8 /* Debug */,
+				E5A05AF578A1EB6B112E919E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		6178AE60C622B85B11661E3E /* Build configuration list for PBXNativeTarget "CodexRemoteTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0FC5D0A908D4A99DF3E3E6C6 /* Debug */,
+				4BA705865E241AE80CAC977F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		935CA715DF2ED02C0C97E7BA /* XCRemoteSwiftPackageReference "Citadel" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/orlandos-nl/Citadel";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.12.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		55AF6C40AC2043794D057E06 /* Citadel */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 935CA715DF2ED02C0C97E7BA /* XCRemoteSwiftPackageReference "Citadel" */;
+			productName = Citadel;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 123073DF2A1E467EE83C90DF /* Project object */;
+}

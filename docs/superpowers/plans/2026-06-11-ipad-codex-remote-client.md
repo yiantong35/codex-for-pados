@@ -69,11 +69,11 @@ Task 20 E2E 联调与验收（4 个手动 E2E 场景）
 - Create: `docs/superpowers/plans/README-dev-setup.md`（开发环境说明）
 - Modify: `.gitignore`（追加 Xcode/SPM 产物忽略项）
 
-- [ ] **Step 1：用 Xcode 创建 iPadOS App 工程**
+- [x] **Step 1：用 Xcode 创建 iPadOS App 工程**
 
 在 `ios/` 下创建名为 `CodexRemote` 的 SwiftUI App（Interface=SwiftUI，Language=Swift，最低部署目标 iPadOS 17.0 以支持 Observation 框架）。Bundle ID 用 `com.<你的开发者前缀>.codexremote`（侧载开发者签名，不上架）。
 
-- [ ] **Step 2：建立源码目录约定**
+- [x] **Step 2：建立源码目录约定**
 
 在 `ios/CodexRemote/` 下创建空目录（含 `.gitkeep`）以锁定分层边界，每层一个目录：
 
@@ -89,11 +89,11 @@ ios/CodexRemote/
   Security/       # KeychainStore
 ```
 
-- [ ] **Step 3：添加 Citadel SPM 依赖**
+- [x] **Step 3：添加 Citadel SPM 依赖**
 
 在 Xcode 工程中 File → Add Package Dependencies，输入 `https://github.com/orlandos-nl/Citadel`，选择最新稳定版本，加入 `CodexRemote` target。
 
-- [ ] **Step 4：配置 Info.plist 本地网络权限**
+- [x] **Step 4：配置 Info.plist 本地网络权限**
 
 在 `Info.plist` 加入本地网络访问用途说明（连接 LAN 内 Mac 需要）：
 
@@ -102,7 +102,7 @@ ios/CodexRemote/
 <string>连接同一局域网内你的 Mac 上运行的 Codex 服务。</string>
 ```
 
-- [ ] **Step 5：更新 .gitignore**
+- [x] **Step 5：更新 .gitignore**
 
 向 `.gitignore` 追加（不要删除已有行）：
 
@@ -115,16 +115,16 @@ ios/**/DerivedData/
 .swiftpm/
 ```
 
-- [ ] **Step 6：确认工程可编译运行空壳**
+- [x] **Step 6：确认工程可编译运行空壳**
 
 Run（在 Xcode 选 iPad 模拟器）：构建并启动，应看到默认空白 SwiftUI 视图，无编译错误。
 Expected：构建成功，模拟器显示空白窗口。
 
-- [ ] **Step 7：写开发环境说明文档**
+- [x] **Step 7：写开发环境说明文档**
 
 `docs/superpowers/plans/README-dev-setup.md` 写明：最低 iPadOS 版本、Citadel 版本、如何选择真机/模拟器、如何配合 Mac 端启动脚本（指向 Task 2 产物）。
 
-- [ ] **Step 8：Commit**
+- [x] **Step 8：Commit**
 
 ```bash
 git add ios .gitignore docs/superpowers/plans/README-dev-setup.md
