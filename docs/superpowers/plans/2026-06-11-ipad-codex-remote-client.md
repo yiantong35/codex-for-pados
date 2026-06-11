@@ -1383,7 +1383,7 @@ git commit -m "feat(rpc): JSONRPCClient actor (id correlation, notification stre
 - Create: `ios/CodexRemoteTests/Fixtures/`（录制的合成事件序列 .json）
 - Test: `ios/CodexRemoteTests/ThreadReducerTests.swift`
 
-- [ ] **Step 1：定义会话领域模型**
+- [x] **Step 1：定义会话领域模型**
 
 `ios/CodexRemote/Domain/ConversationModels.swift`：
 
@@ -1413,7 +1413,7 @@ struct ConversationState: Equatable {
 }
 ```
 
-- [ ] **Step 2：写失败测试（用合成事件序列驱动 reducer）**
+- [x] **Step 2：写失败测试（用合成事件序列驱动 reducer）**
 
 先准备 fixture `ios/CodexRemoteTests/Fixtures/agentDeltaSequence.json`（一组按行的 notification）：
 
@@ -1483,7 +1483,7 @@ final class ThreadReducerTests: XCTestCase {
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ThreadReducerTests`
 Expected：编译失败（`ThreadReducer` 未定义）。
 
-- [ ] **Step 4：实现 ThreadReducer**
+- [x] **Step 4：实现 ThreadReducer**
 
 `ios/CodexRemote/Domain/ThreadReducer.swift`：
 
@@ -1561,7 +1561,7 @@ struct ThreadReducer {
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ThreadReducerTests`
 Expected：全部 PASS。
 
-- [ ] **Step 6：Commit**
+- [x] **Step 6：Commit**
 
 ```bash
 git add ios/CodexRemote/Domain ios/CodexRemoteTests/ThreadReducerTests.swift ios/CodexRemoteTests/Fixtures
@@ -1730,7 +1730,7 @@ func liveTransportFactory(_ config: ConnectionConfig) async throws -> MessageTra
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ConnectionStoreTests`
 Expected：全部 PASS。
 
-- [ ] **Step 6：Commit**
+- [x] **Step 6：Commit**
 
 ```bash
 git add ios/CodexRemote/Stores/ConnectionStore.swift ios/CodexRemote/App/LiveTransport.swift ios/CodexRemoteTests/ConnectionStoreTests.swift
@@ -1873,7 +1873,7 @@ struct ConnectionConfigView: View {
 }
 ```
 
-- [ ] **Step 6：Commit**
+- [x] **Step 6：Commit**
 
 ```bash
 git add ios/CodexRemote/Security ios/CodexRemote/Views/ConnectionConfigView.swift ios/CodexRemoteTests/KeychainStoreTests.swift
@@ -2625,7 +2625,7 @@ private func enqueueCurrent() {
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/MidTurnControlTests`
 Expected：全部 PASS。再 `xcodebuild build …` 确认 UI 编译通过。
 
-- [ ] **Step 6：Commit**
+- [x] **Step 6：Commit**
 
 ```bash
 git add ios/CodexRemote/Stores/ConversationStore.swift ios/CodexRemote/Views/ComposerView.swift ios/CodexRemoteTests/MidTurnControlTests.swift
@@ -2965,7 +2965,7 @@ extension ApprovalStore {
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ApprovalBoundaryTests`
 Expected：全部 PASS。
 
-- [ ] **Step 6：Commit**
+- [x] **Step 6：Commit**
 
 ```bash
 git add ios/CodexRemote/Stores/ApprovalStore.swift ios/CodexRemote/App ios/CodexRemoteTests/ApprovalBoundaryTests.swift
