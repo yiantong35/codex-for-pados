@@ -37,3 +37,10 @@
 - [ ] 7.2 端到端：恢复一个桌面 app 创建的已有会话并继续对话
 - [ ] 7.3 端到端：触发命令/文件修改 → iPad 审批闭环（批准 + 拒绝两条路径）
 - [ ] 7.4 异常：网络/SSH 断开的优雅提示与重连；SSH 鉴权失败的明确报错
+
+## 8. 外观与多语言（appearance-locale）
+- [ ] 8.1 本地化基础设施：String Catalog（zh+en）+ LocaleManager（@AppStorage 语言 + .environment(\.locale) 运行时切换）
+- [ ] 8.2 ThemeManager（@AppStorage 主题：system/light/dark + .preferredColorScheme），持久化
+- [ ] 8.3 把现有视图里硬编码中文串改为本地化 key（连接配置/三栏/对话/composer/审批卡/菜单）
+- [ ] 8.4 右上角全局设置按钮（齿轮）+ 菜单（语言切换 + 主题切换），接到主要界面
+- [ ] 8.5 单测：LocaleManager/ThemeManager 的选择持久化与默认值；编译 + 模拟器目视

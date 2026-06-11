@@ -21,6 +21,7 @@
 - `conversation-streaming`: 发送 prompt、`turn/start`，流式接收并渲染 `turn/*` / `item/*` 事件的对话界面。
 - `session-management`: 列出并恢复 Mac 上已有对话线程（`thread/list` / `thread/resume`），含桌面 app 创建的本地会话。
 - `approval-flow`: 处理 app-server 发起的审批请求（命令执行、文件修改），在 iPad 上批准/拒绝并回传决定。
+- `appearance-locale`: 多语言（中/英）运行时切换 + 深浅色主题（浅/深/跟随系统） + 右上角全局设置入口。
 
 ### Modified Capabilities
 
