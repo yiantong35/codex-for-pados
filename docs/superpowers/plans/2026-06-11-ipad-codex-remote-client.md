@@ -1747,7 +1747,7 @@ git commit -m "feat(stores): ConnectionStore lifecycle state machine + initializ
 - Create: `ios/CodexRemote/Views/ConnectionConfigView.swift`
 - Test: `ios/CodexRemoteTests/KeychainStoreTests.swift`
 
-- [ ] **Step 1：写失败测试（存取删，不落明文偏好）**
+- [x] **Step 1：写失败测试（存取删，不落明文偏好）**
 
 `ios/CodexRemoteTests/KeychainStoreTests.swift`：
 
@@ -1771,7 +1771,7 @@ final class KeychainStoreTests: XCTestCase {
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/KeychainStoreTests`
 Expected：编译失败（`KeychainStore` 未定义）。
 
-- [ ] **Step 3：实现 KeychainStore**
+- [x] **Step 3：实现 KeychainStore**
 
 `ios/CodexRemote/Security/KeychainStore.swift`：
 
@@ -1825,7 +1825,7 @@ struct KeychainStore {
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/KeychainStoreTests`
 Expected：PASS。
 
-- [ ] **Step 5：实现连接配置界面**
+- [x] **Step 5：实现连接配置界面**
 
 `ios/CodexRemote/Views/ConnectionConfigView.swift` —— 主机/端口/SSH 用户/密钥或密码输入；非敏感项（主机/端口/用户）存 `UserDefaults`，**私钥/密码经 KeychainStore 存储**；点击连接调用 `ConnectionStore.connect`，并把 `.sshAuthFailed`/`.appServerUnreachable` 渲染为明确错误文案：
 
@@ -1889,7 +1889,7 @@ git commit -m "feat(security): KeychainStore for SSH credentials + connection co
 - Create: `ios/CodexRemote/Stores/ProjectsStore.swift`
 - Test: `ios/CodexRemoteTests/ProjectsStoreTests.swift`
 
-- [ ] **Step 1：写失败测试（按 cwd 分组 + 显式 sourceKinds + 徽标）**
+- [x] **Step 1：写失败测试（按 cwd 分组 + 显式 sourceKinds + 徽标）**
 
 `ios/CodexRemoteTests/ProjectsStoreTests.swift`：
 
@@ -1936,7 +1936,7 @@ final class ProjectsStoreTests: XCTestCase {
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ProjectsStoreTests`
 Expected：编译失败（`ProjectsStore` 未定义）。
 
-- [ ] **Step 3：实现 ProjectsStore**
+- [x] **Step 3：实现 ProjectsStore**
 
 `ios/CodexRemote/Stores/ProjectsStore.swift`：
 
