@@ -12,3 +12,6 @@ DerivedData/
 *.xcworkspace/xcuserdata/
 
 # CodeGraph 数据见 .codegraph/.gitignore
+
+# git worktree 隔离工作区
+.worktrees/
