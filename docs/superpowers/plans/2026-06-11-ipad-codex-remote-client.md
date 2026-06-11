@@ -2487,7 +2487,7 @@ git commit -m "feat(ui): composer with text, image attachment, model/effort sele
 - Modify: `ios/CodexRemote/Views/ComposerView.swift`（turn 运行时给出 转向/排队/中断 选项）
 - Test: `ios/CodexRemoteTests/MidTurnControlTests.swift`
 
-- [ ] **Step 1：写失败测试（steer 带 expectedTurnId / 不可 steer 拦截 / 排队缓冲 / interrupt）**
+- [x] **Step 1：写失败测试（steer 带 expectedTurnId / 不可 steer 拦截 / 排队缓冲 / interrupt）**
 
 `ios/CodexRemoteTests/MidTurnControlTests.swift`：
 
@@ -2546,7 +2546,7 @@ final class MidTurnControlTests: XCTestCase {
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/MidTurnControlTests`
 Expected：编译失败（`steer`/`interrupt`/`enqueue` 未定义）。
 
-- [ ] **Step 3：在 ConversationStore 实现 steer/enqueue/interrupt**
+- [x] **Step 3：在 ConversationStore 实现 steer/enqueue/interrupt**
 
 向 `ios/CodexRemote/Stores/ConversationStore.swift` 追加：
 
@@ -2574,7 +2574,7 @@ extension ConversationStore {
 
 > `call`/`drainQueueIfTurnEnded`/`queuedInputs` 已在 Task 14 定义；此处复用。`call` 需从 private 提升为 internal（同模块可见）以便 extension 调用——把 Task 14 中 `private func call` 改为 `func call`。
 
-- [ ] **Step 4：composer 在 turn 运行时提供 转向/排队/中断 UI**
+- [x] **Step 4：composer 在 turn 运行时提供 转向/排队/中断 UI**
 
 向 `ComposerView` 加入：当 `store.state.isTurnRunning` 时，发送按钮旁出现「中断」按钮，且发送动作改为弹出菜单（转向 / 排队）；若 `store.state.activeTurnKind != nil`（review/compact）则禁用「转向」并提示「本回合不支持转向」：
 
@@ -2619,7 +2619,7 @@ private func enqueueCurrent() {
 }
 ```
 
-- [ ] **Step 5：运行测试确认通过 + 编译**
+- [x] **Step 5：运行测试确认通过 + 编译**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/MidTurnControlTests`
 Expected：全部 PASS。再 `xcodebuild build …` 确认 UI 编译通过。

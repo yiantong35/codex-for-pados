@@ -10,6 +10,7 @@
 		00D035F4CCE176BD3E53D4F1 /* CodexRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C01C7EC77E19B927C5E72B /* CodexRemoteApp.swift */; };
 		01BE5A03B6CE5A4875A7AD98 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 55AF6C40AC2043794D057E06 /* Citadel */; };
 		046D60CECEF36F595B491834 /* ProjectsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F3DFDE3E35F47099089A687 /* ProjectsStore.swift */; };
+		09EBBCF3632D7D40FE2228CE /* MidTurnControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 114A352157315BC15F79C989 /* MidTurnControlTests.swift */; };
 		123F9BDEDD1CADB7A435CB82 /* ConnectionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5B0B06C966AB8B15879FD39 /* ConnectionStoreTests.swift */; };
 		13472DEE88E768A9DEF5651A /* MockTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0BD4E81945814B56FD25C0 /* MockTransport.swift */; };
 		19D62A239106D552D1C812A9 /* JSONRPCEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B8A2809870EB2C408134910 /* JSONRPCEnvelope.swift */; };
@@ -69,6 +70,7 @@
 		0A271F024062297B9E0875E5 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		0E1DB34FCBBD8FBD8DDEF19D /* SpikeRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeRunner.swift; sourceTree = "<group>"; };
 		0F9AA0558F0DFBF8808437B4 /* SpikeIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeIntegrationTests.swift; sourceTree = "<group>"; };
+		114A352157315BC15F79C989 /* MidTurnControlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MidTurnControlTests.swift; sourceTree = "<group>"; };
 		114F7031E01A77E37A2A74F6 /* LiveTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTransport.swift; sourceTree = "<group>"; };
 		164835E5F53DB4EC1BCAB13B /* JSONRPCClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONRPCClient.swift; sourceTree = "<group>"; };
 		1A8CF06540ED3E7C246131C8 /* SSHClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHClient.swift; sourceTree = "<group>"; };
@@ -276,6 +278,7 @@
 				5FF7AFB1095E4D55F8F9B48E /* JSONRPCClientTests.swift */,
 				3A46B0F715AC99CD902533D4 /* JSONRPCEnvelopeTests.swift */,
 				882D98A278D8B64C660B8A05 /* KeychainStoreTests.swift */,
+				114A352157315BC15F79C989 /* MidTurnControlTests.swift */,
 				FB0BD4E81945814B56FD25C0 /* MockTransport.swift */,
 				29E4DEA2725E8A3517A77141 /* ProjectsStoreTests.swift */,
 				AFD990BEF80BA894D65E3CC8 /* ProtocolTypesTests.swift */,
@@ -427,6 +430,7 @@
 				46E575375B31BBDD1B4241BB /* JSONRPCClientTests.swift in Sources */,
 				778221A116B554E3EA194D10 /* JSONRPCEnvelopeTests.swift in Sources */,
 				D5B6DA068B60C12A08A999F2 /* KeychainStoreTests.swift in Sources */,
+				09EBBCF3632D7D40FE2228CE /* MidTurnControlTests.swift in Sources */,
 				13472DEE88E768A9DEF5651A /* MockTransport.swift in Sources */,
 				6166961C795F332ADF8397E9 /* ProjectsStoreTests.swift in Sources */,
 				2E22F5B05273F39AC264E778 /* ProtocolTypesTests.swift in Sources */,

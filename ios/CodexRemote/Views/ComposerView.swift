@@ -53,12 +53,32 @@ struct ComposerView: View {
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(1...5)
 
-                Button {
-                    Task { await send() }
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill").font(.title2)
+                if store.state.isTurnRunning {
+                    // turn 进行中：提供「中断」+「转向/排队」菜单。
+                    Button(role: .destructive) {
+                        Task { await store.interrupt() }
+                    } label: {
+                        Image(systemName: "stop.circle.fill").font(.title2)
+                    }
+                    Menu {
+                        Button("转向当前回合") { Task { await trySteer() } }
+                            .disabled(store.state.activeTurnKind != nil)
+                        Button("排队，回合结束后发送") { enqueueCurrent() }
+                        if let kind = store.state.activeTurnKind {
+                            Text("本回合（\(kind.rawValue)）不支持转向")
+                        }
+                    } label: {
+                        Image(systemName: "arrow.up.circle.fill").font(.title2)
+                    }
+                    .disabled(!canSend)
+                } else {
+                    Button {
+                        Task { await send() }
+                    } label: {
+                        Image(systemName: "arrow.up.circle.fill").font(.title2)
+                    }
+                    .disabled(!canSend)
                 }
-                .disabled(!canSend)
             }
         }
         .padding(8)
@@ -72,16 +92,41 @@ struct ComposerView: View {
         }
     }
 
-    private func send() async {
+    /// 构造当前输入（文本 + 可选图片），供 send/steer/enqueue 复用。
+    private func currentInput() -> [UserInput] {
         var input: [UserInput] = []
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty { input.append(.text(trimmed)) }
         if let url = imageDataURL { input.append(.image(url: url, detail: .high)) }
-        guard !input.isEmpty else { return }
+        return input
+    }
 
-        await store.send(input: input, model: model, effort: effort)   // → turn/start model/effort
+    private func clearComposer() {
         text = ""
         imageDataURL = nil
         photoItem = nil
+    }
+
+    private func send() async {
+        let input = currentInput()
+        guard !input.isEmpty else { return }
+        await store.send(input: input, model: model, effort: effort)   // → turn/start model/effort
+        clearComposer()
+    }
+
+    /// 转向：仅当可 steer 时清空 composer（失败保留输入，便于改走排队）。
+    private func trySteer() async {
+        let input = currentInput()
+        guard !input.isEmpty else { return }
+        let ok = await store.steer(input: input)
+        if ok { clearComposer() }
+    }
+
+    /// 排队：turn 结束后由 store 自动出队发送。
+    private func enqueueCurrent() {
+        let input = currentInput()
+        guard !input.isEmpty else { return }
+        store.enqueue(input: input)
+        clearComposer()
     }
 }

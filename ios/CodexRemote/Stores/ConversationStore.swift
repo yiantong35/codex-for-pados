@@ -92,9 +92,36 @@ final class ConversationStore {
     }
 
     /// Encodable 参数 → AnyCodable → rpc.send。桥接模式同 ConnectionStore。
-    private func call<T: Encodable>(_ method: String, _ params: T) async throws -> AnyCodable {
+    /// internal（非 private）以便 Task 17 中途控制 extension 调用。
+    func call<T: Encodable>(_ method: String, _ params: T) async throws -> AnyCodable {
         let data = try JSONEncoder().encode(params)
         let any = try JSONDecoder().decode(AnyCodable.self, from: data)
         return try await rpc.send(method: method, params: any)
+    }
+}
+
+// MARK: - Task 17：中途控制（steer / 排队 / interrupt）
+
+extension ConversationStore {
+    /// 转向当前进行中的 turn：发 turn/steer（threadId + input + expectedTurnId=activeTurnId）。
+    /// 仅当 turn 进行中（activeTurnId 非空）且当前 turn 可 steer（activeTurnKind == nil，
+    /// 即非 review/compact）时才发出。返回是否成功发出 steer。
+    @discardableResult
+    func steer(input: [UserInput]) async -> Bool {
+        guard let turnId = state.activeTurnId, state.activeTurnKind == nil else { return false }
+        let params = TurnSteerParams(threadId: state.threadId, input: input, expectedTurnId: turnId)
+        Task { _ = try? await call(RPCMethod.turnSteer, params) }
+        return true
+    }
+
+    /// 排队后续输入：turn 进行中时暂存，turn/completed 后由 drainQueueIfTurnEnded 自动出队发送。
+    func enqueue(input: [UserInput]) {
+        queuedInputs.append(input)
+    }
+
+    /// 中断进行中的 turn：发 turn/interrupt（threadId）。
+    func interrupt() async {
+        let params = TurnInterruptParams(threadId: state.threadId)
+        Task { _ = try? await call(RPCMethod.turnInterrupt, params) }
     }
 }
