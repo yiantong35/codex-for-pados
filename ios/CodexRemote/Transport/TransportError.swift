@@ -4,7 +4,7 @@ import Foundation
 enum TransportError: Error, Equatable {
     case sshAuthFailed(String)        // remote-connection: SSH 鉴权失败
     case appServerUnreachable         // remote-connection: app-server 不可达
-    case proxyFailed(String)          // exec codex app-server proxy 失败
+    case proxyFailed(String)          // exec codex app-server --listen stdio:// 失败
     case channelClosed(reason: String?)
     case notConnected
 }

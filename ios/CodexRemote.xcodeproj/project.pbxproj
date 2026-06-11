@@ -29,6 +29,7 @@
 		A5E3135117192215A58A0725 /* ConversationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 896AF6065B1D4F09402CBEA2 /* ConversationModels.swift */; };
 		BEAA956A0743B18240709DE1 /* agentDeltaSequence.json in Resources */ = {isa = PBXBuildFile; fileRef = 063B0130DD0BA4DB96BC3109 /* agentDeltaSequence.json */; };
 		C2F8DADF2BC6D387BDF605C0 /* CodexRemoteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D2197F6A2B7E899050437AB /* CodexRemoteTests.swift */; };
+		C4237168B6B2008767CC37C2 /* SpikeIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F9AA0558F0DFBF8808437B4 /* SpikeIntegrationTests.swift */; };
 		D2A8C908330E777DD8F5DF97 /* SpikeRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E1DB34FCBBD8FBD8DDEF19D /* SpikeRunner.swift */; };
 		D70B6AACE385E2B532842EC5 /* TurnTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8F51BD06F0FA6F6B8896FEA /* TurnTypes.swift */; };
 		F370141604AEBDF313F80D49 /* ThreadReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC6C6C5BA4E33943DED8B45A /* ThreadReducer.swift */; };
@@ -52,6 +53,7 @@
 		063B0130DD0BA4DB96BC3109 /* agentDeltaSequence.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = agentDeltaSequence.json; sourceTree = "<group>"; };
 		0A271F024062297B9E0875E5 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		0E1DB34FCBBD8FBD8DDEF19D /* SpikeRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeRunner.swift; sourceTree = "<group>"; };
+		0F9AA0558F0DFBF8808437B4 /* SpikeIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeIntegrationTests.swift; sourceTree = "<group>"; };
 		164835E5F53DB4EC1BCAB13B /* JSONRPCClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONRPCClient.swift; sourceTree = "<group>"; };
 		1A8CF06540ED3E7C246131C8 /* SSHClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHClient.swift; sourceTree = "<group>"; };
 		2B8A2809870EB2C408134910 /* JSONRPCEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONRPCEnvelope.swift; sourceTree = "<group>"; };
@@ -232,6 +234,7 @@
 				3A46B0F715AC99CD902533D4 /* JSONRPCEnvelopeTests.swift */,
 				FB0BD4E81945814B56FD25C0 /* MockTransport.swift */,
 				AFD990BEF80BA894D65E3CC8 /* ProtocolTypesTests.swift */,
+				0F9AA0558F0DFBF8808437B4 /* SpikeIntegrationTests.swift */,
 				665E5D286E79DF598F867D8E /* ThreadReducerTests.swift */,
 				80BFB798C9990DCFADA27936 /* Fixtures */,
 			);
@@ -365,6 +368,7 @@
 				778221A116B554E3EA194D10 /* JSONRPCEnvelopeTests.swift in Sources */,
 				13472DEE88E768A9DEF5651A /* MockTransport.swift in Sources */,
 				2E22F5B05273F39AC264E778 /* ProtocolTypesTests.swift in Sources */,
+				C4237168B6B2008767CC37C2 /* SpikeIntegrationTests.swift in Sources */,
 				621495768AAB9EBBF750AC79 /* ThreadReducerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

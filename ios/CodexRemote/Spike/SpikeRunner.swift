@@ -34,7 +34,9 @@
 //     传输层应在 withExec 闭包内长驻（一个常驻 read loop + 一个 outbound 写句柄），
 //     而非「随用随开 exec」。
 //
-// 当前状态：// SPIKE 代码就绪 + 模拟器编译通过 2026-06-11；真机 SSH 握手待用户验证
+// 当前状态：// SPIKE 代码就绪 + 模拟器编译通过 2026-06-11；
+//   真机 SSH 握手已验证：传输命令为 `codex app-server --listen stdio://`
+//   （原 `codex app-server proxy` 因目标机远程控制 disabled + socket 被非受管实例占用而返回空，已废弃）。
 // ============================================================================
 
 import Foundation
@@ -70,9 +72,10 @@ struct SpikeRunner {
         // initialized 通知（无 id）
         let initialized = #"{"jsonrpc":"2.0","method":"initialized"}"#
 
-        // 2) exec 远端 `codex app-server proxy`，在其 stdio 上完成握手。
-        //    proxy 把 stdio 字节透明桥接到受管 daemon 的 control socket。
-        try await client.withExec("codex app-server proxy") { inbound, outbound in
+        // 2) exec 远端 `codex app-server --listen stdio://`，在其 stdio 上完成握手。
+        //    --listen stdio:// 会在本 SSH 通道的 stdio 上直接起一个独立 app-server，
+        //    共享 ~/.codex/sessions（不依赖受管 daemon 的 control socket）。
+        try await client.withExec("codex app-server --listen stdio://") { inbound, outbound in
             // 写 initialize（含换行）
             try await SpikeWire.writeLine(initialize, to: outbound)
             // 读回首条完整 JSON 响应（应含 result：userAgent/codexHome 等）
