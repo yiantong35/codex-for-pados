@@ -1,0 +1,14 @@
+# Node (comet CLI 本地安装的副产物)
+node_modules/
+
+# macOS
+.DS_Store
+
+# Xcode / Swift (后续 iPad 工程)
+xcuserdata/
+*.xcuserstate
+DerivedData/
+.build/
+*.xcworkspace/xcuserdata/
+
+# CodeGraph 数据见 .codegraph/.gitignore
