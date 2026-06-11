@@ -1009,7 +1009,7 @@ git commit -m "feat(protocol): MVP codable types (initialize/thread/turn/approva
 - Create: `ios/CodexRemote/Transport/SSHClient.swift`
 - Create: `ios/CodexRemote/Transport/TransportError.swift`
 
-- [ ] **Step 1：定义传输错误类型**
+- [x] **Step 1：定义传输错误类型**
 
 `ios/CodexRemote/Transport/TransportError.swift`：
 
@@ -1025,7 +1025,7 @@ enum TransportError: Error, Equatable {
 }
 ```
 
-- [ ] **Step 2：实现 SSHClient actor（建连 + exec codex app-server proxy，复用 spike 中已验证的 Citadel API）**
+- [x] **Step 2：实现 SSHClient actor（建连 + exec codex app-server proxy，复用 spike 中已验证的 Citadel API）**
 
 `ios/CodexRemote/Transport/SSHClient.swift`：
 
@@ -1082,12 +1082,12 @@ actor SSHClientWrapper {
 
 > 以 Task 3 spike 中确认可用的 Citadel exec API 形状为准（`ExecChannel` / `openProxyExecChannel` 是占位名，按 spike 实际接口落地）。此处仅负责建 SSH + 拿到 exec 通道的 stdio 双向流；换行分隔 JSON 的帧收发在 Task 7。
 
-- [ ] **Step 3：编译验证**
+- [x] **Step 3：编译验证**
 
 Run：`xcodebuild build -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)'`
 Expected：编译成功（actor 真机连通在 Task 20 E2E 验证，单测覆盖错误映射在 Task 10 mock 层）。
 
-- [ ] **Step 4：Commit**
+- [x] **Step 4：Commit**
 
 ```bash
 git add ios/CodexRemote/Transport/SSHClient.swift ios/CodexRemote/Transport/TransportError.swift
@@ -1107,7 +1107,7 @@ git commit -m "feat(transport): SSHClient actor with exec codex app-server proxy
 - Create: `ios/CodexRemote/Transport/ProxyChannel.swift`
 - Test: `ios/CodexRemoteTests/MockTransport.swift`（测试替身，供后续任务复用）
 
-- [ ] **Step 1：定义传输抽象协议**
+- [x] **Step 1：定义传输抽象协议**
 
 `ios/CodexRemote/Transport/MessageTransport.swift`：
 
@@ -1123,7 +1123,7 @@ protocol MessageTransport: Sendable {
 }
 ```
 
-- [ ] **Step 2：实现 ProxyChannel actor**
+- [x] **Step 2：实现 ProxyChannel actor**
 
 `ios/CodexRemote/Transport/ProxyChannel.swift` —— 在 Task 6 的 exec 通道 stdio 上做**换行分隔 JSON 帧**的收发：`send` 把一条完整 JSON 加换行写入 stdin；`incoming()` 从 stdout 按换行切分、每条完整 JSON 文本 yield 一次。按 spike 结论接线读写：
 
@@ -1159,7 +1159,7 @@ actor ProxyChannel: MessageTransport {
 
 > stdio 帧的具体读写（字节读取、按换行分帧、不完整行的缓冲）以 spike 中真机验证可行的实现为准。关键契约：`send` 发一条完整 JSON（自动补换行），`incoming()` 每条完整 JSON 行 yield 一次。`ExecChannel` 是占位名，以 Task 6 落地的 exec 通道类型为准。
 
-- [ ] **Step 3：写可复用的 MockTransport（测试替身）**
+- [x] **Step 3：写可复用的 MockTransport（测试替身）**
 
 `ios/CodexRemoteTests/MockTransport.swift` —— 供 Task 8/9/10/18/19 重放录制 fixture：
 
@@ -1190,12 +1190,12 @@ actor MockTransport: MessageTransport {
 }
 ```
 
-- [ ] **Step 4：编译验证**
+- [x] **Step 4：编译验证**
 
 Run：`xcodebuild build -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)'`
 Expected：编译成功。
 
-- [ ] **Step 5：Commit**
+- [x] **Step 5：Commit**
 
 ```bash
 git add ios/CodexRemote/Transport/MessageTransport.swift ios/CodexRemote/Transport/ProxyChannel.swift ios/CodexRemoteTests/MockTransport.swift
