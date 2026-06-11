@@ -143,7 +143,7 @@ git commit -m "chore: scaffold iPad CodexRemote SwiftUI app + Citadel dependency
 - Create: `protocol/ts/`（`generate-ts` 输出，供人工对照字段名）
 - Create: `scripts/regen-protocol.sh`（一键重生成脚本）
 
-- [ ] **Step 1：写版本 pin 文件**
+- [x] **Step 1：写版本 pin 文件**
 
 `protocol/codex-version.txt` 内容（单行）：
 
@@ -151,7 +151,7 @@ git commit -m "chore: scaffold iPad CodexRemote SwiftUI app + Citadel dependency
 0.133.0
 ```
 
-- [ ] **Step 2：写重生成脚本**
+- [x] **Step 2：写重生成脚本**
 
 `scripts/regen-protocol.sh`：
 
@@ -174,7 +174,7 @@ echo "OK: 协议产物已生成到 $OUT_DIR（codex $PIN）"
 
 > 注：若 `generate-json-schema`/`generate-ts` 的实际参数名与 `--out` 不同，以 `codex app-server generate-json-schema --help` 为准修正脚本，但仍输出到 `protocol/schema` 与 `protocol/ts`。
 
-- [ ] **Step 3：运行脚本生成产物到仓库内**
+- [x] **Step 3：运行脚本生成产物到仓库内**
 
 Run：
 
@@ -184,7 +184,7 @@ chmod +x scripts/regen-protocol.sh && ./scripts/regen-protocol.sh
 
 Expected：打印 `OK: 协议产物已生成`，`protocol/schema/` 下出现 `ServerRequest.json`、`CommandExecutionRequestApprovalResponse.json`、`JSONRPCMessage.json` 等文件；`protocol/ts/` 下出现 `InitializeParams.ts`、`v2/TurnStartParams.ts` 等。
 
-- [ ] **Step 4：校验关键文件存在（防生成不全）**
+- [x] **Step 4：校验关键文件存在（防生成不全）**
 
 Run：
 
@@ -199,7 +199,7 @@ ls protocol/schema/ServerRequest.json \
 
 Expected：6 个路径全部存在，无 `No such file`。
 
-- [ ] **Step 5：Commit**
+- [x] **Step 5：Commit**
 
 ```bash
 git add protocol scripts/regen-protocol.sh
