@@ -13,8 +13,11 @@ struct SettingsMenu: View {
             Section("settings.language") {
                 ForEach(AppLanguage.allCases, id: \.self) { lang in
                     Button { locale.language = lang } label: {
-                        Label(languageTitle(lang),
-                              systemImage: locale.language == lang ? "checkmark" : "")
+                        if locale.language == lang {
+                            Label(languageTitle(lang), systemImage: "checkmark")
+                        } else {
+                            Text(languageTitle(lang))
+                        }
                     }
                 }
             }
@@ -22,8 +25,11 @@ struct SettingsMenu: View {
             Section("settings.appearance") {
                 ForEach(AppTheme.allCases, id: \.self) { t in
                     Button { theme.theme = t } label: {
-                        Label(themeTitle(t),
-                              systemImage: theme.theme == t ? "checkmark" : "")
+                        if theme.theme == t {
+                            Label(themeTitle(t), systemImage: "checkmark")
+                        } else {
+                            Text(themeTitle(t))
+                        }
                     }
                 }
             }
