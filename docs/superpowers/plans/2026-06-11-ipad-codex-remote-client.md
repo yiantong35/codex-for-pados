@@ -3535,3 +3535,102 @@ git commit -m "feat(ui): RootSplitView 三栏 + InspectorView 环境信息简态
 **3. 类型一致性：** `GitInfoSummary`(Task21) 字段 `originUrl/branch/sha` 在 Task22 分类、Task25 inspector 使用一致；`Project(id:cwd:originUrl:threads:)` 新签名在 Task22 定义、Task24/25 消费一致；`ProjectsStore.isGrouped/allThreadsSorted/looseConversations/pendingApprovalCount(in:)` 在 Task22 定义、Task24 消费一致；`SidebarCollapseStore.isCollapsed/setCollapsed`(Task23) 在 Task24 消费一致。
 
 **范围纪律：** 本增量不含分类本地覆盖/手动移动、unread/运行中徽标、pin、重命名/归档/fork（均 v2，见设计 §14）；运行中徽标因需全局通知广播重构明确留 v2。
+
+---
+
+# v1.2 增量：主界面布局细化（Task 26）
+
+> 来源：真机/模拟器目视反馈，更新于设计 **D7**、delta spec `session-management`「主界面布局可隐藏 inspector 且设置常显」。复刻 desktop 右上角面板开关。
+> 范围：①设置齿轮挪到侧栏 toolbar 稳定常显 ②右栏 inspector 改 iOS 17 `.inspector` 可隐藏（默认收起）+ 顶部切换按钮 ③进入默认聚焦侧栏、未选中对话时中栏最小空态（去大占位卡）④inspector 最小宽度更小（允许拉得更窄，现 220 太宽）。
+
+## Task 26：RootSplitView 主界面布局细化（inspector 可隐藏 + 设置常显）
+
+**Files:**
+- Modify: `ios/CodexRemote/Views/RootSplitView.swift`
+- Modify: `ios/CodexRemote/Views/SidebarView.swift`（设置齿轮移入侧栏 toolbar）
+- Test: `ios/CodexRemoteTests/OrientationSnapshotTests.swift`
+
+**目标结构**：两列 `NavigationSplitView`（sidebar | content）+ `.inspector(isPresented:)` 右栏；inspector 默认隐藏；content 工具栏放 inspector 切换按钮；SidebarView 工具栏放 `SettingsMenu` 齿轮（侧栏常驻，连接后始终可见）。
+
+- [ ] **Step 1：写失败快照测试（默认态 inspector 隐藏 + 设置键存在）**
+
+参照既有 `OrientationSnapshotTests` 基建（自定义 `snapshot(_:size:name:dir:)` + `makeConnection()` + `gitThread/looseThread` 工厂）。新增一例渲染 `RootSplitView`，RED 落在可判定行为：断言新本地化键 `inspector.toggle` 解析成功（缺键即失败）。
+
+- [ ] **Step 2：运行测试确认失败**
+
+Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad-Test' -only-testing:CodexRemoteTests/OrientationSnapshotTests`
+Expected：FAIL（`inspector.toggle` 键缺失 / 结构未改）
+
+- [ ] **Step 3：重写 RootSplitView body**
+
+```swift
+struct RootSplitView: View {
+    @Environment(ConnectionStore.self) private var connection
+    @Environment(ProjectsStore.self) private var projects
+    @State private var selectedThreadId: String?
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var showInspector = false   // 复刻 desktop：默认隐藏
+
+    private var selectedThread: ThreadSummary? {
+        guard let id = selectedThreadId else { return nil }
+        return projects.allThreadsSorted.first { $0.id == id }
+    }
+
+    var body: some View {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            SidebarView(selectedThreadId: $selectedThreadId)
+                .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 380)
+        } detail: {
+            content
+                .inspector(isPresented: $showInspector) {
+                    InspectorView(thread: selectedThread)
+                        // 允许拉得更窄（min 150，旧 220 太宽）
+                        .inspectorColumnWidth(min: 150, ideal: 240, max: 380)
+                }
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { showInspector.toggle() } label: {
+                            Label("inspector.toggle", systemImage: "sidebar.trailing")
+                        }
+                    }
+                }
+        }
+        .navigationSplitViewStyle(.balanced)
+    }
+
+    @ViewBuilder private var content: some View {
+        if let id = selectedThreadId {
+            ConversationView(threadId: id).id(id)
+        } else {
+            // 最小空态：不显大占位卡，默认聚焦侧栏。
+            Color.clear
+        }
+    }
+}
+```
+
+> 说明：`.toolbar` 里**移除** `SettingsMenu`（改由 SidebarView 承载）；inspector 默认 `false`；空态用 `Color.clear` 取代 `ContentUnavailableView` 大占位。
+
+- [ ] **Step 4：SidebarView 工具栏加设置齿轮（常驻可见）**
+
+在 `SidebarView` 的 `List {...}` 之后、`.navigationTitle("sidebar.title")` 附近补：
+
+```swift
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { SettingsMenu() }
+        }
+```
+
+新增本地化 key `inspector.toggle`（中「环境信息」/英「Inspector」）到 `Localizable.xcstrings`，写法对齐既有键。
+
+- [ ] **Step 5：运行测试确认通过 + 全量回归**
+
+Run：`-only-testing:CodexRemoteTests/OrientationSnapshotTests`，再跑全量（去 -only-testing）。
+Expected：全部 PASS，无回归。
+
+- [ ] **Step 6：Commit**
+
+```bash
+git add ios/CodexRemote/Views/RootSplitView.swift ios/CodexRemote/Views/SidebarView.swift ios/CodexRemoteTests/OrientationSnapshotTests.swift ios/CodexRemote/Resources
+git commit -m "feat(ui): 主界面 inspector 可隐藏(默认收起)+设置齿轮移侧栏常显+默认聚焦侧栏 (Task 26)"
+```
