@@ -801,6 +801,22 @@
         }
       }
     },
+    "inspector.toggle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inspector"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "环境信息"
+          }
+        }
+      }
+    },
     "root.reconnecting": {
       "localizations": {
         "en": {

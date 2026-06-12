@@ -186,6 +186,19 @@ final class OrientationSnapshotTests: XCTestCase {
         snapshot(view, size: landscape, name: "split-landscape")
     }
 
+    /// Task 26：默认态主界面（inspector 默认隐藏 + 设置齿轮移侧栏 + 空态不显大占位）。
+    /// RED 落在可判定行为：新增本地化键 `inspector.toggle` 必须可解析（解析失败回落为键名本身）。
+    func test_rootsplit_default_layout_snapshot() {
+        let value = String(localized: "inspector.toggle", bundle: .main)
+        XCTAssertNotEqual(value, "inspector.toggle", "缺少 inspector.toggle 本地化键")
+        let view = RootSplitView()
+            .environment(makeConnection())
+            .environment(makeProjects())
+            .environment(LocaleManager())
+            .environment(ThemeManager())
+        snapshot(view, size: landscape, name: "split-default-layout")
+    }
+
     // MARK: - 场景 3：SidebarView 分组态 / 平铺态（Task 24）
 
     /// ≥2 项目 + loose 会话 → isGrouped=true：项目区(DisclosureGroup + 待批准徽标) + 「对话」Section。
@@ -205,6 +218,8 @@ final class OrientationSnapshotTests: XCTestCase {
         let view = SidebarView(selectedThreadId: .constant(nil))
             .environment(projects)
             .environment(makeConnection())
+            .environment(LocaleManager())   // SettingsMenu（侧栏 toolbar，Task 26）依赖
+            .environment(ThemeManager())
         snapshot(view, size: portrait, name: "sidebar-grouped", dir: "/tmp/sidebar")
     }
 
@@ -220,6 +235,8 @@ final class OrientationSnapshotTests: XCTestCase {
         let view = SidebarView(selectedThreadId: .constant(nil))
             .environment(projects)
             .environment(makeConnection())
+            .environment(LocaleManager())   // SettingsMenu（侧栏 toolbar，Task 26）依赖
+            .environment(ThemeManager())
         snapshot(view, size: portrait, name: "sidebar-flat", dir: "/tmp/sidebar")
     }
 

@@ -3552,16 +3552,16 @@ git commit -m "feat(ui): RootSplitView 三栏 + InspectorView 环境信息简态
 
 **目标结构**：两列 `NavigationSplitView`（sidebar | content）+ `.inspector(isPresented:)` 右栏；inspector 默认隐藏；content 工具栏放 inspector 切换按钮；SidebarView 工具栏放 `SettingsMenu` 齿轮（侧栏常驻，连接后始终可见）。
 
-- [ ] **Step 1：写失败快照测试（默认态 inspector 隐藏 + 设置键存在）**
+- [x] **Step 1：写失败快照测试（默认态 inspector 隐藏 + 设置键存在）**
 
 参照既有 `OrientationSnapshotTests` 基建（自定义 `snapshot(_:size:name:dir:)` + `makeConnection()` + `gitThread/looseThread` 工厂）。新增一例渲染 `RootSplitView`，RED 落在可判定行为：断言新本地化键 `inspector.toggle` 解析成功（缺键即失败）。
 
-- [ ] **Step 2：运行测试确认失败**
+- [x] **Step 2：运行测试确认失败**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad-Test' -only-testing:CodexRemoteTests/OrientationSnapshotTests`
 Expected：FAIL（`inspector.toggle` 键缺失 / 结构未改）
 
-- [ ] **Step 3：重写 RootSplitView body**
+- [x] **Step 3：重写 RootSplitView body**
 
 ```swift
 struct RootSplitView: View {
@@ -3611,7 +3611,7 @@ struct RootSplitView: View {
 
 > 说明：`.toolbar` 里**移除** `SettingsMenu`（改由 SidebarView 承载）；inspector 默认 `false`；空态用 `Color.clear` 取代 `ContentUnavailableView` 大占位。
 
-- [ ] **Step 4：SidebarView 工具栏加设置齿轮（常驻可见）**
+- [x] **Step 4：SidebarView 工具栏加设置齿轮（常驻可见）**
 
 在 `SidebarView` 的 `List {...}` 之后、`.navigationTitle("sidebar.title")` 附近补：
 
@@ -3623,12 +3623,12 @@ struct RootSplitView: View {
 
 新增本地化 key `inspector.toggle`（中「环境信息」/英「Inspector」）到 `Localizable.xcstrings`，写法对齐既有键。
 
-- [ ] **Step 5：运行测试确认通过 + 全量回归**
+- [x] **Step 5：运行测试确认通过 + 全量回归**
 
 Run：`-only-testing:CodexRemoteTests/OrientationSnapshotTests`，再跑全量（去 -only-testing）。
 Expected：全部 PASS，无回归。
 
-- [ ] **Step 6：Commit**
+- [x] **Step 6：Commit**
 
 ```bash
 git add ios/CodexRemote/Views/RootSplitView.swift ios/CodexRemote/Views/SidebarView.swift ios/CodexRemoteTests/OrientationSnapshotTests.swift ios/CodexRemote/Resources

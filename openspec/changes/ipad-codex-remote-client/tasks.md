@@ -54,4 +54,4 @@
 - [x] 9.5 RootSplitView 三栏 + InspectorView 环境信息简态（plan Task 25）
 
 ## 10. 主界面布局细化 v1.2（plan Task 26）
-- [ ] 10.1 inspector 可隐藏(默认收起)+顶部切换 + 设置齿轮移侧栏常显 + 默认聚焦侧栏(去大占位) + inspector 最小宽度更窄（plan Task 26）
+- [x] 10.1 inspector 可隐藏(默认收起)+顶部切换 + 设置齿轮移侧栏常显 + 默认聚焦侧栏(去大占位) + inspector 最小宽度更窄（plan Task 26）
