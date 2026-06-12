@@ -55,3 +55,7 @@
 
 ## 10. 主界面布局细化 v1.2（plan Task 26）
 - [x] 10.1 inspector 可隐藏(默认收起)+顶部切换 + 设置齿轮移侧栏常显 + 默认聚焦侧栏(去大占位) + inspector 最小宽度更窄（plan Task 26）
+- [x] 10.2 toolbar 目视修正：去重复侧栏开关(只留系统自动) + inspector 图标改 desktop 列表样式（commit a1d6900，模拟器自检通过）
+
+## 11. 启动自动重连（remote-connection 增量）
+- [x] 11.1 启动时若有已保存连接信息+密钥则自动连接一次，失败不循环（ConnectionConfigView 一次性 .task；模拟器自检：启动即自动连上主界面）

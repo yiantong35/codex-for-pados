@@ -13,6 +13,8 @@ struct ConnectionConfigView: View {
     @State private var host = UserDefaults.standard.string(forKey: "host") ?? ""
     @State private var sshPort = UserDefaults.standard.string(forKey: "sshPort") ?? "22"
     @State private var user = UserDefaults.standard.string(forKey: "sshUser") ?? ""
+    /// 启动自动重连一次性闸门：仅本次 app 生命周期内自动连一次，失败后不自动重试（避免循环）。
+    @State private var didAutoConnect = false
 
     /// 错误文案直接由 phase 派生：重新点连接 → phase 变 execProxy → 旧错误自动消失。
     private var errorText: String? {
@@ -50,6 +52,15 @@ struct ConnectionConfigView: View {
             SettingsMenu()
                 .font(.title3)
                 .padding(20)
+        }
+        // 启动自动重连：有上次连接信息(主机+用户)且密钥已存、当前断开时，自动发起连接一次。
+        // 失败留在本界面（phase=.failed），由用户手动重试，不自动循环。
+        .task {
+            if !didAutoConnect, connection.phase == .disconnected,
+               !host.isEmpty, !user.isEmpty, keyManager.privateKey() != nil {
+                didAutoConnect = true
+                connect()
+            }
         }
     }
 
