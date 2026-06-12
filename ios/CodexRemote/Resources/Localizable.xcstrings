@@ -1,294 +1,790 @@
 {
-  "sourceLanguage" : "zh-Hans",
-  "strings" : {
-    "approval.awaitingRecovery" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Disconnected, will resume after reconnect" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接已断开，等待重连后恢复" } }
+  "sourceLanguage": "zh-Hans",
+  "strings": {
+    "approval.awaitingRecovery": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnected, will resume after reconnect"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接已断开，等待重连后恢复"
+          }
+        }
       }
     },
-    "approval.commandTitle" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Command execution approval" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "命令执行审批" } }
+    "approval.commandTitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Command execution approval"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命令执行审批"
+          }
+        }
       }
     },
-    "approval.fallback.command" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Command" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "命令" } }
+    "approval.fallback.command": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Command"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命令"
+          }
+        }
       }
     },
-    "approval.fallback.file" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "File change" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件改动" } }
+    "approval.fallback.file": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File change"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件改动"
+          }
+        }
       }
     },
-    "approval.fileTitle" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "File change approval" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件改动审批" } }
+    "approval.fileTitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File change approval"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件改动审批"
+          }
+        }
       }
     },
-    "approval.no" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "No" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "否" } }
+    "approval.no": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "否"
+          }
+        }
       }
     },
-    "approval.yes" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Yes" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "是" } }
+    "approval.yes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yes"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "是"
+          }
+        }
       }
     },
-    "approval.yesPrefix" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Yes, allow this prefix for the session" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "是，且本会话放行此前缀" } }
+    "approval.yesPrefix": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yes, allow this prefix for the session"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "是，且本会话放行此前缀"
+          }
+        }
       }
     },
-    "composer.effort" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reasoning effort" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "推理强度" } }
+    "composer.effort": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reasoning effort"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "推理强度"
+          }
+        }
       }
     },
-    "composer.enqueue" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Queue, send after turn ends" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "排队，回合结束后发送" } }
+    "composer.enqueue": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Queue, send after turn ends"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排队，回合结束后发送"
+          }
+        }
       }
     },
-    "composer.imageAttached" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Image attached" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已附加图片" } }
+    "composer.imageAttached": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image attached"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已附加图片"
+          }
+        }
       }
     },
-    "composer.model" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Model" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "模型" } }
+    "composer.model": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型"
+          }
+        }
       }
     },
-    "composer.noSteer %@" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Steering not supported for this turn (%@)" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本回合（%@）不支持转向" } }
+    "composer.noSteer %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Steering not supported for this turn (%@)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本回合（%@）不支持转向"
+          }
+        }
       }
     },
-    "composer.placeholder" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Send a message…" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "发消息…" } }
+    "composer.placeholder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send a message…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发消息…"
+          }
+        }
       }
     },
-    "composer.remove" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "移除" } }
+    "composer.remove": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除"
+          }
+        }
       }
     },
-    "composer.steer" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Steer current turn" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "转向当前回合" } }
+    "composer.steer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Steer current turn"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转向当前回合"
+          }
+        }
       }
     },
-    "conn.connect" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connect" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接" } }
+    "conn.cardTitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect to Mac"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接到 Mac"
+          }
+        }
       }
     },
-    "conn.error.appServerUnreachable" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "app-server unreachable. Check that the Mac launch script has enabled managed daemon remote control." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "app-server 不可达，请检查 Mac 端启动脚本是否已启用受管 daemon 远程控制。" } }
+    "conn.connect": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接"
+          }
+        }
       }
     },
-    "conn.error.authFailed %@" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "SSH authentication failed: %@" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "SSH 鉴权失败：%@" } }
+    "conn.error.appServerUnreachable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "app-server unreachable. Check that the Mac launch script has enabled managed daemon remote control."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "app-server 不可达，请检查 Mac 端启动脚本是否已启用受管 daemon 远程控制。"
+          }
+        }
       }
     },
-    "conn.error.generic %@" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connection failed: %@" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接失败：%@" } }
+    "conn.error.authFailed %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH authentication failed: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH 鉴权失败：%@"
+          }
+        }
       }
     },
-    "conn.host" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Host / IP" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "主机 / IP" } }
+    "conn.error.generic %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection failed: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接失败：%@"
+          }
+        }
       }
     },
-    "conn.passwordPlaceholder" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Password" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "密码" } }
+    "conn.host": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Host / IP"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主机 / IP"
+          }
+        }
       }
     },
-    "conn.privateKeyPlaceholder" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Private key PEM (-----BEGIN OPENSSH PRIVATE KEY-----)" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "私钥 PEM（-----BEGIN OPENSSH PRIVATE KEY-----）" } }
+    "conn.passwordPlaceholder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Password"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密码"
+          }
+        }
       }
     },
-    "conn.section.mac" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Mac connection" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Mac 连接" } }
+    "conn.privateKeyPlaceholder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Private key PEM (-----BEGIN OPENSSH PRIVATE KEY-----)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "私钥 PEM（-----BEGIN OPENSSH PRIVATE KEY-----）"
+          }
+        }
       }
     },
-    "conn.sshPort" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "SSH port" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "SSH 端口" } }
+    "conn.section.mac": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac connection"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac 连接"
+          }
+        }
       }
     },
-    "conn.sshUser" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "SSH username" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "SSH 用户名" } }
+    "conn.sshPort": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH port"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH 端口"
+          }
+        }
       }
     },
-    "conn.title" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connection" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接配置" } }
+    "conn.sshUser": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH username"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SSH 用户名"
+          }
+        }
       }
     },
-    "conn.usePrivateKey" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use private key (ed25519)" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用私钥（ed25519）" } }
+    "conn.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接配置"
+          }
+        }
       }
     },
-    "conv.generating" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Generating…" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "生成中…" } }
+    "conn.usePrivateKey": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use private key (ed25519)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用私钥（ed25519）"
+          }
+        }
       }
     },
-    "conv.idle" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Idle" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "空闲" } }
+    "conv.generating": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generating…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "生成中…"
+          }
+        }
       }
     },
-    "conv.running" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Running" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "进行中" } }
+    "conv.idle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Idle"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "空闲"
+          }
+        }
       }
     },
-    "conv.title" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Conversation" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "对话" } }
+    "conv.running": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "进行中"
+          }
+        }
       }
     },
-    "root.reconnecting" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reconnecting…" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重连中…" } }
+    "conv.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conversation"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对话"
+          }
+        }
       }
     },
-    "settings.accessibility" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Settings" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置" } }
+    "root.reconnecting": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnecting…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重连中…"
+          }
+        }
       }
     },
-    "settings.appearance" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Appearance" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "外观" } }
+    "settings.accessibility": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置"
+          }
+        }
       }
     },
-    "settings.appearance.dark" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dark" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "深色" } }
+    "settings.appearance": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appearance"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "外观"
+          }
+        }
       }
     },
-    "settings.appearance.light" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Light" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "浅色" } }
+    "settings.appearance.dark": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dark"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "深色"
+          }
+        }
       }
     },
-    "settings.appearance.system" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Follow system" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跟随系统" } }
+    "settings.appearance.light": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Light"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "浅色"
+          }
+        }
       }
     },
-    "settings.language" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Language" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "语言" } }
+    "settings.appearance.system": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow system"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随系统"
+          }
+        }
       }
     },
-    "settings.language.en" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "English" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "English" } }
+    "settings.language": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Language"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语言"
+          }
+        }
       }
     },
-    "settings.language.zh" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "中文" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "中文" } }
+    "settings.language.en": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "English"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "English"
+          }
+        }
       }
     },
-    "sidebar.empty.desc" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "The conversation list loads automatically after connecting." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接成功后将自动拉取会话列表。" } }
+    "settings.language.zh": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中文"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中文"
+          }
+        }
       }
     },
-    "sidebar.empty.title" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "No conversations" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无对话" } }
+    "sidebar.empty.desc": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The conversation list loads automatically after connecting."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接成功后将自动拉取会话列表。"
+          }
+        }
       }
     },
-    "sidebar.pendingApproval" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Awaiting approval" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "等待批准" } }
+    "sidebar.empty.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No conversations"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无对话"
+          }
+        }
       }
     },
-    "sidebar.title" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Projects" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "项目" } }
+    "sidebar.pendingApproval": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Awaiting approval"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待批准"
+          }
+        }
       }
     },
-    "sidebar.untitled" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "(untitled)" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "(无标题)" } }
+    "sidebar.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projects"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "项目"
+          }
+        }
       }
     },
-    "split.inspector" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Output / Sources" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输出 / 来源" } }
+    "sidebar.untitled": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(untitled)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(无标题)"
+          }
+        }
       }
     },
-    "split.selectConversation" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Select a conversation" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择一个对话" } }
+    "split.inspector": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Output / Sources"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输出 / 来源"
+          }
+        }
+      }
+    },
+    "split.selectConversation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select a conversation"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择一个对话"
+          }
+        }
       }
     }
   },
-  "version" : "1.0"
+  "version": "1.0"
 }

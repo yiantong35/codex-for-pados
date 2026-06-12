@@ -41,7 +41,8 @@ struct RootView: View {
             case .ready, .reconnecting:
                 RootSplitView()
             default:
-                NavigationStack { ConnectionConfigView() }
+                // 连接界面已自带居中卡片布局与右上角齿轮 overlay，无需 NavigationStack 包裹。
+                ConnectionConfigView()
             }
         }
         .overlay(alignment: .top) { reconnectBanner }
