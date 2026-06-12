@@ -193,24 +193,6 @@ struct KeyAreaView: View {
                     .truncationMode(.middle)
             }
 
-            Text("conn.key.installHint")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            if let cmd = installCommand {
-                Text(cmd)
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color(.tertiarySystemGroupedBackground))
-                    )
-            }
-
             HStack(spacing: 10) {
                 Button {
                     copyPublicKey()
@@ -235,12 +217,6 @@ struct KeyAreaView: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color(.tertiarySystemGroupedBackground))
         )
-    }
-
-    /// 安装到 Mac 的命令（含完整公钥，UI 截断显示但复制时取全文）。
-    private var installCommand: String? {
-        guard let pub = keyManager.publicKeyOpenSSH() else { return nil }
-        return "echo '\(pub)' >> ~/.ssh/authorized_keys"
     }
 
     private func copyPublicKey() {
