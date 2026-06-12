@@ -3055,3 +3055,483 @@ git commit -m "test(e2e): verify connect/stream/resume/approval/reconnect; backf
 **核心约束落实确认：** build 首步 = Task 3 Citadel SSH exec proxy spike（最大风险前置）✅；协议从 generate 生成入仓库 + pin 0.133.0（Task 1）✅；五层分层（Task 4-13）✅；审批多选项 + v2 主 + legacy 兼容 + serverRequest/resolved + 超时不自动批准（Task 18/19）✅；协议层/归约层 fixture+mock 单测、SSH exec proxy 传输靠 spike+E2E（贯穿）✅。
 
 **备选降级（风险兜底）：** 若 Citadel exec proxy 通道在 iPadOS 上不可行（spike 未通过），回退到旧方案 — Mac 端自起 `codex app-server --listen ws://127.0.0.1:<port>` + iPad 经 Citadel direct-tcpip 端口转发 + WebSocket 承载 JSON-RPC。主线必须是 exec proxy / stdio，此降级仅作 spike 失败时的备选路径。
+
+---
+
+# v1.1 增量：左栏复刻 Codex desktop（Task 21–25）
+
+> 来源：build 阶段 brainstorming 产出，更新于设计文档 **D7（三栏）/ D8（项目·对话启发式分区）/ §14 路线图**，delta spec `session-management`。
+> 执行：subagent-driven-development + TDD（每任务先写失败测试）。worktree 隔离（已设）。
+> **范围（v1）**：①ThreadSummary 补 gitInfo ②ProjectsStore 启发式分类（项目/对话）+ 按 git/cwd 归组 + 排序 + ≥2 项目才分区 + 待批准计数 ③折叠状态本地持久化 ④SidebarView 重构（项目区可折叠 + 对话区 + 徽标）⑤RootSplitView 三栏 + Inspector 简态。
+> **不做（v2）**：分类本地覆盖/手动移动、unread/运行中徽标、pin、重命名/归档/fork。
+
+## Task 21：ThreadSummary 补 gitInfo（分类信号）
+
+**Files:**
+- Modify: `ios/CodexRemote/Protocol/ThreadTypes.swift`
+- Test: `ios/CodexRemoteTests/ProtocolTypesTests.swift`
+
+- [ ] **Step 1：写失败测试（解码带 gitInfo 与 gitInfo=null 两种线程）**
+
+```swift
+func test_threadSummary_decodes_gitInfo() throws {
+    let json = """
+    {"id":"t1","sessionId":"s1","preview":"p","modelProvider":"openai",
+     "createdAt":1,"updatedAt":2,"cwd":"/repo/web-dev","cliVersion":"0.133.0","name":null,
+     "gitInfo":{"sha":"abc","branch":"main","originUrl":"git@github.com:me/web-dev.git"}}
+    """.data(using: .utf8)!
+    let t = try JSONDecoder().decode(ThreadSummary.self, from: json)
+    XCTAssertEqual(t.gitInfo?.originUrl, "git@github.com:me/web-dev.git")
+    XCTAssertEqual(t.gitInfo?.branch, "main")
+}
+
+func test_threadSummary_decodes_nil_gitInfo() throws {
+    let json = """
+    {"id":"t2","sessionId":"s2","preview":"p","modelProvider":"openai",
+     "createdAt":1,"updatedAt":2,"cwd":"/Volumes/mount","cliVersion":"0.133.0","name":null,"gitInfo":null}
+    """.data(using: .utf8)!
+    let t = try JSONDecoder().decode(ThreadSummary.self, from: json)
+    XCTAssertNil(t.gitInfo)
+}
+```
+
+- [ ] **Step 2：运行测试确认失败**
+
+Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ProtocolTypesTests`
+Expected：FAIL（`ThreadSummary` 无 `gitInfo` 成员 / 类型不存在）
+
+- [ ] **Step 3：实现 GitInfoSummary 并加入 ThreadSummary**
+
+在 `ThreadTypes.swift` 的 `ThreadSummary` 定义前加：
+
+```swift
+/// 取自 v2/GitInfo.ts（sha/branch/originUrl）。MVP 仅取分类/展示所需 originUrl/branch。
+struct GitInfoSummary: Codable, Equatable {
+    var sha: String?
+    var branch: String?
+    var originUrl: String?
+}
+```
+
+在 `ThreadSummary` 末尾 `let name: String?` 后加（用 `var` + 可选，缺字段容错）：
+
+```swift
+    var gitInfo: GitInfoSummary?                    // null 表示非 git 仓库（分类信号，见 D8）
+```
+
+- [ ] **Step 4：运行测试确认通过**
+
+Run：同 Step 2
+Expected：PASS
+
+- [ ] **Step 5：Commit**
+
+```bash
+git add ios/CodexRemote/Protocol/ThreadTypes.swift ios/CodexRemoteTests/ProtocolTypesTests.swift
+git commit -m "feat(protocol): ThreadSummary 补 gitInfo(originUrl/branch) 作为项目/对话分类信号 (Task 21)"
+```
+
+## Task 22：ProjectsStore 启发式分类 + 归组 + 排序 + 待批准计数
+
+**Files:**
+- Modify: `ios/CodexRemote/Stores/ProjectsStore.swift`
+- Test: `ios/CodexRemoteTests/ProjectsStoreTests.swift`
+
+**契约（D8）**：线程 `gitInfo != nil` → 「项目」类，按 `originUrl ?? cwd` 归组（同 originUrl 的多 worktree 并为一项目）；否则 → 「对话」类（loose）。项目间 / 项目内 / 对话区均按 `updatedAt` 倒序。`isGrouped = projects.count >= 2`。
+
+- [ ] **Step 1：写失败测试（分类/归组/排序/loose/isGrouped/待批准计数）**
+
+```swift
+private func thread(_ id: String, cwd: String, updatedAt: Double,
+                    origin: String? = nil, git: Bool = false) -> ThreadSummary {
+    ThreadSummary(id: id, sessionId: id, preview: "", modelProvider: "openai",
+                  createdAt: 0, updatedAt: updatedAt, cwd: cwd, cliVersion: "0.133.0",
+                  name: nil, gitInfo: git ? GitInfoSummary(sha: nil, branch: "main", originUrl: origin) : nil)
+}
+
+func test_ingest_classifies_project_vs_loose() {
+    let s = ProjectsStore()
+    s.ingest([
+        thread("a", cwd: "/repo/web-dev", updatedAt: 10, origin: "o/web", git: true),
+        thread("b", cwd: "/repo/web-dev-wt", updatedAt: 20, origin: "o/web", git: true), // 同 origin → 同项目
+        thread("c", cwd: "/repo/api", updatedAt: 30, origin: "o/api", git: true),
+        thread("d", cwd: "/Volumes/mount", updatedAt: 40), // 无 git → loose
+    ])
+    XCTAssertEqual(s.projects.count, 2)                 // web + api
+    XCTAssertEqual(s.looseConversations.map(\.id), ["d"])
+    XCTAssertTrue(s.isGrouped)                          // ≥2 项目
+    // 项目间按组内最近 updatedAt 倒序：api(30) 在 web(20) 前
+    XCTAssertEqual(s.projects.first?.threads.map(\.id), ["c"])
+    // 项目内按 updatedAt 倒序：web 组 b(20) 在 a(10) 前
+    XCTAssertEqual(s.projects.last?.threads.map(\.id), ["b", "a"])
+}
+
+func test_isGrouped_false_when_single_project() {
+    let s = ProjectsStore()
+    s.ingest([ thread("a", cwd: "/repo/x", updatedAt: 1, origin: "o/x", git: true),
+               thread("d", cwd: "/Volumes/mount", updatedAt: 2) ])
+    XCTAssertFalse(s.isGrouped)                         // 仅 1 项目 → 平铺
+    XCTAssertEqual(s.allThreadsSorted.map(\.id), ["d", "a"])  // 全列表按 updatedAt 倒序
+}
+
+func test_pendingApprovalCount_per_project() {
+    let s = ProjectsStore()
+    s.ingest([ thread("a", cwd: "/repo/x", updatedAt: 1, origin: "o/x", git: true),
+               thread("b", cwd: "/repo/x", updatedAt: 2, origin: "o/x", git: true) ])
+    s.setPendingApproval(threadId: "a", pending: true)
+    XCTAssertEqual(s.pendingApprovalCount(in: s.projects[0]), 1)
+}
+```
+
+- [ ] **Step 2：运行测试确认失败**
+
+Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ProjectsStoreTests`
+Expected：FAIL（`looseConversations`/`isGrouped`/`allThreadsSorted`/`pendingApprovalCount` 不存在；`Project` 无 `originUrl`）
+
+- [ ] **Step 3：重写 Project 模型与 ingest**
+
+替换 `ProjectsStore.swift` 中 `Project` 结构与 `ingest`：
+
+```swift
+struct Project: Identifiable {
+    let id: String              // 归组键：originUrl ?? cwd
+    let cwd: String
+    let originUrl: String?
+    var threads: [ThreadSummary]
+    /// 显示名：origin 仓库名（去 .git）优先，否则 cwd 末段目录名。
+    var displayName: String {
+        if let o = originUrl, let repo = Self.repoName(o) { return repo }
+        return (cwd as NSString).lastPathComponent
+    }
+    static func repoName(_ origin: String) -> String? {
+        let trimmed = origin.hasSuffix(".git") ? String(origin.dropLast(4)) : origin
+        let seg = trimmed.split(whereSeparator: { $0 == "/" || $0 == ":" }).last
+        return seg.map(String.init)
+    }
+}
+```
+
+在 store 内把 `private(set) var projects` 之外补两个输出，并重写 `ingest`：
+
+```swift
+    private(set) var projects: [Project] = []
+    private(set) var looseConversations: [ThreadSummary] = []
+    var isGrouped: Bool { projects.count >= 2 }
+    var allThreadsSorted: [ThreadSummary] {
+        (projects.flatMap(\.threads) + looseConversations).sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    /// 启发式分类（D8）：有 gitInfo → 项目（按 originUrl ?? cwd 归组）；否则 → 对话(loose)。
+    /// 项目间按组内最近 updatedAt 倒序；项目内 / loose 按 updatedAt 倒序。
+    func ingest(_ threads: [ThreadSummary]) {
+        let projectThreads = threads.filter { $0.gitInfo != nil }
+        let loose = threads.filter { $0.gitInfo == nil }
+        let grouped = Dictionary(grouping: projectThreads) { t in
+            (t.gitInfo?.originUrl?.isEmpty == false) ? t.gitInfo!.originUrl! : t.cwd
+        }
+        projects = grouped.map { key, ts in
+            let sorted = ts.sorted { $0.updatedAt > $1.updatedAt }
+            return Project(id: key, cwd: sorted.first?.cwd ?? key,
+                           originUrl: sorted.first?.gitInfo?.originUrl, threads: sorted)
+        }.sorted { ($0.threads.first?.updatedAt ?? 0) > ($1.threads.first?.updatedAt ?? 0) }
+        looseConversations = loose.sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    func pendingApprovalCount(in project: Project) -> Int {
+        project.threads.filter { hasPendingApproval($0.id) }.count
+    }
+```
+
+> 注意：`listParamsForDesktopVisibility` / `setPendingApproval` / `hasPendingApproval` / `loadFromServer` 保持不变，`loadFromServer` 仍调用 `ingest(resp.data)`。
+
+- [ ] **Step 4：运行测试确认通过**
+
+Run：同 Step 2
+Expected：PASS（含既有 ProjectsStore 测试不回归；若旧测试断言基于旧 `Project(cwd:threads:)` 构造器，同步更新为新签名）
+
+- [ ] **Step 5：Commit**
+
+```bash
+git add ios/CodexRemote/Stores/ProjectsStore.swift ios/CodexRemoteTests/ProjectsStoreTests.swift
+git commit -m "feat(stores): ProjectsStore 项目/对话启发式分类+归组+排序+待批准计数 (Task 22)"
+```
+
+## Task 23：折叠状态本地持久化
+
+**Files:**
+- Create: `ios/CodexRemote/Stores/SidebarCollapseStore.swift`
+- Test: `ios/CodexRemoteTests/SidebarCollapseStoreTests.swift`
+
+- [ ] **Step 1：写失败测试（折叠状态读写 + 持久化往返）**
+
+```swift
+final class SidebarCollapseStoreTests: XCTestCase {
+    func test_collapse_roundtrip_persists() {
+        let suite = "test.sidebar.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        let store = SidebarCollapseStore(defaults: defaults)
+        XCTAssertFalse(store.isCollapsed("proj-1"))     // 默认展开
+        store.setCollapsed("proj-1", true)
+        XCTAssertTrue(store.isCollapsed("proj-1"))
+        // 新实例从同一 defaults 读 → 持久化生效
+        let reloaded = SidebarCollapseStore(defaults: defaults)
+        XCTAssertTrue(reloaded.isCollapsed("proj-1"))
+        defaults.removePersistentDomain(forName: suite)
+    }
+}
+```
+
+- [ ] **Step 2：运行测试确认失败**
+
+Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/SidebarCollapseStoreTests`
+Expected：FAIL（`SidebarCollapseStore` 不存在）
+
+- [ ] **Step 3：实现 SidebarCollapseStore**
+
+```swift
+import Foundation
+
+/// 项目分组折叠状态的本地持久化（按 project id 存一个折叠集合）。
+/// 默认展开（不在集合中即展开）。
+struct SidebarCollapseStore {
+    private let defaults: UserDefaults
+    private let key = "sidebar.collapsedProjectIDs"
+    init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+
+    private var collapsedIDs: Set<String> {
+        Set(defaults.stringArray(forKey: key) ?? [])
+    }
+    func isCollapsed(_ id: String) -> Bool { collapsedIDs.contains(id) }
+    func setCollapsed(_ id: String, _ collapsed: Bool) {
+        var ids = collapsedIDs
+        if collapsed { ids.insert(id) } else { ids.remove(id) }
+        defaults.set(Array(ids), forKey: key)
+    }
+}
+```
+
+- [ ] **Step 4：运行测试确认通过**
+
+Run：同 Step 2
+Expected：PASS
+
+- [ ] **Step 5：Commit**
+
+```bash
+git add ios/CodexRemote/Stores/SidebarCollapseStore.swift ios/CodexRemoteTests/SidebarCollapseStoreTests.swift
+git commit -m "feat(stores): SidebarCollapseStore 折叠状态本地持久化 (Task 23)"
+```
+
+## Task 24：SidebarView 重构（项目区可折叠 + 对话区 + 徽标）
+
+**Files:**
+- Modify: `ios/CodexRemote/Views/SidebarView.swift`
+- Test: `ios/CodexRemoteTests/OrientationSnapshotTests.swift`
+
+- [ ] **Step 1：写失败快照测试（分组态 + 平铺态各一）**
+
+参照 `OrientationSnapshotTests.swift` 既有快照写法（同样的 host/size 配置），新增两例：注入一个有 ≥2 项目 + loose 会话的 `ProjectsStore` 渲染 `SidebarView`，断言「项目区 + 对话区」分组态快照；再注入仅 1 项目的 store 断言平铺态快照。首次运行因无参考图或断言不符而失败。
+
+```swift
+func test_sidebar_grouped_mode_snapshot() {
+    let projects = ProjectsStore()
+    projects.ingest([
+        thread("a", cwd: "/repo/web-dev", updatedAt: 10, origin: "o/web", git: true),
+        thread("c", cwd: "/repo/api", updatedAt: 30, origin: "o/api", git: true),
+        thread("d", cwd: "/Volumes/mount", updatedAt: 40),
+    ])
+    let view = SidebarView(selectedThreadId: .constant(nil))
+        .environment(projects).environment(ConnectionStore.preview)
+    assertSnapshot(of: view, as: snapshotConfig)   // 用既有 helper 名
+}
+```
+
+（`thread(...)` 工厂、`snapshotConfig`/host 包装、`ConnectionStore.preview` 取自既有快照测试约定；若无 `ConnectionStore.preview` 则按既有测试构造连接桩。）
+
+- [ ] **Step 2：运行测试确认失败**
+
+Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/OrientationSnapshotTests`
+Expected：FAIL（无参考快照 / 旧 SidebarView 无分组与对话区）
+
+- [ ] **Step 3：重写 SidebarView body**
+
+```swift
+struct SidebarView: View {
+    @Environment(ProjectsStore.self) private var projects
+    @Environment(ConnectionStore.self) private var connection
+    @Binding var selectedThreadId: String?
+    @State private var collapse = SidebarCollapseStore()
+
+    var body: some View {
+        List(selection: $selectedThreadId) {
+            if projects.isGrouped {
+                ForEach(projects.projects) { project in
+                    projectSection(project)
+                }
+                if !projects.looseConversations.isEmpty {
+                    Section("sidebar.conversations") {
+                        ForEach(projects.looseConversations) { threadRow($0).tag($0.id) }
+                    }
+                }
+            } else {
+                ForEach(projects.allThreadsSorted) { threadRow($0).tag($0.id) }
+            }
+        }
+        .navigationTitle("sidebar.title")
+        .overlay {
+            if projects.projects.isEmpty && projects.looseConversations.isEmpty {
+                ContentUnavailableView("sidebar.empty.title", systemImage: "tray",
+                                       description: Text("sidebar.empty.desc"))
+            }
+        }
+        .task(id: connection.phase) {
+            guard connection.phase == .ready, let rpc = connection.rpc else { return }
+            await projects.loadFromServer(rpc: rpc)
+        }
+    }
+
+    @ViewBuilder
+    private func projectSection(_ project: Project) -> some View {
+        let pending = projects.pendingApprovalCount(in: project)
+        DisclosureGroup(isExpanded: Binding(
+            get: { !collapse.isCollapsed(project.id) },
+            set: { collapse.setCollapsed(project.id, !$0) }
+        )) {
+            ForEach(project.threads) { threadRow($0).tag($0.id) }
+        } label: {
+            HStack {
+                Label(project.displayName, systemImage: "folder")
+                Spacer()
+                if pending > 0 {
+                    Text("\(pending)").font(.caption2).padding(.horizontal, 6).padding(.vertical, 1)
+                        .background(.orange, in: Capsule()).foregroundStyle(.white)
+                        .accessibilityLabel(Text("sidebar.pendingApproval"))
+                }
+            }
+        }
+    }
+    // threadRow / displayTitle / relativeTime 保持原实现不变
+```
+
+> 保留原 `threadRow`/`displayTitle`/`relativeTime`/`formatter`。新增本地化键 `sidebar.conversations`（中「对话」/英「Conversations」）到 `Localizable`。
+
+- [ ] **Step 4：运行测试确认通过（接受新参考快照）**
+
+Run：同 Step 2（首次按既有快照流程录制/接受参考图）
+Expected：PASS
+
+- [ ] **Step 5：Commit**
+
+```bash
+git add ios/CodexRemote/Views/SidebarView.swift ios/CodexRemoteTests/OrientationSnapshotTests.swift ios/CodexRemote/Resources
+git commit -m "feat(ui): 左栏复刻 项目区可折叠(DisclosureGroup)+对话区+待批准计数徽标 (Task 24)"
+```
+
+## Task 25：RootSplitView 三栏 + Inspector 简态
+
+**Files:**
+- Create: `ios/CodexRemote/Views/InspectorView.swift`
+- Modify: `ios/CodexRemote/Views/RootSplitView.swift`
+- Test: `ios/CodexRemoteTests/OrientationSnapshotTests.swift`
+
+**Inspector v1 简态内容（D7）**：选中线程的环境信息——`cwd`、`gitInfo.branch`、`modelProvider`；未选中显示占位。
+
+- [ ] **Step 1：写失败快照测试（三栏 + Inspector 选中态）**
+
+参照既有快照写法新增一例：渲染 `RootSplitView`（或直接 `InspectorView(thread:)` 注入一条带 cwd/branch 的线程），断言 Inspector 展示 cwd/branch/model 文案。首次失败（`InspectorView` 不存在 / RootSplitView 仍两栏）。
+
+- [ ] **Step 2：运行测试确认失败**
+
+Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/OrientationSnapshotTests`
+Expected：FAIL
+
+- [ ] **Step 3：实现 InspectorView**
+
+```swift
+import SwiftUI
+
+/// 右栏 inspector（v1 简态）：选中线程的环境信息（cwd / 分支 / 模型）。
+struct InspectorView: View {
+    let thread: ThreadSummary?
+    var body: some View {
+        if let t = thread {
+            List {
+                Section("inspector.environment") {
+                    row("inspector.cwd", t.cwd)
+                    if let b = t.gitInfo?.branch { row("inspector.branch", b) }
+                    row("inspector.model", t.modelProvider)
+                }
+            }
+        } else {
+            ContentUnavailableView("inspector.empty", systemImage: "sidebar.right")
+        }
+    }
+    @ViewBuilder private func row(_ key: LocalizedStringKey, _ value: String) -> some View {
+        HStack { Text(key).foregroundStyle(.secondary); Spacer(); Text(value).lineLimit(1) }
+    }
+}
+```
+
+- [ ] **Step 4：RootSplitView 改三栏**
+
+把 `NavigationSplitView(columnVisibility:) { sidebar } detail: { ... }` 改为三列，并按选中 id 解析线程喂给 inspector：
+
+```swift
+struct RootSplitView: View {
+    @Environment(ConnectionStore.self) private var connection
+    @Environment(ProjectsStore.self) private var projects
+    @State private var selectedThreadId: String?
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+
+    private var selectedThread: ThreadSummary? {
+        guard let id = selectedThreadId else { return nil }
+        return projects.allThreadsSorted.first { $0.id == id }
+    }
+
+    var body: some View {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            SidebarView(selectedThreadId: $selectedThreadId)
+                .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 380)
+        } content: {
+            if let id = selectedThreadId {
+                ConversationView(threadId: id).id(id)
+            } else {
+                ContentUnavailableView("split.selectConversation",
+                                       systemImage: "bubble.left.and.bubble.right")
+            }
+        } detail: {
+            InspectorView(thread: selectedThread)
+                .navigationSplitViewColumnWidth(min: 220, ideal: 280, max: 360)
+        }
+        .navigationSplitViewStyle(.balanced)
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { SettingsMenu() } }
+    }
+}
+```
+
+> 新增本地化键：`inspector.environment`/`inspector.cwd`/`inspector.branch`/`inspector.model`/`inspector.empty`（中英）。
+
+- [ ] **Step 5：运行测试确认通过**
+
+Run：同 Step 2
+Expected：PASS
+
+- [ ] **Step 6：全量测试 + Commit**
+
+Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)'`
+Expected：全部 PASS（无回归）
+
+```bash
+git add ios/CodexRemote/Views/InspectorView.swift ios/CodexRemote/Views/RootSplitView.swift ios/CodexRemoteTests/OrientationSnapshotTests.swift ios/CodexRemote/Resources
+git commit -m "feat(ui): RootSplitView 三栏 + InspectorView 环境信息简态 (Task 25)"
+```
+
+## v1.1 增量自检（Self-Review）
+
+**1. Spec 覆盖（session-management 新增场景）：** 项目类→可折叠分组 → Task 22+24 ✅；游离会话→对话区 → Task 22+24 ✅；仅单项目时平铺 → Task 22(isGrouped/allThreadsSorted)+24 ✅；折叠状态持久化 → Task 23+24 ✅；排序按 updatedAt → Task 22 ✅；resume 历史渲染 → 已于 Task 20 Step 6 完成（commit d085ab9）✅；待批准计数徽标 → Task 22(pendingApprovalCount)+24 ✅；三栏（D7）→ Task 25 ✅。
+
+**2. Placeholder 扫描：** 21/22/23 逻辑步骤含完整可运行代码与断言；24/25 UI 步骤给出目标 body 全码，快照测试明确引用既有 `OrientationSnapshotTests` 约定（host/size/helper）——非 placeholder，是复用既有测试基建。
+
+**3. 类型一致性：** `GitInfoSummary`(Task21) 字段 `originUrl/branch/sha` 在 Task22 分类、Task25 inspector 使用一致；`Project(id:cwd:originUrl:threads:)` 新签名在 Task22 定义、Task24/25 消费一致；`ProjectsStore.isGrouped/allThreadsSorted/looseConversations/pendingApprovalCount(in:)` 在 Task22 定义、Task24 消费一致；`SidebarCollapseStore.isCollapsed/setCollapsed`(Task23) 在 Task24 消费一致。
+
+**范围纪律：** 本增量不含分类本地覆盖/手动移动、unread/运行中徽标、pin、重命名/归档/fork（均 v2，见设计 §14）；运行中徽标因需全局通知广播重构明确留 v2。

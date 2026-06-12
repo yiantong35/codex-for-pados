@@ -45,3 +45,10 @@
 - [x] 8.4 右上角全局设置按钮（齿轮）+ 菜单（语言切换 + 主题切换），接到主要界面
 - [x] 8.5 单测：LocaleManager/ThemeManager 的选择持久化与默认值；编译 + 模拟器目视
 - [x] 8.6 连接密钥生成复用：app 内生成一次 ed25519（CryptoKit）+ 自动复用 + 显示 OpenSSH 公钥/指纹（KeyManager + KeychainStore），替代 PEM 粘贴；SSHAuth 增 `.ed25519Key` 直传 Citadel；TDD（KeyManager 逻辑，内存 mock store）
+
+## 9. 左栏复刻 v1（session-management 增量；plan Task 21–25）
+- [ ] 9.1 ThreadSummary 补 gitInfo（originUrl/branch）作为项目/对话分类信号（plan Task 21）
+- [ ] 9.2 ProjectsStore 启发式分类（项目/对话）+ 按 git/cwd 归组 + 排序 + isGrouped + 待批准计数（plan Task 22）
+- [ ] 9.3 SidebarCollapseStore 折叠状态本地持久化（plan Task 23）
+- [ ] 9.4 SidebarView 重构：项目区可折叠（DisclosureGroup）+ 对话区 + 待批准计数徽标（plan Task 24）
+- [ ] 9.5 RootSplitView 三栏 + InspectorView 环境信息简态（plan Task 25）
