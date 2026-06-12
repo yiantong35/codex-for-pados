@@ -172,7 +172,7 @@ final class ConnectionStore {
         if let t = error as? TransportError {
             switch t {
             case .sshAuthFailed(let m):
-                return "SSH 鉴权失败：\(m)。\nmacOS 密码登录常被 sshd 拒绝，建议改用「使用私钥」。"
+                return String(localized: "conn.error.authFailed \(m)")   // 单行：SSH 鉴权失败：%@
             case .appServerUnreachable:
                 return "已连上 SSH 但 app-server 不可达，请确认 Mac 上 codex 可用。"
             case .proxyFailed(let m):  return "通道建立失败：\(m)"
