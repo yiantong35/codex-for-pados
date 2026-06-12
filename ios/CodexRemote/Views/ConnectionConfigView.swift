@@ -8,6 +8,7 @@ import SwiftUI
 /// 齿轮设置入口浮在右上角（带 safe-area 边距）。
 struct ConnectionConfigView: View {
     @Environment(ConnectionStore.self) private var connection
+    @Environment(KeyManager.self) private var keyManager
     private let keychain = KeychainStore(service: "com.codexremote.ssh")
 
     @State private var host = UserDefaults.standard.string(forKey: "host") ?? ""
@@ -71,9 +72,12 @@ struct ConnectionConfigView: View {
                 }
                 Toggle("conn.usePrivateKey", isOn: $usePrivateKey)
                     .padding(.vertical, 2)
-                field {
-                    SecureField(usePrivateKey ? "conn.privateKeyPlaceholder" : "conn.passwordPlaceholder",
-                                text: $secret)
+                if usePrivateKey {
+                    KeyAreaView()
+                } else {
+                    field {
+                        SecureField("conn.passwordPlaceholder", text: $secret)
+                    }
                 }
             }
 
@@ -123,13 +127,21 @@ struct ConnectionConfigView: View {
         UserDefaults.standard.set(host, forKey: "host")
         UserDefaults.standard.set(sshPort, forKey: "sshPort")
         UserDefaults.standard.set(user, forKey: "sshUser")
-        // 敏感项入 Keychain（私钥 PEM 或密码）。
-        try? keychain.save(secret, for: "ssh-credential")
 
-        // 私钥分支使用真实存在的 SSHAuth case：.ed25519(user:pem:passphrase:)。
-        let auth: SSHAuth = usePrivateKey
-            ? .ed25519(user: user, pem: secret, passphrase: nil)
-            : .password(user: user, password: secret)
+        let auth: SSHAuth
+        if usePrivateKey {
+            // app 内生成并复用的 ed25519 密钥（CryptoKit 直传），不再粘贴 PEM。
+            keyManager.generateIfNeeded()
+            guard let key = keyManager.privateKey() else {
+                errorText = String(localized: "conn.error.noKey")
+                return
+            }
+            auth = .ed25519Key(user: user, key: key)
+        } else {
+            // 密码入 Keychain。
+            try? keychain.save(secret, for: "ssh-credential")
+            auth = .password(user: user, password: secret)
+        }
         let cfg = ConnectionConfig(host: host, sshPort: Int(sshPort) ?? 22, auth: auth)
 
         do {
@@ -141,6 +153,114 @@ struct ConnectionConfigView: View {
             errorText = String(localized: "conn.error.appServerUnreachable")
         } catch {
             errorText = String(localized: "conn.error.generic \(String(describing: error))")
+        }
+    }
+}
+
+/// 连接密钥区：未生成时给「生成」按钮；已生成时显示指纹 + 复制公钥 + 安装提示 + 重新生成。
+/// 抽成独立 View 以便单独快照与复用；密钥状态来自环境注入的 KeyManager，自动反映 hasKey。
+struct KeyAreaView: View {
+    @Environment(KeyManager.self) private var keyManager
+    @State private var showRegenerateAlert = false
+    @State private var copiedHint = false
+
+    var body: some View {
+        Group {
+            if !keyManager.hasKey {
+                Button {
+                    keyManager.generateIfNeeded()
+                } label: {
+                    Label("conn.key.generate", systemImage: "key.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+            } else {
+                generatedArea
+            }
+        }
+        .alert("conn.key.regenerate.title", isPresented: $showRegenerateAlert) {
+            Button("conn.key.regenerate.confirm", role: .destructive) {
+                keyManager.regenerate()
+            }
+            Button("common.cancel", role: .cancel) {}
+        } message: {
+            Text("conn.key.regenerate.message")
+        }
+    }
+
+    private var generatedArea: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("conn.key.generated", systemImage: "checkmark.seal.fill")
+                .font(.callout.weight(.medium))
+                .foregroundStyle(.green)
+
+            if let fp = keyManager.fingerprintSHA256() {
+                Text(fp)
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            Text("conn.key.installHint")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if let cmd = installCommand {
+                Text(cmd)
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color(.tertiarySystemGroupedBackground))
+                    )
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    copyPublicKey()
+                } label: {
+                    Label(copiedHint ? "conn.key.copied" : "conn.key.copyPublic",
+                          systemImage: copiedHint ? "checkmark" : "doc.on.doc")
+                }
+                .buttonStyle(.bordered)
+
+                Button(role: .destructive) {
+                    showRegenerateAlert = true
+                } label: {
+                    Label("conn.key.regenerate", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .buttonStyle(.bordered)
+            }
+            .controlSize(.regular)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(.tertiarySystemGroupedBackground))
+        )
+    }
+
+    /// 安装到 Mac 的命令（含完整公钥，UI 截断显示但复制时取全文）。
+    private var installCommand: String? {
+        guard let pub = keyManager.publicKeyOpenSSH() else { return nil }
+        return "echo '\(pub)' >> ~/.ssh/authorized_keys"
+    }
+
+    private func copyPublicKey() {
+        guard let pub = keyManager.publicKeyOpenSSH() else { return }
+        UIPasteboard.general.string = pub
+        copiedHint = true
+        Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            copiedHint = false
         }
     }
 }

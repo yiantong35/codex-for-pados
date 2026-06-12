@@ -10,6 +10,8 @@ struct CodexRemoteApp: App {
     // appearance-locale：语言/主题 manager 在根持有并注入；驱动运行时切换。
     @State private var localeManager = LocaleManager()
     @State private var themeManager = ThemeManager()
+    // 连接密钥管理：app 内生成一次 ed25519 + 自动复用（生产用真 Keychain）。
+    @State private var keyManager = KeyManager()
 
     var body: some Scene {
         WindowGroup {
@@ -19,6 +21,7 @@ struct CodexRemoteApp: App {
                 .environment(approvals)
                 .environment(localeManager)
                 .environment(themeManager)
+                .environment(keyManager)
                 // 运行时换语言：注入选定 locale，所有 Text(LocalizedStringKey) 跟随刷新。
                 .environment(\.locale, localeManager.locale)
                 // 运行时换主题：nil = 跟随系统。

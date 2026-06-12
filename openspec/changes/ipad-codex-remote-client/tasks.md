@@ -44,3 +44,4 @@
 - [x] 8.3 把现有视图里硬编码中文串改为本地化 key（连接配置/三栏/对话/composer/审批卡/菜单）
 - [x] 8.4 右上角全局设置按钮（齿轮）+ 菜单（语言切换 + 主题切换），接到主要界面
 - [x] 8.5 单测：LocaleManager/ThemeManager 的选择持久化与默认值；编译 + 模拟器目视
+- [x] 8.6 连接密钥生成复用：app 内生成一次 ed25519（CryptoKit）+ 自动复用 + 显示 OpenSSH 公钥/指纹（KeyManager + KeychainStore），替代 PEM 粘贴；SSHAuth 增 `.ed25519Key` 直传 Citadel；TDD（KeyManager 逻辑，内存 mock store）

@@ -9,7 +9,10 @@ enum SSHAuth {
     /// OpenSSH 格式 RSA 私钥（PEM 文本）。passphrase 可选。
     case privateKey(user: String, pem: String, passphrase: String?)
     /// OpenSSH 格式 ed25519 私钥（PEM 文本，`-----BEGIN OPENSSH PRIVATE KEY-----`）。passphrase 可选。
+    /// 兼容旧路径，UI 不再使用（已被 app 内生成密钥替代）。
     case ed25519(user: String, pem: String, passphrase: String?)
+    /// app 内生成并复用的 ed25519 私钥（CryptoKit 直传，无需 PEM）。
+    case ed25519Key(user: String, key: Curve25519.Signing.PrivateKey)
 }
 
 /// 封装 spike（Task 3）已验证的 Citadel SSH 建连。
@@ -42,6 +45,9 @@ enum SSHClientWrapper {
                 sshEd25519: pem,
                 decryptionKey: pass?.data(using: .utf8)
             )
+            method = .ed25519(username: u, privateKey: key)
+        case .ed25519Key(let u, let key):
+            // CryptoKit 私钥直传 Citadel，无需 PEM 解析。
             method = .ed25519(username: u, privateKey: key)
         }
 

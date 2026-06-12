@@ -1,6 +1,116 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
+    "common.cancel": {
+      "localizations": {
+        "en": {
+          "stringUnit": { "state": "translated", "value": "Cancel" }
+        },
+        "zh-Hans": {
+          "stringUnit": { "state": "translated", "value": "取消" }
+        }
+      }
+    },
+    "conn.error.noKey": {
+      "localizations": {
+        "en": {
+          "stringUnit": { "state": "translated", "value": "No connection key yet — generate one first" }
+        },
+        "zh-Hans": {
+          "stringUnit": { "state": "translated", "value": "尚未生成连接密钥，请先生成" }
+        }
+      }
+    },
+    "conn.key.generate": {
+      "localizations": {
+        "en": {
+          "stringUnit": { "state": "translated", "value": "Generate connection key" }
+        },
+        "zh-Hans": {
+          "stringUnit": { "state": "translated", "value": "生成连接密钥" }
+        }
+      }
+    },
+    "conn.key.generated": {
+      "localizations": {
+        "en": {
+          "stringUnit": { "state": "translated", "value": "Connection key ready" }
+        },
+        "zh-Hans": {
+          "stringUnit": { "state": "translated", "value": "已生成连接密钥" }
+        }
+      }
+    },
+    "conn.key.copyPublic": {
+      "localizations": {
+        "en": {
+          "stringUnit": { "state": "translated", "value": "Copy public key" }
+        },
+        "zh-Hans": {
+          "stringUnit": { "state": "translated", "value": "复制公钥" }
+        }
+      }
+    },
+    "conn.key.copied": {
+      "localizations": {
+        "en": {
+          "stringUnit": { "state": "translated", "value": "Copied" }
+        },
+        "zh-Hans": {
+          "stringUnit": { "state": "translated", "value": "已复制" }
+        }
+      }
+    },
+    "conn.key.installHint": {
+      "localizations": {
+        "en": {
+          "stringUnit": { "state": "translated", "value": "Install on your Mac (append to ~/.ssh/authorized_keys):" }
+        },
+        "zh-Hans": {
+          "stringUnit": { "state": "translated", "value": "安装到 Mac（追加到 ~/.ssh/authorized_keys）：" }
+        }
+      }
+    },
+    "conn.key.regenerate": {
+      "localizations": {
+        "en": {
+          "stringUnit": { "state": "translated", "value": "Regenerate" }
+        },
+        "zh-Hans": {
+          "stringUnit": { "state": "translated", "value": "重新生成" }
+        }
+      }
+    },
+    "conn.key.regenerate.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": { "state": "translated", "value": "Regenerate connection key?" }
+        },
+        "zh-Hans": {
+          "stringUnit": { "state": "translated", "value": "重新生成连接密钥？" }
+        }
+      }
+    },
+    "conn.key.regenerate.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": { "state": "translated", "value": "This invalidates the old public key. You must reinstall the new one on your Mac." }
+        },
+        "zh-Hans": {
+          "stringUnit": { "state": "translated", "value": "这会让旧公钥失效，需要把新公钥重新安装到 Mac。" }
+        }
+      }
+    },
+    "conn.key.regenerate.confirm": {
+      "localizations": {
+        "en": {
+          "stringUnit": { "state": "translated", "value": "Regenerate" }
+        },
+        "zh-Hans": {
+          "stringUnit": { "state": "translated", "value": "重新生成" }
+        }
+      }
+    },
     "approval.awaitingRecovery": {
       "localizations": {
         "en": {
