@@ -9,13 +9,10 @@ import SwiftUI
 struct ConnectionConfigView: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(KeyManager.self) private var keyManager
-    private let keychain = KeychainStore(service: "com.codexremote.ssh")
 
     @State private var host = UserDefaults.standard.string(forKey: "host") ?? ""
     @State private var sshPort = UserDefaults.standard.string(forKey: "sshPort") ?? "22"
     @State private var user = UserDefaults.standard.string(forKey: "sshUser") ?? ""
-    @State private var secret = ""
-    @State private var usePrivateKey = false
 
     /// 错误文案直接由 phase 派生：重新点连接 → phase 变 execProxy → 旧错误自动消失。
     private var errorText: String? {
@@ -83,15 +80,9 @@ struct ConnectionConfigView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 }
-                Toggle("conn.usePrivateKey", isOn: $usePrivateKey)
-                    .padding(.vertical, 2)
-                if usePrivateKey {
-                    KeyAreaView()
-                } else {
-                    field {
-                        SecureField("conn.passwordPlaceholder", text: $secret)
-                    }
-                }
+                // 仅支持密钥登录：macOS 密码登录依赖 keyboard-interactive，
+                // 底层 swift-nio-ssh 不支持，故 UI 不再提供密码选项，密钥区常驻。
+                KeyAreaView()
             }
 
             if let e = errorText {
@@ -138,7 +129,7 @@ struct ConnectionConfigView: View {
             )
     }
 
-    /// 发起连接：组装鉴权 + 配置，交给 ConnectionStore（fire-and-forget）。
+    /// 发起连接：仅密钥登录。组装 ed25519 鉴权 + 配置，交给 ConnectionStore（fire-and-forget）。
     /// 连接进度/错误经 `connection.phase` 反映（errorText 派生），不在此处 try/catch。
     private func connect() {
         // 非敏感项落 UserDefaults。
@@ -146,18 +137,12 @@ struct ConnectionConfigView: View {
         UserDefaults.standard.set(sshPort, forKey: "sshPort")
         UserDefaults.standard.set(user, forKey: "sshUser")
 
-        let auth: SSHAuth
-        if usePrivateKey {
-            // app 内生成并复用的 ed25519 密钥（CryptoKit 直传），不再粘贴 PEM。
-            keyManager.generateIfNeeded()
-            guard let key = keyManager.privateKey() else { return }
-            auth = .ed25519Key(user: user, key: key)
-        } else {
-            // 密码入 Keychain。
-            try? keychain.save(secret, for: "ssh-credential")
-            auth = .password(user: user, password: secret)
-        }
-        connection.connect(config: ConnectionConfig(host: host, sshPort: Int(sshPort) ?? 22, auth: auth))
+        // app 内生成并复用的 ed25519 密钥（CryptoKit 直传）。
+        keyManager.generateIfNeeded()
+        guard let key = keyManager.privateKey() else { return }
+        connection.connect(config: ConnectionConfig(
+            host: host, sshPort: Int(sshPort) ?? 22,
+            auth: .ed25519Key(user: user, key: key)))
     }
 }
 
