@@ -18,6 +18,14 @@ struct ConnectionConfigView: View {
     @State private var usePrivateKey = false
     @State private var errorText: String?
 
+    /// 连接进行中（SSH/exec/握手任一阶段）：按钮转圈并禁用，给用户明确反馈。
+    private var isConnecting: Bool {
+        switch connection.phase {
+        case .sshConnecting, .execProxy, .initializing: return true
+        default: return false
+        }
+    }
+
     var body: some View {
         ZStack {
             // 全屏分组背景，承托居中卡片，11/13 寸大屏自然留白。
@@ -91,12 +99,15 @@ struct ConnectionConfigView: View {
             Button {
                 Task { await connect() }
             } label: {
-                Text("conn.connect")
-                    .frame(maxWidth: .infinity)
+                HStack(spacing: 8) {
+                    if isConnecting { ProgressView().controlSize(.small).tint(.white) }
+                    Text(isConnecting ? "conn.connecting" : "conn.connect")
+                }
+                .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(host.isEmpty || user.isEmpty)
+            .disabled(host.isEmpty || user.isEmpty || isConnecting)
         }
         .padding(28)
         .background(
@@ -152,7 +163,8 @@ struct ConnectionConfigView: View {
         } catch TransportError.appServerUnreachable {
             errorText = String(localized: "conn.error.appServerUnreachable")
         } catch {
-            errorText = String(localized: "conn.error.generic \(String(describing: error))")
+            // 含超时（ConnectionTimeoutError）在内的其它错误：用 localizedDescription 给可读文案。
+            errorText = String(localized: "conn.error.generic \(error.localizedDescription)")
         }
     }
 }

@@ -1,5 +1,13 @@
 import Foundation
 import Observation
+import os
+
+private let connLog = Logger(subsystem: "com.example.codexremote", category: "connection")
+
+/// 连接超时错误（SSH/握手在限定时间内未完成）。
+struct ConnectionTimeoutError: LocalizedError {
+    var errorDescription: String? { "连接超时（SSH 或握手在 20 秒内未完成）" }
+}
 
 /// 连接配置（host + SSH 端口 + 鉴权）。`.stub` 供测试使用。
 struct ConnectionConfig: Sendable {
@@ -43,14 +51,28 @@ final class ConnectionStore {
         self.transportFactory = transportFactory
     }
 
-    /// 建立连接并完成握手。失败时 phase=.failed(原因) 并抛出。
+    /// 建立连接并完成握手。失败/超时时 phase=.failed(原因) 并抛出。
+    /// 加 20s 超时：SSH 不可达/握手卡住时不再无限等待，转为明确错误反馈。
     func connect(config: ConnectionConfig) async throws {
         self.config = config
         reconnectAttempts = 0
+        connLog.info("connect 开始 host=\(config.host, privacy: .public):\(config.sshPort)")
+        let work = Task { try await self.establish(config) }   // 继承 MainActor
+        let timeoutTask = Task {
+            try? await Task.sleep(nanoseconds: 20_000_000_000)
+            work.cancel()                                       // 超时请求取消
+        }
+        defer { timeoutTask.cancel() }
         do {
-            try await establish(config)
+            try await work.value
+            connLog.info("connect 成功 phase=ready")
+        } catch is CancellationError {
+            connLog.error("connect 超时")
+            phase = .failed(ConnectionTimeoutError().localizedDescription)
+            throw ConnectionTimeoutError()
         } catch {
-            phase = .failed("\(error)")
+            connLog.error("connect 失败: \(String(describing: error), privacy: .public)")
+            phase = .failed(error.localizedDescription)
             throw error
         }
     }
@@ -69,12 +91,15 @@ final class ConnectionStore {
     private func establish(_ config: ConnectionConfig) async throws {
         // 工厂内部含 SSH 建连 + exec codex app-server proxy；这里统一标记为 execProxy。
         phase = .execProxy
+        connLog.info("execProxy: 建立 SSH + exec app-server…")
         let transport = try await transportFactory(config)
+        connLog.info("传输就绪, 启动 JSON-RPC")
         let client = JSONRPCClient(transport: transport)
         await client.start()
         rpc = client
 
         phase = .initializing
+        connLog.info("initializing: 发送 initialize 握手…")
         let params = InitializeParams(
             clientInfo: ClientInfo(name: "CodexRemote", title: nil, version: "0.1.0"),
             capabilities: nil)
