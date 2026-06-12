@@ -35,4 +35,13 @@ final class JSONRPCEnvelopeTests: XCTestCase {
         XCTAssertEqual(back.id, .int(7))
         XCTAssertEqual(back.method, "thread/list")
     }
+
+    /// 回归：真实 app-server 响应不带 "jsonrpc" 字段，必须仍能解析为 .response（否则 send 卡死）。
+    func testDecodeResponseWithoutJsonrpcField() throws {
+        let json = #"{"id":1,"result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#.data(using: .utf8)!
+        let msg = try JSONDecoder().decode(JSONRPCMessage.self, from: json)
+        guard case .response(let r) = msg else { return XCTFail("应为 response，实际 \(msg)") }
+        XCTAssertEqual(r.id, .int(1))
+    }
+
 }

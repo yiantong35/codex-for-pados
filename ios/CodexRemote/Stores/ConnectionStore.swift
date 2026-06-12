@@ -117,21 +117,23 @@ final class ConnectionStore {
     /// 不直接落 phase=.ready（由调用方按 attempt token 判定后落地）。
     private func doEstablish(_ config: ConnectionConfig) async throws -> JSONRPCClient {
         phase = .execProxy
-        connLog.info("execProxy: 建立 SSH + exec app-server…")
+        connLog.notice("doEstablish: 开始建 SSH + exec app-server…")
         let transport = try await transportFactory(config)
-        connLog.info("传输就绪, 启动 JSON-RPC")
+        connLog.notice("doEstablish: SSH+exec 就绪, 启动 JSONRPCClient")
         let client = JSONRPCClient(transport: transport)
         await client.start()
 
         phase = .initializing
-        connLog.info("initializing: 发送 initialize 握手…")
+        connLog.notice("doEstablish: 发送 initialize, 等响应…")
         let params = InitializeParams(
             clientInfo: ClientInfo(name: "CodexRemote", title: nil, version: "0.1.0"),
             capabilities: nil)
         let result = try await client.send(method: RPCMethod.initialize,
                                            params: try Self.encode(params))
         serverInfo = try Self.decode(InitializeResponse.self, from: result)
+        connLog.notice("doEstablish: 收到 initialize 响应, 发 initialized")
         try await client.notify(method: RPCMethod.initialized, params: nil)
+        connLog.notice("doEstablish: 握手完成")
         return client
     }
 
