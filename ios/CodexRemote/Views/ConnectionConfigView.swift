@@ -16,7 +16,12 @@ struct ConnectionConfigView: View {
     @State private var user = UserDefaults.standard.string(forKey: "sshUser") ?? ""
     @State private var secret = ""
     @State private var usePrivateKey = false
-    @State private var errorText: String?
+
+    /// 错误文案直接由 phase 派生：重新点连接 → phase 变 execProxy → 旧错误自动消失。
+    private var errorText: String? {
+        if case .failed(let msg) = connection.phase { return msg }
+        return nil
+    }
 
     /// 连接进行中（SSH/exec/握手任一阶段）：按钮转圈并禁用，给用户明确反馈。
     private var isConnecting: Bool {
@@ -97,7 +102,7 @@ struct ConnectionConfigView: View {
             }
 
             Button {
-                Task { await connect() }
+                connect()
             } label: {
                 HStack(spacing: 8) {
                     if isConnecting { ProgressView().controlSize(.small).tint(.white) }
@@ -133,7 +138,9 @@ struct ConnectionConfigView: View {
             )
     }
 
-    private func connect() async {
+    /// 发起连接：组装鉴权 + 配置，交给 ConnectionStore（fire-and-forget）。
+    /// 连接进度/错误经 `connection.phase` 反映（errorText 派生），不在此处 try/catch。
+    private func connect() {
         // 非敏感项落 UserDefaults。
         UserDefaults.standard.set(host, forKey: "host")
         UserDefaults.standard.set(sshPort, forKey: "sshPort")
@@ -143,29 +150,14 @@ struct ConnectionConfigView: View {
         if usePrivateKey {
             // app 内生成并复用的 ed25519 密钥（CryptoKit 直传），不再粘贴 PEM。
             keyManager.generateIfNeeded()
-            guard let key = keyManager.privateKey() else {
-                errorText = String(localized: "conn.error.noKey")
-                return
-            }
+            guard let key = keyManager.privateKey() else { return }
             auth = .ed25519Key(user: user, key: key)
         } else {
             // 密码入 Keychain。
             try? keychain.save(secret, for: "ssh-credential")
             auth = .password(user: user, password: secret)
         }
-        let cfg = ConnectionConfig(host: host, sshPort: Int(sshPort) ?? 22, auth: auth)
-
-        do {
-            try await connection.connect(config: cfg)
-            errorText = nil
-        } catch TransportError.sshAuthFailed(let m) {
-            errorText = String(localized: "conn.error.authFailed \(m)")
-        } catch TransportError.appServerUnreachable {
-            errorText = String(localized: "conn.error.appServerUnreachable")
-        } catch {
-            // 含超时（ConnectionTimeoutError）在内的其它错误：用 localizedDescription 给可读文案。
-            errorText = String(localized: "conn.error.generic \(error.localizedDescription)")
-        }
+        connection.connect(config: ConnectionConfig(host: host, sshPort: Int(sshPort) ?? 22, auth: auth))
     }
 }
 

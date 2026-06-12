@@ -13,9 +13,8 @@ final class ConnectionStoreTests: XCTestCase {
             }
             await mock.feed(#"{"jsonrpc":"2.0","id":1,"result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
         }
-        try await store.connect(config: .stub)
-        let phase = await store.phase
-        XCTAssertEqual(phase, .ready)
+        await store.connect(config: .stub)            // fire-and-forget，结果经 phase 反映
+        try await waitUntil { await store.phase == .ready }
         // 发出了 initialize 与 initialized
         let sent = await mock.sent
         XCTAssertTrue(sent.contains { $0.contains("initialize") })
@@ -35,12 +34,20 @@ final class ConnectionStoreTests: XCTestCase {
             }
             await mock.feed(#"{"jsonrpc":"2.0","id":1,"result":{"userAgent":"c","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
         }
-        try await store.connect(config: .stub)
-        let ready = await store.phase
-        XCTAssertEqual(ready, .ready)
+        await store.connect(config: .stub)
+        try await waitUntil { await store.phase == .ready }
         await mock.close()                     // 模拟断线
-        try await Task.sleep(nanoseconds: 150_000_000)
-        let phase = await store.phase
-        XCTAssertEqual(phase, .reconnecting)   // remote-connection: 重连中可见
+        try await waitUntil { await store.phase == .reconnecting }   // remote-connection: 重连中可见
+    }
+
+    /// 轮询条件直到为真或超时。
+    private func waitUntil(timeout: TimeInterval = 3,
+                          _ condition: () async -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await condition() { return }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("waitUntil 超时")
     }
 }

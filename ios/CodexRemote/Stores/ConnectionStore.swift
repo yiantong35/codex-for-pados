@@ -29,6 +29,14 @@ enum ConnectionPhase: Equatable {
     case ready
     case reconnecting
     case failed(String)
+
+    /// 是否已是终态（成功或失败）——用于超时判定：未终态才触发超时失败。
+    var isSettled: Bool {
+        switch self {
+        case .ready, .failed: return true
+        default: return false
+        }
+    }
 }
 
 /// 连接状态层：驱动 SSH→exec proxy→JSON-RPC initialize 握手，监听断线并指数退避重连。
@@ -46,39 +54,56 @@ final class ConnectionStore {
     private var config: ConnectionConfig?
     private var reconnectAttempts = 0
     private var disconnectObserver: Task<Void, Never>?
+    /// 当前连接尝试序号：每次新连接 +1；超时也 +1 以作废仍在后台跑的旧 establish。
+    private var activeAttempt = 0
 
     init(transportFactory: @escaping @Sendable (ConnectionConfig) async throws -> MessageTransport) {
         self.transportFactory = transportFactory
     }
 
-    /// 建立连接并完成握手。失败/超时时 phase=.failed(原因) 并抛出。
-    /// 加 20s 超时：SSH 不可达/握手卡住时不再无限等待，转为明确错误反馈。
-    func connect(config: ConnectionConfig) async throws {
+    /// 发起连接（fire-and-forget，结果经 `phase` 反映给 UI）。
+    /// 新连接立即把 phase 置为 execProxy → 自动清除上一次的 .failed 错误。
+    /// 含 20s 硬超时：SSH/握手卡住时强制转 .failed 并作废后台残留任务（不依赖 Task 取消，
+    /// 因为底层 Citadel/NIO 不一定响应取消）。
+    func connect(config: ConnectionConfig) {
         self.config = config
         reconnectAttempts = 0
-        connLog.info("connect 开始 host=\(config.host, privacy: .public):\(config.sshPort)")
-        let work = Task { try await self.establish(config) }   // 继承 MainActor
-        let timeoutTask = Task {
-            try? await Task.sleep(nanoseconds: 20_000_000_000)
-            work.cancel()                                       // 超时请求取消
+        activeAttempt += 1
+        let attempt = activeAttempt
+        phase = .execProxy
+        connLog.info("connect 开始 host=\(config.host, privacy: .public):\(config.sshPort) attempt=\(attempt)")
+
+        // 建连 + 握手任务。仅当仍是当前 attempt 时才落地 phase。
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let client = try await self.doEstablish(config)
+                guard attempt == self.activeAttempt else { await client.stop(); return }
+                self.rpc = client
+                self.phase = .ready
+                self.reconnectAttempts = 0
+                self.observeDisconnect(client)
+                connLog.info("connect 成功 phase=ready")
+            } catch {
+                guard attempt == self.activeAttempt else { return }   // 已被超时/新尝试作废
+                connLog.error("connect 失败: \(String(describing: error), privacy: .public)")
+                self.phase = .failed(Self.friendlyMessage(error))
+            }
         }
-        defer { timeoutTask.cancel() }
-        do {
-            try await work.value
-            connLog.info("connect 成功 phase=ready")
-        } catch is CancellationError {
-            connLog.error("connect 超时")
-            phase = .failed(ConnectionTimeoutError().localizedDescription)
-            throw ConnectionTimeoutError()
-        } catch {
-            connLog.error("connect 失败: \(String(describing: error), privacy: .public)")
-            phase = .failed(error.localizedDescription)
-            throw error
+
+        // 硬超时：到点若仍未 settle，强制失败并作废本次 attempt。
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 20_000_000_000)
+            guard let self, attempt == self.activeAttempt, !self.phase.isSettled else { return }
+            connLog.error("connect 超时 attempt=\(attempt)")
+            self.phase = .failed(ConnectionTimeoutError().errorDescription ?? "连接超时")
+            self.activeAttempt += 1   // 作废仍在后台跑的 establish（其完成时 token 不匹配 → 忽略）
         }
     }
 
     /// 主动断开（停止重连观察 + 关闭 RPC）。
     func disconnect() async {
+        activeAttempt += 1                // 作废任何在途连接
         disconnectObserver?.cancel()
         disconnectObserver = nil
         if let rpc { await rpc.stop() }
@@ -88,15 +113,15 @@ final class ConnectionStore {
 
     // MARK: - 握手
 
-    private func establish(_ config: ConnectionConfig) async throws {
-        // 工厂内部含 SSH 建连 + exec codex app-server proxy；这里统一标记为 execProxy。
+    /// 建 SSH + exec app-server + initialize 握手，返回就绪的 JSON-RPC client。
+    /// 不直接落 phase=.ready（由调用方按 attempt token 判定后落地）。
+    private func doEstablish(_ config: ConnectionConfig) async throws -> JSONRPCClient {
         phase = .execProxy
         connLog.info("execProxy: 建立 SSH + exec app-server…")
         let transport = try await transportFactory(config)
         connLog.info("传输就绪, 启动 JSON-RPC")
         let client = JSONRPCClient(transport: transport)
         await client.start()
-        rpc = client
 
         phase = .initializing
         connLog.info("initializing: 发送 initialize 握手…")
@@ -107,10 +132,7 @@ final class ConnectionStore {
                                            params: try Self.encode(params))
         serverInfo = try Self.decode(InitializeResponse.self, from: result)
         try await client.notify(method: RPCMethod.initialized, params: nil)
-
-        phase = .ready
-        reconnectAttempts = 0
-        observeDisconnect(client)
+        return client
     }
 
     // MARK: - 断线观察 + 重连
@@ -134,11 +156,32 @@ final class ConnectionStore {
         try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
         guard !Task.isCancelled else { return }
         do {
-            try await establish(config)          // 重新 initialize；线程恢复交后续 store
+            let client = try await doEstablish(config)   // 重新 initialize
+            rpc = client
+            phase = .ready
+            reconnectAttempts = 0
+            observeDisconnect(client)
         } catch {
             phase = .reconnecting
             await reconnectWithBackoff(config)
         }
+    }
+
+    /// 把底层错误转为面向用户的可读文案。
+    static func friendlyMessage(_ error: Error) -> String {
+        if let t = error as? TransportError {
+            switch t {
+            case .sshAuthFailed(let m):
+                return "SSH 鉴权失败：\(m)。\nmacOS 密码登录常被 sshd 拒绝，建议改用「使用私钥」。"
+            case .appServerUnreachable:
+                return "已连上 SSH 但 app-server 不可达，请确认 Mac 上 codex 可用。"
+            case .proxyFailed(let m):  return "通道建立失败：\(m)"
+            case .channelClosed(let r): return "连接通道关闭：\(r ?? "未知原因")"
+            case .notConnected:        return "未连接"
+            }
+        }
+        if let to = error as? ConnectionTimeoutError { return to.errorDescription ?? "连接超时" }
+        return error.localizedDescription
     }
 
     // MARK: - AnyCodable 编解码桥
