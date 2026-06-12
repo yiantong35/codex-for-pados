@@ -191,6 +191,9 @@ final class OrientationSnapshotTests: XCTestCase {
     func test_rootsplit_default_layout_snapshot() {
         let value = String(localized: "inspector.toggle", bundle: .main)
         XCTAssertNotEqual(value, "inspector.toggle", "缺少 inspector.toggle 本地化键")
+        // 目视反馈修复（Task 26）：侧栏收起后召回需显式侧栏开关，依赖新本地化键。
+        let toggle = String(localized: "sidebar.toggle", bundle: .main)
+        XCTAssertNotEqual(toggle, "sidebar.toggle", "缺少 sidebar.toggle 本地化键")
         let view = RootSplitView()
             .environment(makeConnection())
             .environment(makeProjects())

@@ -22,19 +22,34 @@ struct RootSplitView: View {
             SidebarView(selectedThreadId: $selectedThreadId)
                 .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 380)
         } detail: {
-            content
-                .inspector(isPresented: $showInspector) {
-                    InspectorView(thread: selectedThread)
-                        // 允许拉得更窄（min 150，旧 220 太宽）。
-                        .inspectorColumnWidth(min: 150, ideal: 240, max: 380)
-                }
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button { showInspector.toggle() } label: {
-                            Label("inspector.toggle", systemImage: "sidebar.trailing")
+            // 包进 NavigationStack：空态（Color.clear）也有稳定导航栏承载 toolbar，
+            // 否则 .balanced 折叠侧栏后既无系统召回入口、也无处挂显式开关，侧栏召不回来。
+            NavigationStack {
+                content
+                    .inspector(isPresented: $showInspector) {
+                        InspectorView(thread: selectedThread)
+                            // 允许拉得更窄（min 150，旧 220 太宽）。
+                            .inspectorColumnWidth(min: 150, ideal: 240, max: 380)
+                    }
+                    .toolbar {
+                        // leading 显式侧栏开关：侧栏收起后用户始终能点它召回（修目视反馈 bug）。
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button {
+                                withAnimation {
+                                    columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+                                }
+                            } label: {
+                                Label("sidebar.toggle", systemImage: "sidebar.leading")
+                            }
+                        }
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button { showInspector.toggle() } label: {
+                                // 右侧面板观感图标，与左侧栏开关明显区分。
+                                Label("inspector.toggle", systemImage: "rectangle.righthalf.inset.filled")
+                            }
                         }
                     }
-                }
+            }
         }
         .navigationSplitViewStyle(.balanced)
     }
