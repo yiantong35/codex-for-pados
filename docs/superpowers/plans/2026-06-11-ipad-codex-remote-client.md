@@ -3071,7 +3071,7 @@ git commit -m "test(e2e): verify connect/stream/resume/approval/reconnect; backf
 - Modify: `ios/CodexRemote/Protocol/ThreadTypes.swift`
 - Test: `ios/CodexRemoteTests/ProtocolTypesTests.swift`
 
-- [ ] **Step 1：写失败测试（解码带 gitInfo 与 gitInfo=null 两种线程）**
+- [x] **Step 1：写失败测试（解码带 gitInfo 与 gitInfo=null 两种线程）**
 
 ```swift
 func test_threadSummary_decodes_gitInfo() throws {
@@ -3095,12 +3095,12 @@ func test_threadSummary_decodes_nil_gitInfo() throws {
 }
 ```
 
-- [ ] **Step 2：运行测试确认失败**
+- [x] **Step 2：运行测试确认失败**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/ProtocolTypesTests`
 Expected：FAIL（`ThreadSummary` 无 `gitInfo` 成员 / 类型不存在）
 
-- [ ] **Step 3：实现 GitInfoSummary 并加入 ThreadSummary**
+- [x] **Step 3：实现 GitInfoSummary 并加入 ThreadSummary**
 
 在 `ThreadTypes.swift` 的 `ThreadSummary` 定义前加：
 
@@ -3119,12 +3119,12 @@ struct GitInfoSummary: Codable, Equatable {
     var gitInfo: GitInfoSummary?                    // null 表示非 git 仓库（分类信号，见 D8）
 ```
 
-- [ ] **Step 4：运行测试确认通过**
+- [x] **Step 4：运行测试确认通过**
 
 Run：同 Step 2
 Expected：PASS
 
-- [ ] **Step 5：Commit**
+- [x] **Step 5：Commit**
 
 ```bash
 git add ios/CodexRemote/Protocol/ThreadTypes.swift ios/CodexRemoteTests/ProtocolTypesTests.swift

@@ -7,6 +7,13 @@ enum ReasoningEffort: String, Codable {
 // 取自 v2/Thread.ts 子集。真实 thread/list 返回的 Thread 含大量嵌套字段
 // (status/source/threadSource/gitInfo/turns 等)；MVP 仅建模渲染所需字段，
 // 其余字段由 Swift Codable 默认忽略多余 JSON key 的行为容错跳过。
+/// 取自 v2/GitInfo.ts（sha/branch/originUrl）。MVP 仅取分类/展示所需 originUrl/branch。
+struct GitInfoSummary: Codable, Equatable {
+    var sha: String?
+    var branch: String?
+    var originUrl: String?
+}
+
 struct ThreadSummary: Codable, Identifiable {
     let id: String
     let sessionId: String
@@ -17,6 +24,7 @@ struct ThreadSummary: Codable, Identifiable {
     let cwd: String                                 // AbsolutePathBuf -> String
     let cliVersion: String
     let name: String?
+    var gitInfo: GitInfoSummary?                    // null 表示非 git 仓库（分类信号，见 D8）
 }
 
 struct ThreadListParams: Codable {

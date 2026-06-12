@@ -48,4 +48,23 @@ final class ProtocolTypesTests: XCTestCase {
         XCTAssertEqual(r.data[0].updatedAt, 1700000100.0)
         XCTAssertEqual(r.nextCursor, "c2")
     }
+    func test_threadSummary_decodes_gitInfo() throws {
+        let json = """
+        {"id":"t1","sessionId":"s1","preview":"p","modelProvider":"openai",
+         "createdAt":1,"updatedAt":2,"cwd":"/repo/web-dev","cliVersion":"0.133.0","name":null,
+         "gitInfo":{"sha":"abc","branch":"main","originUrl":"git@github.com:me/web-dev.git"}}
+        """.data(using: .utf8)!
+        let t = try JSONDecoder().decode(ThreadSummary.self, from: json)
+        XCTAssertEqual(t.gitInfo?.originUrl, "git@github.com:me/web-dev.git")
+        XCTAssertEqual(t.gitInfo?.branch, "main")
+    }
+
+    func test_threadSummary_decodes_nil_gitInfo() throws {
+        let json = """
+        {"id":"t2","sessionId":"s2","preview":"p","modelProvider":"openai",
+         "createdAt":1,"updatedAt":2,"cwd":"/Volumes/mount","cliVersion":"0.133.0","name":null,"gitInfo":null}
+        """.data(using: .utf8)!
+        let t = try JSONDecoder().decode(ThreadSummary.self, from: json)
+        XCTAssertNil(t.gitInfo)
+    }
 }
