@@ -48,12 +48,18 @@ final class ConversationStore {
         observer = nil
     }
 
-    /// 恢复桌面 app 创建的会话：发 thread/resume，加载历史。
-    /// 响应含历史 item，可在此灌入 state（MVP：依赖后续 read/通知补全）。
-    /// 发出请求后立即返回；响应/历史经 notifications 流式归约，不阻塞 UI 等待同步响应。
+    /// 恢复桌面 app 创建的会话：发 thread/resume，加载并渲染历史。
+    /// thread/resume 的同步响应里**携带完整历史**（thread.turns[].items[]）；
+    /// 捕获该响应并经 ThreadReducer.ingest 灌入 state，UI 即可看到历史对话。
+    /// 发出请求后立即返回，历史摄入在响应到达后于主线程异步完成，不阻塞 UI。
     func resume(model: String? = nil, cwd: String? = nil) async {
         let params = ThreadResumeParams(threadId: state.threadId, model: model, cwd: cwd)
-        Task { _ = try? await call(RPCMethod.threadResume, params) }
+        Task { [weak self] in
+            guard let self else { return }
+            guard let result = try? await self.call(RPCMethod.threadResume, params),
+                  let dict = result.value as? [String: Any] else { return }
+            self.reducer.ingest(resumeResult: dict, to: &self.state)
+        }
     }
 
     /// 新建对话：发 thread/start。返回的新 threadId 异步写回 state。

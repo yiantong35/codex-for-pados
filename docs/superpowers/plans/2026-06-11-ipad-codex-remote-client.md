@@ -3012,7 +3012,7 @@ Expected（对应 `approval-flow` 验收）：三种 decision 以正确形状回
 操作 C：SSH 通但受管 daemon 未启用远程控制（control socket 不存在）→ 应显示「app-server 不可达」。
 Expected（对应 `remote-connection` 验收）：三种情形均符合 spec。
 
-- [ ] **Step 6：回填 fixture 与字段校正**
+- [x] **Step 6：回填 fixture 与字段校正**
 
 用 E2E 录制的真实帧：①核对并校正 `ThreadReducer` 中的字段名（`itemId`/`delta`/`itemType`/`command`/`kind`/diff 字段）；②校正 `ApprovalStore.handle` 取的参数键；③校正 `serverRequest/resolved` 的 requestId 字段名；④把若干真实帧序列存为新的 fixture，补一条 `ThreadReducerTests` 用真实帧回归。每次校正后重跑相关单测确认仍 PASS。
 

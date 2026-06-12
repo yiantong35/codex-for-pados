@@ -17,7 +17,7 @@
 
 ## 4. 会话管理（session-management）
 - [ ] 4.1 调用 `thread/list` 拉取并展示历史会话（确认默认 sourceKinds 覆盖桌面 app `atlas` 来源）
-- [ ] 4.2 选中会话 `thread/resume` by threadId，加载并渲染历史
+- [x] 4.2 选中会话 `thread/resume` by threadId，加载并渲染历史
 - [ ] 4.3 新建会话 `thread/start`
 
 ## 5. 对话与流式输出（conversation-streaming）

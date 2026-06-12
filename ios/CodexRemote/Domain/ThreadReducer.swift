@@ -1,8 +1,12 @@
 import Foundation
 
 /// 把 server notification 归约进 ConversationState 的纯函数集合。
-/// 字段名（itemId/delta/itemType/command/kind/file/added/removed/diff）按 protocol v2 核对；
-/// Task 20 录制真实帧后若有出入回此校正（设计 §13 留待 build 确认项）。
+///
+/// 两条摄入路径：
+///   1. `apply(_:to:)` —— 流式 server notification（turn/item 增量），字段名
+///      itemId/delta/itemType/command/kind/file/added/removed/diff 取自流式协议。
+///   2. `ingest(resumeResult:to:)` —— thread/resume 同步响应里的历史 turn/item，
+///      字段名取自 Task 20 实测真实 schema（见方法注释），与流式形状不同。
 struct ThreadReducer {
     func apply(_ n: JSONRPCNotification, to state: inout ConversationState) {
         let p = (n.params?.value as? [String: Any]) ?? [:]
@@ -51,6 +55,55 @@ struct ThreadReducer {
         default:
             break
         }
+    }
+
+    // MARK: - resume 历史摄入
+
+    /// 把 `thread/resume` 同步响应里的历史 turn/item 摄入 state。
+    ///
+    /// 真实响应（Task 20 实测）形状：
+    /// ```
+    /// { thread: { turns: [ { items: [ <item> ] } ] }, model, ... }
+    /// ```
+    /// item 按 `type` 区分，字段名与流式协议不同：
+    ///   - userMessage:  { type, id, content:[{type:"text", text, ...}] } → 拼接所有 text 片段
+    ///   - agentMessage: { type, id, text }                              → text 为顶层直接字段
+    ///   - fileChange:   { type, id, changes:[{path, kind:{type}, diff}] } → 取首个 change 渲染
+    /// 其它 type（mcpToolCall/webSearch/contextCompaction 等）当前无对应渲染项，跳过。
+    /// 幂等：已存在的 id 不重复追加（复用 upsert 语义）。
+    func ingest(resumeResult result: [String: Any], to state: inout ConversationState) {
+        let thread = result["thread"] as? [String: Any]
+        let turns = (thread?["turns"] as? [[String: Any]])
+            ?? (result["turns"] as? [[String: Any]]) ?? []
+        for turn in turns {
+            let items = turn["items"] as? [[String: Any]] ?? []
+            for item in items { ingestHistoryItem(item, &state) }
+        }
+    }
+
+    private func ingestHistoryItem(_ item: [String: Any], _ s: inout ConversationState) {
+        guard let id = item["id"] as? String else { return }
+        switch item["type"] as? String {
+        case "userMessage":
+            upsert(.userMessage(id: id, text: textFromContent(item["content"])), &s)
+        case "agentMessage":
+            upsert(.agentMessage(id: id, text: item["text"] as? String ?? ""), &s)
+        case "fileChange":
+            let changes = item["changes"] as? [[String: Any]] ?? []
+            let first = changes.first
+            upsert(.fileChange(id: id,
+                               file: first?["path"] as? String ?? "",
+                               added: 0, removed: 0,
+                               diff: first?["diff"] as? String ?? ""), &s)
+        default:
+            break   // 暂不渲染的历史 item 类型
+        }
+    }
+
+    /// 从 userMessage.content（[{type:"text", text}]）拼接出纯文本。
+    private func textFromContent(_ content: Any?) -> String {
+        guard let parts = content as? [[String: Any]] else { return "" }
+        return parts.compactMap { $0["text"] as? String }.joined()
     }
 
     // MARK: - mutators

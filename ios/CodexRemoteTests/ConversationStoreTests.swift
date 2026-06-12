@@ -54,6 +54,28 @@ final class ConversationStoreTests: XCTestCase {
         XCTAssertTrue(sent.contains(#""threadId":"t1""#), sent)
     }
 
+    /// resume() 必须捕获响应并把历史 turn/item 灌入 state（修复「恢复桌面会话看不到历史」）。
+    func testResumeIngestsHistoryFromResponse() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "t1")
+
+        await store.resume()
+        // 等 resume 请求发出（拿到将被匹配的 id=1）。
+        try await waitUntil { await mock.sent.contains { $0.contains("thread/resume") } }
+
+        // 模拟服务端用带历史的 result 响应 id=1。
+        let response = #"{"jsonrpc":"2.0","id":1,"result":{"thread":{"id":"t1","turns":[{"id":"turn-1","items":[{"type":"userMessage","id":"u1","content":[{"type":"text","text":"历史问题","text_elements":[]}]},{"type":"agentMessage","id":"a1","text":"历史回答"}]}]}}}"#
+        await mock.feed(response)
+
+        try await waitUntil {
+            store.state.items.contains { if case .agentMessage(_, let t) = $0 { return t == "历史回答" } else { return false } }
+        }
+        XCTAssertTrue(store.state.items.contains { if case .userMessage(_, let t) = $0 { return t == "历史问题" } else { return false } },
+                      "resume 历史 userMessage 应进入 state，实际：\(store.state.items)")
+    }
+
     // MARK: - helpers
 
     /// 轮询条件直到为真或超时，避免固定 sleep 造成 flake。
