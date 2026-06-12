@@ -23,12 +23,15 @@ struct ConnectionConfigView: View {
             Color(.systemGroupedBackground)
                 .ignoresSafeArea()
 
-            // 垂直略偏上的居中卡片；内容超高时可滚动（横屏/小高度键盘弹起场景）。
-            ScrollView {
-                card
-                    .frame(maxWidth: 480)
-                    .frame(maxWidth: .infinity)
-                    .padding(24)
+            // 水平 + 垂直居中的卡片；内容超高时（横屏/键盘弹起）自动可滚动。
+            GeometryReader { geo in
+                ScrollView {
+                    card
+                        .frame(maxWidth: 480)
+                        .frame(maxWidth: .infinity)
+                        .padding(24)
+                        .frame(minHeight: geo.size.height)   // 撑满屏高 → 卡片垂直居中
+                }
             }
         }
         // 齿轮浮在右上角，距顶/右各留边距，不贴状态栏。
