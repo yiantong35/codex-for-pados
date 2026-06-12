@@ -32,20 +32,12 @@ struct RootSplitView: View {
                             .inspectorColumnWidth(min: 150, ideal: 240, max: 380)
                     }
                     .toolbar {
-                        // leading 显式侧栏开关：侧栏收起后用户始终能点它召回（修目视反馈 bug）。
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button {
-                                withAnimation {
-                                    columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
-                                }
-                            } label: {
-                                Label("sidebar.toggle", systemImage: "sidebar.leading")
-                            }
-                        }
+                        // 侧栏召回依赖系统自动侧栏开关（NavigationStack 已保证折叠后仍在），
+                        // 不再叠加显式开关（避免出现两个相同按钮）。
                         ToolbarItem(placement: .topBarTrailing) {
                             Button { showInspector.toggle() } label: {
-                                // 右侧面板观感图标，与左侧栏开关明显区分。
-                                Label("inspector.toggle", systemImage: "rectangle.righthalf.inset.filled")
+                                // 复刻 Codex desktop 的 inspector 列表样式图标。
+                                Label("inspector.toggle", systemImage: "list.bullet.rectangle")
                             }
                         }
                     }
