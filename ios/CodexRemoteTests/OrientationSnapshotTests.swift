@@ -104,6 +104,22 @@ final class OrientationSnapshotTests: XCTestCase {
         KeyManager(store: SnapshotKeyStore())
     }
 
+    /// 构造一个 git 项目会话（有 gitInfo → 归入项目区）。
+    private func gitThread(_ id: String, cwd: String, origin: String, ago: Double, name: String? = nil) -> ThreadSummary {
+        let now = Date().timeIntervalSince1970
+        return ThreadSummary(id: id, sessionId: "s-\(id)", preview: "预览 \(id)", modelProvider: "openai",
+                             createdAt: now - ago, updatedAt: now - ago, cwd: cwd, cliVersion: "0.1.0",
+                             name: name, gitInfo: GitInfoSummary(sha: nil, branch: "main", originUrl: origin))
+    }
+
+    /// 构造一条 loose 会话（无 gitInfo → 归入对话区）。
+    private func looseThread(_ id: String, cwd: String, ago: Double, name: String? = nil) -> ThreadSummary {
+        let now = Date().timeIntervalSince1970
+        return ThreadSummary(id: id, sessionId: "s-\(id)", preview: "预览 \(id)", modelProvider: "openai",
+                             createdAt: now - ago, updatedAt: now - ago, cwd: cwd, cliVersion: "0.1.0",
+                             name: name, gitInfo: nil)
+    }
+
     // MARK: - 场景 1：ConnectionConfigView（连接表单 + 右上角齿轮）
 
     func testConnectionConfigPortrait() {
@@ -168,6 +184,43 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(LocaleManager())
             .environment(ThemeManager())
         snapshot(view, size: landscape, name: "split-landscape")
+    }
+
+    // MARK: - 场景 3：SidebarView 分组态 / 平铺态（Task 24）
+
+    /// ≥2 项目 + loose 会话 → isGrouped=true：项目区(DisclosureGroup + 待批准徽标) + 「对话」Section。
+    func test_sidebar_grouped_mode_snapshot() {
+        let projects = ProjectsStore()
+        projects.ingest([
+            gitThread("a", cwd: "/repo/web-dev", origin: "o/web", ago: 120, name: "重构登录页"),
+            gitThread("b", cwd: "/repo/web-dev", origin: "o/web", ago: 600),
+            gitThread("c", cwd: "/repo/api", origin: "o/api", ago: 30, name: "接入推送"),
+            looseThread("d", cwd: "/Volumes/mount", ago: 40, name: "随手对话"),
+        ])
+        projects.setPendingApproval(threadId: "a", pending: true)
+        XCTAssertTrue(projects.isGrouped)
+        // 新增本地化键必须可解析（解析失败会回落为键名本身）。
+        let conv = String(localized: "sidebar.conversations", bundle: .main)
+        XCTAssertNotEqual(conv, "sidebar.conversations", "缺少 sidebar.conversations 本地化键")
+        let view = SidebarView(selectedThreadId: .constant(nil))
+            .environment(projects)
+            .environment(makeConnection())
+        snapshot(view, size: portrait, name: "sidebar-grouped", dir: "/tmp/sidebar")
+    }
+
+    /// 仅 1 项目 → isGrouped=false：allThreadsSorted 平铺。
+    func test_sidebar_flat_mode_snapshot() {
+        let projects = ProjectsStore()
+        projects.ingest([
+            gitThread("a", cwd: "/repo/web-dev", origin: "o/web", ago: 120, name: "重构登录页"),
+            gitThread("b", cwd: "/repo/web-dev", origin: "o/web", ago: 600),
+            looseThread("d", cwd: "/Volumes/mount", ago: 40, name: "随手对话"),
+        ])
+        XCTAssertFalse(projects.isGrouped)
+        let view = SidebarView(selectedThreadId: .constant(nil))
+            .environment(projects)
+            .environment(makeConnection())
+        snapshot(view, size: portrait, name: "sidebar-flat", dir: "/tmp/sidebar")
     }
 }
 

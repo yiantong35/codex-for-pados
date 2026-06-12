@@ -865,6 +865,22 @@
         }
       }
     },
+    "sidebar.conversations": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conversations"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对话"
+          }
+        }
+      }
+    },
     "sidebar.empty.desc": {
       "localizations": {
         "en": {

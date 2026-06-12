@@ -3328,7 +3328,7 @@ git commit -m "feat(stores): SidebarCollapseStore 折叠状态本地持久化 (T
 - Modify: `ios/CodexRemote/Views/SidebarView.swift`
 - Test: `ios/CodexRemoteTests/OrientationSnapshotTests.swift`
 
-- [ ] **Step 1：写失败快照测试（分组态 + 平铺态各一）**
+- [x] **Step 1：写失败快照测试（分组态 + 平铺态各一）**
 
 参照 `OrientationSnapshotTests.swift` 既有快照写法（同样的 host/size 配置），新增两例：注入一个有 ≥2 项目 + loose 会话的 `ProjectsStore` 渲染 `SidebarView`，断言「项目区 + 对话区」分组态快照；再注入仅 1 项目的 store 断言平铺态快照。首次运行因无参考图或断言不符而失败。
 
@@ -3348,12 +3348,12 @@ func test_sidebar_grouped_mode_snapshot() {
 
 （`thread(...)` 工厂、`snapshotConfig`/host 包装、`ConnectionStore.preview` 取自既有快照测试约定；若无 `ConnectionStore.preview` 则按既有测试构造连接桩。）
 
-- [ ] **Step 2：运行测试确认失败**
+- [x] **Step 2：运行测试确认失败**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/OrientationSnapshotTests`
 Expected：FAIL（无参考快照 / 旧 SidebarView 无分组与对话区）
 
-- [ ] **Step 3：重写 SidebarView body**
+- [x] **Step 3：重写 SidebarView body**
 
 ```swift
 struct SidebarView: View {
@@ -3415,12 +3415,12 @@ struct SidebarView: View {
 
 > 保留原 `threadRow`/`displayTitle`/`relativeTime`/`formatter`。新增本地化键 `sidebar.conversations`（中「对话」/英「Conversations」）到 `Localizable`。
 
-- [ ] **Step 4：运行测试确认通过（接受新参考快照）**
+- [x] **Step 4：运行测试确认通过（接受新参考快照）**
 
 Run：同 Step 2（首次按既有快照流程录制/接受参考图）
 Expected：PASS
 
-- [ ] **Step 5：Commit**
+- [x] **Step 5：Commit**
 
 ```bash
 git add ios/CodexRemote/Views/SidebarView.swift ios/CodexRemoteTests/OrientationSnapshotTests.swift ios/CodexRemote/Resources

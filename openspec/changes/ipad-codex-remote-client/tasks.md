@@ -50,5 +50,5 @@
 - [x] 9.1 ThreadSummary 补 gitInfo（originUrl/branch）作为项目/对话分类信号（plan Task 21）
 - [x] 9.2 ProjectsStore 启发式分类（项目/对话）+ 按 git/cwd 归组 + 排序 + isGrouped + 待批准计数（plan Task 22）
 - [x] 9.3 SidebarCollapseStore 折叠状态本地持久化（plan Task 23）
-- [ ] 9.4 SidebarView 重构：项目区可折叠（DisclosureGroup）+ 对话区 + 待批准计数徽标（plan Task 24）
+- [x] 9.4 SidebarView 重构：项目区可折叠（DisclosureGroup）+ 对话区 + 待批准计数徽标（plan Task 24）
 - [ ] 9.5 RootSplitView 三栏 + InspectorView 环境信息简态（plan Task 25）

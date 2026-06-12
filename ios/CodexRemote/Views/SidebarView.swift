@@ -8,22 +8,30 @@ struct SidebarView: View {
     @Environment(ProjectsStore.self) private var projects
     @Environment(ConnectionStore.self) private var connection
     @Binding var selectedThreadId: String?
+    @State private var collapse = SidebarCollapseStore()
 
     var body: some View {
         List(selection: $selectedThreadId) {
-            ForEach(projects.projects) { project in
-                Section {
-                    ForEach(project.threads) { thread in
-                        threadRow(thread).tag(thread.id)
+            if projects.isGrouped {
+                ForEach(projects.projects) { project in
+                    projectSection(project)
+                }
+                if !projects.looseConversations.isEmpty {
+                    Section("sidebar.conversations") {
+                        ForEach(projects.looseConversations) { thread in
+                            threadRow(thread).tag(thread.id)
+                        }
                     }
-                } header: {
-                    Label(project.displayName, systemImage: "folder")
+                }
+            } else {
+                ForEach(projects.allThreadsSorted) { thread in
+                    threadRow(thread).tag(thread.id)
                 }
             }
         }
         .navigationTitle("sidebar.title")
         .overlay {
-            if projects.projects.isEmpty {
+            if projects.projects.isEmpty && projects.looseConversations.isEmpty {
                 ContentUnavailableView("sidebar.empty.title", systemImage: "tray",
                                        description: Text("sidebar.empty.desc"))
             }
@@ -32,6 +40,33 @@ struct SidebarView: View {
             // ready 后拉取 thread/list 填充 ProjectsStore；失败静默（store 内部处理）。
             guard connection.phase == .ready, let rpc = connection.rpc else { return }
             await projects.loadFromServer(rpc: rpc)
+        }
+    }
+
+    /// 单个项目 = 可折叠 DisclosureGroup；标题行带文件夹图标 + 待批准计数徽标。
+    @ViewBuilder
+    private func projectSection(_ project: Project) -> some View {
+        let pending = projects.pendingApprovalCount(in: project)
+        DisclosureGroup(isExpanded: Binding(
+            get: { !collapse.isCollapsed(project.id) },
+            set: { collapse.setCollapsed(project.id, !$0) }
+        )) {
+            ForEach(project.threads) { thread in
+                threadRow(thread).tag(thread.id)
+            }
+        } label: {
+            HStack {
+                Label(project.displayName, systemImage: "folder")
+                Spacer()
+                if pending > 0 {
+                    Text("\(pending)")
+                        .font(.caption2)
+                        .padding(.horizontal, 6).padding(.vertical, 1)
+                        .background(.orange, in: Capsule())
+                        .foregroundStyle(.white)
+                        .accessibilityLabel(Text("sidebar.pendingApproval"))
+                }
+            }
         }
     }
 
