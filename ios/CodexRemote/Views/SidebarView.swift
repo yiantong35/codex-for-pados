@@ -30,9 +30,6 @@ struct SidebarView: View {
             }
         }
         .navigationTitle("sidebar.title")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) { SettingsMenu() }
-        }
         .overlay {
             if projects.projects.isEmpty && projects.looseConversations.isEmpty {
                 ContentUnavailableView("sidebar.empty.title", systemImage: "tray",
