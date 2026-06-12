@@ -16,11 +16,15 @@ struct RootSplitView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            topBar
-            Divider()
-            split
-        }
+        split
+            // 顶栏用 safeAreaInset 挂在 NavigationSplitView 顶部：split view 保持完整布局上下文，
+            // 故 inspector 的原生 resize 手柄不被破坏（VStack 包裹会让 inspector 无法拖动改宽）。
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    topBar
+                    Divider()
+                }
+            }
     }
 
     // MARK: - 顶部固定全局工具栏（复刻 desktop title bar 的全局按钮区）
