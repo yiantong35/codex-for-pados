@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import os
 
-private let connLog = Logger(subsystem: "com.example.codexremote", category: "connection")
+private let connLog = Logger(subsystem: "com.tangyujie.codexremote", category: "connection")
 
 /// 连接超时错误（SSH/握手在限定时间内未完成）。
 struct ConnectionTimeoutError: LocalizedError {

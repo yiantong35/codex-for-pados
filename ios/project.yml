@@ -41,7 +41,7 @@ targets:
           - "CodexRemote.entitlements"
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.codexremote
+        PRODUCT_BUNDLE_IDENTIFIER: com.tangyujie.codexremote
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: "2"
         GENERATE_INFOPLIST_FILE: NO
