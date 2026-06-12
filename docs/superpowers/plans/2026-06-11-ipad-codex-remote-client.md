@@ -3436,16 +3436,16 @@ git commit -m "feat(ui): 左栏复刻 项目区可折叠(DisclosureGroup)+对话
 
 **Inspector v1 简态内容（D7）**：选中线程的环境信息——`cwd`、`gitInfo.branch`、`modelProvider`；未选中显示占位。
 
-- [ ] **Step 1：写失败快照测试（三栏 + Inspector 选中态）**
+- [x] **Step 1：写失败快照测试（三栏 + Inspector 选中态）**
 
 参照既有快照写法新增一例：渲染 `RootSplitView`（或直接 `InspectorView(thread:)` 注入一条带 cwd/branch 的线程），断言 Inspector 展示 cwd/branch/model 文案。首次失败（`InspectorView` 不存在 / RootSplitView 仍两栏）。
 
-- [ ] **Step 2：运行测试确认失败**
+- [x] **Step 2：运行测试确认失败**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)' -only-testing:CodexRemoteTests/OrientationSnapshotTests`
 Expected：FAIL
 
-- [ ] **Step 3：实现 InspectorView**
+- [x] **Step 3：实现 InspectorView**
 
 ```swift
 import SwiftUI
@@ -3472,7 +3472,7 @@ struct InspectorView: View {
 }
 ```
 
-- [ ] **Step 4：RootSplitView 改三栏**
+- [x] **Step 4：RootSplitView 改三栏**
 
 把 `NavigationSplitView(columnVisibility:) { sidebar } detail: { ... }` 改为三列，并按选中 id 解析线程喂给 inspector：
 
@@ -3511,12 +3511,12 @@ struct RootSplitView: View {
 
 > 新增本地化键：`inspector.environment`/`inspector.cwd`/`inspector.branch`/`inspector.model`/`inspector.empty`（中英）。
 
-- [ ] **Step 5：运行测试确认通过**
+- [x] **Step 5：运行测试确认通过**
 
 Run：同 Step 2
 Expected：PASS
 
-- [ ] **Step 6：全量测试 + Commit**
+- [x] **Step 6：全量测试 + Commit**
 
 Run：`xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad (10th generation)'`
 Expected：全部 PASS（无回归）

@@ -222,6 +222,29 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(makeConnection())
         snapshot(view, size: portrait, name: "sidebar-flat", dir: "/tmp/sidebar")
     }
+
+    // MARK: - 场景 4：InspectorView 右栏简态（Task 25）
+
+    /// 选中线程 → Inspector 展示 cwd/branch/model；新增本地化键必须可解析。
+    func test_inspector_selected_thread_snapshot() {
+        // 新增本地化键解析失败会回落为键名本身。
+        for key in ["inspector.environment", "inspector.cwd", "inspector.branch",
+                    "inspector.model", "inspector.empty"] {
+            let value = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
+        }
+        let thread = gitThread("ins1", cwd: "/repo/web-dev", origin: "o/web", ago: 60, name: "重构登录页")
+        let view = InspectorView(thread: thread)
+            .environment(LocaleManager())
+        snapshot(view, size: portrait, name: "inspector-selected", dir: "/tmp/inspector")
+    }
+
+    /// 未选中线程 → Inspector 显示占位（不崩溃，PNG 非空）。
+    func test_inspector_empty_snapshot() {
+        let view = InspectorView(thread: nil)
+            .environment(LocaleManager())
+        snapshot(view, size: portrait, name: "inspector-empty", dir: "/tmp/inspector")
+    }
 }
 
 /// 快照专用 KeyManager 存储替身：内存态，避免快照触碰 Keychain。
