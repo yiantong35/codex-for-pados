@@ -1,14 +1,28 @@
 import SwiftUI
 
-/// 主界面（复刻 Codex desktop）：顶部固定全局工具栏 + 下方 NavigationSplitView（侧栏｜对话｜inspector）。
-/// 所有全局按钮（侧栏开关 / 设置 / inspector 开关）钉在顶部固定栏，不随列折叠消失、不与系统开关重复。
-/// 故清除各列系统自动工具栏项；侧栏显隐与 inspector 显隐均由顶部栏按钮显式控制。
+/// 主界面（复刻 Codex desktop 五窗口工作区骨架）：
+/// 顶部固定全局工具栏（safeAreaInset，不用 VStack 包整个 split，避免破坏 inspector 拖动）
+/// + NavigationSplitView：左边栏(满高) | detail 区。
+/// detail 区 = VStack { 上半(中间对话 + 右栏 .inspector) ; 下栏(条件) }，
+/// 故下栏只压短「中间 + 右栏」、不伸到左边栏（design D4 / 布局层级）。
+/// 摘要为 :≡ 按钮触发的 .popover（design D2），非占列。
 struct RootSplitView: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(ProjectsStore.self) private var projects
     @State private var selectedThreadId: String?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
-    @State private var showInspector = false   // 复刻 desktop：默认隐藏
+
+    // 五窗口 toggle 状态（design D5：每个面板一个 @State Bool）。
+    @State private var showRightPanel: Bool
+    @State private var showBottomPanel: Bool
+    @State private var showSummary = false
+    @State private var bottomHeight: CGFloat = WorkspaceMetrics.bottomPanelIdealHeight
+
+    /// 便利初始化：允许注入面板初始展开态（供快照测试覆盖全开布局）。
+    init(initialRightOpen: Bool = false, initialBottomOpen: Bool = false) {
+        _showRightPanel = State(initialValue: initialRightOpen)
+        _showBottomPanel = State(initialValue: initialBottomOpen)
+    }
 
     private var selectedThread: ThreadSummary? {
         guard let id = selectedThreadId else { return nil }
@@ -17,8 +31,6 @@ struct RootSplitView: View {
 
     var body: some View {
         split
-            // 顶栏用 safeAreaInset 挂在 NavigationSplitView 顶部：split view 保持完整布局上下文，
-            // 故 inspector 的原生 resize 手柄不被破坏（VStack 包裹会让 inspector 无法拖动改宽）。
             .safeAreaInset(edge: .top, spacing: 0) {
                 VStack(spacing: 0) {
                     topBar
@@ -27,35 +39,44 @@ struct RootSplitView: View {
             }
     }
 
-    // MARK: - 顶部固定全局工具栏（复刻 desktop title bar 的全局按钮区）
+    // MARK: - 顶部固定全局工具栏：左面板 · 下面板 · 右面板 · 摘要(:≡) · 设置
 
     private var topBar: some View {
         HStack(spacing: 18) {
-            // 侧栏开关：固定常驻，展开/折叠都在，永远能召回侧栏。
+            // 左面板：显式控制 columnVisibility（不叠加系统 sidebarToggle）。
             Button {
                 withAnimation {
                     columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
                 }
-            } label: {
-                Image(systemName: "sidebar.leading")
+            } label: { Image(systemName: "sidebar.leading") }
+            .accessibilityLabel(Text("workspace.leftPanel.toggle"))
+
+            // 下面板。
+            Button { withAnimation { showBottomPanel.toggle() } } label: {
+                Image(systemName: "rectangle.bottomthird.inset.filled")
             }
-            .accessibilityLabel(Text("sidebar.toggle"))
+            .accessibilityLabel(Text("workspace.bottomPanel.toggle"))
+
+            // 右面板。
+            Button { withAnimation { showRightPanel.toggle() } } label: {
+                Image(systemName: "sidebar.right")
+            }
+            .accessibilityLabel(Text("workspace.rightPanel.toggle"))
+
+            // 摘要(:≡)：Codex 真实 panel-right SVG（关=描边 / 开=填充）。.popover 挂在此按钮。
+            Button { showSummary.toggle() } label: {
+                Image(showSummary ? "InspectorOpen" : "InspectorClosed")
+                    .renderingMode(.template).resizable().scaledToFit()
+                    .frame(width: 22, height: 22)
+            }
+            .accessibilityLabel(Text("workspace.summary.toggle"))
+            .popover(isPresented: $showSummary) {
+                SummaryPopoverView(state: nil, thread: selectedThread)
+            }
 
             Spacer()
 
-            // 全局设置（复刻 desktop 右上角齿轮）。
             SettingsMenu()
-
-            // inspector（环境信息）显隐开关：复刻 Codex desktop 自绘图标（panel-right）。
-            // 关闭态描边、打开态右栏填充，取自 Codex 真实 SVG（见 Assets）。
-            Button { showInspector.toggle() } label: {
-                Image(showInspector ? "InspectorOpen" : "InspectorClosed")
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 22, height: 22)
-            }
-            .accessibilityLabel(Text("inspector.toggle"))
         }
         .font(.title3)
         .padding(.horizontal, 18)
@@ -63,7 +84,7 @@ struct RootSplitView: View {
         .background(.bar)
     }
 
-    // MARK: - 下方三栏（隐藏各列系统导航栏，全局按钮统一走顶部固定栏）
+    // MARK: - split：左栏满高 | detail 区(VStack)
 
     private var split: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -72,22 +93,33 @@ struct RootSplitView: View {
                 .toolbar(removing: .sidebarToggle)
                 .toolbarBackground(.hidden, for: .navigationBar)
         } detail: {
-            content
-                .inspector(isPresented: $showInspector) {
-                    InspectorView(thread: selectedThread)
-                        .inspectorColumnWidth(min: 150, ideal: 240, max: 380)
-                }
+            detail
                 .toolbar(removing: .sidebarToggle)
         }
         .navigationSplitViewStyle(.balanced)
+    }
+
+    // detail = 上半(content + 右栏 inspector) + 下栏(条件)。下栏在此 VStack 内 → 不压左栏。
+    private var detail: some View {
+        VStack(spacing: 0) {
+            content
+                .inspector(isPresented: $showRightPanel) {
+                    RightPanelView()
+                        .inspectorColumnWidth(min: WorkspaceMetrics.rightPanelMinWidth,
+                                              ideal: WorkspaceMetrics.rightPanelIdealWidth,
+                                              max: WorkspaceMetrics.rightPanelMaxWidth)
+                }
+            if showBottomPanel {
+                Divider()
+                BottomPanelView(height: $bottomHeight)
+            }
+        }
     }
 
     @ViewBuilder private var content: some View {
         if let id = selectedThreadId {
             ConversationView(threadId: id).id(id)
         } else {
-            // 纯空态：回退到 a2a20f7 的可拖状态（之前给空态加 navigationTitle/frame
-            // 反而破坏了 inspector 的 resize，连选中态也拖不动）。
             Color(.systemBackground)
         }
     }

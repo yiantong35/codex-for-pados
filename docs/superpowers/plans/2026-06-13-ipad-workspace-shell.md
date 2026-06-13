@@ -1100,7 +1100,7 @@ git commit -m "feat(workspace): bottom panel placeholder with draggable handle"
 
 > 核心装配。顶栏按钮左→右：左面板 / 下面板 / 右面板 / 摘要(`:≡`) / 设置（去前进后退、不叠加系统 `sidebarToggle`）。摘要按钮上挂 `.popover`。detail 区改 `VStack { 上半(content + `.inspector`) ; 下栏(条件) }`，使下栏只压短中间+右栏（design D4），左栏满高（design 层级图）。摘要数据需要当前会话 state——本期 `RootSplitView` 不持有 `ConversationStore`（在 `ConversationView` 内），故摘要 popover 先用「选中线程的 `ThreadSummary`（cwd）」+ 空 state（plan/diff/tasks 走空态）。真实 state 接线见 Task 12。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 在 `OrientationSnapshotTests.swift` 新增：
 ```swift
@@ -1131,7 +1131,7 @@ git commit -m "feat(workspace): bottom panel placeholder with draggable handle"
     }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run：
 ```bash
@@ -1142,7 +1142,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: 编译失败，"extra argument 'initialRightOpen' in call"（旧 `RootSplitView` 无此初始化器）。
 
-- [ ] **Step 3: 重写 RootSplitView（完整文件）**
+- [x] **Step 3: 重写 RootSplitView（完整文件）**
 
 把 `ios/CodexRemote/Views/RootSplitView.swift` 整体替换为：
 ```swift
@@ -1274,7 +1274,7 @@ struct RootSplitView: View {
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过 + 目视层级**
+- [x] **Step 4: 运行测试确认通过 + 目视层级**
 
 Run：
 ```bash
@@ -1286,7 +1286,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: `TEST SUCCEEDED`。目视 `/tmp/workspace/workspace-all-open.png`：左栏满高到底；下栏空态横跨中间+右栏区、未伸到左栏底下；右栏空态在中间右侧。（拖动改宽/高靠模拟器交互或 UI 测试确认——见计划顶部测试约定。）
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Views/RootSplitView.swift ios/CodexRemoteTests/OrientationSnapshotTests.swift
@@ -1294,8 +1294,7 @@ git commit -m "feat(workspace): wire five-window shell into RootSplitView (topba
 ```
 
 ---
-
-## Task 12: 摘要 popover 接真实会话 state（diff/plan/tasks 不再恒空）
+: 摘要 popover 接真实会话 state（diff/plan/tasks 不再恒空）
 
 **Files:**
 - Modify: `ios/CodexRemote/Views/RootSplitView.swift`

@@ -338,6 +338,34 @@ final class OrientationSnapshotTests: XCTestCase {
                  name: "summary-empty", dir: "/tmp/workspace")
     }
 
+    // MARK: - 场景 7：RootSplitView 五窗口接线（Task 11）
+
+    /// 工作区默认态：右/下栏隐藏、摘要关。顶栏 5 按钮辅助标签键须可解析。
+    func test_workspace_default_layout_snapshot() {
+        for key in ["workspace.leftPanel.toggle", "workspace.bottomPanel.toggle",
+                    "workspace.rightPanel.toggle", "workspace.summary.toggle"] {
+            let v = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(v, key, "缺少 \(key)")
+        }
+        let view = RootSplitView()
+            .environment(makeConnection())
+            .environment(makeProjects())
+            .environment(LocaleManager())
+            .environment(ThemeManager())
+        snapshot(view, size: landscape, name: "workspace-default", dir: "/tmp/workspace")
+    }
+
+    /// 工作区全开态（右栏 + 下栏初始展开）：验证层级——左栏满高、下栏在 detail 区内。
+    /// 用注入初始展开态的便利初始化器（见实现 Step 3）。
+    func test_workspace_all_panels_snapshot() {
+        let view = RootSplitView(initialRightOpen: true, initialBottomOpen: true)
+            .environment(makeConnection())
+            .environment(makeProjects())
+            .environment(LocaleManager())
+            .environment(ThemeManager())
+        snapshot(view, size: landscape, name: "workspace-all-open", dir: "/tmp/workspace")
+    }
+
     /// 工作区新增本地化键必须可解析（解析失败回落键名本身）。
     func test_workspace_localization_keys_present() {
         for key in ["workspace.leftPanel.toggle", "workspace.bottomPanel.toggle",
