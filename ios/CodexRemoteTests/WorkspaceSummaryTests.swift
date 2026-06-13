@@ -40,4 +40,45 @@ final class WorkspaceSummaryTests: XCTestCase {
         XCTAssertEqual(counts.changedFiles, 0)
         XCTAssertTrue(counts.isEmpty)
     }
+
+    func testPlanProgressCountsCompleted() {
+        var state = ConversationState(threadId: "t")
+        state.plan = [
+            TurnPlanStep(step: "a", status: .completed),
+            TurnPlanStep(step: "b", status: .completed),
+            TurnPlanStep(step: "c", status: .inProgress),
+        ]
+        let p = WorkspaceSummary.planProgress(in: state)
+        XCTAssertEqual(p.completed, 2)
+        XCTAssertEqual(p.total, 3)
+        XCTAssertEqual(p.steps.count, 3)
+        XCTAssertFalse(p.isEmpty)
+    }
+
+    func testPlanProgressEmpty() {
+        let state = ConversationState(threadId: "t")
+        let p = WorkspaceSummary.planProgress(in: state)
+        XCTAssertEqual(p.completed, 0)
+        XCTAssertEqual(p.total, 0)
+        XCTAssertTrue(p.isEmpty)
+    }
+
+    func testCommandTasksListsCommandsInOrder() {
+        var state = ConversationState(threadId: "t")
+        state.items = [
+            .commandExecution(id: "c1", command: "ls -la", output: "", status: .completed, exitCode: 0, durationMs: 5),
+            .agentMessage(id: "a1", text: "x"),
+            .commandExecution(id: "c2", command: "swift build", output: "", status: .inProgress, exitCode: nil, durationMs: nil),
+        ]
+        let tasks = WorkspaceSummary.commandTasks(in: state)
+        XCTAssertEqual(tasks.map(\.command), ["ls -la", "swift build"])
+        XCTAssertEqual(tasks.first?.status, .completed)
+        XCTAssertEqual(tasks.last?.status, .inProgress)
+    }
+
+    func testCommandTasksEmpty() {
+        var state = ConversationState(threadId: "t")
+        state.items = [.userMessage(id: "u1", text: "hi")]
+        XCTAssertTrue(WorkspaceSummary.commandTasks(in: state).isEmpty)
+    }
 }

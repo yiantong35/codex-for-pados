@@ -376,7 +376,7 @@ git commit -m "feat(workspace): derive diff line counts for summary"
 
 > 「进度」= plan 步骤的完成统计（completed / 总数）+ 步骤明细；「任务」= 会话内 `.commandExecution` items 的命令列表。两者都抽纯函数。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 在 `WorkspaceSummaryTests.swift` 追加：
 ```swift
@@ -422,7 +422,7 @@ git commit -m "feat(workspace): derive diff line counts for summary"
     }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run：
 ```bash
@@ -433,7 +433,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: 编译失败 / FAIL，"type 'WorkspaceSummary' has no member 'planProgress'"。
 
-- [ ] **Step 3: 写最小实现**
+- [x] **Step 3: 写最小实现**
 
 在 `WorkspaceSummary` enum 内（`diffLineCounts` 之后）追加：
 ```swift
@@ -465,7 +465,7 @@ Expected: 编译失败 / FAIL，"type 'WorkspaceSummary' has no member 'planProg
     }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run：
 ```bash
@@ -476,7 +476,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: `TEST SUCCEEDED`（diff + plan + command 全绿）。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Domain/WorkspaceSummary.swift ios/CodexRemoteTests/WorkspaceSummaryTests.swift

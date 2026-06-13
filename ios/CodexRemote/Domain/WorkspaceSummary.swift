@@ -21,4 +21,31 @@ enum WorkspaceSummary {
         }
         return DiffLineCounts(added: added, removed: removed, changedFiles: files)
     }
+
+    /// plan 进度：完成数 / 总数 + 步骤明细（直接复用 ConversationState.plan）。
+    struct PlanProgress: Equatable {
+        var steps: [TurnPlanStep]
+        var completed: Int { steps.filter { $0.status == .completed }.count }
+        var total: Int { steps.count }
+        var isEmpty: Bool { steps.isEmpty }
+    }
+
+    static func planProgress(in state: ConversationState) -> PlanProgress {
+        PlanProgress(steps: state.plan)
+    }
+
+    /// 单条命令任务（摘要「任务」P0）。
+    struct CommandTask: Equatable, Identifiable {
+        var id: String
+        var command: String
+        var status: CommandStatus
+    }
+
+    /// 会话内所有命令执行项，按出现顺序。
+    static func commandTasks(in state: ConversationState) -> [CommandTask] {
+        state.items.compactMap { item in
+            guard case .commandExecution(let id, let cmd, _, let status, _, _) = item else { return nil }
+            return CommandTask(id: id, command: cmd, status: status)
+        }
+    }
 }
