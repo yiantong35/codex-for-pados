@@ -1387,7 +1387,7 @@ git commit -m "feat(workspace): feed live conversation state into summary popove
 **Files:**
 - Modify: `openspec/changes/ipad-workspace-shell/tasks.md`（勾选完成项）
 
-- [ ] **Step 1: 全量 build**
+- [x] **Step 1: 全量 build**
 
 Run：
 ```bash
@@ -1397,7 +1397,7 @@ xcodebuild build -scheme CodexRemote \
 ```
 Expected: `BUILD SUCCEEDED`。
 
-- [ ] **Step 2: 全量 test**
+- [x] **Step 2: 全量 test**
 
 Run：
 ```bash
@@ -1407,11 +1407,11 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: `TEST SUCCEEDED`（既有套件 + 新增 `WorkspaceSummaryTests` / `WorkspaceMetricsTests` / reducer plan / 工作区快照全绿）。
 
-- [ ] **Step 3: 勾选 tasks.md**
+- [x] **Step 3: 勾选 tasks.md**
 
 把 `openspec/changes/ipad-workspace-shell/tasks.md` 的骨架项打勾：1.1 / 1.2 / 2.1 / 2.2 / 2.3 / 3.1 / 3.2 / 4.1 / 4.2 / 5.1 / 6.1（6.1 中「拖动」标注靠 UI 测试或用户确认）。6.2 真机为 follow-up，保持未勾并注明延期。
 
-- [ ] **Step 4: 目视自检（模拟器逐态截图复核，对照 design §4）**
+- [x] **Step 4: 目视自检（模拟器逐态截图复核，对照 design §4）**
 
 复核 `/tmp/workspace/` 下：
 - `workspace-default.png`：顶栏 5 按钮（左面板 / 下面板 / 右面板 / 摘要 / 设置），右/下栏隐藏。
@@ -1420,7 +1420,7 @@ Expected: `TEST SUCCEEDED`（既有套件 + 新增 `WorkspaceSummaryTests` / `Wo
 - `right-panel.png` / `bottom-panel.png` / `panel-empty.png`：空态占位。
 列出任何与 design 层级图不符之处，交用户确认或转 verify 阶段处理。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add openspec/changes/ipad-workspace-shell/tasks.md
