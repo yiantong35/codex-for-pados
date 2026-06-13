@@ -49,19 +49,39 @@ struct RootSplitView: View {
                     Divider()
                 }
             }
+            // 摘要：常驻悬浮浮层（design D2 改）。用 overlay 而非 .popover，
+            // 故点击别处不收回，仅由顶栏摘要按钮显隐。锚定右上、悬于内容之上。
+            .overlay(alignment: .topTrailing) {
+                if showSummary {
+                    SummaryPopoverView(state: activeConversation.state, thread: selectedThread)
+                        .frame(width: 340)
+                        .frame(maxHeight: 480)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+                        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))
+                        .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
+                        .padding(.top, 8)
+                        .padding(.trailing, 12)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
             .environment(activeConversation)
     }
 
     // MARK: - 顶部固定全局工具栏：左面板 · 下面板 · 右面板 · 摘要(:≡) · 设置
 
     private var topBar: some View {
+        // 全部按钮靠右；顺序：左面板 · 下面板 · 摘要 · 右面板 · 设置。
+        // 三个面板图标用统一的 inset.filled 矩形族（一致风格，不混描边/填充）；
+        // 摘要用 list.bullet(:≡ 两圆点两横线)；图标走主题色(.tint)、随系统深浅适配。
         HStack(spacing: 18) {
+            Spacer()
+
             // 左面板：显式控制 columnVisibility（不叠加系统 sidebarToggle）。
             Button {
                 withAnimation {
                     columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
                 }
-            } label: { Image(systemName: "sidebar.leading") }
+            } label: { Image(systemName: "rectangle.leadinghalf.inset.filled") }
             .accessibilityLabel(Text("workspace.leftPanel.toggle"))
 
             // 下面板。
@@ -70,28 +90,23 @@ struct RootSplitView: View {
             }
             .accessibilityLabel(Text("workspace.bottomPanel.toggle"))
 
+            // 摘要(:≡ = list.bullet)：常驻悬浮浮层由 body 的 overlay 渲染。
+            Button { withAnimation { showSummary.toggle() } } label: {
+                Image(systemName: "list.bullet")
+            }
+            .accessibilityLabel(Text("workspace.summary.toggle"))
+
             // 右面板。
             Button { withAnimation { showRightPanel.toggle() } } label: {
-                Image(systemName: "sidebar.right")
+                Image(systemName: "rectangle.trailinghalf.inset.filled")
             }
             .accessibilityLabel(Text("workspace.rightPanel.toggle"))
 
-            // 摘要(:≡)：Codex 真实 panel-right SVG（关=描边 / 开=填充）。.popover 挂在此按钮。
-            Button { showSummary.toggle() } label: {
-                Image(showSummary ? "InspectorOpen" : "InspectorClosed")
-                    .renderingMode(.template).resizable().scaledToFit()
-                    .frame(width: 22, height: 22)
-            }
-            .accessibilityLabel(Text("workspace.summary.toggle"))
-            .popover(isPresented: $showSummary) {
-                SummaryPopoverView(state: activeConversation.state, thread: selectedThread)
-            }
-
-            Spacer()
-
+            // 设置。
             SettingsMenu()
         }
         .font(.title3)
+        .tint(.accentColor)
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
         .background(.bar)
