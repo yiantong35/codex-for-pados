@@ -266,6 +266,23 @@ final class OrientationSnapshotTests: XCTestCase {
         snapshot(view, size: portrait, name: "inspector-empty", dir: "/tmp/inspector")
     }
 
+    // MARK: - 场景 5：共享面板空态视图 PanelEmptyState（Task 7）
+
+    /// 共享空态视图：渲染不崩溃、PNG 非空，落 /tmp/workspace。
+    /// RED 落可判定点：空态标题/描述本地化键必须可解析（解析失败回落为键名本身）。
+    func test_panel_empty_state_snapshot() {
+        for key in ["workspace.panel.empty.title", "workspace.panel.empty.desc"] {
+            let value = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
+        }
+        let view = PanelEmptyState()
+            .environment(LocaleManager())
+            .environment(ThemeManager())
+            .frame(width: 320, height: 240)
+        snapshot(view, size: CGSize(width: 320, height: 240),
+                 name: "panel-empty", dir: "/tmp/workspace")
+    }
+
     /// 工作区新增本地化键必须可解析（解析失败回落键名本身）。
     func test_workspace_localization_keys_present() {
         for key in ["workspace.leftPanel.toggle", "workspace.bottomPanel.toggle",

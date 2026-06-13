@@ -719,7 +719,7 @@ git commit -m "feat(workspace): add localization keys for panels and summary"
 
 > design D5：右栏 / 下栏共享空态视图。本期它们都只显空态。用 `ContentUnavailableView`（与 `SidebarView` / `InspectorView` 一致）。
 
-- [ ] **Step 1: 写失败测试（快照 + 可判定断言）**
+- [x] **Step 1: 写失败测试（快照 + 可判定断言）**
 
 在 `OrientationSnapshotTests.swift` 新增：
 ```swift
@@ -733,7 +733,7 @@ git commit -m "feat(workspace): add localization keys for panels and summary"
     }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run：
 ```bash
@@ -744,7 +744,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: 编译失败，"cannot find 'PanelEmptyState' in scope"。
 
-- [ ] **Step 3: 写最小实现**
+- [x] **Step 3: 写最小实现**
 
 新建 `ios/CodexRemote/Views/Workspace/PanelEmptyState.swift`：
 ```swift
@@ -762,7 +762,7 @@ struct PanelEmptyState: View {
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过 + 目视**
+- [x] **Step 4: 运行测试确认通过 + 目视**
 
 Run：
 ```bash
@@ -773,7 +773,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: `TEST SUCCEEDED`。目视 `/tmp/workspace/panel-empty.png`：居中空态图标 + 标题 + 描述。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Views/Workspace/PanelEmptyState.swift ios/CodexRemoteTests/OrientationSnapshotTests.swift ios/CodexRemote.xcodeproj
