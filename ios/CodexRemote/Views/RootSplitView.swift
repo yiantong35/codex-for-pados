@@ -46,10 +46,14 @@ struct RootSplitView: View {
             // 全局设置（复刻 desktop 右上角齿轮）。
             SettingsMenu()
 
-            // inspector（环境信息）显隐开关。
+            // inspector（环境信息）显隐开关：复刻 Codex desktop 自绘图标（panel-right）。
+            // 关闭态描边、打开态右栏填充，取自 Codex 真实 SVG（见 Assets）。
             Button { showInspector.toggle() } label: {
-                // TODO: 图标待 Codex 真实 inspector toggle 调查结果落地。
-                Image(systemName: "list.bullet.rectangle")
+                Image(showInspector ? "InspectorOpen" : "InspectorClosed")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 22, height: 22)
             }
             .accessibilityLabel(Text("inspector.toggle"))
         }
@@ -82,7 +86,12 @@ struct RootSplitView: View {
         if let id = selectedThreadId {
             ConversationView(threadId: id).id(id)
         } else {
+            // 空态也撑满 + 给导航栏上下文，使未选中对话时 inspector 仍可拖动改宽
+            //（纯 Color 不撑起 detail 的导航上下文，inspector resize 手柄不出现）。
             Color(.systemBackground)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationTitle(" ")
+                .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
