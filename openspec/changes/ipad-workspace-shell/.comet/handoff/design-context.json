@@ -1,0 +1,15 @@
+{
+  "change": "ipad-workspace-shell",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "1c3e5e48fa803ffa3b4bf4d745bf49d092b0c24f39f13b1df6bb82fc0b3901e7",
+  "files": [
+    { "path": "openspec/changes/ipad-workspace-shell/proposal.md", "sha256": "3a0c3a2df37a4089bb65a3b8ac681fce4500f4e3e7b9b1568a9e6987003f37db" },
+    { "path": "openspec/changes/ipad-workspace-shell/design.md", "sha256": "c234849890b2bb01691ce1873b5b25c638c7ff7db7c5bccf852f120aca850869" },
+    { "path": "openspec/changes/ipad-workspace-shell/tasks.md", "sha256": "c41a6d4f93e0c54b086826c1f71b30866c0a1da0ca36999eb6b87286cc4e0aef" },
+    { "path": "openspec/changes/ipad-workspace-shell/specs/session-management/spec.md", "sha256": "a9742f39ae094782d4ee03a58efc5dbf17fa7c572f9825b839fc55308241a87b" },
+    { "path": "openspec/changes/ipad-workspace-shell/specs/workspace-layout/spec.md", "sha256": "5b26f21102478dd47b94dbfbf1e2792640528939bc71fd64eccabb5667fff059" }
+  ]
+}

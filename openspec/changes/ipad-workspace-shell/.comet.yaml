@@ -9,7 +9,7 @@ isolation: null
 verify_mode: null
 auto_transition: true
 base_ref: 39205da6f5f6b7d76309cf887a12f090af83f7d1
-design_doc: null
+design_doc: docs/superpowers/specs/2026-06-13-ipad-workspace-shell-design.md
 plan: null
 verify_result: pending
 verification_report: null
@@ -17,3 +17,5 @@ branch_status: pending
 created_at: 2026-06-13
 verified_at: null
 archived: false
+handoff_context: openspec/changes/ipad-workspace-shell/.comet/handoff/design-context.json
+handoff_hash: 1c3e5e48fa803ffa3b4bf4d745bf49d092b0c24f39f13b1df6bb82fc0b3901e7
