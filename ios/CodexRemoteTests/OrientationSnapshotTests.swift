@@ -265,6 +265,19 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(LocaleManager())
         snapshot(view, size: portrait, name: "inspector-empty", dir: "/tmp/inspector")
     }
+
+    /// 工作区新增本地化键必须可解析（解析失败回落键名本身）。
+    func test_workspace_localization_keys_present() {
+        for key in ["workspace.leftPanel.toggle", "workspace.bottomPanel.toggle",
+                    "workspace.rightPanel.toggle", "workspace.summary.toggle",
+                    "workspace.panel.empty.title", "workspace.panel.empty.desc",
+                    "workspace.summary.title", "workspace.summary.diff",
+                    "workspace.summary.cwd", "workspace.summary.progress",
+                    "workspace.summary.tasks", "workspace.summary.empty"] {
+            let value = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
+        }
+    }
 }
 
 /// 快照专用 KeyManager 存储替身：内存态，避免快照触碰 Keychain。

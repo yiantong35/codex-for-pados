@@ -583,7 +583,7 @@ git commit -m "feat(workspace): panel size constants and clamp helper"
 
 > 既有快照测试用「`String(localized:)` 解析失败回落键名本身 → 断言 `!=` 键名」证明键已添加（见 `test_inspector_selected_thread_snapshot`）。先加断言（红），再加键（绿）。新增键：`workspace.leftPanel.toggle`、`workspace.bottomPanel.toggle`、`workspace.rightPanel.toggle`、`workspace.summary.toggle`、`workspace.panel.empty.title`、`workspace.panel.empty.desc`、`workspace.summary.title`、`workspace.summary.diff`、`workspace.summary.cwd`、`workspace.summary.progress`、`workspace.summary.tasks`、`workspace.summary.empty`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 在 `OrientationSnapshotTests.swift` 的 class 内新增：
 ```swift
@@ -601,7 +601,7 @@ git commit -m "feat(workspace): panel size constants and clamp helper"
     }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run：
 ```bash
@@ -612,7 +612,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: FAIL，断言 "缺少 workspace.leftPanel.toggle 本地化键"。
 
-- [ ] **Step 3: 加键**
+- [x] **Step 3: 加键**
 
 打开 `ios/CodexRemote/Resources/Localizable.xcstrings`（JSON 格式，顶层 `"strings": { ... }`）。在 `strings` 对象内为每个键加一个条目。逐键追加形如（以下为 zh-Hans + en 两语，匹配仓库现有键的多语结构；若仓库仅单语，按现有键的实际结构对齐）：
 ```json
@@ -691,7 +691,7 @@ Expected: FAIL，断言 "缺少 workspace.leftPanel.toggle 本地化键"。
 ```
 注意：确保最终 JSON 合法（条目间逗号、不破坏既有键）。可用 `python3 -m json.tool ios/CodexRemote/Resources/Localizable.xcstrings >/dev/null && echo OK` 校验。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run：
 ```bash
@@ -702,7 +702,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: `TEST SUCCEEDED`。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Resources/Localizable.xcstrings ios/CodexRemoteTests/OrientationSnapshotTests.swift
