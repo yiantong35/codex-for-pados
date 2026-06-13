@@ -69,7 +69,7 @@ struct ConversationView: View {
         .task(id: threadId) {
             guard let rpc = connection.rpc else { return }
             let s = ConversationStore(rpc: rpc, threadId: threadId)
-            s.startObserving()
+            await s.startObserving()   // 先完成订阅注册（async），再 resume，避免漏掉随后到达的事件
             await s.resume()        // session-management：恢复已有会话历史
             store = s
         }

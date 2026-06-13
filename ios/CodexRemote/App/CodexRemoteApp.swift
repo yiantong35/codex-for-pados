@@ -54,7 +54,7 @@ struct RootView: View {
             let coord = coordinator ?? ApprovalCoordinator(store: approvals, projects: projects)
             coordinator = coord
             if connection.phase == .ready, let rpc = connection.rpc {
-                coord.bind(rpc: rpc)
+                Task { await coord.bind(rpc: rpc) }
             }
         }
         .onChange(of: connection.phase) { _, phase in

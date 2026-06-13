@@ -8,7 +8,7 @@ final class MidTurnControlTests: XCTestCase {
         let mock = MockTransport(); let rpc = JSONRPCClient(transport: mock)
         await rpc.start()
         let store = ConversationStore(rpc: rpc, threadId: "t1")
-        store.startObserving()
+        await store.startObserving()
         await mock.feed(#"{"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"t1","turn":{"id":"T1","status":"inProgress"}}}"#)
         try? await Task.sleep(nanoseconds: 50_000_000)
         return (store, mock)
@@ -42,7 +42,7 @@ final class MidTurnControlTests: XCTestCase {
         let mock = MockTransport(); let rpc = JSONRPCClient(transport: mock)
         await rpc.start()
         let store = ConversationStore(rpc: rpc, threadId: "t1")
-        store.startObserving()
+        await store.startObserving()
         let ok = await store.steer(input: [.text("x")])
         XCTAssertFalse(ok)
     }

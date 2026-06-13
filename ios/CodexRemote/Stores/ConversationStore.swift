@@ -27,13 +27,18 @@ final class ConversationStore {
     var activeTurnId: String? { state.activeTurnId }
 
     /// 订阅 notifications() 流，逐条归约进 state。重复调用是幂等的。
-    func startObserving() {
+    ///
+    /// async：先 `await rpc.notifications()` 完成订阅注册（多播流的 continuation 在该调用
+    /// 返回时即已登记进 actor），**再**起消费 Task。这样 `await startObserving()` 返回后，
+    /// 订阅一定已就绪，之后到达的通知不会因「注册晚于通知」而丢失（修复多播订阅注册竞态：
+    /// 旧实现把 `await notifications()` 放进游离 Task，函数同步返回时注册可能尚未完成）。
+    func startObserving() async {
         guard observer == nil else { return }
+        let stream = await rpc.notifications()
         observer = Task { [weak self] in
-            guard let self else { return }
-            let stream = await self.rpc.notifications()
             for await n in stream {
                 await MainActor.run {
+                    guard let self else { return }
                     // 仅消费属于本线程的事件（按 params.threadId 过滤，缺省全收）。
                     guard self.belongsToThread(n) else { return }
                     self.reducer.apply(n, to: &self.state)

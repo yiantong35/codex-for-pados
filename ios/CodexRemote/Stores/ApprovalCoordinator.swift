@@ -25,13 +25,21 @@ final class ApprovalCoordinator {
     }
 
     /// 绑定到一个新的 rpc（连接建立/重连后调用）。直接经 rpc.respond 回传决定。
-    func bind(rpc: JSONRPCClient) {
+    ///
+    /// async：先 `await` 取得 serverRequests()/notifications() 两条流（多播 continuation 在
+    /// 该调用返回时即已登记进 actor），**再**起消费 Task。这样 `await bind()` 返回后订阅一定
+    /// 已就绪，之后到达的审批请求/解决通知不会因「注册晚于到达」而丢失（与 ConversationStore
+    /// 的多播订阅注册竞态同源修复）。
+    func bind(rpc: JSONRPCClient) async {
         store.resolver = { id, body in try? await rpc.respond(to: id, result: body) }
+
+        // 先同步完成两条流的订阅注册，再起消费循环。
+        let serverRequestStream = await rpc.serverRequests()
+        let notificationStream = await rpc.notifications()
 
         serverRequestTask?.cancel()
         serverRequestTask = Task { [weak self] in
-            let stream = await rpc.serverRequests()
-            for await req in stream {
+            for await req in serverRequestStream {
                 guard let self else { return }
                 if Self.isApproval(req.method) {
                     self.store.handle(request: req)
@@ -41,8 +49,7 @@ final class ApprovalCoordinator {
 
         notificationTask?.cancel()
         notificationTask = Task { [weak self] in
-            let stream = await rpc.notifications()
-            for await n in stream {
+            for await n in notificationStream {
                 guard let self else { return }
                 guard n.method == ServerNotificationMethod.serverRequestResolved else { continue }
                 let p = (n.params?.value as? [String: Any]) ?? [:]

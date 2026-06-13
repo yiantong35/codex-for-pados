@@ -64,7 +64,7 @@ final class ApprovalStoreTests: XCTestCase {
         let rpc = JSONRPCClient(transport: mock)
         await rpc.start()
         let coord = ApprovalCoordinator(store: ApprovalStore(), projects: ProjectsStore())
-        coord.bind(rpc: rpc)
+        await coord.bind(rpc: rpc)
         let store = coord.store
 
         let frame = #"{"jsonrpc":"2.0","id":"r9","method":"item/commandExecution/requestApproval","params":{"threadId":"t1","command":"ls"}}"#

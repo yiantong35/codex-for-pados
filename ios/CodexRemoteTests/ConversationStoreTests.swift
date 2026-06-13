@@ -9,7 +9,7 @@ final class ConversationStoreTests: XCTestCase {
         let rpc = JSONRPCClient(transport: mock)
         await rpc.start()
         let store = ConversationStore(rpc: rpc, threadId: "t1")
-        store.startObserving()
+        await store.startObserving()
 
         // 真实嵌套形状：turn/started 的 turn 在 params.turn，item/started 的 item 在 params.item。
         await mock.feed(#"{"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"t1","turn":{"id":"T1","status":"inProgress"}}}"#)
@@ -22,6 +22,24 @@ final class ConversationStoreTests: XCTestCase {
             return XCTFail("expected agentMessage item, got \(store.state.items)")
         }
         XCTAssertEqual(text, "Hi")
+        XCTAssertEqual(store.state.activeTurnId, "T1")
+    }
+
+    /// 回归（多播订阅注册竞态）：startObserving() 返回后立即 feed（无 sleep），事件必须被捕获。
+    /// 旧实现把订阅注册放进游离 Task，startObserving() 同步返回时注册可能尚未完成，
+    /// 紧随到达的通知会 yield 给零个订阅者而丢失。修复后 startObserving() 为 async，
+    /// 注册先于返回完成，故返回后到达的通知不丢。
+    func testStartObservingRegistersBeforeReturn() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "t1")
+
+        await store.startObserving()
+        // 紧随其后 feed，不加任何 sleep：订阅若未在 startObserving 返回前注册，此帧会丢失。
+        await mock.feed(#"{"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"t1","turn":{"id":"T1","status":"inProgress"}}}"#)
+
+        try await waitUntil { store.state.activeTurnId == "T1" }
         XCTAssertEqual(store.state.activeTurnId, "T1")
     }
 
