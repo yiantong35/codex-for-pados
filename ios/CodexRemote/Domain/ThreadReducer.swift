@@ -45,6 +45,9 @@ struct ThreadReducer {
             case "fileChange":
                 upsert(.fileChange(id: id, file: item["file"] as? String ?? "",
                                    added: 0, removed: 0, diff: ""), &state)
+            case "reasoning":
+                // 思考/推理项：item.summary/content 可能已带文本（[{type, text}]），否则空串占位（UI 显「正在思考…」）。
+                upsert(.reasoning(id: id, text: reasoningText(from: item)), &state)
             default:
                 break
             }
@@ -52,6 +55,11 @@ struct ThreadReducer {
         case ServerNotificationMethod.agentMessageDelta:
             guard let id = p["itemId"] as? String, let d = p["delta"] as? String else { return }
             mutateAgent(id: id, append: d, &state)
+
+        case ServerNotificationMethod.reasoningTextDelta, ServerNotificationMethod.reasoningSummaryTextDelta:
+            // 正文与摘要增量都累加进同一 reasoning item（字段扁平 itemId/delta）。
+            guard let id = p["itemId"] as? String, let d = p["delta"] as? String else { return }
+            mutateReasoning(id: id, append: d, &state)
 
         case ServerNotificationMethod.commandOutputDelta:
             guard let id = p["itemId"] as? String, let d = p["delta"] as? String else { return }
@@ -66,6 +74,11 @@ struct ThreadReducer {
             // 退出码 item.exitCode、耗时 item.durationMs。
             guard let item = p["item"] as? [String: Any],
                   let id = item["id"] as? String else { return }
+            // reasoning 收尾：若完成事件带了最终 summary/content，且本地为空则补落（不覆盖已累加的 delta）。
+            if item["type"] as? String == "reasoning" {
+                finishReasoning(id: id, fallbackText: reasoningText(from: item), &state)
+                return
+            }
             let status = CommandStatus(rawValue: item["status"] as? String ?? "") ?? .completed
             finishCommand(id: id, status: status,
                           exitCode: optionalInt(item["exitCode"]),
@@ -107,6 +120,8 @@ struct ThreadReducer {
             upsert(.userMessage(id: id, text: textFromContent(item["content"])), &s)
         case "agentMessage":
             upsert(.agentMessage(id: id, text: item["text"] as? String ?? ""), &s)
+        case "reasoning":
+            upsert(.reasoning(id: id, text: reasoningText(from: item)), &s)
         case "fileChange":
             let changes = item["changes"] as? [[String: Any]] ?? []
             let first = changes.first
@@ -139,6 +154,35 @@ struct ThreadReducer {
         }
         guard case .agentMessage(_, let t) = s.items[i] else { return }
         s.items[i] = .agentMessage(id: id, text: t + append)
+    }
+
+    private func mutateReasoning(id: String, append: String, _ s: inout ConversationState) {
+        guard let i = s.items.firstIndex(where: { $0.id == id }) else {
+            // delta 先于 item/started 到达：建一个空 reasoning 再累加（与 agentMessage 容错一致）。
+            s.items.append(.reasoning(id: id, text: append))
+            return
+        }
+        guard case .reasoning(_, let t) = s.items[i] else { return }
+        s.items[i] = .reasoning(id: id, text: t + append)
+    }
+
+    /// reasoning 完成收尾：本地累加为空但完成事件带了文本时补落，已有内容则保留。
+    private func finishReasoning(id: String, fallbackText: String, _ s: inout ConversationState) {
+        guard let i = s.items.firstIndex(where: { $0.id == id }) else {
+            upsert(.reasoning(id: id, text: fallbackText), &s)
+            return
+        }
+        guard case .reasoning(_, let t) = s.items[i] else { return }
+        if t.isEmpty && !fallbackText.isEmpty {
+            s.items[i] = .reasoning(id: id, text: fallbackText)
+        }
+    }
+
+    /// 从 reasoning item 的 summary/content（[{type, text}]）拼接出纯文本，无则空串。
+    private func reasoningText(from item: [String: Any]) -> String {
+        let summary = textFromContent(item["summary"])
+        let content = textFromContent(item["content"])
+        return [summary, content].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
     private func mutateCommand(id: String, append: String, _ s: inout ConversationState) {

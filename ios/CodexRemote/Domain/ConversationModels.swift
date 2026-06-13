@@ -15,13 +15,14 @@ enum CommandStatus: String, Equatable {
 enum ConversationItem: Identifiable, Equatable {
     case userMessage(id: String, text: String)
     case agentMessage(id: String, text: String)              // 随 delta 累加
+    case reasoning(id: String, text: String)                 // 思考/推理：随 reasoning textDelta/summaryTextDelta 累加
     case commandExecution(id: String, command: String, output: String,
                           status: CommandStatus, exitCode: Int?, durationMs: Int?)
     case fileChange(id: String, file: String, added: Int, removed: Int, diff: String)
 
     var id: String {
         switch self {
-        case .userMessage(let i, _), .agentMessage(let i, _),
+        case .userMessage(let i, _), .agentMessage(let i, _), .reasoning(let i, _),
              .commandExecution(let i, _, _, _, _, _), .fileChange(let i, _, _, _, _): return i
         }
     }

@@ -23,6 +23,10 @@ enum ServerNotificationMethod {
     static let itemCompleted = "item/completed"
     static let agentMessageDelta = "item/agentMessage/delta"
     static let commandOutputDelta = "item/commandExecution/outputDelta"
+    // 思考/推理流式增量（字段扁平 itemId/delta，见 protocol/ts/v2/Reasoning*Notification.ts）。
+    static let reasoningTextDelta = "item/reasoning/textDelta"
+    static let reasoningSummaryTextDelta = "item/reasoning/summaryTextDelta"
+    static let reasoningSummaryPartAdded = "item/reasoning/summaryPartAdded"
     static let fileChangePatchUpdated = "item/fileChange/patchUpdated"
     static let turnStarted = "turn/started"
     static let turnCompleted = "turn/completed"

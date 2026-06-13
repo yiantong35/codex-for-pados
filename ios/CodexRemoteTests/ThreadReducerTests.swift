@@ -154,6 +154,69 @@ final class ThreadReducerTests: XCTestCase {
         XCTAssertFalse(state.isTurnRunning)
     }
 
+    // MARK: - 批3·思考/推理（reasoning item + textDelta/summaryTextDelta 累加）
+
+    // item/started(type=reasoning) 应创建一条 reasoning item（即使 summary/content 为空）。
+    func testReasoningItemStartedCreatesReasoningItem() throws {
+        var state = ConversationState(threadId: "t")
+        let reducer = ThreadReducer()
+        reducer.apply(notif("item/started", ["item": ["id": "R1", "type": "reasoning",
+                                                       "summary": [], "content": []]]), to: &state)
+        guard case .reasoning(_, let text)? = state.items.first(where: { $0.id == "R1" }) else {
+            return XCTFail("应出现 reasoning 卡片")
+        }
+        XCTAssertEqual(text, "")   // 无内容时为空串（UI 显「正在思考…」占位）
+    }
+
+    // item/reasoning/textDelta 按 itemId 累加正文（字段扁平 itemId/delta，见 ReasoningTextDeltaNotification.ts）。
+    func testReasoningTextDeltaAccumulates() throws {
+        var state = ConversationState(threadId: "t")
+        let reducer = ThreadReducer()
+        reducer.apply(notif("item/started", ["item": ["id": "R1", "type": "reasoning",
+                                                       "summary": [], "content": []]]), to: &state)
+        reducer.apply(notif("item/reasoning/textDelta", ["itemId": "R1", "delta": "Let me "]), to: &state)
+        reducer.apply(notif("item/reasoning/textDelta", ["itemId": "R1", "delta": "think"]), to: &state)
+        guard case .reasoning(_, let text)? = state.items.first(where: { $0.id == "R1" }) else {
+            return XCTFail("应出现 reasoning 卡片")
+        }
+        XCTAssertEqual(text, "Let me think")
+    }
+
+    // item/reasoning/summaryTextDelta 也累加进同一 reasoning item（字段扁平 itemId/delta）。
+    func testReasoningSummaryTextDeltaAccumulates() throws {
+        var state = ConversationState(threadId: "t")
+        let reducer = ThreadReducer()
+        reducer.apply(notif("item/started", ["item": ["id": "R1", "type": "reasoning",
+                                                       "summary": [], "content": []]]), to: &state)
+        reducer.apply(notif("item/reasoning/summaryTextDelta", ["itemId": "R1", "delta": "Plan: "]), to: &state)
+        reducer.apply(notif("item/reasoning/summaryTextDelta", ["itemId": "R1", "delta": "do X"]), to: &state)
+        guard case .reasoning(_, let text)? = state.items.first(where: { $0.id == "R1" }) else {
+            return XCTFail("应出现 reasoning 卡片")
+        }
+        XCTAssertEqual(text, "Plan: do X")
+    }
+
+    // textDelta 先于 item/started 到达时也应建项（与 agentMessageDelta 容错一致）。
+    func testReasoningTextDeltaBeforeStartedCreatesItem() throws {
+        var state = ConversationState(threadId: "t")
+        let reducer = ThreadReducer()
+        reducer.apply(notif("item/reasoning/textDelta", ["itemId": "R1", "delta": "early"]), to: &state)
+        guard case .reasoning(_, let text)? = state.items.first(where: { $0.id == "R1" }) else {
+            return XCTFail("应出现 reasoning 卡片")
+        }
+        XCTAssertEqual(text, "early")
+    }
+
+    // 真实 fixture（含 type=reasoning 的 item/started·completed）应产出 reasoning item。
+    func testRealReasoningItemAppears() throws {
+        var state = ConversationState(threadId: "019ec012-6dc3-72b0-bf8c-d54ca0527c21")
+        let reducer = ThreadReducer()
+        for n in try loadNotifs("realTurnSequence") { reducer.apply(n, to: &state) }
+        guard case .reasoning? = state.items.first(where: { $0.id == "rs_06f0c5b78c40c04e016a2d1311aed08191abbe4c635e6fffe4" }) else {
+            return XCTFail("真实序列里的 reasoning item 应出现")
+        }
+    }
+
     // helpers
     private func notif(_ m: String, _ p: [String: Any]) -> JSONRPCNotification {
         JSONRPCNotification(method: m, params: AnyCodable(p))

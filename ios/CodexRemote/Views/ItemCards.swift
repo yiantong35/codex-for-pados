@@ -24,6 +24,19 @@ struct ItemCard: View {
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
+        case .reasoning(_, let text):
+            // 「正在思考」样式：灰色斜体；有内容显内容，无内容显占位文案。
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: "brain")
+                    .foregroundStyle(.secondary)
+                    .font(.footnote)
+                Text(text.isEmpty ? LocalizedStringKey("conv.reasoning.thinking") : LocalizedStringKey(text))
+                    .font(.callout.italic())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
         case .commandExecution(_, let command, let output, let status, let exitCode, let durationMs):
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
