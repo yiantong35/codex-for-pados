@@ -16,4 +16,28 @@ final class WorkspaceSummaryTests: XCTestCase {
         let b = TurnPlanStep(step: "写测试", status: .inProgress)
         XCTAssertEqual(a, b)
     }
+
+    func testDiffLineCountsSumsAllFileChanges() {
+        var state = ConversationState(threadId: "t")
+        state.items = [
+            .userMessage(id: "u1", text: "hi"),
+            .fileChange(id: "f1", file: "a.swift", added: 10, removed: 3, diff: ""),
+            .fileChange(id: "f2", file: "b.swift", added: 0, removed: 5, diff: ""),
+            .agentMessage(id: "a1", text: "done"),
+        ]
+        let counts = WorkspaceSummary.diffLineCounts(in: state)
+        XCTAssertEqual(counts.added, 10)
+        XCTAssertEqual(counts.removed, 8)
+        XCTAssertEqual(counts.changedFiles, 2)
+    }
+
+    func testDiffLineCountsEmptyWhenNoFileChanges() {
+        var state = ConversationState(threadId: "t")
+        state.items = [.userMessage(id: "u1", text: "hi")]
+        let counts = WorkspaceSummary.diffLineCounts(in: state)
+        XCTAssertEqual(counts.added, 0)
+        XCTAssertEqual(counts.removed, 0)
+        XCTAssertEqual(counts.changedFiles, 0)
+        XCTAssertTrue(counts.isEmpty)
+    }
 }

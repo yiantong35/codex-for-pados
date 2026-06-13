@@ -278,7 +278,7 @@ git commit -m "feat(workspace): reduce turn/plan/updated into ConversationState.
 
 > diff 行数来源：`ConversationState.items` 里的 `.fileChange(id, file, added, removed, diff)`。reducer 在 `turn/diff/updated` 已把 `added`/`removed` 落进 item（见 `ThreadReducer.mutateFile`）。摘要要的是**全会话汇总**的 +/- 行数与改动文件数，抽成纯函数。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 在 `WorkspaceSummaryTests.swift` 追加：
 ```swift
@@ -307,7 +307,7 @@ git commit -m "feat(workspace): reduce turn/plan/updated into ConversationState.
     }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run：
 ```bash
@@ -318,7 +318,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: 编译失败 / FAIL，"cannot find 'WorkspaceSummary' in scope"。
 
-- [ ] **Step 3: 写最小实现**
+- [x] **Step 3: 写最小实现**
 
 新建 `ios/CodexRemote/Domain/WorkspaceSummary.swift`：
 ```swift
@@ -348,7 +348,7 @@ enum WorkspaceSummary {
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run：
 ```bash
@@ -359,7 +359,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: `TEST SUCCEEDED`。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Domain/WorkspaceSummary.swift ios/CodexRemoteTests/WorkspaceSummaryTests.swift ios/CodexRemote.xcodeproj
