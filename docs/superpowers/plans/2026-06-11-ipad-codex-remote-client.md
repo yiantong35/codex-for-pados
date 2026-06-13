@@ -2,6 +2,7 @@
 change: ipad-codex-remote-client
 design-doc: docs/superpowers/specs/2026-06-11-ipad-codex-remote-client-design.md
 base-ref: 5ddabc7d3a2f4402cd048a6cb57d8a460f440934
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 # iPad Codex 远程 GUI 客户端 实现计划
@@ -25,6 +26,7 @@ base-ref: 5ddabc7d3a2f4402cd048a6cb57d8a460f440934
 
 **协议事实来源（已用真实 codex 0.133.0 验证）：** 生成产物现暂存于 `/tmp/codex-appserver-schema`（JSON Schema）与 `/tmp/codex-appserver-ts`（TS 类型）；本计划要求实现者**在仓库内重新生成**（见 Task 1），不依赖 /tmp 临时目录。下文 Codable 类型字段名与 decision 形状均取自该真实 schema。
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## 任务依赖总览
@@ -55,6 +57,7 @@ Task 20 E2E 联调与验收（4 个手动 E2E 场景）
 
 依赖关系：Task 0/1 是一切前提；Task 2 可与 3 并行；Task 3 spike 必须先于 6/7/8 铺开；Task 4/5（纯 Codable + 单测）可在 spike 进行时并行；Task 8 依赖 6/7；Task 9 依赖 5；Task 10 依赖 8；后续 UI/Store 任务线性铺开；Task 20 依赖全部。
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 0：仓库脚手架 + 工具链约定
@@ -131,6 +134,7 @@ git add ios .gitignore docs/superpowers/plans/README-dev-setup.md
 git commit -m "chore: scaffold iPad CodexRemote SwiftUI app + Citadel dependency"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 1：生成协议 schema 纳入仓库 + pin 版本
@@ -206,6 +210,7 @@ git add protocol scripts/regen-protocol.sh
 git commit -m "feat(protocol): generate app-server schema/ts into repo, pin codex 0.133.0"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 2：Mac 端一键启动脚本（mac-launcher）
@@ -316,6 +321,7 @@ git add scripts/start-codex-appserver.sh
 git commit -m "feat(mac-launcher): one-shot script to bootstrap managed daemon with remote-control + preflight checks"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 3：★SPIKE★ Citadel SSH exec 远端 codex app-server proxy + initialize 握手
@@ -442,6 +448,7 @@ git add ios/CodexRemote/Spike ios/CodexRemote/App/CodexRemoteApp.swift
 git commit -m "spike: verify Citadel SSH exec codex app-server proxy + stdio initialize handshake on iPad"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 4：协议层 JSON-RPC 信封 Codable + 编解码
@@ -621,6 +628,7 @@ git add ios/CodexRemote/RPC ios/CodexRemoteTests/JSONRPCEnvelopeTests.swift
 git commit -m "feat(rpc): JSON-RPC 2.0 envelope codable + decode dispatch (req/notif/resp/err)"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 5：协议层 MVP 领域类型 Codable
@@ -999,6 +1007,7 @@ git add ios/CodexRemote/Protocol ios/CodexRemoteTests/ProtocolTypesTests.swift
 git commit -m "feat(protocol): MVP codable types (initialize/thread/turn/approval) from schema"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 6：传输层 SSHClient（封装 spike 成果为可复用 actor）
@@ -1094,6 +1103,7 @@ git add ios/CodexRemote/Transport/SSHClient.swift ios/CodexRemote/Transport/Tran
 git commit -m "feat(transport): SSHClient actor with exec codex app-server proxy channel + typed errors"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 7：传输层 ProxyChannel（actor，exec stdio 上换行分隔 JSON 帧收发）
@@ -1202,6 +1212,7 @@ git add ios/CodexRemote/Transport/MessageTransport.swift ios/CodexRemote/Transpo
 git commit -m "feat(transport): MessageTransport protocol + ProxyChannel (newline-delimited JSON over exec stdio) + MockTransport"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 8：JSON-RPC 层 JSONRPCClient（id 关联 + 通知流 + server 请求分发）
@@ -1371,6 +1382,7 @@ git add ios/CodexRemote/RPC/JSONRPCClient.swift ios/CodexRemoteTests/JSONRPCClie
 git commit -m "feat(rpc): JSONRPCClient actor (id correlation, notification stream, server-request dispatch)"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 9：归约层 ThreadReducer（notification → 会话状态）
@@ -1568,6 +1580,7 @@ git add ios/CodexRemote/Domain ios/CodexRemoteTests/ThreadReducerTests.swift ios
 git commit -m "feat(domain): ThreadReducer reduces notifications to conversation state (+ fixture tests)"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 10：状态层 ConnectionStore（连接生命周期状态机 + 重连）
@@ -1736,6 +1749,7 @@ git add ios/CodexRemote/Stores/ConnectionStore.swift ios/CodexRemote/App/LiveTra
 git commit -m "feat(stores): ConnectionStore lifecycle state machine + initialize handshake + backoff reconnect"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 11：凭证安全存储（KeychainStore）+ 连接配置界面
@@ -1879,6 +1893,7 @@ git add ios/CodexRemote/Security ios/CodexRemote/Views/ConnectionConfigView.swif
 git commit -m "feat(security): KeychainStore for SSH credentials + connection config view with typed errors"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 12：状态层 ProjectsStore（thread/list 按 cwd 分组 + 待批准徽标）
@@ -2001,6 +2016,7 @@ git add ios/CodexRemote/Stores/ProjectsStore.swift ios/CodexRemoteTests/Projects
 git commit -m "feat(stores): ProjectsStore groups threads by cwd, desktop sourceKinds, pending-approval badge"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 13：SwiftUI 左栏（项目→对话树）+ 三栏骨架
@@ -2137,6 +2153,7 @@ git add ios/CodexRemote/Views/RootSplitView.swift ios/CodexRemote/Views/SidebarV
 git commit -m "feat(ui): three-pane NavigationSplitView + sidebar project/thread tree with approval badge"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 14：状态层 ConversationStore（resume/start/turn + 流式归约接线）
@@ -2263,6 +2280,7 @@ git add ios/CodexRemote/Stores/ConversationStore.swift ios/CodexRemoteTests/Conv
 git commit -m "feat(stores): ConversationStore wires turn/start, resume, streaming reduction, queue drain"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 15：SwiftUI 中栏对话流（正文/命令输出/文件 diff 卡）
@@ -2388,6 +2406,7 @@ git add ios/CodexRemote/Views/ConversationView.swift ios/CodexRemote/Views/ItemC
 git commit -m "feat(ui): conversation stream with agent markdown, command output, file diff cards"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 16：composer（文本/图片/模型推理选择 + turn/start 映射）
@@ -2476,6 +2495,7 @@ git add ios/CodexRemote/Views/ComposerView.swift ios/CodexRemote/Views/Conversat
 git commit -m "feat(ui): composer with text, image attachment, model/effort selectors mapped to turn/start"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 17：中途控制（steer / 排队 / interrupt）
@@ -2631,6 +2651,7 @@ git add ios/CodexRemote/Stores/ConversationStore.swift ios/CodexRemote/Views/Com
 git commit -m "feat(conversation): steer (with expectedTurnId), queue, interrupt + non-steerable guard"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 18：状态层 + UI ApprovalStore + 多选项审批卡（含 legacy 兼容）
@@ -2878,6 +2899,7 @@ git add ios/CodexRemote/Stores/ApprovalStore.swift ios/CodexRemote/Views/Approva
 git commit -m "feat(approval): multi-option approval store + card, v2/legacy decision mapping, badge wiring"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 19：审批边界（serverRequest/resolved + 超时/断线不自动批准）
@@ -2971,6 +2993,7 @@ git add ios/CodexRemote/Stores/ApprovalStore.swift ios/CodexRemote/App ios/Codex
 git commit -m "feat(approval): handle serverRequest/resolved + connection-loss without auto-approval"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Task 20：E2E 联调与验收（4 个手动 E2E 场景）
@@ -3037,6 +3060,7 @@ git add ios docs/superpowers/plans/e2e-checklist-ipad-codex-remote-client.md ope
 git commit -m "test(e2e): verify connect/stream/resume/approval/reconnect; backfill fixtures; remove spike"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## 计划自检（Self-Review）
@@ -3056,6 +3080,7 @@ git commit -m "test(e2e): verify connect/stream/resume/approval/reconnect; backf
 
 **备选降级（风险兜底）：** 若 Citadel exec proxy 通道在 iPadOS 上不可行（spike 未通过），回退到旧方案 — Mac 端自起 `codex app-server --listen ws://127.0.0.1:<port>` + iPad 经 Citadel direct-tcpip 端口转发 + WebSocket 承载 JSON-RPC。主线必须是 exec proxy / stdio，此降级仅作 spike 失败时的备选路径。
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 # v1.1 增量：左栏复刻 Codex desktop（Task 21–25）
@@ -3536,6 +3561,7 @@ git commit -m "feat(ui): RootSplitView 三栏 + InspectorView 环境信息简态
 
 **范围纪律：** 本增量不含分类本地覆盖/手动移动、unread/运行中徽标、pin、重命名/归档/fork（均 v2，见设计 §14）；运行中徽标因需全局通知广播重构明确留 v2。
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 # v1.2 增量：主界面布局细化（Task 26）
@@ -3635,6 +3661,7 @@ git add ios/CodexRemote/Views/RootSplitView.swift ios/CodexRemote/Views/SidebarV
 git commit -m "feat(ui): 主界面 inspector 可隐藏(默认收起)+设置齿轮移侧栏常显+默认聚焦侧栏 (Task 26)"
 ```
 
+archived-with: 2026-06-13-ipad-codex-remote-client
 ---
 
 ## Follow-up（真机 E2E 延期记录）

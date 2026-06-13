@@ -16,7 +16,7 @@ verification_report: docs/superpowers/reports/2026-06-13-ipad-codex-remote-clien
 branch_status: handled
 created_at: 2026-06-10
 verified_at: 2026-06-13
-archived: false
+archived: true
 handoff_context: openspec/changes/ipad-codex-remote-client/.comet/handoff/design-context.json
 handoff_hash: a89b0cffff4e035c779c0fbd984754a317f3d22d879a8d7838969a77a2d8cf40
 build_command: bash scripts/comet-build-check.sh

@@ -2,6 +2,8 @@
 comet_change: ipad-codex-remote-client
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-06-13-ipad-codex-remote-client
+status: final
 ---
 
 # iPad Codex 远程 GUI 客户端 — 技术设计
