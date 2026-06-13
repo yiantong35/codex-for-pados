@@ -27,3 +27,11 @@
 - [x] 7.2 选择性用橙：清理字面蓝（用户气泡→accentColor 淡底、composer 图片图标→中性）；次级控件(+/设置)中性、主操作(发送)用橙、顶栏 chrome 中性
 - [x] 7.3 右栏拖动根因修复：`.inspector` 内建 resize 三栏全开时不可靠 → 改 HStack 自绘可拖列（DragGesture + WorkspaceMetrics.resizedRightWidth 纯函数单测）
 - [x] 7.4 可拖提示：右栏左缘常驻把手（视觉提示可拖）+ 指针 hover 加粗高亮主题色（PanelResizeHandle，模拟器自检 /tmp/cropB_handle.png 已核对）
+
+## 8. 用户反馈精修第二轮（build 内增量）
+- [x] 8.1 #4 文件夹点击不折叠：SidebarCollapseStore 由 plain struct 改 @Observable class（内存 Set + UserDefaults 持久化），DisclosureGroup 绑定才触发重渲染
+- [x] 8.2 #5 左栏收起再开选中橙色丢失：threadRow 选中态自渲染（橙底 listRowBackground + 橙标题），不依赖会丢失的系统 List 高亮（模拟器自检 /tmp/cropLeftMid 区域 + 选中框已核对）
+- [x] 8.3 #3 把手 hover/拖动变橙：右栏 + 下栏把手统一 hovering||dragging 变橙加粗（触摸无 hover，靠「拖动中变橙」给反馈）
+- [x] 8.4 #2 左栏可见把手：系统列右缘常驻装饰把手（allowsHitTesting=false 不拦截系统拖动；模拟器自检 /tmp/cropLeftMid.png 已核对）
+- [x] 8.5 #1 右栏拖动闪屏：根因=横向 resize 每帧逼对话区重折行。改松手提交（拖动中只画跟手橙导引线，onEnded 才落 rightWidth），对齐左栏系统列行为
+- [x] 8.6 #6 橙色清单已交付用户验收（选中行/用户气泡/发送键/把手 hover/待批准徽标+时钟/系统 accent 控件）

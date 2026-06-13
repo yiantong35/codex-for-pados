@@ -72,9 +72,13 @@ struct SidebarView: View {
 
     @ViewBuilder
     private func threadRow(_ thread: ThreadSummary) -> some View {
+        // 选中态自渲染（橙底 + 橙标题）：不依赖系统 List 选中高亮——后者在左栏列
+        // 隐藏再显示后会丢失。自渲染随 selectedThreadId 持久，收起重开也不丢。
+        let selected = selectedThreadId == thread.id
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(displayTitle(thread)).lineLimit(1)
+                    .foregroundStyle(selected ? Color.accentColor : Color.primary)
                 Text(Self.relativeTime(thread.updatedAt))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -87,6 +91,7 @@ struct SidebarView: View {
                     .accessibilityLabel(Text("sidebar.pendingApproval"))
             }
         }
+        .listRowBackground(selected ? Color.accentColor.opacity(0.15) : Color.clear)
     }
 
     private func displayTitle(_ thread: ThreadSummary) -> String {

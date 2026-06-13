@@ -26,9 +26,11 @@ struct RootSplitView: View {
     @State private var showBottomPanel: Bool
     @State private var showSummary = false
     @State private var bottomHeight: CGFloat = WorkspaceMetrics.bottomPanelIdealHeight
-    // 右栏宽（自绘可拖列；取代 .inspector 内建 resize）。dragBase 为手势起点基准宽。
+    // 右栏宽（自绘可拖列；取代 .inspector 内建 resize）。
+    // 消闪策略：拖动中只更新 previewWidth（画跟手导引线，不动真实布局），松手才提交到 rightWidth，
+    // 避免对话区每帧重折行导致闪屏（横向 resize 的固有代价；下栏纵向不重排故保持实时）。
     @State private var rightWidth: CGFloat = WorkspaceMetrics.rightPanelIdealWidth
-    @State private var rightDragBase: CGFloat?
+    @State private var rightPreviewWidth: CGFloat?
 
     /// 当前活跃会话 state 的共享持有者：ConversationView 写入、摘要 popover 读出。
     @State private var activeConversation = ActiveConversationHolder()
@@ -125,6 +127,14 @@ struct RootSplitView: View {
                 .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 380)
                 .toolbar(removing: .sidebarToggle)
                 .toolbarBackground(.hidden, for: .navigationBar)
+                // 左栏可拖提示：系统列拖动本就可用，这里只在右缘画常驻装饰把手作视觉提示；
+                // allowsHitTesting(false) 不拦截系统拖动，保持左栏原本顺滑的 resize。
+                .overlay(alignment: .trailing) {
+                    Capsule().fill(Color.secondary.opacity(0.55))
+                        .frame(width: 3, height: 44)
+                        .padding(.trailing, 2)
+                        .allowsHitTesting(false)
+                }
         } detail: {
             detail
                 .toolbar(removing: .sidebarToggle)
@@ -143,13 +153,25 @@ struct RootSplitView: View {
                 if showRightPanel {
                     PanelResizeHandle(
                         onChanged: { tx in
-                            // 手势起点锁定基准宽，按位移算新宽（避免累计位移导致加速）。
-                            if rightDragBase == nil { rightDragBase = rightWidth }
-                            rightWidth = WorkspaceMetrics.resizedRightWidth(
-                                current: rightDragBase ?? rightWidth, dragX: tx)
+                            // 拖动中只算预览宽（不提交），布局不动 → 不闪。
+                            rightPreviewWidth = WorkspaceMetrics.resizedRightWidth(
+                                current: rightWidth, dragX: tx)
                         },
-                        onEnded: { rightDragBase = nil }
+                        onEnded: {
+                            // 松手提交最终宽度，对话区只在此刻重排一次。
+                            if let p = rightPreviewWidth { rightWidth = p }
+                            rightPreviewWidth = nil
+                        }
                     )
+                    // 跟手导引线：拖动中沿手指方向偏移，预示松手后的新边界位置。
+                    .overlay {
+                        if let p = rightPreviewWidth {
+                            Rectangle().fill(Color.accentColor)
+                                .frame(width: 2).frame(maxHeight: .infinity)
+                                .offset(x: rightWidth - p)
+                                .allowsHitTesting(false)
+                        }
+                    }
                     RightPanelView()
                         .frame(width: rightWidth)
                         .frame(maxHeight: .infinity)
