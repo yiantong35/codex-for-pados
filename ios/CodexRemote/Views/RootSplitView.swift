@@ -43,14 +43,9 @@ struct RootSplitView: View {
 
     var body: some View {
         split
-            .safeAreaInset(edge: .top, spacing: 0) {
-                VStack(spacing: 0) {
-                    topBar
-                    Divider()
-                }
-            }
-            // 摘要：常驻悬浮浮层（design D2 改）。用 overlay 而非 .popover，
-            // 故点击别处不收回，仅由顶栏摘要按钮显隐。锚定右上、悬于内容之上。
+            // 摘要：常驻悬浮浮层（design D2 改）。用 overlay 而非 .popover，故点击别处不收回，
+            // 仅由顶栏摘要按钮显隐。overlay 放在 safeAreaInset 之前 → 浮层落在顶栏「下方」内容区，
+            // 不会遮挡顶栏按钮（否则会盖住摘要按钮本身导致收不回）。
             .overlay(alignment: .topTrailing) {
                 if showSummary {
                     SummaryPopoverView(state: activeConversation.state, thread: selectedThread)
@@ -62,6 +57,12 @@ struct RootSplitView: View {
                         .padding(.top, 8)
                         .padding(.trailing, 12)
                         .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    topBar
+                    Divider()
                 }
             }
             .environment(activeConversation)
@@ -106,7 +107,8 @@ struct RootSplitView: View {
             SettingsMenu()
         }
         .font(.title3)
-        .tint(.accentColor)
+        // 图标用 .primary（标签色，随深浅自动适配黑/白），不用 iOS 默认蓝。
+        .tint(Color.primary)
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
         .background(.bar)
