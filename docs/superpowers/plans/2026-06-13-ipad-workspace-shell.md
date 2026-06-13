@@ -493,7 +493,7 @@ git commit -m "feat(workspace): derive plan progress and command tasks for summa
 
 > design D3/D4/D5：右栏有最小宽、下栏有最小高，拖动时不得小于最小值。把「常量 + clamp」抽纯函数单测（拖动本身验不了，但 clamp 逻辑可测）。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 新建 `ios/CodexRemoteTests/WorkspaceMetricsTests.swift`：
 ```swift
@@ -520,7 +520,7 @@ final class WorkspaceMetricsTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run：
 ```bash
@@ -531,7 +531,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: 编译失败 / FAIL，"cannot find 'WorkspaceMetrics' in scope"。
 
-- [ ] **Step 3: 写最小实现**
+- [x] **Step 3: 写最小实现**
 
 新建 `ios/CodexRemote/Views/Workspace/WorkspaceMetrics.swift`：
 ```swift
@@ -555,7 +555,7 @@ enum WorkspaceMetrics {
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run：
 ```bash
@@ -566,7 +566,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: `TEST SUCCEEDED`。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Views/Workspace/WorkspaceMetrics.swift ios/CodexRemoteTests/WorkspaceMetricsTests.swift ios/CodexRemote.xcodeproj
