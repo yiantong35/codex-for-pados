@@ -27,7 +27,7 @@ struct ComposerView: View {
         VStack(spacing: 6) {
             if imageDataURL != nil {
                 HStack(spacing: 6) {
-                    Image(systemName: "photo").foregroundStyle(.blue)
+                    Image(systemName: "photo").foregroundStyle(.secondary)
                     Text("composer.imageAttached").font(.footnote).foregroundStyle(.secondary)
                     Spacer()
                     Button("composer.remove") { imageDataURL = nil; photoItem = nil }
@@ -35,9 +35,11 @@ struct ComposerView: View {
                 }
             }
             HStack(spacing: 8) {
+                // 次级控件用中性色（选择性用橙：只有主操作发送用主题色）。
                 PhotosPicker(selection: $photoItem, matching: .images) {
                     Image(systemName: "plus.circle").font(.title3)
                 }
+                .foregroundStyle(.secondary)
                 Menu {
                     Picker("composer.model", selection: $model) {
                         ForEach(Self.models, id: \.self) { Text($0).tag($0) }
@@ -48,6 +50,7 @@ struct ComposerView: View {
                 } label: {
                     Image(systemName: "slider.horizontal.3").font(.title3)
                 }
+                .foregroundStyle(.secondary)
 
                 TextField("composer.placeholder", text: $text, axis: .vertical)
                     .textFieldStyle(.roundedBorder)

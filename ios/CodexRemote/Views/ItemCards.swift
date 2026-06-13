@@ -14,7 +14,8 @@ struct ItemCard: View {
                 Text(text)
                     .textSelection(.enabled)
                     .padding(10)
-                    .background(.blue.opacity(0.15))
+                    // 用户气泡用主题色淡底（accentColor 橙），不用系统蓝。
+                    .background(Color.accentColor.opacity(0.15))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
 

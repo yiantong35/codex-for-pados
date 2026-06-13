@@ -21,3 +21,9 @@
 ## 6. 验收
 - [x] 6.1 模拟器自检：顶栏 5 按钮各自 toggle 对应面板显隐；摘要浮层显 P0 内容；右栏/下栏 空态+可拖+最小尺寸（快照逐态目视已核对 /tmp/workspace/*.png 对照 design §4；拖动手势离屏快照验不了，靠 UI 测试或用户确认）
 - [ ] 6.2 真机验收（follow-up，沿用 v1 延期约定，本期延期）
+
+## 7. 用户反馈精修（build 内增量）
+- [x] 7.1 全局主题色：定义橙铜 AccentColor（深浅两态）+ ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME；List 选中强调由系统蓝改为主题橙（模拟器自检 /tmp/cropSel.png 已核对）
+- [x] 7.2 选择性用橙：清理字面蓝（用户气泡→accentColor 淡底、composer 图片图标→中性）；次级控件(+/设置)中性、主操作(发送)用橙、顶栏 chrome 中性
+- [x] 7.3 右栏拖动根因修复：`.inspector` 内建 resize 三栏全开时不可靠 → 改 HStack 自绘可拖列（DragGesture + WorkspaceMetrics.resizedRightWidth 纯函数单测）
+- [x] 7.4 可拖提示：右栏左缘常驻把手（视觉提示可拖）+ 指针 hover 加粗高亮主题色（PanelResizeHandle，模拟器自检 /tmp/cropB_handle.png 已核对）

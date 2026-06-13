@@ -12,9 +12,9 @@ final class ActiveConversationHolder {
 /// 主界面（复刻 Codex desktop 五窗口工作区骨架）：
 /// 顶部固定全局工具栏（safeAreaInset，不用 VStack 包整个 split，避免破坏 inspector 拖动）
 /// + NavigationSplitView：左边栏(满高) | detail 区。
-/// detail 区 = VStack { 上半(中间对话 + 右栏 .inspector) ; 下栏(条件) }，
+/// detail 区 = VStack { 上半 HStack(中间对话 + 右栏自绘可拖列) ; 下栏(条件) }，
 /// 故下栏只压短「中间 + 右栏」、不伸到左边栏（design D4 / 布局层级）。
-/// 摘要为 :≡ 按钮触发的 .popover（design D2），非占列。
+/// 摘要为 :≡ 按钮触发的常驻悬浮浮层（overlay，design D2 改），非占列。
 struct RootSplitView: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(ProjectsStore.self) private var projects
@@ -26,6 +26,9 @@ struct RootSplitView: View {
     @State private var showBottomPanel: Bool
     @State private var showSummary = false
     @State private var bottomHeight: CGFloat = WorkspaceMetrics.bottomPanelIdealHeight
+    // 右栏宽（自绘可拖列；取代 .inspector 内建 resize）。dragBase 为手势起点基准宽。
+    @State private var rightWidth: CGFloat = WorkspaceMetrics.rightPanelIdealWidth
+    @State private var rightDragBase: CGFloat?
 
     /// 当前活跃会话 state 的共享持有者：ConversationView 写入、摘要 popover 读出。
     @State private var activeConversation = ActiveConversationHolder()
@@ -129,16 +132,30 @@ struct RootSplitView: View {
         .navigationSplitViewStyle(.balanced)
     }
 
-    // detail = 上半(content + 右栏 inspector) + 下栏(条件)。下栏在此 VStack 内 → 不压左栏。
+    // detail = 上半(中间对话 + 右栏自绘列) + 下栏(条件)。下栏在此 VStack 内 → 不压左栏。
+    // 右栏改为 HStack 内自绘可拖列（不再用 .inspector）：.inspector 内建 resize 在三栏
+    // 全开时不可靠（左栏开着右栏拖不动）；自绘 DragGesture 不受栏数影响，且可加可拖提示。
     private var detail: some View {
         VStack(spacing: 0) {
-            content
-                .inspector(isPresented: $showRightPanel) {
+            HStack(spacing: 0) {
+                content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if showRightPanel {
+                    PanelResizeHandle(
+                        onChanged: { tx in
+                            // 手势起点锁定基准宽，按位移算新宽（避免累计位移导致加速）。
+                            if rightDragBase == nil { rightDragBase = rightWidth }
+                            rightWidth = WorkspaceMetrics.resizedRightWidth(
+                                current: rightDragBase ?? rightWidth, dragX: tx)
+                        },
+                        onEnded: { rightDragBase = nil }
+                    )
                     RightPanelView()
-                        .inspectorColumnWidth(min: WorkspaceMetrics.rightPanelMinWidth,
-                                              ideal: WorkspaceMetrics.rightPanelIdealWidth,
-                                              max: WorkspaceMetrics.rightPanelMaxWidth)
+                        .frame(width: rightWidth)
+                        .frame(maxHeight: .infinity)
+                        .transition(.move(edge: .trailing))
                 }
+            }
             if showBottomPanel {
                 Divider()
                 BottomPanelView(height: $bottomHeight)
