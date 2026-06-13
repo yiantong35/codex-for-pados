@@ -59,3 +59,9 @@
 
 ## 11. 启动自动重连（remote-connection 增量）
 - [x] 11.1 启动时若有已保存连接信息+密钥则自动连接一次，失败不循环（ConnectionConfigView 一次性 .task；模拟器自检：启动即自动连上主界面）
+- [x] 11.2 inspector 图标改用 Codex 真实 SVG(panel-right 描边/填充) + 空态可拖修复（commit 15d8741；顶栏固定方案 a2a20f7）
+
+## 12. 对话流滞后修复 + 状态提示（conversation-streaming 增量；调查报告确证）
+- [ ] 12.1 批1·滞后 bug：notifications() 改多播(三消费者不再抢占) + ThreadReducer 改读嵌套字段(turn.id/item.*) + 录真实通知 fixture 重写测试（CRITICAL）
+- [ ] 12.2 批2·命令状态：ConversationItem.commandExecution 加 status/exitCode/durationMs + reducer 落值 + ItemCard 渲染 + "已运行 N 条命令" 汇总
+- [ ] 12.3 批3·思考提示：新增 reasoning case + 3 个 reasoning 通知常量 + 归约 + "正在思考" 卡片
