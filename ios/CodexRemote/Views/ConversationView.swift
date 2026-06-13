@@ -19,6 +19,12 @@ struct ConversationView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
+                    if let count = store?.state.commandCount, count > 0 {
+                        Label("conv.commandsRun \(count)", systemImage: "terminal")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                     ForEach(store?.state.items ?? []) { item in
                         ItemCard(item: item).id(item.id)
                     }

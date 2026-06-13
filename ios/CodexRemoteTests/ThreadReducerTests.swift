@@ -30,21 +30,57 @@ final class ThreadReducerTests: XCTestCase {
         reducer.apply(notif("item/started", ["item": ["id": "C1", "type": "commandExecution", "command": "ls"]]), to: &state)
         reducer.apply(notif("item/commandExecution/outputDelta", ["itemId": "C1", "delta": "a.txt\n"]), to: &state)
         reducer.apply(notif("item/commandExecution/outputDelta", ["itemId": "C1", "delta": "b.txt\n"]), to: &state)
-        guard case .commandExecution(_, _, let out, _)? = state.items.first(where: { $0.id == "C1" }) else {
+        guard case .commandExecution(_, _, let out, _, _, _)? = state.items.first(where: { $0.id == "C1" }) else {
             return XCTFail("应有命令项")
         }
         XCTAssertEqual(out, "a.txt\nb.txt\n")
     }
 
-    func testItemCompletedFinishesCommand() throws {
+    func testItemStartedMarksCommandInProgress() throws {
         var state = ConversationState(threadId: "t")
         let reducer = ThreadReducer()
         reducer.apply(notif("item/started", ["item": ["id": "C1", "type": "commandExecution", "command": "ls"]]), to: &state)
-        reducer.apply(notif("item/completed", ["item": ["id": "C1", "type": "commandExecution", "status": "completed"]]), to: &state)
-        guard case .commandExecution(_, _, _, let finished)? = state.items.first(where: { $0.id == "C1" }) else {
+        guard case .commandExecution(_, _, _, let status, _, _)? = state.items.first(where: { $0.id == "C1" }) else {
             return XCTFail("应有命令项")
         }
-        XCTAssertTrue(finished)
+        XCTAssertEqual(status, .inProgress)
+    }
+
+    func testItemCompletedLandsStatusExitCodeDuration() throws {
+        var state = ConversationState(threadId: "t")
+        let reducer = ThreadReducer()
+        reducer.apply(notif("item/started", ["item": ["id": "C1", "type": "commandExecution", "command": "ls"]]), to: &state)
+        reducer.apply(notif("item/completed", ["item": ["id": "C1", "type": "commandExecution",
+                                                        "status": "completed", "exitCode": 0, "durationMs": 42]]), to: &state)
+        guard case .commandExecution(_, _, _, let status, let exitCode, let durationMs)? = state.items.first(where: { $0.id == "C1" }) else {
+            return XCTFail("应有命令项")
+        }
+        XCTAssertEqual(status, .completed)
+        XCTAssertEqual(exitCode, 0)
+        XCTAssertEqual(durationMs, 42)
+    }
+
+    func testItemCompletedFailedStatusWithNonzeroExitCode() throws {
+        var state = ConversationState(threadId: "t")
+        let reducer = ThreadReducer()
+        reducer.apply(notif("item/started", ["item": ["id": "C1", "type": "commandExecution", "command": "false"]]), to: &state)
+        reducer.apply(notif("item/completed", ["item": ["id": "C1", "type": "commandExecution",
+                                                        "status": "failed", "exitCode": 1, "durationMs": 7]]), to: &state)
+        guard case .commandExecution(_, _, _, let status, let exitCode, _)? = state.items.first(where: { $0.id == "C1" }) else {
+            return XCTFail("应有命令项")
+        }
+        XCTAssertEqual(status, .failed)
+        XCTAssertEqual(exitCode, 1)
+    }
+
+    func testCommandCountDerivesFromItems() throws {
+        var state = ConversationState(threadId: "t")
+        let reducer = ThreadReducer()
+        XCTAssertEqual(state.commandCount, 0)
+        reducer.apply(notif("item/started", ["item": ["id": "C1", "type": "commandExecution", "command": "ls"]]), to: &state)
+        reducer.apply(notif("item/started", ["item": ["id": "C2", "type": "commandExecution", "command": "pwd"]]), to: &state)
+        reducer.apply(notif("item/started", ["item": ["id": "M1", "type": "agentMessage", "text": "hi"]]), to: &state)
+        XCTAssertEqual(state.commandCount, 2)   // 只数 commandExecution，agentMessage 不计
     }
 
     func testTurnStartedReviewKindIsNonSteerable() throws {
@@ -93,13 +129,15 @@ final class ThreadReducerTests: XCTestCase {
             if n.method == "turn/completed" { break }   // 先只看进行中状态
             reducer.apply(n, to: &state)
         }
-        guard case .commandExecution(_, let command, _, let finished)? =
+        guard case .commandExecution(_, let command, _, let status, let exitCode, let durationMs)? =
                 state.items.first(where: { $0.id == "call_ZPgSwOry2vW7rZMVDwOO91ta" }) else {
             return XCTFail("应出现 commandExecution 卡片（命令卡片不出现 = 滞后 bug）")
         }
         XCTAssertEqual(command, "/bin/zsh -lc 'echo hi'")
-        // 序列里 item/completed(commandExecution).status == "completed" → finished 应为 true
-        XCTAssertTrue(finished)
+        // 序列里 item/completed(commandExecution): status=completed, exitCode=0, durationMs=0
+        XCTAssertEqual(status, .completed)
+        XCTAssertEqual(exitCode, 0)
+        XCTAssertEqual(durationMs, 0)
     }
 
     func testRealAgentMessageRendersFromNestedItem() throws {

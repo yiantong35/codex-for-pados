@@ -63,5 +63,5 @@
 
 ## 12. 对话流滞后修复 + 状态提示（conversation-streaming 增量；调查报告确证）
 - [x] 12.1 批1·滞后 bug：notifications() 改多播(三消费者不再抢占) + ThreadReducer 改读嵌套字段(turn.id/item.*) + 录真实通知 fixture 重写测试（CRITICAL）
-- [ ] 12.2 批2·命令状态：ConversationItem.commandExecution 加 status/exitCode/durationMs + reducer 落值 + ItemCard 渲染 + "已运行 N 条命令" 汇总
+- [x] 12.2 批2·命令状态：ConversationItem.commandExecution 加 status/exitCode/durationMs + reducer 落值 + ItemCard 渲染 + "已运行 N 条命令" 汇总
 - [ ] 12.3 批3·思考提示：新增 reasoning case + 3 个 reasoning 通知常量 + 归约 + "正在思考" 卡片

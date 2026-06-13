@@ -24,16 +24,16 @@ struct ItemCard: View {
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-        case .commandExecution(_, let command, let output, let finished):
+        case .commandExecution(_, let command, let output, let status, let exitCode, let durationMs):
             VStack(alignment: .leading, spacing: 4) {
-                Label {
-                    Text(command).font(.callout.monospaced())
-                } icon: {
-                    if finished {
-                        Image(systemName: "terminal")
-                    } else {
-                        ProgressView().controlSize(.small)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Label {
+                        Text(command).font(.callout.monospaced())
+                    } icon: {
+                        commandStatusIcon(status)
                     }
+                    Spacer(minLength: 8)
+                    commandStatusBadge(status: status, exitCode: exitCode, durationMs: durationMs)
                 }
                 if !output.isEmpty {
                     Text(output)
@@ -60,6 +60,59 @@ struct ItemCard: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    // MARK: - 命令状态渲染
+
+    /// 行首图标：运行中转圈 / 完成对勾 / 失败叉 / 拒绝禁止符。
+    @ViewBuilder
+    private func commandStatusIcon(_ status: CommandStatus) -> some View {
+        switch status {
+        case .inProgress:
+            ProgressView().controlSize(.small)
+        case .completed:
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+        case .failed:
+            Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+        case .declined:
+            Image(systemName: "nosign").foregroundStyle(.secondary)
+        }
+    }
+
+    /// 行尾徽标：状态文案 + 退出码 + 耗时。
+    @ViewBuilder
+    private func commandStatusBadge(status: CommandStatus, exitCode: Int?, durationMs: Int?) -> some View {
+        HStack(spacing: 6) {
+            Text(statusLabelKey(status))
+                .foregroundStyle(statusColor(status))
+            if let exitCode {
+                Text("conv.cmd.exitCode \(exitCode)")
+                    .foregroundStyle(exitCode == 0 ? .secondary : Color.red)
+            }
+            if let durationMs {
+                Text("conv.cmd.duration \(durationMs)")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .font(.caption.monospaced())
+    }
+
+    private func statusLabelKey(_ status: CommandStatus) -> LocalizedStringKey {
+        switch status {
+        case .inProgress: return "conv.cmd.running"
+        case .completed:  return "conv.cmd.completed"
+        case .failed:     return "conv.cmd.failed"
+        case .declined:   return "conv.cmd.declined"
+        }
+    }
+
+    private func statusColor(_ status: CommandStatus) -> Color {
+        switch status {
+        case .inProgress: return .orange
+        case .completed:  return .green
+        case .failed:     return .red
+        case .declined:   return .secondary
         }
     }
 }

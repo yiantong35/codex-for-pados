@@ -40,7 +40,8 @@ struct ThreadReducer {
                 upsert(.agentMessage(id: id, text: item["text"] as? String ?? ""), &state)
             case "commandExecution":
                 upsert(.commandExecution(id: id, command: item["command"] as? String ?? "",
-                                         output: "", finished: false), &state)
+                                         output: "", status: .inProgress,
+                                         exitCode: nil, durationMs: nil), &state)
             case "fileChange":
                 upsert(.fileChange(id: id, file: item["file"] as? String ?? "",
                                    added: 0, removed: 0, diff: ""), &state)
@@ -61,11 +62,14 @@ struct ThreadReducer {
 
         case ServerNotificationMethod.itemCompleted:
             // 真实通知：item 嵌套在 params.item，命令完成状态在 item.status
-            // （CommandExecutionStatus: inProgress|completed|failed|declined）。
+            // （CommandExecutionStatus: inProgress|completed|failed|declined），
+            // 退出码 item.exitCode、耗时 item.durationMs。
             guard let item = p["item"] as? [String: Any],
                   let id = item["id"] as? String else { return }
-            let status = item["status"] as? String
-            finishCommand(id: id, succeeded: status != "declined", &state)
+            let status = CommandStatus(rawValue: item["status"] as? String ?? "") ?? .completed
+            finishCommand(id: id, status: status,
+                          exitCode: optionalInt(item["exitCode"]),
+                          durationMs: optionalInt(item["durationMs"]), &state)
 
         default:
             break
@@ -139,8 +143,9 @@ struct ThreadReducer {
 
     private func mutateCommand(id: String, append: String, _ s: inout ConversationState) {
         guard let i = s.items.firstIndex(where: { $0.id == id }),
-              case .commandExecution(_, let c, let o, let f) = s.items[i] else { return }
-        s.items[i] = .commandExecution(id: id, command: c, output: o + append, finished: f)
+              case .commandExecution(_, let c, let o, let st, let ec, let dm) = s.items[i] else { return }
+        s.items[i] = .commandExecution(id: id, command: c, output: o + append,
+                                       status: st, exitCode: ec, durationMs: dm)
     }
 
     private func mutateFile(id: String, params: [String: Any], _ s: inout ConversationState) {
@@ -152,11 +157,13 @@ struct ThreadReducer {
                                  diff: params["diff"] as? String ?? "")
     }
 
-    private func finishCommand(id: String, succeeded: Bool = true, _ s: inout ConversationState) {
+    private func finishCommand(id: String, status: CommandStatus,
+                               exitCode: Int?, durationMs: Int?, _ s: inout ConversationState) {
         guard let i = s.items.firstIndex(where: { $0.id == id }),
-              case .commandExecution(_, let c, let o, _) = s.items[i] else { return }
-        // completed/failed 都置 finished=true（命令已结束）；declined 也视为结束。
-        s.items[i] = .commandExecution(id: id, command: c, output: o, finished: true)
+              case .commandExecution(_, let c, let o, _, _, _) = s.items[i] else { return }
+        // completed/failed/declined 都视为命令已结束，落终态字段。
+        s.items[i] = .commandExecution(id: id, command: c, output: o,
+                                       status: status, exitCode: exitCode, durationMs: durationMs)
     }
 
     /// AnyCodable 解码整数为 Int64；内存构造时为 Int。两者都兼容。
@@ -165,5 +172,14 @@ struct ThreadReducer {
         if let i = any as? Int64 { return Int(i) }
         if let d = any as? Double { return Int(d) }
         return 0
+    }
+
+    /// 可空整数解码：字段缺失/为 null 时返回 nil（用于 exitCode/durationMs）。
+    private func optionalInt(_ any: Any?) -> Int? {
+        if any == nil { return nil }
+        if let i = any as? Int { return i }
+        if let i = any as? Int64 { return Int(i) }
+        if let d = any as? Double { return Int(d) }
+        return nil
     }
 }
