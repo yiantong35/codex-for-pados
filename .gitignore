@@ -15,3 +15,10 @@ DerivedData/
 
 # git worktree 隔离工作区
 .worktrees/
+
+# Xcode / SwiftPM (Task 0 脚手架产物)
+ios/**/xcuserdata/
+ios/**/.build/
+ios/**/DerivedData/
+*.xcuserstate
+.swiftpm/
