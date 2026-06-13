@@ -942,7 +942,7 @@ git commit -m "feat(workspace): summary popover content with P0 data and empty s
 
 > design D3：右栏本期只裹共享空态。真实显隐 / 拖动 / 最小宽在 Task 11 接到 `.inspector`。本任务只产出可独立渲染的占位视图。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```swift
     func test_right_panel_snapshot() {
@@ -954,7 +954,7 @@ git commit -m "feat(workspace): summary popover content with P0 data and empty s
     }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run：
 ```bash
@@ -965,7 +965,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: 编译失败，"cannot find 'RightPanelView' in scope"。
 
-- [ ] **Step 3: 写最小实现**
+- [x] **Step 3: 写最小实现**
 
 新建 `ios/CodexRemote/Views/Workspace/RightPanelView.swift`：
 ```swift
@@ -979,7 +979,7 @@ struct RightPanelView: View {
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过 + 目视**
+- [x] **Step 4: 运行测试确认通过 + 目视**
 
 Run：
 ```bash
@@ -990,7 +990,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: `TEST SUCCEEDED`。目视 `/tmp/workspace/right-panel.png`：空态占位铺满。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Views/Workspace/RightPanelView.swift ios/CodexRemoteTests/OrientationSnapshotTests.swift ios/CodexRemote.xcodeproj

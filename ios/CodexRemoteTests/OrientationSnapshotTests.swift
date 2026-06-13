@@ -283,6 +283,18 @@ final class OrientationSnapshotTests: XCTestCase {
                  name: "panel-empty", dir: "/tmp/workspace")
     }
 
+    // MARK: - 场景 5b：右边栏占位视图 RightPanelView（Task 9）
+
+    /// 右栏占位：本期裹共享空态（design D3），渲染不崩溃、PNG 非空，落 /tmp/workspace。
+    func test_right_panel_snapshot() {
+        let view = RightPanelView()
+            .environment(LocaleManager())
+            .environment(ThemeManager())
+            .frame(width: 320, height: 600)
+        snapshot(view, size: CGSize(width: 320, height: 600),
+                 name: "right-panel", dir: "/tmp/workspace")
+    }
+
     // MARK: - 场景 6：摘要悬浮浮层内容 SummaryPopoverView（Task 8）
 
     /// 摘要浮层有数据态：diff / cwd / plan / 任务都渲染，PNG 非空。
