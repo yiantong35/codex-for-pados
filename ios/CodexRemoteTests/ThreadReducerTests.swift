@@ -217,6 +217,30 @@ final class ThreadReducerTests: XCTestCase {
         }
     }
 
+    func testTurnPlanUpdatedPopulatesPlan() throws {
+        var state = ConversationState(threadId: "t")
+        let reducer = ThreadReducer()
+        reducer.apply(notif("turn/plan/updated", ["plan": [
+            ["step": "读代码", "status": "completed"],
+            ["step": "写测试", "status": "in_progress"],
+            ["step": "实现", "status": "pending"],
+        ]]), to: &state)
+        XCTAssertEqual(state.plan, [
+            TurnPlanStep(step: "读代码", status: .completed),
+            TurnPlanStep(step: "写测试", status: .inProgress),
+            TurnPlanStep(step: "实现", status: .pending),
+        ])
+    }
+
+    func testTurnPlanUpdatedReplacesPreviousPlan() throws {
+        var state = ConversationState(threadId: "t")
+        let reducer = ThreadReducer()
+        reducer.apply(notif("turn/plan/updated", ["plan": [["step": "旧", "status": "pending"]]]), to: &state)
+        reducer.apply(notif("turn/plan/updated", ["plan": [["step": "新", "status": "completed"]]]), to: &state)
+        // plan 是整体快照，后到的覆盖先到的（不累加）
+        XCTAssertEqual(state.plan, [TurnPlanStep(step: "新", status: .completed)])
+    }
+
     // helpers
     private func notif(_ m: String, _ p: [String: Any]) -> JSONRPCNotification {
         JSONRPCNotification(method: m, params: AnyCodable(p))

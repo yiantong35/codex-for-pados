@@ -186,7 +186,7 @@ git commit -m "feat(workspace): add TurnPlanStep model for summary progress"
 
 > 真实 `turn/plan/updated` 形状未在仓库样本中固化；按 codex plan tool 惯例，plan 在 `params.plan`（数组），每项 `{step, status}`。归约用容错读取（缺字段不崩溃），与现有 reducer 风格一致。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 在 `ios/CodexRemoteTests/ThreadReducerTests.swift` 的 class 内新增（放在其它 `func test...` 之间）：
 ```swift
@@ -215,7 +215,7 @@ git commit -m "feat(workspace): add TurnPlanStep model for summary progress"
     }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run：
 ```bash
@@ -226,7 +226,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: 编译失败 / FAIL，错误类似 "value of type 'ConversationState' has no member 'plan'"。
 
-- [ ] **Step 3: 写最小实现（三处）**
+- [x] **Step 3: 写最小实现（三处）**
 
 3a. `ios/CodexRemote/Protocol/Methods.swift` —— 在 `static let turnDiffUpdated = "turn/diff/updated"` 下一行加：
 ```swift
@@ -250,7 +250,7 @@ Expected: 编译失败 / FAIL，错误类似 "value of type 'ConversationState' 
             }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run：
 ```bash
@@ -261,7 +261,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: `TEST SUCCEEDED`（新增两个 plan 测试 + 既有 reducer 测试全绿）。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Protocol/Methods.swift ios/CodexRemote/Domain/ConversationModels.swift ios/CodexRemote/Domain/ThreadReducer.swift ios/CodexRemoteTests/ThreadReducerTests.swift

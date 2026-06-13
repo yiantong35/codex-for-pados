@@ -68,6 +68,14 @@ struct ThreadReducer {
         case ServerNotificationMethod.fileChangePatchUpdated, ServerNotificationMethod.turnDiffUpdated:
             if let id = p["itemId"] as? String { mutateFile(id: id, params: p, &state) }
 
+        case ServerNotificationMethod.turnPlanUpdated:
+            // plan 是整体快照：每次用最新数组替换（缺字段容错，step 缺省空串、status 缺省 pending）。
+            let raw = p["plan"] as? [[String: Any]] ?? []
+            state.plan = raw.map { entry in
+                TurnPlanStep(step: entry["step"] as? String ?? "",
+                             status: TurnPlanStepStatus.from(any: entry["status"]))
+            }
+
         case ServerNotificationMethod.itemCompleted:
             // 真实通知：item 嵌套在 params.item，命令完成状态在 item.status
             // （CommandExecutionStatus: inProgress|completed|failed|declined），

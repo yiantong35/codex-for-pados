@@ -31,6 +31,7 @@ enum ServerNotificationMethod {
     static let turnStarted = "turn/started"
     static let turnCompleted = "turn/completed"
     static let turnDiffUpdated = "turn/diff/updated"
+    static let turnPlanUpdated = "turn/plan/updated"
     static let threadStarted = "thread/started"
     static let serverRequestResolved = "serverRequest/resolved"
     static let error = "error"
