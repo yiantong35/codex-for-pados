@@ -86,12 +86,9 @@ struct RootSplitView: View {
         if let id = selectedThreadId {
             ConversationView(threadId: id).id(id)
         } else {
-            // 空态也撑满 + 给导航栏上下文，使未选中对话时 inspector 仍可拖动改宽
-            //（纯 Color 不撑起 detail 的导航上下文，inspector resize 手柄不出现）。
+            // 纯空态：回退到 a2a20f7 的可拖状态（之前给空态加 navigationTitle/frame
+            // 反而破坏了 inspector 的 resize，连选中态也拖不动）。
             Color(.systemBackground)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .navigationTitle(" ")
-                .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
