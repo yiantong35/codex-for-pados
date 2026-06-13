@@ -12,10 +12,12 @@ actor JSONRPCClient {
     private var nextId: Int64 = 0
     private var pending: [RequestId: CheckedContinuation<AnyCodable, Error>] = [:]
     private var serverRequestHandler: ServerRequestHandler?
-    private let notifStream: AsyncStream<JSONRPCNotification>
-    private let notifContinuation: AsyncStream<JSONRPCNotification>.Continuation
-    private let serverRequestStream: AsyncStream<JSONRPCRequest>
-    private let serverRequestContinuation: AsyncStream<JSONRPCRequest>.Continuation
+    /// 多播：每个 notifications() 调用方拿到**独立**的 AsyncStream，actor 内部维护其
+    /// continuation；收到一条通知 yield 给所有订阅者。修复「单消费者流被三处抢占、
+    /// 事件被瓜分」导致的对话流滞后 bug。serverRequests 同理多播。
+    private var notifContinuations: [UUID: AsyncStream<JSONRPCNotification>.Continuation] = [:]
+    private var serverRequestContinuations: [UUID: AsyncStream<JSONRPCRequest>.Continuation] = [:]
+    private var streamsFinished = false
     private var pump: Task<Void, Never>?
 
     private let encoder: JSONEncoder = {
@@ -26,19 +28,36 @@ actor JSONRPCClient {
 
     init(transport: MessageTransport) {
         self.transport = transport
-        var nc: AsyncStream<JSONRPCNotification>.Continuation!
-        notifStream = AsyncStream(bufferingPolicy: .unbounded) { nc = $0 }
-        notifContinuation = nc
-        var sc: AsyncStream<JSONRPCRequest>.Continuation!
-        serverRequestStream = AsyncStream(bufferingPolicy: .unbounded) { sc = $0 }
-        serverRequestContinuation = sc
     }
 
     /// 对外通知流（item/turn/thread 等 server notification）。
-    func notifications() -> AsyncStream<JSONRPCNotification> { notifStream }
+    /// 多播：每个调用方独立订阅，收到的事件互不抢占（对话归约 / 断线探测各拿一份）。
+    func notifications() -> AsyncStream<JSONRPCNotification> {
+        // transport 已关闭：返回一个立即结束的空流，避免新订阅者永久挂起。
+        if streamsFinished { return AsyncStream { $0.finish() } }
+        let id = UUID()
+        return AsyncStream(bufferingPolicy: .unbounded) { cont in
+            notifContinuations[id] = cont
+            cont.onTermination = { [weak self] _ in
+                Task { await self?.removeNotifContinuation(id) }
+            }
+        }
+    }
 
-    /// 对外 server-request 流（供审批层在没有同步 handler 时观察）。
-    func serverRequests() -> AsyncStream<JSONRPCRequest> { serverRequestStream }
+    /// 对外 server-request 流（供审批层在没有同步 handler 时观察）。多播，语义同 notifications()。
+    func serverRequests() -> AsyncStream<JSONRPCRequest> {
+        if streamsFinished { return AsyncStream { $0.finish() } }
+        let id = UUID()
+        return AsyncStream(bufferingPolicy: .unbounded) { cont in
+            serverRequestContinuations[id] = cont
+            cont.onTermination = { [weak self] _ in
+                Task { await self?.removeServerRequestContinuation(id) }
+            }
+        }
+    }
+
+    private func removeNotifContinuation(_ id: UUID) { notifContinuations[id] = nil }
+    private func removeServerRequestContinuation(_ id: UUID) { serverRequestContinuations[id] = nil }
 
     /// 注册一个同步处理 server→client 请求的回调（返回值会被编码为 response.result 回发）。
     func setServerRequestHandler(_ h: @escaping ServerRequestHandler) { serverRequestHandler = h }
@@ -63,15 +82,17 @@ actor JSONRPCClient {
     }
 
     private func finishStreams() {
-        notifContinuation.finish()
-        serverRequestContinuation.finish()
+        streamsFinished = true
+        for c in notifContinuations.values { c.finish() }
+        notifContinuations.removeAll()
+        for c in serverRequestContinuations.values { c.finish() }
+        serverRequestContinuations.removeAll()
     }
 
     func stop() {
         pump?.cancel()
         pump = nil
-        notifContinuation.finish()
-        serverRequestContinuation.finish()
+        finishStreams()
     }
 
     /// 发起一个请求并挂起等待匹配 id 的响应；error 响应抛出。
@@ -115,9 +136,9 @@ actor JSONRPCClient {
             pending.removeValue(forKey: e.id)?
                 .resume(throwing: TransportError.proxyFailed(e.error.message))
         case .notification(let n):
-            notifContinuation.yield(n)
+            for c in notifContinuations.values { c.yield(n) }
         case .request(let req):
-            serverRequestContinuation.yield(req)
+            for c in serverRequestContinuations.values { c.yield(req) }
             if let handler = serverRequestHandler {
                 let result = await handler(req)
                 try? await respond(to: req.id, result: result)

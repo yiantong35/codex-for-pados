@@ -1,8 +1,8 @@
 [
-  {"jsonrpc":"2.0","method":"turn/started","params":{"turnId":"T1"}},
-  {"jsonrpc":"2.0","method":"item/started","params":{"itemId":"I1","itemType":"agentMessage"}},
-  {"jsonrpc":"2.0","method":"item/agentMessage/delta","params":{"itemId":"I1","delta":"Hel"}},
-  {"jsonrpc":"2.0","method":"item/agentMessage/delta","params":{"itemId":"I1","delta":"lo"}},
-  {"jsonrpc":"2.0","method":"item/completed","params":{"itemId":"I1"}},
-  {"jsonrpc":"2.0","method":"turn/completed","params":{"turnId":"T1"}}
+  {"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"t","turn":{"id":"T1","status":"inProgress"}}},
+  {"jsonrpc":"2.0","method":"item/started","params":{"threadId":"t","turnId":"T1","item":{"type":"agentMessage","id":"I1","text":""}}},
+  {"jsonrpc":"2.0","method":"item/agentMessage/delta","params":{"threadId":"t","turnId":"T1","itemId":"I1","delta":"Hel"}},
+  {"jsonrpc":"2.0","method":"item/agentMessage/delta","params":{"threadId":"t","turnId":"T1","itemId":"I1","delta":"lo"}},
+  {"jsonrpc":"2.0","method":"item/completed","params":{"threadId":"t","turnId":"T1","item":{"type":"agentMessage","id":"I1","text":"Hello"}}},
+  {"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"t","turn":{"id":"T1","status":"completed"}}}
 ]

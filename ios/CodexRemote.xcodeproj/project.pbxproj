@@ -38,6 +38,7 @@
 		671C5FB0941C922F6DD8739C /* KeyManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95D06C0C2C4C37CC3468AD43 /* KeyManagerTests.swift */; };
 		68F41951B0D29141EC887051 /* TransportError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02F9A9AAD9F7FFA810F6D770 /* TransportError.swift */; };
 		72FE542A0B5F413DFD6BF3A5 /* MessageTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F31A93FB90F22CE40924C1E9 /* MessageTransport.swift */; };
+		74A5B7B7957A63E4631730A0 /* realTurnSequence.json in Resources */ = {isa = PBXBuildFile; fileRef = D357AD1CF6AF4E964407917D /* realTurnSequence.json */; };
 		768F24B3698500CD6C53C0DA /* Methods.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1ED1C6167187E761CB4F080 /* Methods.swift */; };
 		778221A116B554E3EA194D10 /* JSONRPCEnvelopeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A46B0F715AC99CD902533D4 /* JSONRPCEnvelopeTests.swift */; };
 		7C1E8B9263F5008571A38230 /* InspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F739862A665E7A7C169F4704 /* InspectorView.swift */; };
@@ -129,6 +130,7 @@
 		C8F51BD06F0FA6F6B8896FEA /* TurnTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnTypes.swift; sourceTree = "<group>"; };
 		CC4B92A18365176499E0BFAD /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		D040C9BE53B75E6C6529FFF3 /* SettingsMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsMenu.swift; sourceTree = "<group>"; };
+		D357AD1CF6AF4E964407917D /* realTurnSequence.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = realTurnSequence.json; sourceTree = "<group>"; };
 		D9267A14CDE31BC18019A9A4 /* ConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationView.swift; sourceTree = "<group>"; };
 		DB846AD2F27716658BCDC96E /* ApprovalCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalCardView.swift; sourceTree = "<group>"; };
 		DE1457298E5D37A14AAB29D9 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
@@ -256,6 +258,7 @@
 			isa = PBXGroup;
 			children = (
 				063B0130DD0BA4DB96BC3109 /* agentDeltaSequence.json */,
+				D357AD1CF6AF4E964407917D /* realTurnSequence.json */,
 				465D0BE0B580B8C6A0E48941 /* threadResumeHistory.json */,
 			);
 			path = Fixtures;
@@ -438,6 +441,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				BEAA956A0743B18240709DE1 /* agentDeltaSequence.json in Resources */,
+				74A5B7B7957A63E4631730A0 /* realTurnSequence.json in Resources */,
 				D2F9F55619E9A03045CA0574 /* threadResumeHistory.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -9,7 +9,7 @@ final class MidTurnControlTests: XCTestCase {
         await rpc.start()
         let store = ConversationStore(rpc: rpc, threadId: "t1")
         store.startObserving()
-        await mock.feed(#"{"jsonrpc":"2.0","method":"turn/started","params":{"turnId":"T1"}}"#)
+        await mock.feed(#"{"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"t1","turn":{"id":"T1","status":"inProgress"}}}"#)
         try? await Task.sleep(nanoseconds: 50_000_000)
         return (store, mock)
     }
@@ -28,7 +28,7 @@ final class MidTurnControlTests: XCTestCase {
     /// review 类型 turn 不可 steer：steer 返回 false 且不发帧。
     func testSteerBlockedForReviewTurn() async throws {
         let (store, mock) = await runningStore()
-        await mock.feed(#"{"jsonrpc":"2.0","method":"turn/started","params":{"turnId":"T2","kind":"review"}}"#)
+        await mock.feed(#"{"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"t1","turn":{"id":"T2","kind":"review","status":"inProgress"}}}"#)
         try await waitUntil { store.state.activeTurnKind == .review }
         let before = await mock.sent.count
         let ok = await store.steer(input: [.text("x")])

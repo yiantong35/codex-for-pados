@@ -39,6 +39,45 @@ final class JSONRPCClientTests: XCTestCase {
         await fulfillment(of: [exp], timeout: 1)
     }
 
+    // ②b 多播：两个并发消费者都应收到同一条通知。
+    // 旧实现 notifications() 返回同一个单 continuation 流（单消费者语义），
+    // 事件被两个 for-await 瓜分，至多一个消费者拿到 → 本用例 RED。
+    func testNotificationsMulticastToMultipleConsumers() async throws {
+        let mock = MockTransport()
+        let client = JSONRPCClient(transport: mock)
+        await client.start()
+        let expA = expectation(description: "consumerA")
+        let expB = expectation(description: "consumerB")
+        Task {
+            for await n in await client.notifications() {
+                if n.method == "item/agentMessage/delta" { expA.fulfill(); break }
+            }
+        }
+        Task {
+            for await n in await client.notifications() {
+                if n.method == "item/agentMessage/delta" { expB.fulfill(); break }
+            }
+        }
+        try await Task.sleep(nanoseconds: 80_000_000)   // 让两个订阅者就位
+        await mock.feed(#"{"jsonrpc":"2.0","method":"item/agentMessage/delta","params":{"delta":"hi"}}"#)
+        await fulfillment(of: [expA, expB], timeout: 2)
+    }
+
+    // ②c 多播订阅者在底层 transport 关闭后流应结束（ConnectionStore 的断线探测依赖此）。
+    func testNotificationStreamFinishesOnTransportClose() async throws {
+        let mock = MockTransport()
+        let client = JSONRPCClient(transport: mock)
+        await client.start()
+        let exp = expectation(description: "stream-finished")
+        Task {
+            for await _ in await client.notifications() { }
+            exp.fulfill()   // 流自然结束才会到这里
+        }
+        try await Task.sleep(nanoseconds: 50_000_000)
+        await mock.close()
+        await fulfillment(of: [exp], timeout: 2)
+    }
+
     // ③ feed 一条 server request → server-request 处理器收到且 method/id 正确，并回 response
     func testServerRequestDispatchedToHandler() async throws {
         let mock = MockTransport()

@@ -3,8 +3,12 @@ import Foundation
 /// 把 server notification 归约进 ConversationState 的纯函数集合。
 ///
 /// 两条摄入路径：
-///   1. `apply(_:to:)` —— 流式 server notification（turn/item 增量），字段名
-///      itemId/delta/itemType/command/kind/file/added/removed/diff 取自流式协议。
+///   1. `apply(_:to:)` —— 流式 server notification（turn/item 增量）。
+///      真实通知（codex 0.133.0 实测，见 realTurnSequence.json）形状：
+///        - turn/started·completed: turn 嵌套在 params.turn（id=params.turn.id, status=params.turn.status，无 kind）
+///        - item/started·completed:  item 嵌套在 params.item（id/type/command/status/exitCode/aggregatedOutput…）
+///        - item/agentMessage/delta、item/commandExecution/outputDelta: 字段**扁平** params.itemId/params.delta
+///        - turn/diff/updated、fileChange/patchUpdated: 扁平 params.itemId/added/removed/diff
 ///   2. `ingest(resumeResult:to:)` —— thread/resume 同步响应里的历史 turn/item，
 ///      字段名取自 Task 20 实测真实 schema（见方法注释），与流式形状不同。
 struct ThreadReducer {
@@ -12,8 +16,11 @@ struct ThreadReducer {
         let p = (n.params?.value as? [String: Any]) ?? [:]
         switch n.method {
         case ServerNotificationMethod.turnStarted:
-            state.activeTurnId = p["turnId"] as? String
-            if let kind = p["kind"] as? String {
+            // 真实通知（codex 0.133.0 实测）：turn 是嵌套对象，id 在 params.turn.id，
+            // 无 kind 字段（旧实现读扁平 params.turnId/params.kind → 永远 nil，是滞后 bug 根因 B）。
+            let turn = p["turn"] as? [String: Any]
+            state.activeTurnId = turn?["id"] as? String
+            if let kind = (turn?["kind"] ?? p["kind"]) as? String {
                 state.activeTurnKind = NonSteerableTurnKind(rawValue: kind)
             } else {
                 state.activeTurnKind = nil
@@ -24,15 +31,18 @@ struct ThreadReducer {
             state.activeTurnKind = nil
 
         case ServerNotificationMethod.itemStarted:
-            guard let id = p["itemId"] as? String else { return }
-            switch p["itemType"] as? String {
+            // 真实通知：item 是嵌套对象，字段在 params.item.{id,type,command,file}
+            // （旧实现读扁平 params.itemId/itemType/command → 命令卡片永不出现，是滞后 bug 根因 B）。
+            guard let item = p["item"] as? [String: Any],
+                  let id = item["id"] as? String else { return }
+            switch item["type"] as? String {
             case "agentMessage":
-                upsert(.agentMessage(id: id, text: ""), &state)
+                upsert(.agentMessage(id: id, text: item["text"] as? String ?? ""), &state)
             case "commandExecution":
-                upsert(.commandExecution(id: id, command: p["command"] as? String ?? "",
+                upsert(.commandExecution(id: id, command: item["command"] as? String ?? "",
                                          output: "", finished: false), &state)
             case "fileChange":
-                upsert(.fileChange(id: id, file: p["file"] as? String ?? "",
+                upsert(.fileChange(id: id, file: item["file"] as? String ?? "",
                                    added: 0, removed: 0, diff: ""), &state)
             default:
                 break
@@ -50,7 +60,12 @@ struct ThreadReducer {
             if let id = p["itemId"] as? String { mutateFile(id: id, params: p, &state) }
 
         case ServerNotificationMethod.itemCompleted:
-            if let id = p["itemId"] as? String { finishCommand(id: id, &state) }
+            // 真实通知：item 嵌套在 params.item，命令完成状态在 item.status
+            // （CommandExecutionStatus: inProgress|completed|failed|declined）。
+            guard let item = p["item"] as? [String: Any],
+                  let id = item["id"] as? String else { return }
+            let status = item["status"] as? String
+            finishCommand(id: id, succeeded: status != "declined", &state)
 
         default:
             break
@@ -137,9 +152,10 @@ struct ThreadReducer {
                                  diff: params["diff"] as? String ?? "")
     }
 
-    private func finishCommand(id: String, _ s: inout ConversationState) {
+    private func finishCommand(id: String, succeeded: Bool = true, _ s: inout ConversationState) {
         guard let i = s.items.firstIndex(where: { $0.id == id }),
               case .commandExecution(_, let c, let o, _) = s.items[i] else { return }
+        // completed/failed 都置 finished=true（命令已结束）；declined 也视为结束。
         s.items[i] = .commandExecution(id: id, command: c, output: o, finished: true)
     }
 

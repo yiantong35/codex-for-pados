@@ -11,9 +11,10 @@ final class ConversationStoreTests: XCTestCase {
         let store = ConversationStore(rpc: rpc, threadId: "t1")
         store.startObserving()
 
-        await mock.feed(#"{"jsonrpc":"2.0","method":"turn/started","params":{"turnId":"T1"}}"#)
-        await mock.feed(#"{"jsonrpc":"2.0","method":"item/started","params":{"itemId":"I1","itemType":"agentMessage"}}"#)
-        await mock.feed(#"{"jsonrpc":"2.0","method":"item/agentMessage/delta","params":{"itemId":"I1","delta":"Hi"}}"#)
+        // 真实嵌套形状：turn/started 的 turn 在 params.turn，item/started 的 item 在 params.item。
+        await mock.feed(#"{"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"t1","turn":{"id":"T1","status":"inProgress"}}}"#)
+        await mock.feed(#"{"jsonrpc":"2.0","method":"item/started","params":{"threadId":"t1","item":{"id":"I1","type":"agentMessage","text":""}}}"#)
+        await mock.feed(#"{"jsonrpc":"2.0","method":"item/agentMessage/delta","params":{"threadId":"t1","itemId":"I1","delta":"Hi"}}"#)
 
         try await waitUntil { store.state.items.first.flatMap { if case .agentMessage(_, let t) = $0 { return t == "Hi" } else { return false } } ?? false }
 
