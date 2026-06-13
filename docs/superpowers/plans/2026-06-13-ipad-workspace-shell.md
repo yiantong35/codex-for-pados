@@ -1303,7 +1303,7 @@ git commit -m "feat(workspace): wire five-window shell into RootSplitView (topba
 
 > Task 11 摘要只给了 cwd（`SummaryPopoverView(state: nil, ...)`），diff/plan/tasks 恒空。会话 state 在 `ConversationView` 内的 `ConversationStore`。为让顶栏摘要拿到当前会话 state，把「当前会话 state」上提为可被 `RootSplitView` 读取的共享值：用一个轻量 `@Observable` 持有者，`ConversationView` 写入、`RootSplitView` 读出。最小改动、不动归约逻辑。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 在 `OrientationSnapshotTests.swift` 新增（验证新持有者类型存在 + 默认态不回归）：
 ```swift
@@ -1313,7 +1313,7 @@ git commit -m "feat(workspace): wire five-window shell into RootSplitView (topba
     }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run：
 ```bash
@@ -1324,7 +1324,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: 编译失败，"cannot find 'ActiveConversationHolder' in scope"。
 
-- [ ] **Step 3: 实现共享持有者并接线**
+- [x] **Step 3: 实现共享持有者并接线**
 
 3a. 在 `ios/CodexRemote/Views/RootSplitView.swift` 顶部（`struct RootSplitView` 之前）加：
 ```swift
@@ -1359,7 +1359,7 @@ final class ActiveConversationHolder {
 ```
 （`ConversationState` 已 `Equatable`，`onChange` 可用。）
 
-- [ ] **Step 4: 运行测试确认通过 + 全量回归**
+- [x] **Step 4: 运行测试确认通过 + 全量回归**
 
 Run（接线测试 + 默认/全开布局回归 + 摘要内容快照）：
 ```bash
@@ -1373,7 +1373,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: `TEST SUCCEEDED`，全部快照重新生成（目视 `/tmp/workspace/` 与 `/tmp/orient/` 无回归）。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Views/RootSplitView.swift ios/CodexRemote/Views/ConversationView.swift ios/CodexRemoteTests/OrientationSnapshotTests.swift

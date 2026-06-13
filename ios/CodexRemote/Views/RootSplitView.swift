@@ -1,4 +1,13 @@
 import SwiftUI
+import Observation
+
+/// 当前活跃会话状态的共享持有者：ConversationView 写入最新 state，
+/// 顶栏摘要 popover 读出用于派生 diff/plan/tasks（cwd 仍取选中 ThreadSummary）。
+@Observable
+@MainActor
+final class ActiveConversationHolder {
+    var state: ConversationState?
+}
 
 /// 主界面（复刻 Codex desktop 五窗口工作区骨架）：
 /// 顶部固定全局工具栏（safeAreaInset，不用 VStack 包整个 split，避免破坏 inspector 拖动）
@@ -17,6 +26,9 @@ struct RootSplitView: View {
     @State private var showBottomPanel: Bool
     @State private var showSummary = false
     @State private var bottomHeight: CGFloat = WorkspaceMetrics.bottomPanelIdealHeight
+
+    /// 当前活跃会话 state 的共享持有者：ConversationView 写入、摘要 popover 读出。
+    @State private var activeConversation = ActiveConversationHolder()
 
     /// 便利初始化：允许注入面板初始展开态（供快照测试覆盖全开布局）。
     init(initialRightOpen: Bool = false, initialBottomOpen: Bool = false) {
@@ -37,6 +49,7 @@ struct RootSplitView: View {
                     Divider()
                 }
             }
+            .environment(activeConversation)
     }
 
     // MARK: - 顶部固定全局工具栏：左面板 · 下面板 · 右面板 · 摘要(:≡) · 设置
@@ -71,7 +84,7 @@ struct RootSplitView: View {
             }
             .accessibilityLabel(Text("workspace.summary.toggle"))
             .popover(isPresented: $showSummary) {
-                SummaryPopoverView(state: nil, thread: selectedThread)
+                SummaryPopoverView(state: activeConversation.state, thread: selectedThread)
             }
 
             Spacer()

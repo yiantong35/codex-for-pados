@@ -338,6 +338,15 @@ final class OrientationSnapshotTests: XCTestCase {
                  name: "summary-empty", dir: "/tmp/workspace")
     }
 
+    // MARK: - 场景 6b：当前会话共享持有者 ActiveConversationHolder（Task 12）
+
+    /// 摘要 popover 接真实会话 state：用轻量 @Observable 持有者上提当前会话 state。
+    /// 默认无活跃会话 → state 为 nil（摘要走空态）。
+    func test_active_conversation_holder_default_nil() {
+        let holder = ActiveConversationHolder()
+        XCTAssertNil(holder.state)
+    }
+
     // MARK: - 场景 7：RootSplitView 五窗口接线（Task 11）
 
     /// 工作区默认态：右/下栏隐藏、摘要关。顶栏 5 按钮辅助标签键须可解析。
