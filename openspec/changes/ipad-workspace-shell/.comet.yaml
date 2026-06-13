@@ -1,5 +1,5 @@
 workflow: full
-phase: open
+phase: design
 context_compression: off
 build_mode: null
 build_pause: null
