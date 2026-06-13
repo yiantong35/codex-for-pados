@@ -283,6 +283,37 @@ final class OrientationSnapshotTests: XCTestCase {
                  name: "panel-empty", dir: "/tmp/workspace")
     }
 
+    // MARK: - 场景 6：摘要悬浮浮层内容 SummaryPopoverView（Task 8）
+
+    /// 摘要浮层有数据态：diff / cwd / plan / 任务都渲染，PNG 非空。
+    func test_summary_popover_with_data_snapshot() {
+        var state = ConversationState(threadId: "t")
+        state.items = [
+            .fileChange(id: "f1", file: "a.swift", added: 12, removed: 4, diff: ""),
+            .commandExecution(id: "c1", command: "swift build", output: "",
+                              status: .completed, exitCode: 0, durationMs: 9),
+        ]
+        state.plan = [
+            TurnPlanStep(step: "读代码", status: .completed),
+            TurnPlanStep(step: "写测试", status: .inProgress),
+        ]
+        let thread = gitThread("sum1", cwd: "/repo/web-dev", origin: "o/web", ago: 60, name: "重构")
+        let view = SummaryPopoverView(state: state, thread: thread)
+            .environment(LocaleManager())
+            .frame(width: 360, height: 480)
+        snapshot(view, size: CGSize(width: 360, height: 480),
+                 name: "summary-with-data", dir: "/tmp/workspace")
+    }
+
+    /// 摘要浮层空态：无 state / 无 thread → 空态占位，不崩溃。
+    func test_summary_popover_empty_snapshot() {
+        let view = SummaryPopoverView(state: nil, thread: nil)
+            .environment(LocaleManager())
+            .frame(width: 360, height: 200)
+        snapshot(view, size: CGSize(width: 360, height: 200),
+                 name: "summary-empty", dir: "/tmp/workspace")
+    }
+
     /// 工作区新增本地化键必须可解析（解析失败回落键名本身）。
     func test_workspace_localization_keys_present() {
         for key in ["workspace.leftPanel.toggle", "workspace.bottomPanel.toggle",

@@ -4,8 +4,8 @@
 
 ## 2. 摘要悬浮浮层（workspace-layout / session-management）
 - [ ] 2.1 摘要从占列 inspector 改为 `:≡` 触发的悬浮浮层（内容自适应，非整列）
-- [ ] 2.2 摘要 P0 内容：diff 行数统计（turn/diff/updated 端侧算行）/ cwd / 进度(turn/plan/updated) / 任务(commandExecution 列表)
-- [ ] 2.3 空态（无内容时浮层占位）
+- [x] 2.2 摘要 P0 内容：diff 行数统计（turn/diff/updated 端侧算行）/ cwd / 进度(turn/plan/updated) / 任务(commandExecution 列表)
+- [x] 2.3 空态（无内容时浮层占位）
 
 ## 3. 右边栏占位（workspace-layout）
 - [ ] 3.1 右边栏整列容器：toggle 显隐（右面板按钮）+ 空态占位

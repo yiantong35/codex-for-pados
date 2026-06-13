@@ -790,7 +790,7 @@ git commit -m "feat(workspace): shared panel empty-state view"
 
 > design D2：消费 Task 3/4 的派生数据（diff 行数 / cwd / plan 进度 / 命令任务）。输入用 `ConversationState?` + `ThreadSummary?`，全空时显空态。内容自适应（用 `List`/`VStack`，不强制整列宽——`.popover` 会自适应）。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 在 `OrientationSnapshotTests.swift` 新增：
 ```swift
@@ -824,7 +824,7 @@ git commit -m "feat(workspace): shared panel empty-state view"
     }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run：
 ```bash
@@ -835,7 +835,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: 编译失败，"cannot find 'SummaryPopoverView' in scope"。
 
-- [ ] **Step 3: 写最小实现**
+- [x] **Step 3: 写最小实现**
 
 新建 `ios/CodexRemote/Views/Workspace/SummaryPopoverView.swift`：
 ```swift
@@ -913,7 +913,7 @@ struct SummaryPopoverView: View {
 ```
 注：`"workspace.summary.progress \(progress.completed) \(progress.total)"` 用了带参数本地化键。Task 6 加的 `workspace.summary.progress` value 需含两个占位符，例如 zh-Hans 改为 `"进度 %1$lld/%2$lld"`、en 改为 `"Progress %1$lld/%2$lld"`。若 Task 6 未带占位符，本步同时回 Task 6 的 xcstrings 把 `workspace.summary.progress` 的 value 改成上面带 `%1$lld/%2$lld` 的形式（并保持 `test_workspace_localization_keys_present` 仍能解析为非键名）。
 
-- [ ] **Step 4: 运行测试确认通过 + 目视**
+- [x] **Step 4: 运行测试确认通过 + 目视**
 
 Run：
 ```bash
@@ -925,7 +925,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: `TEST SUCCEEDED`。目视 `/tmp/workspace/summary-with-data.png`（四区分组：变更 / 工作目录 / 进度勾选圈 / 任务命令）与 `summary-empty.png`（居中空态）。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Views/Workspace/SummaryPopoverView.swift ios/CodexRemote/Resources/Localizable.xcstrings ios/CodexRemoteTests/OrientationSnapshotTests.swift ios/CodexRemote.xcodeproj
