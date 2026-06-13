@@ -295,6 +295,18 @@ final class OrientationSnapshotTests: XCTestCase {
                  name: "right-panel", dir: "/tmp/workspace")
     }
 
+    // MARK: - 场景 5c：下边栏占位 + 可拖高容器 BottomPanelView（Task 10）
+
+    /// 下栏占位：顶部可拖把手 + 共享空态（design D4），渲染不崩溃、PNG 非空，落 /tmp/workspace。
+    /// 拖动手势效果靠用户/UI 测试确认；clamp 高度逻辑已在 WorkspaceMetricsTests 单测覆盖。
+    func test_bottom_panel_snapshot() {
+        let view = BottomPanelView(height: .constant(WorkspaceMetrics.bottomPanelIdealHeight))
+            .environment(LocaleManager())
+            .frame(width: 800, height: 260)
+        snapshot(view, size: CGSize(width: 800, height: 260),
+                 name: "bottom-panel", dir: "/tmp/workspace")
+    }
+
     // MARK: - 场景 6：摘要悬浮浮层内容 SummaryPopoverView（Task 8）
 
     /// 摘要浮层有数据态：diff / cwd / plan / 任务都渲染，PNG 非空。

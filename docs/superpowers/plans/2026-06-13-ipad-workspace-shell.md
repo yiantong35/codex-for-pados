@@ -1007,7 +1007,7 @@ git commit -m "feat(workspace): right panel placeholder view"
 
 > design D4：下栏 = 顶部一条可拖 Divider（调高）+ 空态内容。高度由父级 `@State` 持有；本视图接收 `height` 绑定与拖动手势回调（拖动 clamp 用 `WorkspaceMetrics.clamp`）。拖动效果靠用户/UI 测试确认，本任务快照只验空态渲染 + 拖动条存在。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```swift
     func test_bottom_panel_snapshot() {
@@ -1019,7 +1019,7 @@ git commit -m "feat(workspace): right panel placeholder view"
     }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run：
 ```bash
@@ -1030,7 +1030,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: 编译失败，"cannot find 'BottomPanelView' in scope"。
 
-- [ ] **Step 3: 写最小实现**
+- [x] **Step 3: 写最小实现**
 
 新建 `ios/CodexRemote/Views/Workspace/BottomPanelView.swift`：
 ```swift
@@ -1072,7 +1072,7 @@ struct BottomPanelView: View {
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过 + 目视**
+- [x] **Step 4: 运行测试确认通过 + 目视**
 
 Run：
 ```bash
@@ -1083,7 +1083,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: `TEST SUCCEEDED`。目视 `/tmp/workspace/bottom-panel.png`：顶部把手 + 下方空态。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Views/Workspace/BottomPanelView.swift ios/CodexRemoteTests/OrientationSnapshotTests.swift ios/CodexRemote.xcodeproj
