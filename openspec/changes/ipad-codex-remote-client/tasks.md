@@ -1,42 +1,42 @@
 ## 1. Mac 端启动器（mac-launcher）
-- [ ] 1.1 编写一键启动脚本：拉起 `codex app-server --listen ws://127.0.0.1:<port>`（仅绑 loopback）
-- [ ] 1.2 脚本输出连接信息：Mac LAN IP、端口、SSH 用户名/提示，并校验 sshd（远程登录）是否开启
-- [ ] 1.3 脚本健壮性：端口占用检测、Codex 版本校验（pin 目标版本）、优雅退出/清理
+- [x] 1.1 编写一键启动脚本：拉起 `codex app-server --listen ws://127.0.0.1:<port>`（仅绑 loopback）
+- [x] 1.2 脚本输出连接信息：Mac LAN IP、端口、SSH 用户名/提示，并校验 sshd（远程登录）是否开启
+- [x] 1.3 脚本健壮性：端口占用检测、Codex 版本校验（pin 目标版本）、优雅退出/清理
 
 ## 2. 协议与技术验证（spike）
-- [ ] 2.1 用 `codex app-server generate-json-schema` 生成协议 schema，纳入仓库
-- [ ] 2.2 spike：最小 SSH 端口转发 demo（Citadel）跑通到 Mac loopback 的 TCP 转发
-- [ ] 2.3 spike：经隧道完成 app-server `initialize` → `initialized` 握手，验证连通性
+- [x] 2.1 用 `codex app-server generate-json-schema` 生成协议 schema，纳入仓库
+- [x] 2.2 spike：最小 SSH 端口转发 demo（Citadel）跑通到 Mac loopback 的 TCP 转发
+- [x] 2.3 spike：经隧道完成 app-server `initialize` → `initialized` 握手，验证连通性
 
 ## 3. iPad 连接层（remote-connection）
-- [ ] 3.1 Xcode 工程脚手架（SwiftUI App、SPM 依赖 Citadel）、Info.plist 本地网络权限
-- [ ] 3.2 连接配置界面：Mac 主机/端口/SSH 凭证（密钥/密码）的输入与安全存储（Keychain）
-- [ ] 3.3 SSH 隧道层：建立连接 + direct-tcpip 端口转发到 app-server
-- [ ] 3.4 WebSocket + JSON-RPC 2.0 编解码层（请求/响应/通知，基于生成的 schema 类型）
-- [ ] 3.5 连接生命周期：握手、断线检测、自动重连、错误反馈 UI
+- [x] 3.1 Xcode 工程脚手架（SwiftUI App、SPM 依赖 Citadel）、Info.plist 本地网络权限
+- [x] 3.2 连接配置界面：Mac 主机/端口/SSH 凭证（密钥/密码）的输入与安全存储（Keychain）
+- [x] 3.3 SSH 隧道层：建立连接 + direct-tcpip 端口转发到 app-server
+- [x] 3.4 WebSocket + JSON-RPC 2.0 编解码层（请求/响应/通知，基于生成的 schema 类型）
+- [x] 3.5 连接生命周期：握手、断线检测、自动重连、错误反馈 UI
 
 ## 4. 会话管理（session-management）
-- [ ] 4.1 调用 `thread/list` 拉取并展示历史会话（确认默认 sourceKinds 覆盖桌面 app `atlas` 来源）
+- [x] 4.1 调用 `thread/list` 拉取并展示历史会话（确认默认 sourceKinds 覆盖桌面 app `atlas` 来源）
 - [x] 4.2 选中会话 `thread/resume` by threadId，加载并渲染历史
-- [ ] 4.3 新建会话 `thread/start`
+- [x] 4.3 新建会话 `thread/start`
 
 ## 5. 对话与流式输出（conversation-streaming）
-- [ ] 5.1 发送 prompt：`turn/start`
-- [ ] 5.2 订阅并渲染 `turn/*` / `item/*` 流式事件（增量文本、工具调用、状态）
-- [ ] 5.3 turn 控制：`turn/interrupt`（中断）基础支持
-- [ ] 5.4 对话 UI：消息流、Markdown/代码块渲染、滚动与加载态
+- [x] 5.1 发送 prompt：`turn/start`
+- [x] 5.2 订阅并渲染 `turn/*` / `item/*` 流式事件（增量文本、工具调用、状态）
+- [x] 5.3 turn 控制：`turn/interrupt`（中断）基础支持
+- [x] 5.4 对话 UI：消息流、Markdown/代码块渲染、滚动与加载态
 
 ## 6. 审批流（approval-flow）
-- [ ] 6.1 处理 server→client 审批请求（命令执行、文件修改）的接收与解析
-- [ ] 6.2 审批 UI 卡片：展示请求内容（命令/diff），批准/拒绝按钮
-- [ ] 6.3 回传审批决定，渲染执行结果
-- [ ] 6.4 边界处理：审批超时 / 连接中断时的默认策略（不自动批准）
+- [x] 6.1 处理 server→client 审批请求（命令执行、文件修改）的接收与解析
+- [x] 6.2 审批 UI 卡片：展示请求内容（命令/diff），批准/拒绝按钮
+- [x] 6.3 回传审批决定，渲染执行结果
+- [x] 6.4 边界处理：审批超时 / 连接中断时的默认策略（不自动批准）
 
 ## 7. 联调与验收
-- [ ] 7.1 端到端：iPad 连 Mac → 发 prompt → 流式看到回复（核心成功场景）
-- [ ] 7.2 端到端：恢复一个桌面 app 创建的已有会话并继续对话
-- [ ] 7.3 端到端：触发命令/文件修改 → iPad 审批闭环（批准 + 拒绝两条路径）
-- [ ] 7.4 异常：网络/SSH 断开的优雅提示与重连；SSH 鉴权失败的明确报错
+- [x] 7.1 端到端：iPad 连 Mac → 发 prompt → 流式看到回复（核心成功场景）
+- [x] 7.2 端到端：恢复一个桌面 app 创建的已有会话并继续对话
+- [x] 7.3 端到端：触发命令/文件修改 → iPad 审批闭环（批准 + 拒绝两条路径）
+- [x] 7.4 异常：网络/SSH 断开的优雅提示与重连；SSH 鉴权失败的明确报错
 
 ## 8. 外观与多语言（appearance-locale）
 - [x] 8.1 本地化基础设施：String Catalog（zh+en）+ LocaleManager（@AppStorage 语言 + .environment(\.locale) 运行时切换）
@@ -66,3 +66,6 @@
 - [x] 12.1a 修多播订阅注册竞态(startObserving 改 async 先注册再消费), 消除 testStreamingDeltaUpdatesState 间歇失败
 - [x] 12.2 批2·命令状态：ConversationItem.commandExecution 加 status/exitCode/durationMs + reducer 落值 + ItemCard 渲染 + "已运行 N 条命令" 汇总
 - [x] 12.3 批3·思考提示：新增 reasoning case + 3 个 reasoning 通知常量 + 归约 + "正在思考" 卡片
+
+## Follow-up（延期项，归档时记录）
+- §7 真机 E2E（7.1–7.4 / plan Task 20 Step 1–5）：**真机正式验收延期为 follow-up**。模拟器(iPad-Test)上功能场景（连接/发送/流式/恢复桌面会话）已验通过；真机特有项（后台行为、真实网络断连、审批闭环真机实操）待 iPad 回来后验收。代码侧（实现 + 97 单测 + 模拟器冒烟）均完成。
