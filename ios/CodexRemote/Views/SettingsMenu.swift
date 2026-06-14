@@ -6,37 +6,51 @@ import SwiftUI
 struct SettingsMenu: View {
     @Environment(LocaleManager.self) private var locale
     @Environment(ThemeManager.self) private var theme
+    @State private var showPopover = false
 
     var body: some View {
-        Menu {
-            // 语言
-            Section("settings.language") {
-                ForEach(AppLanguage.allCases, id: \.self) { lang in
-                    Button { locale.language = lang } label: {
-                        if locale.language == lang {
-                            Label(languageTitle(lang), systemImage: "checkmark")
-                        } else {
-                            Text(languageTitle(lang))
-                        }
-                    }
-                }
-            }
-            // 外观
-            Section("settings.appearance") {
-                ForEach(AppTheme.allCases, id: \.self) { t in
-                    Button { theme.theme = t } label: {
-                        if theme.theme == t {
-                            Label(themeTitle(t), systemImage: "checkmark")
-                        } else {
-                            Text(themeTitle(t))
-                        }
-                    }
-                }
-            }
-        } label: {
+        // 用 .popover 而非 Menu：popover 带箭头指向按钮、不遮挡按钮本身（#8）；
+        // presentationCompactAdaptation(.popover) 保证窄屏也走 popover 形态而非占满屏 sheet。
+        Button { showPopover.toggle() } label: {
             Image(systemName: "gearshape")
                 .accessibilityLabel(Text("settings.accessibility"))
         }
+        .popover(isPresented: $showPopover) {
+            settingsList
+                .presentationCompactAdaptation(.popover)
+        }
+    }
+
+    private var settingsList: some View {
+        List {
+            Section("settings.language") {
+                ForEach(AppLanguage.allCases, id: \.self) { lang in
+                    Button { locale.language = lang; showPopover = false } label: {
+                        row(languageTitle(lang), selected: locale.language == lang)
+                    }
+                    .foregroundStyle(.primary)
+                }
+            }
+            Section("settings.appearance") {
+                ForEach(AppTheme.allCases, id: \.self) { t in
+                    Button { theme.theme = t; showPopover = false } label: {
+                        row(themeTitle(t), selected: theme.theme == t)
+                    }
+                    .foregroundStyle(.primary)
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .frame(width: 260, height: 300)
+    }
+
+    private func row(_ title: LocalizedStringKey, selected: Bool) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            if selected { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) }
+        }
+        .contentShape(Rectangle())
     }
 
     private func languageTitle(_ l: AppLanguage) -> LocalizedStringKey {

@@ -41,6 +41,10 @@
 - [x] 9.2 #5 右栏实时重绘但不闪：根因实为「rightWidth @State 在 RootSplitView → 拖动每帧重渲染整个 NavigationSplitView」。抽出 WorkspaceDetailRegion 子视图，把 rightWidth/bottomHeight @State 关进去，拖动只重渲染该子树（对齐左栏系统列的实时重绘体验）
 - [x] 9.3 #4 选中方框太丑：弃用 List(selection:) 系统方框，改自渲染（左缘橙条 + 橙标题 + 点按选择），模拟器自检 /tmp/verify3.png 已核对
 - [x] 9.4 #1 左右把手对齐：下栏关闭时已对齐（/tmp/cropHandles2.png 核对）；下栏打开时右把手居中于被压短的上区故偏高（固有，见 design 说明）
-- [x] 9.5 #9 sidebar 徽标可行性调查完成（结论：运行中/turn 完成·失败/等待输入 P0 纯协议可做；系统错误·item 失败 P1；token 进度 P2；未读蓝点需协议没有的 lastViewedAt → 拿不到）。建议独立 change 实现
-<!-- 待决策（见对话）：#2 左把手拖动高亮 + #1 下栏开时也对齐 → 需把左栏从 NavigationSplitView 系统列换成自绘三栏（架构改，建议独立 change）；#7 模型菜单闪现 / #8 弹窗遮挡按钮 → Menu→popover 重构；#6 模拟器硬件键盘非 bug；#9 徽标 → 独立 change -->
+- [x] 9.5 #9 sidebar 徽标可行性调查完成（结论：运行中/turn 完成·失败/等待输入 P0 纯协议可做；系统错误·item 失败 P1；token 进度 P2；未读蓝点需协议没有的 lastViewedAt → 拿不到）。→ 用户决定独立 change 实现
+- [x] 9.6 #2 左把手拖动变橙（无需重构）：监听左栏宽度变化→拖系统分隔线时点亮把手为橙、停 250ms 复原（GeometryReader onChange，不拦截系统拖动）
+- [x] 9.7 #7/#8 菜单闪现 + 弹窗遮挡按钮：SettingsMenu + composer 模型选择 由 Menu 改 .popover（带箭头不遮挡按钮，presentationCompactAdaptation(.popover)；inline picker 列出选项）
+- 备注 #1：下栏打开时右把手偏高是布局固有（右分隔线只存在于上区），重构也救不了，非缺陷
+- 备注 #6：点击输入框无键盘=模拟器连了硬件键盘（Cmd+K 切换），非 bug
+- 备注 #9：另开独立 change「sidebar 状态徽标」实现 P0（运行中/完成·失败/等待输入）
 

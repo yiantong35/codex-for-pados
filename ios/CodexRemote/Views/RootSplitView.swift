@@ -25,6 +25,10 @@ struct RootSplitView: View {
     @State private var showRightPanel: Bool
     @State private var showBottomPanel: Bool
     @State private var showSummary = false
+    // 左栏把手拖动高亮：系统列钩不到拖动事件，改为监听左栏宽度变化——拖系统分隔线时宽度持续变，
+    // 据此把左把手点亮成橙，停止 250ms 后复原（不拦截手势、不换架构）。
+    @State private var leftHandleActive = false
+    @State private var leftResizeReset: Task<Void, Never>?
 
     /// 当前活跃会话 state 的共享持有者：ConversationView 写入、摘要 popover 读出。
     @State private var activeConversation = ActiveConversationHolder()
@@ -121,13 +125,28 @@ struct RootSplitView: View {
                 .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 380)
                 .toolbar(removing: .sidebarToggle)
                 .toolbarBackground(.hidden, for: .navigationBar)
-                // 左栏可拖提示：系统列拖动本就可用，这里只在右缘画常驻装饰把手作视觉提示；
+                // 监听左栏宽度变化 → 拖系统分隔线时点亮把手（见 leftHandleActive 说明）。
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear.onChange(of: proxy.size.width) { _, _ in
+                            leftHandleActive = true
+                            leftResizeReset?.cancel()
+                            leftResizeReset = Task {
+                                try? await Task.sleep(for: .milliseconds(250))
+                                if !Task.isCancelled { leftHandleActive = false }
+                            }
+                        }
+                    }
+                }
+                // 左栏可拖提示：右缘常驻装饰把手；拖动中（宽度在变）变橙加粗。
                 // allowsHitTesting(false) 不拦截系统拖动，保持左栏原本顺滑的 resize。
                 .overlay(alignment: .trailing) {
-                    Capsule().fill(Color.secondary.opacity(0.55))
-                        .frame(width: 3, height: 44)
+                    Capsule()
+                        .fill(leftHandleActive ? Color.accentColor : Color.secondary.opacity(0.55))
+                        .frame(width: leftHandleActive ? 5 : 3, height: 44)
                         .padding(.trailing, 2)
                         .allowsHitTesting(false)
+                        .animation(.easeOut(duration: 0.12), value: leftHandleActive)
                 }
         } detail: {
             detail
