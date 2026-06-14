@@ -35,3 +35,12 @@
 - [x] 8.4 #2 左栏可见把手：系统列右缘常驻装饰把手（allowsHitTesting=false 不拦截系统拖动；模拟器自检 /tmp/cropLeftMid.png 已核对）
 - [x] 8.5 #1 右栏拖动闪屏：根因=横向 resize 每帧逼对话区重折行。改松手提交（拖动中只画跟手橙导引线，onEnded 才落 rightWidth），对齐左栏系统列行为
 - [x] 8.6 #6 橙色清单已交付用户验收（选中行/用户气泡/发送键/把手 hover/待批准徽标+时钟/系统 accent 控件）
+
+## 9. 用户反馈精修第三轮（build 内增量）
+- [x] 9.1 #3 去掉右栏拖动的橙色导引实线
+- [x] 9.2 #5 右栏实时重绘但不闪：根因实为「rightWidth @State 在 RootSplitView → 拖动每帧重渲染整个 NavigationSplitView」。抽出 WorkspaceDetailRegion 子视图，把 rightWidth/bottomHeight @State 关进去，拖动只重渲染该子树（对齐左栏系统列的实时重绘体验）
+- [x] 9.3 #4 选中方框太丑：弃用 List(selection:) 系统方框，改自渲染（左缘橙条 + 橙标题 + 点按选择），模拟器自检 /tmp/verify3.png 已核对
+- [x] 9.4 #1 左右把手对齐：下栏关闭时已对齐（/tmp/cropHandles2.png 核对）；下栏打开时右把手居中于被压短的上区故偏高（固有，见 design 说明）
+- [x] 9.5 #9 sidebar 徽标可行性调查完成（结论：运行中/turn 完成·失败/等待输入 P0 纯协议可做；系统错误·item 失败 P1；token 进度 P2；未读蓝点需协议没有的 lastViewedAt → 拿不到）。建议独立 change 实现
+<!-- 待决策（见对话）：#2 左把手拖动高亮 + #1 下栏开时也对齐 → 需把左栏从 NavigationSplitView 系统列换成自绘三栏（架构改，建议独立 change）；#7 模型菜单闪现 / #8 弹窗遮挡按钮 → Menu→popover 重构；#6 模拟器硬件键盘非 bug；#9 徽标 → 独立 change -->
+

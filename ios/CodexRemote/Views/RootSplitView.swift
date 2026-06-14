@@ -25,12 +25,6 @@ struct RootSplitView: View {
     @State private var showRightPanel: Bool
     @State private var showBottomPanel: Bool
     @State private var showSummary = false
-    @State private var bottomHeight: CGFloat = WorkspaceMetrics.bottomPanelIdealHeight
-    // 右栏宽（自绘可拖列；取代 .inspector 内建 resize）。
-    // 消闪策略：拖动中只更新 previewWidth（画跟手导引线，不动真实布局），松手才提交到 rightWidth，
-    // 避免对话区每帧重折行导致闪屏（横向 resize 的固有代价；下栏纵向不重排故保持实时）。
-    @State private var rightWidth: CGFloat = WorkspaceMetrics.rightPanelIdealWidth
-    @State private var rightPreviewWidth: CGFloat?
 
     /// 当前活跃会话 state 的共享持有者：ConversationView 写入、摘要 popover 读出。
     @State private var activeConversation = ActiveConversationHolder()
@@ -142,36 +136,52 @@ struct RootSplitView: View {
         .navigationSplitViewStyle(.balanced)
     }
 
-    // detail = 上半(中间对话 + 右栏自绘列) + 下栏(条件)。下栏在此 VStack 内 → 不压左栏。
-    // 右栏改为 HStack 内自绘可拖列（不再用 .inspector）：.inspector 内建 resize 在三栏
-    // 全开时不可靠（左栏开着右栏拖不动）；自绘 DragGesture 不受栏数影响，且可加可拖提示。
+    // detail = WorkspaceDetailRegion（中间对话 + 右栏自绘可拖列 + 下栏），见下方独立视图。
+    // 关键：右栏/下栏的尺寸 @State 放在 WorkspaceDetailRegion 内部，拖动时只重渲染该子树，
+    // 不冒泡到 RootSplitView.body → NavigationSplitView 不被反复重建 → 实时重绘且不闪（#5）。
     private var detail: some View {
+        WorkspaceDetailRegion(showRightPanel: showRightPanel, showBottomPanel: showBottomPanel) {
+            content
+        }
+    }
+
+    @ViewBuilder private var content: some View {
+        if let id = selectedThreadId {
+            ConversationView(threadId: id).id(id)
+        } else {
+            Color(.systemBackground)
+        }
+    }
+}
+
+/// detail 区（中栏对话 + 右栏自绘可拖列 + 下栏）。
+/// 把右栏宽/下栏高的 @State 关在这里：拖动只重渲染本视图，不触碰外层 NavigationSplitView，
+/// 实现「实时重绘但不闪」（左栏系统列本就如此，右栏此前因状态在 RootSplitView 导致整树重渲染才闪）。
+private struct WorkspaceDetailRegion<Content: View>: View {
+    let showRightPanel: Bool
+    let showBottomPanel: Bool
+    @ViewBuilder var content: Content
+
+    @State private var rightWidth: CGFloat = WorkspaceMetrics.rightPanelIdealWidth
+    @State private var rightDragBase: CGFloat?
+    @State private var bottomHeight: CGFloat = WorkspaceMetrics.bottomPanelIdealHeight
+
+    var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 content
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 if showRightPanel {
+                    // 实时重绘：拖动中直接改 rightWidth（手势起点锁基准宽避免累计加速）；
+                    // 状态隔离在本视图内 → 不闪，无需预览导引线（#3 去掉橙实线）。
                     PanelResizeHandle(
                         onChanged: { tx in
-                            // 拖动中只算预览宽（不提交），布局不动 → 不闪。
-                            rightPreviewWidth = WorkspaceMetrics.resizedRightWidth(
-                                current: rightWidth, dragX: tx)
+                            if rightDragBase == nil { rightDragBase = rightWidth }
+                            rightWidth = WorkspaceMetrics.resizedRightWidth(
+                                current: rightDragBase ?? rightWidth, dragX: tx)
                         },
-                        onEnded: {
-                            // 松手提交最终宽度，对话区只在此刻重排一次。
-                            if let p = rightPreviewWidth { rightWidth = p }
-                            rightPreviewWidth = nil
-                        }
+                        onEnded: { rightDragBase = nil }
                     )
-                    // 跟手导引线：拖动中沿手指方向偏移，预示松手后的新边界位置。
-                    .overlay {
-                        if let p = rightPreviewWidth {
-                            Rectangle().fill(Color.accentColor)
-                                .frame(width: 2).frame(maxHeight: .infinity)
-                                .offset(x: rightWidth - p)
-                                .allowsHitTesting(false)
-                        }
-                    }
                     RightPanelView()
                         .frame(width: rightWidth)
                         .frame(maxHeight: .infinity)
@@ -182,14 +192,6 @@ struct RootSplitView: View {
                 Divider()
                 BottomPanelView(height: $bottomHeight)
             }
-        }
-    }
-
-    @ViewBuilder private var content: some View {
-        if let id = selectedThreadId {
-            ConversationView(threadId: id).id(id)
-        } else {
-            Color(.systemBackground)
         }
     }
 }
