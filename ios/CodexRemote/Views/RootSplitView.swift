@@ -201,10 +201,11 @@ private struct WorkspaceDetailRegion<Content: View>: View {
                         },
                         onEnded: { rightDragBase = nil }
                     )
+                    // 不加 .transition：拖动时父 body 每帧重跑会反复触发它，导致右栏+中栏闪屏
+                    // （下栏面板无 transition 故最顺，此处与之对齐）。显隐动画交给 withAnimation 的布局过渡。
                     RightPanelView()
                         .frame(width: rightWidth)
                         .frame(maxHeight: .infinity)
-                        .transition(.move(edge: .trailing))
                 }
             }
             if showBottomPanel {

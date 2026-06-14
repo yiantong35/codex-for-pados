@@ -48,3 +48,9 @@
 - 备注 #6：点击输入框无键盘=模拟器连了硬件键盘（Cmd+K 切换），非 bug
 - 备注 #9：另开独立 change「sidebar 状态徽标」实现 P0（运行中/完成·失败/等待输入）
 
+## 10. 第四轮收尾决定（右栏拖动闪屏 → 架构层，移交新 change）
+- systematic-debugging 结论：右栏自绘横向 resize 在 body 每帧重跑时，中栏 ScrollView 随宽度重排 + 右栏面板重绘 → 闪。移除 `.transition`（9.x 试过）未根治；这是自绘横向 split 的固有问题。
+- 右栏「可拖改宽 + 最小宽 + 显隐」功能本 change 已交付（带拖动闪屏，作**已知限制**）。
+- 用户决定：**新开 change「三列系统列布局重构」**——右栏改 NavigationSplitView 第三列（系统 resize，消闪），下栏改全宽 safeAreaInset(.bottom)（覆盖左+右、最高优先级；布局行为由「下栏不压左栏」改为「下栏压所有」）。本 change 的右栏实现将被其取代。
+- 本 change 至此收尾 → verify → archive。
+
