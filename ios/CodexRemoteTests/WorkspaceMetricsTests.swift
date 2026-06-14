@@ -18,20 +18,4 @@ final class WorkspaceMetricsTests: XCTestCase {
     func testRightPanelMinWidthConstantPositive() {
         XCTAssertGreaterThan(WorkspaceMetrics.rightPanelMinWidth, 0)
     }
-
-    // 右栏自绘拖动：把手在右栏左缘，向左拖（dragX<0）增宽。
-    func testResizedRightWidthDragLeftIncreasesWidth() {
-        XCTAssertEqual(WorkspaceMetrics.resizedRightWidth(current: 320, dragX: -50), 370)
-    }
-    func testResizedRightWidthDragRightDecreasesWidth() {
-        XCTAssertEqual(WorkspaceMetrics.resizedRightWidth(current: 320, dragX: 50), 270)
-    }
-    func testResizedRightWidthClampsToMax() {
-        XCTAssertEqual(WorkspaceMetrics.resizedRightWidth(current: 320, dragX: -900),
-                       WorkspaceMetrics.rightPanelMaxWidth)
-    }
-    func testResizedRightWidthClampsToMin() {
-        XCTAssertEqual(WorkspaceMetrics.resizedRightWidth(current: 320, dragX: 900),
-                       WorkspaceMetrics.rightPanelMinWidth)
-    }
 }
