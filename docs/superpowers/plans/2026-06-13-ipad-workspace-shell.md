@@ -2,6 +2,7 @@
 change: ipad-workspace-shell
 design-doc: docs/superpowers/specs/2026-06-13-ipad-workspace-shell-design.md
 base-ref: d8088a7cd45d2d0df07dc8af16d44ac2c122f113
+archived-with: 2026-06-14-ipad-workspace-shell
 ---
 
 # iPad CodexRemote 五窗口工作区骨架 实施计划
@@ -28,6 +29,7 @@ base-ref: d8088a7cd45d2d0df07dc8af16d44ac2c122f113
 - 布局 / 面板显隐 / 空态：用既有 `OrientationSnapshotTests` 快照写法（`UIHostingController` + window + `layer.render` → PNG 落 `/tmp/...`），断言落在「新增本地化键可解析」+「PNG 非空」等可判定信号上，人工目视截图复核。
 - **拖动手势**：CLI 离屏快照验不了（见 `OrientationSnapshotTests` 注释「drawHierarchy 离屏恒空白」「拖动靠 UI 测试或用户确认」）；本计划对宽/高调节只单测纯 clamp 逻辑 + 在代码里接好原生/手势，拖动效果由 UI 测试或用户在模拟器确认。
 
+archived-with: 2026-06-14-ipad-workspace-shell
 ---
 
 ## 文件结构（决策锁定）
@@ -56,6 +58,7 @@ base-ref: d8088a7cd45d2d0df07dc8af16d44ac2c122f113
 
 **Xcode target 成员**：本仓库用 `.xcodeproj`，新建 `.swift` 文件需加入对应 target（生产文件→`CodexRemote`，测试文件→`CodexRemoteTests`）。若新文件未被编译（`xcodebuild` 报 "cannot find type in scope"），先把文件加入 target 的 `Sources` build phase（见 Task 0）。
 
+archived-with: 2026-06-14-ipad-workspace-shell
 ---
 
 ## Task 0: 确认基线可编译可测
@@ -78,6 +81,7 @@ Expected: `TEST SUCCEEDED`。若报模拟器不存在，按 `docs/superpowers/pl
 Run：`git rev-parse HEAD`
 Expected: 输出当前 HEAD（应为基线 `d8088a7...` 或其后的 build 起点）。不提交。
 
+archived-with: 2026-06-14-ipad-workspace-shell
 ---
 
 ## Task 1: 新增 plan 步骤模型（`turn/plan/updated` 的数据载体）
@@ -174,6 +178,7 @@ git add ios/CodexRemote/Domain/TurnPlan.swift ios/CodexRemoteTests/WorkspaceSumm
 git commit -m "feat(workspace): add TurnPlanStep model for summary progress"
 ```
 
+archived-with: 2026-06-14-ipad-workspace-shell
 ---
 
 ## Task 2: ConversationState 持有 plan + reducer 归约 `turn/plan/updated`
@@ -268,6 +273,7 @@ git add ios/CodexRemote/Protocol/Methods.swift ios/CodexRemote/Domain/Conversati
 git commit -m "feat(workspace): reduce turn/plan/updated into ConversationState.plan"
 ```
 
+archived-with: 2026-06-14-ipad-workspace-shell
 ---
 
 ## Task 3: 摘要 P0 派生纯函数 —— diff 行数统计
@@ -366,6 +372,7 @@ git add ios/CodexRemote/Domain/WorkspaceSummary.swift ios/CodexRemoteTests/Works
 git commit -m "feat(workspace): derive diff line counts for summary"
 ```
 
+archived-with: 2026-06-14-ipad-workspace-shell
 ---
 
 ## Task 4: 摘要 P0 派生 —— plan 进度归约 + 命令任务列表
@@ -483,6 +490,7 @@ git add ios/CodexRemote/Domain/WorkspaceSummary.swift ios/CodexRemoteTests/Works
 git commit -m "feat(workspace): derive plan progress and command tasks for summary"
 ```
 
+archived-with: 2026-06-14-ipad-workspace-shell
 ---
 
 ## Task 5: 面板最小尺寸常量 + clamp 纯函数
@@ -573,6 +581,7 @@ git add ios/CodexRemote/Views/Workspace/WorkspaceMetrics.swift ios/CodexRemoteTe
 git commit -m "feat(workspace): panel size constants and clamp helper"
 ```
 
+archived-with: 2026-06-14-ipad-workspace-shell
 ---
 
 ## Task 6: 新增本地化键（顶栏按钮 / 面板空态 / 摘要）
@@ -709,6 +718,7 @@ git add ios/CodexRemote/Resources/Localizable.xcstrings ios/CodexRemoteTests/Ori
 git commit -m "feat(workspace): add localization keys for panels and summary"
 ```
 
+archived-with: 2026-06-14-ipad-workspace-shell
 ---
 
 ## Task 7: 共享面板空态视图
@@ -780,6 +790,7 @@ git add ios/CodexRemote/Views/Workspace/PanelEmptyState.swift ios/CodexRemoteTes
 git commit -m "feat(workspace): shared panel empty-state view"
 ```
 
+archived-with: 2026-06-14-ipad-workspace-shell
 ---
 
 ## Task 8: 摘要悬浮浮层内容视图（SummaryPopoverView）
@@ -932,6 +943,7 @@ git add ios/CodexRemote/Views/Workspace/SummaryPopoverView.swift ios/CodexRemote
 git commit -m "feat(workspace): summary popover content with P0 data and empty state"
 ```
 
+archived-with: 2026-06-14-ipad-workspace-shell
 ---
 
 ## Task 9: 右边栏占位视图（RightPanelView）
@@ -997,6 +1009,7 @@ git add ios/CodexRemote/Views/Workspace/RightPanelView.swift ios/CodexRemoteTest
 git commit -m "feat(workspace): right panel placeholder view"
 ```
 
+archived-with: 2026-06-14-ipad-workspace-shell
 ---
 
 ## Task 10: 下边栏占位视图 + 可拖高度容器（BottomPanelView）
@@ -1090,6 +1103,7 @@ git add ios/CodexRemote/Views/Workspace/BottomPanelView.swift ios/CodexRemoteTes
 git commit -m "feat(workspace): bottom panel placeholder with draggable handle"
 ```
 
+archived-with: 2026-06-14-ipad-workspace-shell
 ---
 
 ## Task 11: RootSplitView 顶栏 5 按钮重排 + 接线右栏(inspector)/下栏/摘要 popover
@@ -1293,6 +1307,7 @@ git add ios/CodexRemote/Views/RootSplitView.swift ios/CodexRemoteTests/Orientati
 git commit -m "feat(workspace): wire five-window shell into RootSplitView (topbar/inspector/bottom/summary)"
 ```
 
+archived-with: 2026-06-14-ipad-workspace-shell
 ---
 : 摘要 popover 接真实会话 state（diff/plan/tasks 不再恒空）
 
@@ -1380,6 +1395,7 @@ git add ios/CodexRemote/Views/RootSplitView.swift ios/CodexRemote/Views/Conversa
 git commit -m "feat(workspace): feed live conversation state into summary popover"
 ```
 
+archived-with: 2026-06-14-ipad-workspace-shell
 ---
 
 ## Task 13: 全量编译 + 全量测试 + tasks.md 勾选
@@ -1427,6 +1443,7 @@ git add openspec/changes/ipad-workspace-shell/tasks.md
 git commit -m "chore(workspace): check off skeleton tasks after build+test green"
 ```
 
+archived-with: 2026-06-14-ipad-workspace-shell
 ---
 
 ## Self-Review（计划对照 spec）

@@ -2,6 +2,8 @@
 comet_change: ipad-workspace-shell
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-06-14-ipad-workspace-shell
+status: final
 ---
 
 # iPad CodexRemote 五窗口工作区骨架 — 技术设计
