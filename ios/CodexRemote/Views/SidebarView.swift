@@ -11,7 +11,9 @@ struct SidebarView: View {
     @State private var collapse = SidebarCollapseStore()
 
     var body: some View {
-        List(selection: $selectedThreadId) {
+        // 不用 List(selection:)：系统 sidebar 选中会画一个方框（用户嫌丑 #4），且列隐藏再显示后丢失（#5）。
+        // 改为自渲染选中态（threadRow 内点按选择 + 主题色），完全可控、持久、无方框。
+        List {
             if projects.isGrouped {
                 ForEach(projects.projects) { project in
                     projectSection(project)
@@ -72,9 +74,16 @@ struct SidebarView: View {
 
     @ViewBuilder
     private func threadRow(_ thread: ThreadSummary) -> some View {
-        HStack {
+        // 选中态自渲染：左缘橙条 + 橙标题（不用方框）。点按整行选择。
+        // 不依赖系统 List 选中高亮——后者方框丑（#4）且列隐藏再显示后会丢失（#5）。
+        let selected = selectedThreadId == thread.id
+        HStack(spacing: 8) {
+            Capsule()
+                .fill(selected ? Color.accentColor : Color.clear)
+                .frame(width: 3, height: 28)
             VStack(alignment: .leading, spacing: 2) {
                 Text(displayTitle(thread)).lineLimit(1)
+                    .foregroundStyle(selected ? Color.accentColor : Color.primary)
                 Text(Self.relativeTime(thread.updatedAt))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -87,6 +96,8 @@ struct SidebarView: View {
                     .accessibilityLabel(Text("sidebar.pendingApproval"))
             }
         }
+        .contentShape(Rectangle())
+        .onTapGesture { selectedThreadId = thread.id }
     }
 
     private func displayTitle(_ thread: ThreadSummary) -> String {

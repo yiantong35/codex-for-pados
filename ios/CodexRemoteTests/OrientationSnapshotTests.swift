@@ -265,6 +265,128 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(LocaleManager())
         snapshot(view, size: portrait, name: "inspector-empty", dir: "/tmp/inspector")
     }
+
+    // MARK: - 场景 5：共享面板空态视图 PanelEmptyState（Task 7）
+
+    /// 共享空态视图：渲染不崩溃、PNG 非空，落 /tmp/workspace。
+    /// RED 落可判定点：空态标题/描述本地化键必须可解析（解析失败回落为键名本身）。
+    func test_panel_empty_state_snapshot() {
+        for key in ["workspace.panel.empty.title", "workspace.panel.empty.desc"] {
+            let value = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
+        }
+        let view = PanelEmptyState()
+            .environment(LocaleManager())
+            .environment(ThemeManager())
+            .frame(width: 320, height: 240)
+        snapshot(view, size: CGSize(width: 320, height: 240),
+                 name: "panel-empty", dir: "/tmp/workspace")
+    }
+
+    // MARK: - 场景 5b：右边栏占位视图 RightPanelView（Task 9）
+
+    /// 右栏占位：本期裹共享空态（design D3），渲染不崩溃、PNG 非空，落 /tmp/workspace。
+    func test_right_panel_snapshot() {
+        let view = RightPanelView()
+            .environment(LocaleManager())
+            .environment(ThemeManager())
+            .frame(width: 320, height: 600)
+        snapshot(view, size: CGSize(width: 320, height: 600),
+                 name: "right-panel", dir: "/tmp/workspace")
+    }
+
+    // MARK: - 场景 5c：下边栏占位 + 可拖高容器 BottomPanelView（Task 10）
+
+    /// 下栏占位：顶部可拖把手 + 共享空态（design D4），渲染不崩溃、PNG 非空，落 /tmp/workspace。
+    /// 拖动手势效果靠用户/UI 测试确认；clamp 高度逻辑已在 WorkspaceMetricsTests 单测覆盖。
+    func test_bottom_panel_snapshot() {
+        let view = BottomPanelView(height: .constant(WorkspaceMetrics.bottomPanelIdealHeight))
+            .environment(LocaleManager())
+            .frame(width: 800, height: 260)
+        snapshot(view, size: CGSize(width: 800, height: 260),
+                 name: "bottom-panel", dir: "/tmp/workspace")
+    }
+
+    // MARK: - 场景 6：摘要悬浮浮层内容 SummaryPopoverView（Task 8）
+
+    /// 摘要浮层有数据态：diff / cwd / plan / 任务都渲染，PNG 非空。
+    func test_summary_popover_with_data_snapshot() {
+        var state = ConversationState(threadId: "t")
+        state.items = [
+            .fileChange(id: "f1", file: "a.swift", added: 12, removed: 4, diff: ""),
+            .commandExecution(id: "c1", command: "swift build", output: "",
+                              status: .completed, exitCode: 0, durationMs: 9),
+        ]
+        state.plan = [
+            TurnPlanStep(step: "读代码", status: .completed),
+            TurnPlanStep(step: "写测试", status: .inProgress),
+        ]
+        let thread = gitThread("sum1", cwd: "/repo/web-dev", origin: "o/web", ago: 60, name: "重构")
+        let view = SummaryPopoverView(state: state, thread: thread)
+            .environment(LocaleManager())
+            .frame(width: 360, height: 480)
+        snapshot(view, size: CGSize(width: 360, height: 480),
+                 name: "summary-with-data", dir: "/tmp/workspace")
+    }
+
+    /// 摘要浮层空态：无 state / 无 thread → 空态占位，不崩溃。
+    func test_summary_popover_empty_snapshot() {
+        let view = SummaryPopoverView(state: nil, thread: nil)
+            .environment(LocaleManager())
+            .frame(width: 360, height: 200)
+        snapshot(view, size: CGSize(width: 360, height: 200),
+                 name: "summary-empty", dir: "/tmp/workspace")
+    }
+
+    // MARK: - 场景 6b：当前会话共享持有者 ActiveConversationHolder（Task 12）
+
+    /// 摘要 popover 接真实会话 state：用轻量 @Observable 持有者上提当前会话 state。
+    /// 默认无活跃会话 → state 为 nil（摘要走空态）。
+    func test_active_conversation_holder_default_nil() {
+        let holder = ActiveConversationHolder()
+        XCTAssertNil(holder.state)
+    }
+
+    // MARK: - 场景 7：RootSplitView 五窗口接线（Task 11）
+
+    /// 工作区默认态：右/下栏隐藏、摘要关。顶栏 5 按钮辅助标签键须可解析。
+    func test_workspace_default_layout_snapshot() {
+        for key in ["workspace.leftPanel.toggle", "workspace.bottomPanel.toggle",
+                    "workspace.rightPanel.toggle", "workspace.summary.toggle"] {
+            let v = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(v, key, "缺少 \(key)")
+        }
+        let view = RootSplitView()
+            .environment(makeConnection())
+            .environment(makeProjects())
+            .environment(LocaleManager())
+            .environment(ThemeManager())
+        snapshot(view, size: landscape, name: "workspace-default", dir: "/tmp/workspace")
+    }
+
+    /// 工作区全开态（右栏 + 下栏初始展开）：验证层级——左栏满高、下栏在 detail 区内。
+    /// 用注入初始展开态的便利初始化器（见实现 Step 3）。
+    func test_workspace_all_panels_snapshot() {
+        let view = RootSplitView(initialRightOpen: true, initialBottomOpen: true)
+            .environment(makeConnection())
+            .environment(makeProjects())
+            .environment(LocaleManager())
+            .environment(ThemeManager())
+        snapshot(view, size: landscape, name: "workspace-all-open", dir: "/tmp/workspace")
+    }
+
+    /// 工作区新增本地化键必须可解析（解析失败回落键名本身）。
+    func test_workspace_localization_keys_present() {
+        for key in ["workspace.leftPanel.toggle", "workspace.bottomPanel.toggle",
+                    "workspace.rightPanel.toggle", "workspace.summary.toggle",
+                    "workspace.panel.empty.title", "workspace.panel.empty.desc",
+                    "workspace.summary.title", "workspace.summary.diff",
+                    "workspace.summary.cwd", "workspace.summary.progress",
+                    "workspace.summary.tasks", "workspace.summary.empty"] {
+            let value = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
+        }
+    }
 }
 
 /// 快照专用 KeyManager 存储替身：内存态，避免快照触碰 Keychain。

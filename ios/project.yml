@@ -43,6 +43,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tangyujie.codexremote
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # 全局主题色（橙铜，取自 app 图标）；驱动 List 选中、主操作按钮等系统 accent。
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         TARGETED_DEVICE_FAMILY: "2"
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: CodexRemote/Info.plist

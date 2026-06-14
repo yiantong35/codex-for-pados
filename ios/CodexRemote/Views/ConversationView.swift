@@ -7,6 +7,7 @@ import SwiftUI
 struct ConversationView: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(ApprovalStore.self) private var approvals
+    @Environment(ActiveConversationHolder.self) private var activeConversation
     let threadId: String
     @State private var store: ConversationStore?
 
@@ -44,6 +45,10 @@ struct ConversationView: View {
                 scrollToBottom(proxy)
             }
         }
+        .onChange(of: store?.state) { _, newValue in
+            activeConversation.state = newValue
+        }
+        .onDisappear { activeConversation.state = nil }
         .safeAreaInset(edge: .bottom) {
             if let store {
                 ComposerView(store: store)

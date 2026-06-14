@@ -13,6 +13,7 @@ struct ComposerView: View {
     @State private var imageDataURL: String?
     @State private var model = "gpt-5-codex"
     @State private var effort: ReasoningEffort = .medium
+    @State private var showModelPopover = false
 
     /// 可选模型（MVP 硬编码常见名；后续可改为从 thread 元信息拉取）。
     private static let models = ["gpt-5", "gpt-5-codex", "gpt-5-mini"]
@@ -27,7 +28,7 @@ struct ComposerView: View {
         VStack(spacing: 6) {
             if imageDataURL != nil {
                 HStack(spacing: 6) {
-                    Image(systemName: "photo").foregroundStyle(.blue)
+                    Image(systemName: "photo").foregroundStyle(.secondary)
                     Text("composer.imageAttached").font(.footnote).foregroundStyle(.secondary)
                     Spacer()
                     Button("composer.remove") { imageDataURL = nil; photoItem = nil }
@@ -35,18 +36,19 @@ struct ComposerView: View {
                 }
             }
             HStack(spacing: 8) {
+                // 次级控件用中性色（选择性用橙：只有主操作发送用主题色）。
                 PhotosPicker(selection: $photoItem, matching: .images) {
                     Image(systemName: "plus.circle").font(.title3)
                 }
-                Menu {
-                    Picker("composer.model", selection: $model) {
-                        ForEach(Self.models, id: \.self) { Text($0).tag($0) }
-                    }
-                    Picker("composer.effort", selection: $effort) {
-                        ForEach(Self.efforts, id: \.self) { Text($0.rawValue).tag($0) }
-                    }
-                } label: {
+                .foregroundStyle(.secondary)
+                // 模型/推理用 .popover 而非 Menu：Menu+Picker 收起时会闪现（#7），且会遮挡按钮（#8）。
+                // popover 带箭头指向按钮、不遮挡，inline picker 一屏列出可选项。
+                Button { showModelPopover.toggle() } label: {
                     Image(systemName: "slider.horizontal.3").font(.title3)
+                }
+                .foregroundStyle(.secondary)
+                .popover(isPresented: $showModelPopover) {
+                    modelPopover.presentationCompactAdaptation(.popover)
                 }
 
                 TextField("composer.placeholder", text: $text, axis: .vertical)
@@ -90,6 +92,28 @@ struct ComposerView: View {
                 imageDataURL = "data:image/jpeg;base64," + data.base64EncodedString()
             }
         }
+    }
+
+    /// 模型 + 推理强度选择浮层（inline picker，一屏列出，选中带勾）。
+    private var modelPopover: some View {
+        List {
+            Section("composer.model") {
+                Picker("composer.model", selection: $model) {
+                    ForEach(Self.models, id: \.self) { Text($0).tag($0) }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            }
+            Section("composer.effort") {
+                Picker("composer.effort", selection: $effort) {
+                    ForEach(Self.efforts, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            }
+        }
+        .listStyle(.insetGrouped)
+        .frame(width: 260, height: 380)
     }
 
     /// 构造当前输入（文本 + 可选图片），供 send/steer/enqueue 复用。

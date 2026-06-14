@@ -2,6 +2,8 @@
 comet_change: ipad-workspace-shell
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-06-14-ipad-workspace-shell
+status: final
 ---
 
 # iPad CodexRemote 五窗口工作区骨架 — 技术设计
@@ -61,3 +63,17 @@ detail = `VStack { 上半(中间+右栏) ; Divider(可拖) ; 下栏 }`。可拖 
 
 - 风险：多面板 + 浮层 + 拖动与 v1 inspector 拖动坑同源——逐态模拟器自检 + 规避 VStack 包 split / 系统 sidebarToggle。
 - 非目标：右/下栏真实内容（Diff/文件/终端/编辑器/预览 → 后续 change）；浏览器（Electron webview 拿不到）；提交推送/PR 状态（desktop 本地）；真机 E2E（follow-up）。
+
+## 6. Implementation Divergence（实现偏差，verify 阶段补记）
+
+build 阶段经多轮用户反馈，实际实现偏离了 §3 的部分设计决策。如实记录如下（不阻塞归档；右栏 resize 的根本重构由后续 change 承接）：
+
+- **D2 摘要**：设计为 `.popover` 锚定 `:≡` 按钮；实际改为 **`.overlay(alignment:.topTrailing)` 常驻悬浮浮层**（点击别处不收回，仅由摘要按钮显隐；放在 safeAreaInset 之前以落在顶栏下方不遮挡按钮）。
+- **D3 右栏**：设计为 `.inspector(isPresented:)` + `.inspectorColumnWidth`；实际改为 **HStack 内自绘可拖列**（`PanelResizeHandle` + `WorkspaceMetrics.resizedRightWidth`）。原因：`.inspector` 内建 resize 在三栏全开时不可靠。**已知限制**：自绘横向 resize 在拖动时中栏 ScrollView 随宽度重排导致**闪屏**，多次尝试（commit-on-release / 状态隔离到 WorkspaceDetailRegion / 移除 .transition）未根治 → 用户决定**新开 change 用三列 NavigationSplitView 系统列重构取代**（右栏改系统第三列消闪 + 下栏改全宽 safeAreaInset 覆盖左右）。
+- **D6 图标**：摘要图标最终用 **`list.bullet`**（:≡ 两圆点两横线），非 Codex panel-right SVG（后者是 inspector 图标，被误指给摘要，已纠正）。三个面板图标统一 `rectangle.*.inset.filled` 族。
+- **新增（design doc 未预先记录，build 内反馈轮）**：
+  - 全局主题色：定义橙铜 `AccentColor`（深浅两态）+ `ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME`，去除系统蓝（选择性用橙：选中/主操作/链接用橙，chrome 中性）。
+  - 左栏选中态自渲染（左缘橙条 + 橙标题，弃用系统 List 方框，收起重开不丢）。
+  - 三处拖动把手（左/右/下）hover 或拖动中变橙；左把手用宽度监听点亮（系统列钩不到拖动事件）。
+  - `SettingsMenu` + composer 模型选择由 `Menu` 改 `.popover`（不遮挡按钮、不闪现）。
+- **布局行为后续变更**（移交新 change）：原 §1「下栏不压左栏」将改为「下栏全宽、压所有（含左栏）、最高优先级」。
