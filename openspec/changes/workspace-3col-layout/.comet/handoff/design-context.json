@@ -4,11 +4,11 @@
   "mode": "compact",
   "canonical_spec": "openspec",
   "generated_by": "comet-handoff.sh",
-  "context_hash": "a4b4bf320572711a4d366bb467c2f129d039d54af33a5244a13f4dffb6a86542",
+  "context_hash": "8e2976750a23122d608015599ec36189639e0ecd54ddad5ca6d2cd5d39c1dfc7",
   "files": [
-    { "path": "openspec/changes/workspace-3col-layout/proposal.md", "sha256": "261e6a0630af8c1f4c1285ebb6586f59672b59abfd809223b46a89aa5f7bc47b" },
-    { "path": "openspec/changes/workspace-3col-layout/design.md", "sha256": "63b3e4252286167dfc170e64189b2ecf24f35e99c16198c3acfc29dc697874ba" },
-    { "path": "openspec/changes/workspace-3col-layout/tasks.md", "sha256": "c5363916624f91585095a05a84079fdf187d3bdaec8beb050899998c9f53d305" },
-    { "path": "openspec/changes/workspace-3col-layout/specs/workspace-layout/spec.md", "sha256": "309b511db6e38200013dc8e4a720e20392965b7c7b4ba610d4d9d7ce1c32c6b2" }
+    { "path": "openspec/changes/workspace-3col-layout/proposal.md", "sha256": "7a98614196a9da10edaecea2aadb1dca343ceb1c3faa23a7a8b5317c5be4b0aa" },
+    { "path": "openspec/changes/workspace-3col-layout/design.md", "sha256": "4ef4fb4e252804ad1252aba116fc5659e1d8d522e9db5eedc84bbfe667731980" },
+    { "path": "openspec/changes/workspace-3col-layout/tasks.md", "sha256": "cf7a075a33d1726b01532c2a1ea018db50fa3df3cfa1ab3bea4742bc76a46901" },
+    { "path": "openspec/changes/workspace-3col-layout/specs/workspace-layout/spec.md", "sha256": "01824b6eccaf238659e5ba520d01ebeae591ab79cdeafe7d6f7447d5cee9664a" }
   ]
 }
