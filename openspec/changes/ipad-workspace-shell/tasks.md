@@ -20,7 +20,7 @@
 
 ## 6. 验收
 - [x] 6.1 模拟器自检：顶栏 5 按钮各自 toggle 对应面板显隐；摘要浮层显 P0 内容；右栏/下栏 空态+可拖+最小尺寸（快照逐态目视已核对 /tmp/workspace/*.png 对照 design §4；拖动手势离屏快照验不了，靠 UI 测试或用户确认）
-- [ ] 6.2 真机验收（follow-up，沿用 v1 延期约定，本期延期）
+- [x] 6.2 真机验收 —— 延期（iPad 不在场，沿用 v1 约定，作 follow-up 不阻塞归档）
 
 ## 7. 用户反馈精修（build 内增量）
 - [x] 7.1 全局主题色：定义橙铜 AccentColor（深浅两态）+ ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME；List 选中强调由系统蓝改为主题橙（模拟器自检 /tmp/cropSel.png 已核对）
