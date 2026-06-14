@@ -1,13 +1,13 @@
 # Tasks: 三列系统列布局重构
 
 ## 1. 前提验证（构建第一步，阻塞）
-- [ ] 1.1 验证 iPad 上 `NavigationSplitView` 第三列(detail)是否用户可拖宽（最小 spike：sidebar|content|detail 三列，detail 放占位，模拟器/真机试拖）。可拖 → 继续；不可拖 → 暂停与用户确认退方案
+- [ ] 1.1 spike 验证：不被 VStack 包裹的 `.inspector(isPresented:)` 在三栏全开时拖动正常+不闪（中栏对话 .inspector{占位}，模拟器/真机试拖）。正常 → 继续；异常 → 暂停与用户议退路
 
-## 2. 右栏改系统第三列
-- [ ] 2.1 `RootSplitView` 改三列 `NavigationSplitView`（左 sidebar │ 中 content=对话 │ 右 detail=RightPanelView）
-- [ ] 2.2 右栏显隐改由 `columnVisibility` 控制 detail 列（替代 `showRightPanel` 的 HStack 条件）；右面板按钮切换 detail 显隐
+## 2. 右栏改 `.inspector` 系统检视列
+- [ ] 2.1 `RootSplitView`：中栏对话 `.inspector(isPresented:$showRightPanel){ RightPanelView }` + `.inspectorColumnWidth(min/ideal/max)`（沿用 WorkspaceMetrics 常量）
+- [ ] 2.2 右面板按钮 toggle `showRightPanel`（绑 inspector isPresented）
 - [ ] 2.3 移除自绘右栏 resize：`PanelResizeHandle`(右栏用法)、`rightWidth`/`WorkspaceMetrics.resizedRightWidth`、`WorkspaceDetailRegion` 右栏部分
-- [ ] 2.4 右栏最小宽 + 空态占位保留（`navigationSplitViewColumnWidth` min/ideal/max）
+- [ ] 2.4 右栏最小宽 + 空态占位保留（inspectorColumnWidth + RightPanelView 空态）
 
 ## 3. 下栏改全宽外层 safeAreaInset
 - [ ] 3.1 下栏从 detail 区内移到整个 split 外层 `.safeAreaInset(edge:.bottom)`（不 VStack 包裹）

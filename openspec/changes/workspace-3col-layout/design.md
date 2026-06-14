@@ -4,13 +4,15 @@
 
 ## 架构决策
 
-### A1：三列 NavigationSplitView（右栏 = 系统第三列）
+### A1：右栏 = `.inspector` 系统检视列
 现状 `NavigationSplitView { sidebar } detail: { HStack{中栏 | 自绘把手 | 右栏} }` →
-改为 `NavigationSplitView { sidebar } content: { 中栏对话 } detail: { 右栏 }`（三列）。
-- 右列(detail)与 sidebar 同为系统管理列 → 系统 resize，平滑不闪。
-- 去掉 `PanelResizeHandle`/`rightWidth @State`/`WorkspaceDetailRegion` 的右栏自绘逻辑。
-- 右栏显隐：用 `columnVisibility`（`NavigationSplitViewVisibility`）控制 detail 列显隐（替代 `showRightPanel` 的 HStack 条件）。
-- **前提验证（构建第一步）**：iPad 上 detail 列是否用户可拖宽。若不可拖 → 退方案，暂停确认。
+改为 `NavigationSplitView { sidebar } detail: { 中栏对话.inspector(isPresented:$showRightPanel){ RightPanelView } }`。
+- inspector 是 SwiftUI 给「右侧」的系统列（左 sidebar 的镜像）：系统托管 resize（平滑不闪）+ 可显隐 + 最小宽。
+- 为何不用 NavigationSplitView detail 第三列：detail 列不能显隐（columnVisibility 只控左侧列），右栏要 toggle → 用 inspector。
+- 宽度：`.inspectorColumnWidth(min:ideal:max:)`（沿用 WorkspaceMetrics 常量）。显隐：`showRightPanel` 绑 `isPresented`。
+- 去掉 `PanelResizeHandle`(右用法)/`rightWidth @State`/`WorkspaceDetailRegion` 右栏自绘逻辑。
+- **关键：不 VStack 包 detail**（旧 inspector 拖不动的根因）。下栏改全宽外层 safeAreaInset（A2）后，inspector 不被包裹 → 拖动恢复 + 系统托管不闪。
+- **前提验证（构建第一步 spike）**：不被 VStack 包的 inspector，三栏全开时拖动是否正常+不闪。异常 → 暂停议退路。
 
 ### A2：下栏 = 全宽 safeAreaInset(.bottom)
 下栏从「detail 区内 VStack 分割（压中+右）」改为「整个 split 外层 `.safeAreaInset(edge:.bottom)`」：

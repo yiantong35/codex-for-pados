@@ -16,7 +16,7 @@
 - 既有能力零回归(摘要 overlay、橙主题、选中自渲染、把手高亮、Menu→popover、面板 toggle)。
 
 ### 方案要点
-- **右栏 → `NavigationSplitView` 第三列(detail)**:三列布局(左 sidebar │ 中 content │ 右 detail),右列与 sidebar 同为系统 resize。
+- **右栏 → `.inspector` 系统检视列**(右侧系统列,左 sidebar 的镜像):系统托管 resize(平滑不闪)+ 可显隐 + 最小宽。不用 NavigationSplitView detail 第三列(它不能显隐)。关键:不 VStack 包 detail(旧 inspector 拖不动的根因)。
 - **下栏 → 全宽 `.safeAreaInset(edge:.bottom)`** 挂在三栏 split 外层(像顶栏那样,不用 VStack 包裹以免破坏系统列拖动):横跨左+中+右全宽,把整个 split 往上压。
 - **布局行为翻转**:由「下边栏不压左边栏」改为「**下边栏全宽、压所有(含左边栏)、最高优先级**」。
 
@@ -30,5 +30,5 @@
 - 真机 E2E——follow-up(沿用 v1/change1 延期约定)。
 
 ## 关键未知 / 风险
-- **iPad 上 `NavigationSplitView` 第三列(detail)是否用户可拖宽**——这是方案成立前提。构建早期必须先验证;若系统第三列不可拖,退方案(`.inspector` / 或保留自绘但换消闪手段),并暂停与用户确认。
-- 三列 + 全宽 safeAreaInset 下栏 + 顶栏 safeAreaInset 的组合是否破坏列拖动——沿用 change1 教训(不 VStack 包裹 split)。
+- **不被 VStack 包裹的 `.inspector` 在三栏全开时拖动是否正常+不闪**——预期正常(inspector 是系统机制,旧失败根因=被 VStack 包)。构建第一步快速 spike 确认;若仍异常,暂停与用户议退路(保留自绘但换消闪手段 / 固定宽 toggle-only)。
+- inspector + 全宽 safeAreaInset 下栏 + 顶栏 safeAreaInset 的组合是否破坏拖动——沿用 change1 教训(不 VStack 包裹 split)。
