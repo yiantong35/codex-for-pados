@@ -6,6 +6,8 @@ base-ref: addd34718a029d9908f4cd55e5cf8dd12a130ed2
 
 # 三列系统列布局重构（workspace-3col-layout）实施计划
 
+> **迁移/恢复状态（2026-06-15）：** Task 1–5 已完成并提交（commit `e47534b`：右栏改 `.inspector`、下栏全宽外层 safeAreaInset、删自绘右栏/`resizedRightWidth`/`PanelResizeHandle`、右把手装饰+下栏滑入动画；121 测试 0 失败）。用户已选 **A 方案（inspector 可拖）**，测后未再报闪屏（视为治好），左拖挤右耦合用户已接受。**剩余仅 Task 6 的 5.3「用户实测确认」+ 5.4 真机延期**。新机恢复后：跑 `/comet` → 续 build → 用户实测 OK 后勾 plan 全部步骤 → build guard → verify → archive。（下方 step 复选框未逐个勾，恢复后按本状态续即可。）
+
 > **For agentic workers:** REQUIRED SUB-SKILL: 用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实施本计划。步骤用复选框（`- [ ]`）语法跟踪。
 >
 > **设计依据：** 全程对照 [docs/superpowers/specs/2026-06-14-workspace-3col-layout-design.md](../specs/2026-06-14-workspace-3col-layout-design.md)（已定稿）。任务边界对照 `openspec/changes/workspace-3col-layout/tasks.md` 与 `.../specs/workspace-layout/spec.md`。
