@@ -22,6 +22,7 @@ DerivedData/
 /skills-lock.json
 
 # Local workflow / handoff artifacts
+/AGENT-HANDOFF.md
 /docs/
 /openspec/
 
