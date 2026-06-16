@@ -2,6 +2,8 @@
 comet_change: workspace-3col-layout
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-06-16-workspace-3col-layout
+status: final
 ---
 
 # Design Doc: 三列系统列布局重构（workspace-3col-layout）
