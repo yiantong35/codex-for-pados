@@ -11,7 +11,19 @@ DerivedData/
 .build/
 *.xcworkspace/xcuserdata/
 
-# CodeGraph 数据见 .codegraph/.gitignore
+# Agent local installs and runtime state
+/.agents/
+/.codex/
+/.claude/
+/.codegraph/
+/.comet/
+/.mcp.json
+/.omx/
+/skills-lock.json
+
+# Local workflow / handoff artifacts
+/docs/
+/openspec/
 
 # git worktree 隔离工作区
 .worktrees/
