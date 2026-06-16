@@ -6,7 +6,7 @@ build_pause: null
 subagent_dispatch: null
 tdd_mode: direct
 isolation: worktree
-verify_mode: null
+verify_mode: full
 auto_transition: true
 base_ref: c83407a98568c51e267e31528ece00a26b676188
 design_doc: docs/superpowers/specs/2026-06-14-workspace-3col-layout-design.md
@@ -20,3 +20,5 @@ archived: false
 handoff_context: openspec/changes/workspace-3col-layout/.comet/handoff/design-context.json
 handoff_hash: 8e2976750a23122d608015599ec36189639e0ecd54ddad5ca6d2cd5d39c1dfc7
 direct_override: true
+build_command: xcodebuild build -project ios/CodexRemote.xcodeproj -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad-Test' -derivedDataPath ios/DerivedData
+verify_command: xcodebuild test -project ios/CodexRemote.xcodeproj -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad-Test' -derivedDataPath ios/DerivedData

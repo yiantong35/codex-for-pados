@@ -26,13 +26,19 @@ struct RootSplitView: View {
     @State private var showSummary = false
     // 下栏高度（自绘纵向拖 + clamp）。下栏挂在 split 外层全宽 safeAreaInset（design D2）。
     @State private var bottomHeight: CGFloat = WorkspaceMetrics.bottomPanelIdealHeight
-    // 左栏把手拖动高亮：系统列钩不到拖动事件，改为监听左栏宽度变化——拖系统分隔线时宽度持续变，
+    // 左栏把手拖动高亮：系统列钩不到拖动事件，改为监听真实分隔线坐标变化——拖系统分隔线时坐标持续变，
     // 据此把左把手点亮成橙，停止 250ms 后复原（不拦截手势、不换架构）。
     @State private var leftHandleActive = false
     @State private var leftResizeReset: Task<Void, Never>?
-    // 右栏(inspector)同理：系统检视列的拖动分隔线很隐蔽，叠装饰把手 + 监听 inspector 宽度变化点亮。
+    // 右栏(inspector)同理：系统检视列的拖动分隔线很隐蔽，叠装饰把手 + 监听真实分隔线坐标变化点亮。
     @State private var rightHandleActive = false
     @State private var rightResizeReset: Task<Void, Never>?
+    private let splitCoordinateSpaceName = "RootSplitView.split"
+    @State private var leftDividerX: CGFloat = 300
+    @State private var rightDividerX: CGFloat?
+    @State private var hasMeasuredLeftDivider = false
+    @State private var hasMeasuredRightDivider = false
+    @State private var columnResizeHandlePinnedCenterY: CGFloat?
 
     /// 当前活跃会话 state 的共享持有者：ConversationView 写入、摘要 popover 读出。
     @State private var activeConversation = ActiveConversationHolder()
@@ -133,42 +139,36 @@ struct RootSplitView: View {
         .background(.bar)
     }
 
-    // MARK: - split：左栏满高 | detail 区(VStack)
+    // MARK: - split：左栏 | detail + inspector
 
     private var split: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(selectedThreadId: $selectedThreadId)
+                .background {
+                    GeometryReader { proxy in
+                        let dividerX = proxy.frame(in: .named(splitCoordinateSpaceName)).maxX
+                        Color.clear
+                            .onAppear {
+                                updateLeftDividerX(dividerX)
+                            }
+                            .onChange(of: dividerX) { _, newDividerX in
+                                updateLeftDividerX(newDividerX)
+                            }
+                    }
+                }
                 .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 380)
                 .toolbar(removing: .sidebarToggle)
                 .toolbarBackground(.hidden, for: .navigationBar)
-                // 监听左栏宽度变化 → 拖系统分隔线时点亮把手（见 leftHandleActive 说明）。
-                .background {
-                    GeometryReader { proxy in
-                        Color.clear.onChange(of: proxy.size.width) { _, _ in
-                            leftHandleActive = true
-                            leftResizeReset?.cancel()
-                            leftResizeReset = Task {
-                                try? await Task.sleep(for: .milliseconds(250))
-                                if !Task.isCancelled { leftHandleActive = false }
-                            }
-                        }
-                    }
-                }
-                // 左栏可拖提示：右缘常驻装饰把手；拖动中（宽度在变）变橙加粗。
-                // allowsHitTesting(false) 不拦截系统拖动，保持左栏原本顺滑的 resize。
-                .overlay(alignment: .trailing) {
-                    Capsule()
-                        .fill(leftHandleActive ? Color.accentColor : Color.secondary.opacity(0.55))
-                        .frame(width: leftHandleActive ? 5 : 3, height: 44)
-                        .padding(.trailing, 2)
-                        .allowsHitTesting(false)
-                        .animation(.easeOut(duration: 0.12), value: leftHandleActive)
-                }
         } detail: {
             detail
                 .toolbar(removing: .sidebarToggle)
         }
         .navigationSplitViewStyle(.balanced)
+        .coordinateSpace(name: splitCoordinateSpaceName)
+        .overlay {
+            columnResizeHandles
+                .allowsHitTesting(false)
+        }
     }
 
     // detail = 中栏对话 + 右栏 `.inspector`（右侧系统检视列，系统托管 resize 不闪，design D1）。
@@ -178,32 +178,100 @@ struct RootSplitView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .inspector(isPresented: $showRightPanel) {
                 RightPanelView()
-                    // 左缘装饰把手（可拖提示）：系统检视列的拖动分隔线隐蔽，这里叠一条常驻把手；
-                    // 监听 inspector 宽度变化 → 拖动中点亮成橙。allowsHitTesting(false) 不拦截系统拖动。
-                    .overlay(alignment: .leading) {
-                        Capsule()
-                            .fill(rightHandleActive ? Color.accentColor : Color.secondary.opacity(0.55))
-                            .frame(width: rightHandleActive ? 5 : 3, height: 44)
-                            .padding(.leading, 2)
-                            .allowsHitTesting(false)
-                            .animation(.easeOut(duration: 0.12), value: rightHandleActive)
-                    }
+                    // 监听 inspector 分隔线坐标变化 → 拖动中点亮统一 overlay 中的右把手。
                     .background {
                         GeometryReader { proxy in
-                            Color.clear.onChange(of: proxy.size.width) { _, _ in
-                                rightHandleActive = true
-                                rightResizeReset?.cancel()
-                                rightResizeReset = Task {
-                                    try? await Task.sleep(for: .milliseconds(250))
-                                    if !Task.isCancelled { rightHandleActive = false }
+                            let dividerX = proxy.frame(in: .named(splitCoordinateSpaceName)).minX
+                            Color.clear
+                                .onAppear {
+                                    updateRightDividerX(dividerX)
                                 }
-                            }
+                                .onChange(of: dividerX) { _, newDividerX in
+                                    updateRightDividerX(newDividerX)
+                                }
                         }
                     }
                     .inspectorColumnWidth(min: WorkspaceMetrics.rightPanelMinWidth,
                                           ideal: WorkspaceMetrics.rightPanelIdealWidth,
                                           max: WorkspaceMetrics.rightPanelMaxWidth)
             }
+    }
+
+    private var columnResizeHandles: some View {
+        GeometryReader { proxy in
+            let currentCenterY = WorkspaceMetrics.columnResizeHandleCenterY(in: proxy.size.height)
+            let centerY = WorkspaceMetrics.columnResizeHandleCenterY(in: proxy.size.height,
+                                                                      pinnedCenterY: columnResizeHandlePinnedCenterY)
+            let leftWidth = leftHandleActive
+                ? WorkspaceMetrics.columnResizeHandleActiveWidth
+                : WorkspaceMetrics.columnResizeHandleInactiveWidth
+            let rightWidth = rightHandleActive
+                ? WorkspaceMetrics.columnResizeHandleActiveWidth
+                : WorkspaceMetrics.columnResizeHandleInactiveWidth
+            let currentRightDividerX = rightDividerX ?? proxy.size.width - WorkspaceMetrics.rightPanelIdealWidth
+
+            ZStack(alignment: .topLeading) {
+                if columnVisibility != .detailOnly {
+                    resizeHandle(active: leftHandleActive, width: leftWidth)
+                        .position(x: WorkspaceMetrics.leftColumnResizeHandleCenterX(dividerX: leftDividerX,
+                                                                                     handleWidth: leftWidth),
+                                  y: centerY)
+                }
+
+                if showRightPanel {
+                    resizeHandle(active: rightHandleActive, width: rightWidth)
+                        .position(x: WorkspaceMetrics.rightColumnResizeHandleCenterX(dividerX: currentRightDividerX,
+                                                                                      handleWidth: rightWidth),
+                                  y: centerY)
+                }
+            }
+            .animation(.easeOut(duration: 0.12), value: leftHandleActive)
+            .animation(.easeOut(duration: 0.12), value: rightHandleActive)
+            .onAppear {
+                if columnResizeHandlePinnedCenterY == nil {
+                    columnResizeHandlePinnedCenterY = currentCenterY
+                }
+            }
+        }
+    }
+
+    private func resizeHandle(active: Bool, width: CGFloat) -> some View {
+        Capsule()
+            .fill(active ? Color.accentColor : Color.secondary.opacity(0.55))
+            .frame(width: width, height: WorkspaceMetrics.columnResizeHandleHeight)
+    }
+
+    private func updateLeftDividerX(_ newDividerX: CGFloat) {
+        guard newDividerX > 0 else { return }
+        let changed = hasMeasuredLeftDivider && abs(leftDividerX - newDividerX) > 0.5
+        leftDividerX = newDividerX
+        hasMeasuredLeftDivider = true
+
+        if changed {
+            leftHandleActive = true
+            leftResizeReset?.cancel()
+            leftResizeReset = Task {
+                try? await Task.sleep(for: .milliseconds(250))
+                if !Task.isCancelled { leftHandleActive = false }
+            }
+        }
+    }
+
+    private func updateRightDividerX(_ newDividerX: CGFloat) {
+        guard newDividerX > 0 else { return }
+        let previousDividerX = rightDividerX ?? newDividerX
+        let changed = hasMeasuredRightDivider && abs(previousDividerX - newDividerX) > 0.5
+        rightDividerX = newDividerX
+        hasMeasuredRightDivider = true
+
+        if changed {
+            rightHandleActive = true
+            rightResizeReset?.cancel()
+            rightResizeReset = Task {
+                try? await Task.sleep(for: .milliseconds(250))
+                if !Task.isCancelled { rightHandleActive = false }
+            }
+        }
     }
 
     @ViewBuilder private var content: some View {
