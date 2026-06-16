@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// 下边栏（design D4）：顶部可拖把手（调高，clamp 到最小高）+ 占位空态。
-/// 高度由父级（detail 区 VStack）持有并绑定进来；拖动时改 height。
+/// 高度由父级持有并绑定进来；拖动时改 height。
 struct BottomPanelView: View {
     @Binding var height: CGFloat
     @State private var hovering = false
@@ -21,16 +21,21 @@ struct BottomPanelView: View {
     /// 可拖把手：纵向拖动改高，松手 clamp 到 [min, max]。
     /// 拖动效果（手势）靠模拟器/UI 测试确认；clamp 逻辑已在 WorkspaceMetricsTests 单测。
     private var dragHandle: some View {
-        ZStack {
-            Rectangle().fill(.bar).frame(height: 16)
+        ZStack(alignment: .top) {
+            Rectangle().fill(.bar)
             Capsule()
                 .fill(active ? Color.accentColor : Color.secondary.opacity(0.55))
-                .frame(width: 40, height: active ? 5 : 4)
-                .animation(.easeOut(duration: 0.12), value: active)
+                .frame(width: WorkspaceMetrics.bottomResizeHandleWidth,
+                       height: active
+                       ? WorkspaceMetrics.bottomResizeHandleActiveHeight
+                       : WorkspaceMetrics.bottomResizeHandleInactiveHeight)
+                .padding(.top, WorkspaceMetrics.bottomResizeHandleTopPadding)
         }
+        .frame(height: WorkspaceMetrics.bottomResizeHandleTrackHeight)
         .contentShape(Rectangle())
         .hoverEffect(.highlight)
         .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: active)
         .gesture(
             DragGesture()
                 .onChanged { value in
