@@ -83,10 +83,6 @@ struct ConnectionConfigView: View {
                         .autocorrectionDisabled()
                 }
                 field {
-                    TextField("conn.sshPort", text: $sshPort)
-                        .keyboardType(.numberPad)
-                }
-                field {
                     TextField("conn.sshUser", text: $user)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -94,6 +90,10 @@ struct ConnectionConfigView: View {
                 // 仅支持密钥登录：macOS 密码登录依赖 keyboard-interactive，
                 // 底层 swift-nio-ssh 不支持，故 UI 不再提供密码选项，密钥区常驻。
                 KeyAreaView()
+                field {
+                    TextField("conn.sshPort", text: $sshPort)
+                        .keyboardType(.numberPad)
+                }
             }
 
             if let e = errorText {
