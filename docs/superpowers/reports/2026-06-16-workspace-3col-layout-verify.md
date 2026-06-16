@@ -46,3 +46,5 @@ PASS。
 ## 分支处理
 
 用户已授权直接处理 PR。当前收尾路径为：提交验证状态、推送 `worktree-ipad-workspace-shell`，并创建 GitHub Pull Request。
+
+PR：https://github.com/yiantong35/codex-for-pados/pull/4
