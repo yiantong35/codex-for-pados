@@ -101,8 +101,7 @@ struct ConversationView: View {
         let diff = WorkspaceSummary.diffLineCounts(in: state)
         if !progress.isEmpty || !diff.isEmpty {
             ProgressCardBar(progress: progress, diff: diff) {
-                // TODO Task8: requestRightPanel 接回
-                _ = state
+                activeConversation.requestRightPanel = true
             }
             .padding(.bottom, 6)
         }

@@ -7,6 +7,8 @@ import Observation
 @MainActor
 final class ActiveConversationHolder {
     var state: ConversationState?
+    /// 进度卡片点「X 文件」请求打开右栏的信号（一次性，RootSplitView 消费后复位）。
+    var requestRightPanel: Bool = false
 }
 
 /// 主界面（复刻 Codex desktop 五窗口工作区骨架，三列系统列重构 workspace-3col-layout）：
@@ -88,6 +90,12 @@ struct RootSplitView: View {
                 VStack(spacing: 0) {
                     topBar
                     Divider()
+                }
+            }
+            .onChange(of: activeConversation.requestRightPanel) { _, req in
+                if req {
+                    withAnimation { showRightPanel = true }
+                    activeConversation.requestRightPanel = false
                 }
             }
             .environment(activeConversation)
