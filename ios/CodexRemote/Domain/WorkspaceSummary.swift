@@ -12,14 +12,10 @@ enum WorkspaceSummary {
         var isEmpty: Bool { changedFiles == 0 }
     }
 
+    /// 全 turn diff 行数汇总：解析聚合 turnDiff（唯一真相源），与进度卡片同源。
     static func diffLineCounts(in state: ConversationState) -> DiffLineCounts {
-        var added = 0, removed = 0, files = 0
-        for item in state.items {
-            if case .fileChange(_, _, let a, let r, _) = item {
-                added += a; removed += r; files += 1
-            }
-        }
-        return DiffLineCounts(added: added, removed: removed, changedFiles: files)
+        let s = TurnDiffStats.parse(state.turnDiff)
+        return DiffLineCounts(added: s.added, removed: s.removed, changedFiles: s.changedFiles)
     }
 
     /// plan 进度：完成数 / 总数 + 步骤明细（直接复用 ConversationState.plan）。

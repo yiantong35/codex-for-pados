@@ -17,28 +17,35 @@ final class WorkspaceSummaryTests: XCTestCase {
         XCTAssertEqual(a, b)
     }
 
-    func testDiffLineCountsSumsAllFileChanges() {
+    func testDiffLineCountsFromTurnDiff() {
         var state = ConversationState(threadId: "t")
-        state.items = [
-            .userMessage(id: "u1", text: "hi"),
-            .fileChange(id: "f1", file: "a.swift", added: 10, removed: 3, diff: ""),
-            .fileChange(id: "f2", file: "b.swift", added: 0, removed: 5, diff: ""),
-            .agentMessage(id: "a1", text: "done"),
-        ]
+        state.turnDiff = """
+        diff --git a/a.swift b/a.swift
+        --- a/a.swift
+        +++ b/a.swift
+        @@ -1,3 +1,4 @@
+        +x1
+        +x2
+        +x3
+        -y1
+        diff --git a/b.swift b/b.swift
+        --- a/b.swift
+        +++ b/b.swift
+        @@ -1,5 +1 @@
+        -z1
+        -z2
+        -z3
+        -z4
+        """
         let counts = WorkspaceSummary.diffLineCounts(in: state)
-        XCTAssertEqual(counts.added, 10)
-        XCTAssertEqual(counts.removed, 8)
+        XCTAssertEqual(counts.added, 3)
+        XCTAssertEqual(counts.removed, 5)
         XCTAssertEqual(counts.changedFiles, 2)
     }
 
-    func testDiffLineCountsEmptyWhenNoFileChanges() {
-        var state = ConversationState(threadId: "t")
-        state.items = [.userMessage(id: "u1", text: "hi")]
-        let counts = WorkspaceSummary.diffLineCounts(in: state)
-        XCTAssertEqual(counts.added, 0)
-        XCTAssertEqual(counts.removed, 0)
-        XCTAssertEqual(counts.changedFiles, 0)
-        XCTAssertTrue(counts.isEmpty)
+    func testDiffLineCountsEmptyWhenNoTurnDiff() {
+        let state = ConversationState(threadId: "t")
+        XCTAssertTrue(WorkspaceSummary.diffLineCounts(in: state).isEmpty)
     }
 
     func testPlanProgressCountsCompleted() {
