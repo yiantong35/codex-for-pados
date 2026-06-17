@@ -52,6 +52,7 @@
 		7C1E8B9263F5008571A38230 /* InspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F739862A665E7A7C169F4704 /* InspectorView.swift */; };
 		86EDA4A60ECC1981BFBD9F47 /* KeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143B36880763EB0B23DF98E5 /* KeyManager.swift */; };
 		8924E2361FB43E1B59B0C06C /* ApprovalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 299CE3AF94910F633856C075 /* ApprovalStore.swift */; };
+		909285AAA2F161956D6E21BA /* PlanStepList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2748B1BAA038016681DA082B /* PlanStepList.swift */; };
 		9E265052FF22A341C5FCADDA /* JSONRPCClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 164835E5F53DB4EC1BCAB13B /* JSONRPCClient.swift */; };
 		9EE939BBE6DC57C306FEE425 /* TurnDiffStatsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DABB3808D7F992E8E64B2D8B /* TurnDiffStatsTests.swift */; };
 		9F2EB90F10A15CE1CE83FDB9 /* SidebarCollapseStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B26181D87CDAC2BD3CDE3CF1 /* SidebarCollapseStoreTests.swift */; };
@@ -104,6 +105,7 @@
 		143B36880763EB0B23DF98E5 /* KeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyManager.swift; sourceTree = "<group>"; };
 		164835E5F53DB4EC1BCAB13B /* JSONRPCClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONRPCClient.swift; sourceTree = "<group>"; };
 		1A8CF06540ED3E7C246131C8 /* SSHClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHClient.swift; sourceTree = "<group>"; };
+		2748B1BAA038016681DA082B /* PlanStepList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanStepList.swift; sourceTree = "<group>"; };
 		299CE3AF94910F633856C075 /* ApprovalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalStore.swift; sourceTree = "<group>"; };
 		29E4DEA2725E8A3517A77141 /* ProjectsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectsStoreTests.swift; sourceTree = "<group>"; };
 		2B8A2809870EB2C408134910 /* JSONRPCEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONRPCEnvelope.swift; sourceTree = "<group>"; };
@@ -287,6 +289,7 @@
 			children = (
 				8EB7B9AC104F15296013EB10 /* BottomPanelView.swift */,
 				F08F54E99F6B68924A02EFF3 /* PanelEmptyState.swift */,
+				2748B1BAA038016681DA082B /* PlanStepList.swift */,
 				BF1642FA85A90C056E5D3064 /* RightPanelView.swift */,
 				44181632C721FBFB09ED69C0 /* SummaryPopoverView.swift */,
 				99616A4BE43A7944EC073310 /* WorkspaceMetrics.swift */,
@@ -522,6 +525,7 @@
 				72FE542A0B5F413DFD6BF3A5 /* MessageTransport.swift in Sources */,
 				768F24B3698500CD6C53C0DA /* Methods.swift in Sources */,
 				CF18EA1565EE17F448E78A4C /* PanelEmptyState.swift in Sources */,
+				909285AAA2F161956D6E21BA /* PlanStepList.swift in Sources */,
 				046D60CECEF36F595B491834 /* ProjectsStore.swift in Sources */,
 				FF3225FE3ECC3EFFECDD3484 /* ProxyChannel.swift in Sources */,
 				092CD1F52D3E6A361F9BFFE5 /* RightPanelView.swift in Sources */,
