@@ -241,6 +241,13 @@ final class ThreadReducerTests: XCTestCase {
         XCTAssertEqual(state.plan, [TurnPlanStep(step: "新", status: .completed)])
     }
 
+    // MARK: - Task 2: ConversationState.turnDiff 字段
+
+    func testConversationStateTurnDiffDefaultsEmpty() {
+        let state = ConversationState(threadId: "t")
+        XCTAssertEqual(state.turnDiff, "")
+    }
+
     // helpers
     private func notif(_ m: String, _ p: [String: Any]) -> JSONRPCNotification {
         JSONRPCNotification(method: m, params: AnyCodable(p))

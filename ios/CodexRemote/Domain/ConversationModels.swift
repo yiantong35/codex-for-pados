@@ -36,6 +36,9 @@ struct ConversationState: Equatable {
     var activeTurnKind: NonSteerableTurnKind?    // 非 nil 表示当前 turn 不可 steer
     /// 当前 turn 的 plan 步骤（来自 turn/plan/updated，整体快照）。摘要「进度」P0 数据源。
     var plan: [TurnPlanStep] = []
+    /// 当前 turn 的聚合 unified diff 全文（来自 turn/diff/updated）。
+    /// +A−B、变更文件数、change3 逐行 diff 的唯一真相源。
+    var turnDiff: String = ""
     var isTurnRunning: Bool { activeTurnId != nil }
 
     /// 本会话执行过的命令条数（纯派生，用于「已运行 N 条命令」汇总）。
