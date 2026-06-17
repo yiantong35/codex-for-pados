@@ -55,6 +55,20 @@
           "enum": [
             "agentIdentity"
           ]
+        },
+        {
+          "description": "Programmatic Codex auth backed by a personal access token.",
+          "type": "string",
+          "enum": [
+            "personalAccessToken"
+          ]
+        },
+        {
+          "description": "Amazon Bedrock bearer token managed by Codex.",
+          "type": "string",
+          "enum": [
+            "bedrockApiKey"
+          ]
         }
       ]
     },

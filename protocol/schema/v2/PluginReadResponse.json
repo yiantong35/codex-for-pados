@@ -20,10 +20,15 @@
       "type": "object",
       "required": [
         "id",
-        "name",
-        "needsAuth"
+        "name"
       ],
       "properties": {
+        "category": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "description": {
           "type": [
             "string",
@@ -41,11 +46,77 @@
         },
         "name": {
           "type": "string"
-        },
-        "needsAuth": {
-          "type": "boolean"
         }
       }
+    },
+    "AppTemplateSummary": {
+      "type": "object",
+      "required": [
+        "materializedAppIds",
+        "name",
+        "templateId"
+      ],
+      "properties": {
+        "canonicalConnectorId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "category": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "logoUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "logoUrlDark": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "materializedAppIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AppTemplateUnavailableReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "templateId": {
+          "type": "string"
+        }
+      }
+    },
+    "AppTemplateUnavailableReason": {
+      "type": "string",
+      "enum": [
+        "NOT_CONFIGURED_FOR_WORKSPACE",
+        "NO_ACTIVE_WORKSPACE"
+      ]
     },
     "HookEventName": {
       "type": "string",
@@ -89,6 +160,7 @@
     "PluginDetail": {
       "type": "object",
       "required": [
+        "appTemplates",
         "apps",
         "hooks",
         "marketplaceName",
@@ -97,6 +169,12 @@
         "summary"
       ],
       "properties": {
+        "appTemplates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AppTemplateSummary"
+          }
+        },
         "apps": {
           "type": "array",
           "items": {
@@ -133,6 +211,12 @@
           "items": {
             "type": "string"
           }
+        },
+        "shareUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "skills": {
           "type": "array",
