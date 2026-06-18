@@ -40,13 +40,7 @@ struct SummaryPopoverView: View {
                 }
                 if !progress.isEmpty {
                     Section {
-                        ForEach(Array(progress.steps.enumerated()), id: \.offset) { _, step in
-                            Label {
-                                Text(step.step).lineLimit(1)
-                            } icon: {
-                                Image(systemName: icon(for: step.status))
-                            }
-                        }
+                        PlanStepList(steps: progress.steps)
                     } header: {
                         // 标题用本地化键，计数用 verbatim 追加，避免 LocalizedStringKey
                         // 插值把查找键变成 "workspace.summary.progress %lld %lld"（catalog 无此键 → 回落键名）。
@@ -66,11 +60,4 @@ struct SummaryPopoverView: View {
         }
     }
 
-    private func icon(for status: TurnPlanStepStatus) -> String {
-        switch status {
-        case .completed: return "checkmark.circle.fill"
-        case .inProgress: return "circle.dashed"
-        case .pending: return "circle"
-        }
-    }
 }

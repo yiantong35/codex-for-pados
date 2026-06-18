@@ -7,6 +7,8 @@ import Observation
 @MainActor
 final class ActiveConversationHolder {
     var state: ConversationState?
+    /// 进度卡片点「X 文件」请求打开右栏的信号（一次性，RootSplitView 消费后复位）。
+    var requestRightPanel: Bool = false
 }
 
 /// 主界面（复刻 Codex desktop 五窗口工作区骨架，三列系统列重构 workspace-3col-layout）：
@@ -88,6 +90,12 @@ struct RootSplitView: View {
                 VStack(spacing: 0) {
                     topBar
                     Divider()
+                }
+            }
+            .onChange(of: activeConversation.requestRightPanel) { _, req in
+                if req {
+                    withAnimation { showRightPanel = true }
+                    activeConversation.requestRightPanel = false
                 }
             }
             .environment(activeConversation)
@@ -178,6 +186,9 @@ struct RootSplitView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .inspector(isPresented: $showRightPanel) {
                 RightPanelView()
+                    // inspector 内容在独立系统列，不保证继承 body 链上的 .environment，
+                    // 故在此显式注入 ActiveConversationHolder（否则 RightPanelView 读环境时运行时崩溃）。
+                    .environment(activeConversation)
                     // 监听 inspector 分隔线坐标变化 → 拖动中点亮统一 overlay 中的右把手。
                     .background {
                         GeometryReader { proxy in

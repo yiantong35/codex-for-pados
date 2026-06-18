@@ -51,7 +51,10 @@ struct ConversationView: View {
         .onDisappear { activeConversation.state = nil }
         .safeAreaInset(edge: .bottom) {
             if let store {
-                ComposerView(store: store)
+                VStack(spacing: 0) {
+                    progressCard(for: store.state)
+                    ComposerView(store: store)
+                }
             }
         }
         .navigationTitle("conv.title")
@@ -90,6 +93,18 @@ struct ConversationView: View {
             Text("conv.generating").font(.footnote).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func progressCard(for state: ConversationState) -> some View {
+        let progress = WorkspaceSummary.planProgress(in: state)
+        let diff = WorkspaceSummary.diffLineCounts(in: state)
+        if !progress.isEmpty || !diff.isEmpty {
+            ProgressCardBar(progress: progress, diff: diff) {
+                activeConversation.requestRightPanel = true
+            }
+            .padding(.bottom, 6)
+        }
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {

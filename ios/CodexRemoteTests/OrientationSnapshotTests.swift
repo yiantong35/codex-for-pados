@@ -290,6 +290,7 @@ final class OrientationSnapshotTests: XCTestCase {
         let view = RightPanelView()
             .environment(LocaleManager())
             .environment(ThemeManager())
+            .environment(ActiveConversationHolder())
             .frame(width: 320, height: 600)
         snapshot(view, size: CGSize(width: 320, height: 600),
                  name: "right-panel", dir: "/tmp/workspace")
@@ -336,6 +337,61 @@ final class OrientationSnapshotTests: XCTestCase {
             .frame(width: 360, height: 200)
         snapshot(view, size: CGSize(width: 360, height: 200),
                  name: "summary-empty", dir: "/tmp/workspace")
+    }
+
+    // MARK: - 场景 6c：进度卡片 ProgressCardBar（turn-progress-card 4.1/4.2）
+
+    /// 收起小条有数据态：plan N/M 步 + X 文件 +A −B（千位分隔、+绿 −红）。
+    /// 验收 4.1：运行中显示步骤+文件数+行数，数字配色与千位分隔正确。
+    func test_progress_card_collapsed_snapshot() {
+        let progress = WorkspaceSummary.PlanProgress(steps: [
+            TurnPlanStep(step: "读代码", status: .completed),
+            TurnPlanStep(step: "写实现", status: .inProgress),
+            TurnPlanStep(step: "补测试", status: .pending),
+        ])
+        let diff = WorkspaceSummary.DiffLineCounts(added: 1234, removed: 567, changedFiles: 8)
+        let view = ProgressCardBar(progress: progress, diff: diff)
+            .frame(width: 600, height: 120)
+        snapshot(view, size: CGSize(width: 600, height: 120),
+                 name: "progress-collapsed", dir: "/tmp/workspace")
+    }
+
+    /// 展开 overlay：plan 步骤列表 ✓完成/◌进行中/○待办，文案换行。
+    /// 验收 4.2：展开场景。用注入初始展开态的便利初始化器。
+    func test_progress_card_expanded_snapshot() {
+        let progress = WorkspaceSummary.PlanProgress(steps: [
+            TurnPlanStep(step: "读取并理解现有 diff 解析逻辑与边界用例", status: .completed),
+            TurnPlanStep(step: "实现 TurnDiffStats 纯函数并接入 reducer", status: .inProgress),
+            TurnPlanStep(step: "补充单元测试覆盖重命名与二进制文件", status: .pending),
+        ])
+        let diff = WorkspaceSummary.DiffLineCounts(added: 42, removed: 7, changedFiles: 3)
+        let view = ProgressCardBar(progress: progress, diff: diff, initialExpanded: true)
+            .frame(width: 600, height: 320)
+        snapshot(view, size: CGSize(width: 600, height: 320),
+                 name: "progress-expanded", dir: "/tmp/workspace")
+    }
+
+    /// 仅 plan（无 diff）：只显示步骤段，不显示文件/行数段。验收 4.2 仅-plan。
+    func test_progress_card_plan_only_snapshot() {
+        let progress = WorkspaceSummary.PlanProgress(steps: [
+            TurnPlanStep(step: "分析需求", status: .inProgress),
+            TurnPlanStep(step: "落地实现", status: .pending),
+        ])
+        let diff = WorkspaceSummary.DiffLineCounts(added: 0, removed: 0, changedFiles: 0)
+        let view = ProgressCardBar(progress: progress, diff: diff)
+            .frame(width: 600, height: 120)
+        snapshot(view, size: CGSize(width: 600, height: 120),
+                 name: "progress-plan-only", dir: "/tmp/workspace")
+    }
+
+    /// 仅 diff（无 plan）：只显示文件/行数段，不显示步骤段，且不可展开。验收 4.2 仅-diff。
+    func test_progress_card_diff_only_snapshot() {
+        let progress = WorkspaceSummary.PlanProgress(steps: [])
+        let diff = WorkspaceSummary.DiffLineCounts(added: 88, removed: 12, changedFiles: 2)
+        let view = ProgressCardBar(progress: progress, diff: diff)
+            .frame(width: 600, height: 120)
+        snapshot(view, size: CGSize(width: 600, height: 120),
+                 name: "progress-diff-only", dir: "/tmp/workspace")
     }
 
     // MARK: - 场景 6b：当前会话共享持有者 ActiveConversationHolder（Task 12）

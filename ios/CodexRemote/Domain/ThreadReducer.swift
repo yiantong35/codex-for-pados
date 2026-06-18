@@ -65,8 +65,15 @@ struct ThreadReducer {
             guard let id = p["itemId"] as? String, let d = p["delta"] as? String else { return }
             mutateCommand(id: id, append: d, &state)
 
-        case ServerNotificationMethod.fileChangePatchUpdated, ServerNotificationMethod.turnDiffUpdated:
-            if let id = p["itemId"] as? String { mutateFile(id: id, params: p, &state) }
+        case ServerNotificationMethod.turnDiffUpdated:
+            // 真实协议：{threadId, turnId, diff} —— 无 itemId。整 turn 聚合 diff 全文，直接存。
+            // （旧实现走 itemId guard → 整 turn diff 被丢弃，是 diff 行数恒 0 的 bug 根因之一。）
+            if let d = p["diff"] as? String { state.turnDiff = d }
+
+        case ServerNotificationMethod.fileChangePatchUpdated:
+            // 真实协议：{threadId, turnId, itemId, changes:[{path, kind, diff}]}。
+            // 遍历 changes，按 path 把每文件 diff 文本与解析行数落入对应 fileChange item。
+            applyFilePatch(itemId: p["itemId"] as? String, params: p, &state)
 
         case ServerNotificationMethod.turnPlanUpdated:
             // plan 是整体快照：每次用最新数组替换（缺字段容错，step 缺省空串、status 缺省 pending）。
@@ -200,13 +207,25 @@ struct ThreadReducer {
                                        status: st, exitCode: ec, durationMs: dm)
     }
 
-    private func mutateFile(id: String, params: [String: Any], _ s: inout ConversationState) {
-        guard let i = s.items.firstIndex(where: { $0.id == id }),
-              case .fileChange(_, let f, _, _, _) = s.items[i] else { return }
-        s.items[i] = .fileChange(id: id, file: f,
-                                 added: intValue(params["added"]),
-                                 removed: intValue(params["removed"]),
-                                 diff: params["diff"] as? String ?? "")
+    /// 处理 fileChange/patchUpdated：遍历 changes[]，对每个 {path, diff} 用 TurnDiffStats 解析行数，
+    /// 落入对应 fileChange item（按 itemId 优先匹配；多文件时按 path 匹配既有 item，缺失则忽略）。
+    private func applyFilePatch(itemId: String?, params: [String: Any], _ s: inout ConversationState) {
+        let changes = params["changes"] as? [[String: Any]] ?? []
+        for change in changes {
+            let path = change["path"] as? String ?? ""
+            let diff = change["diff"] as? String ?? ""
+            let stat = TurnDiffStats.parse(diff)
+            // 优先按 itemId 命中（单文件常见），否则按 file path 命中既有 item
+            let idx = s.items.firstIndex {
+                if case .fileChange(let id, let f, _, _, _) = $0 {
+                    return (itemId != nil && id == itemId) || f == path
+                }
+                return false
+            }
+            guard let i = idx, case .fileChange(let id, _, _, _, _) = s.items[i] else { continue }
+            s.items[i] = .fileChange(id: id, file: path,
+                                     added: stat.added, removed: stat.removed, diff: diff)
+        }
     }
 
     private func finishCommand(id: String, status: CommandStatus,

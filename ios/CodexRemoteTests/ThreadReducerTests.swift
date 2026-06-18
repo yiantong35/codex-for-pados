@@ -91,18 +91,32 @@ final class ThreadReducerTests: XCTestCase {
         XCTAssertEqual(state.activeTurnKind, .review)
     }
 
-    func testFileChangeDiffUpdated() throws {
+    // Task 3: turn/diff/updated → state.turnDiff（无 itemId，不再更新 fileChange item）
+    func testTurnDiffUpdatedStoresFullDiff() {
+        // turn/diff/updated 无 itemId，必须不被丢弃，直接存入 state.turnDiff
+        let diff = "diff --git a/a.swift b/a.swift\n--- a/a.swift\n+++ b/a.swift\n@@ -0,0 +1 @@\n+hello"
         var state = ConversationState(threadId: "t")
-        let reducer = ThreadReducer()
-        reducer.apply(notif("item/started", ["item": ["id": "F1", "type": "fileChange", "file": "a.swift"]]), to: &state)
-        reducer.apply(notif("turn/diff/updated", ["itemId": "F1", "added": 3, "removed": 1, "diff": "@@"]), to: &state)
-        guard case .fileChange(_, let file, let added, let removed, let diff)? = state.items.first(where: { $0.id == "F1" }) else {
-            return XCTFail("应有文件改动项")
+        let n = notif("turn/diff/updated", ["threadId": "t", "turnId": "turn1", "diff": diff])
+        ThreadReducer().apply(n, to: &state)
+        XCTAssertEqual(state.turnDiff, diff)
+    }
+
+    func testFileChangePatchUpdatedStoresPerFileDiff() {
+        // fileChange/patchUpdated：先有 fileChange item，patch 带 changes[].diff，按 path 落入 diff 文本
+        var state = ConversationState(threadId: "t")
+        state.items = [.fileChange(id: "i1", file: "a.swift", added: 0, removed: 0, diff: "")]
+        let fileDiff = "--- a/a.swift\n+++ b/a.swift\n@@ -0,0 +1 @@\n+x"
+        let n = notif("item/fileChange/patchUpdated", [
+            "threadId": "t", "turnId": "turn1", "itemId": "i1",
+            "changes": [["path": "a.swift", "kind": ["type": "update"], "diff": fileDiff]] as [[String: Any]]
+        ])
+        ThreadReducer().apply(n, to: &state)
+        guard case .fileChange(_, let file, let added, _, let storedDiff) = state.items[0] else {
+            return XCTFail("expected fileChange")
         }
         XCTAssertEqual(file, "a.swift")
-        XCTAssertEqual(added, 3)
-        XCTAssertEqual(removed, 1)
-        XCTAssertEqual(diff, "@@")
+        XCTAssertEqual(added, 1)         // 从 changes[].diff 解析得 +1
+        XCTAssertEqual(storedDiff, fileDiff) // 存了该文件的 diff 文本
     }
 
     // MARK: - 真实嵌套形状（realTurnSequence.json，本机 codex 0.133.0 实测录制）
@@ -239,6 +253,13 @@ final class ThreadReducerTests: XCTestCase {
         reducer.apply(notif("turn/plan/updated", ["plan": [["step": "新", "status": "completed"]]]), to: &state)
         // plan 是整体快照，后到的覆盖先到的（不累加）
         XCTAssertEqual(state.plan, [TurnPlanStep(step: "新", status: .completed)])
+    }
+
+    // MARK: - Task 2: ConversationState.turnDiff 字段
+
+    func testConversationStateTurnDiffDefaultsEmpty() {
+        let state = ConversationState(threadId: "t")
+        XCTAssertEqual(state.turnDiff, "")
     }
 
     // helpers
