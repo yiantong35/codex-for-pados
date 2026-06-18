@@ -290,6 +290,7 @@ final class OrientationSnapshotTests: XCTestCase {
         let view = RightPanelView()
             .environment(LocaleManager())
             .environment(ThemeManager())
+            .environment(ActiveConversationHolder())
             .frame(width: 320, height: 600)
         snapshot(view, size: CGSize(width: 320, height: 600),
                  name: "right-panel", dir: "/tmp/workspace")
