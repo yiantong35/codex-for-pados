@@ -12,6 +12,16 @@ struct ProgressCardBar: View {
 
     @State private var expanded = false
 
+    init(progress: WorkspaceSummary.PlanProgress,
+         diff: WorkspaceSummary.DiffLineCounts,
+         initialExpanded: Bool = false,
+         onTapFiles: @escaping () -> Void = {}) {
+        self.progress = progress
+        self.diff = diff
+        self.onTapFiles = onTapFiles
+        _expanded = State(initialValue: initialExpanded)
+    }
+
     private static let intFormatter: NumberFormatter = {
         let f = NumberFormatter(); f.numberStyle = .decimal; return f
     }()
@@ -32,6 +42,8 @@ struct ProgressCardBar: View {
             if !progress.isEmpty {
                 (Text("第 ") + Text("\(progress.completed)/\(progress.total)").monospacedDigit() + Text(" 步"))
                     .font(.callout)
+            }
+            if !progress.isEmpty && !diff.isEmpty {
                 Text("·").foregroundStyle(.secondary)
             }
             if !diff.isEmpty {
@@ -64,7 +76,7 @@ struct ProgressCardBar: View {
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))
         .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
         .padding(.horizontal, 12)
-        .offset(y: -8)
+        .offset(y: -52)
         .alignmentGuide(.bottom) { $0[.top] }   // overlay 浮在小条上方
         .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
