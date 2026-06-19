@@ -21,6 +21,7 @@ final class ApprovalCoordinator {
         self.projects = projects
         store.onPendingChange = { [weak projects] tid, pending in
             projects?.setPendingApproval(threadId: tid, pending: pending)
+            projects?.setLiveStatus(tid, pending ? .waiting : .none)
         }
     }
 
