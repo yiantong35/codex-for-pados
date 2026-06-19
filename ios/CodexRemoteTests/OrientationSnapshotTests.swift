@@ -443,6 +443,33 @@ final class OrientationSnapshotTests: XCTestCase {
             XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
         }
     }
+
+    // MARK: - 场景 8：BadgeDot 状态圆点五态（sidebar-status-badges）
+
+    func test_badge_localization_keys_present() {
+        for key in ["badge.running", "badge.waiting", "badge.unreadFailed", "badge.unreadCompleted"] {
+            let value = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
+        }
+    }
+
+    func test_badge_dot_five_states_snapshot() {
+        let states: [(ThreadBadge, String)] = [
+            (.running, "running"),
+            (.waiting, "waiting"),
+            (.unreadFailed, "unread-failed"),
+            (.unreadCompleted, "unread-completed"),
+            (.none, "none"),
+        ]
+        for (badge, label) in states {
+            let view = BadgeDot(badge: badge)
+                .environment(LocaleManager())
+                .frame(width: 120, height: 120)
+                .background(Color(.systemBackground))
+            snapshot(view, size: CGSize(width: 120, height: 120),
+                     name: "badge-\(label)", dir: "/tmp/badges")
+        }
+    }
 }
 
 /// 快照专用 KeyManager 存储替身：内存态，避免快照触碰 Keychain。
