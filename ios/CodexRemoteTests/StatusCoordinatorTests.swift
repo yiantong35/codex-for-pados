@@ -70,4 +70,22 @@ final class StatusCoordinatorTests: XCTestCase {
         coord.handle(notif(ServerNotificationMethod.turnStarted, ["turn": ["id": "u1"]]))
         XCTAssertEqual(store.badge("t1"), .none)  // 未受影响
     }
+
+    // M1：interrupted 不应记为 completed 绿点。turn/completed status=interrupted
+    // → 不 recordOutcome（不亮绿），但仍清实时态。
+    func test_turnCompleted_interrupted_does_not_record_completed() {
+        let rs = ReadStateStore(defaults: UserDefaults(suiteName: "scint.\(UUID().uuidString)")!)
+        let store = ProjectsStore(readState: rs)
+        store.ingest([ThreadSummary(id: "t1", sessionId: "s1", preview: "", modelProvider: "openai",
+                                    createdAt: 0, updatedAt: 100, cwd: "/x", cliVersion: "0.1.0",
+                                    name: nil, gitInfo: GitInfoSummary(sha: nil, branch: "m", originUrl: "o/x"))])
+        rs.markViewed("t1", updatedAt: 50)   // 旧锚点：若误记 completed 会亮绿
+        let coord = StatusCoordinator(projects: store)
+        coord.handle(notif(ServerNotificationMethod.turnStarted,
+                           ["threadId": "t1", "turn": ["id": "u1"]]))
+        coord.handle(notif(ServerNotificationMethod.turnCompleted,
+                           ["threadId": "t1", "turn": ["id": "u1", "status": "interrupted"]]))
+        XCTAssertNil(rs.lastOutcome("t1"))        // 未记结局
+        XCTAssertEqual(store.badge("t1"), .none)  // 不亮绿（live 已清空、无 outcome）
+    }
 }

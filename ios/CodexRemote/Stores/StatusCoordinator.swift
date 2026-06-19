@@ -44,7 +44,13 @@ final class StatusCoordinator {
             projects.setLiveStatus(tid, .none)
             let turn = p["turn"] as? [String: Any]
             let status = (turn?["status"] as? String) ?? "completed"
-            projects.recordOutcome(tid, outcome: status == "failed" ? .failed : .completed)
+            // M1：只对明确的 completed/failed 记结局；interrupted/inProgress/未知不记
+            // （TurnStatus = completed|interrupted|failed|inProgress）——避免 interrupted 误亮绿点。
+            switch status {
+            case "completed": projects.recordOutcome(tid, outcome: .completed)
+            case "failed":    projects.recordOutcome(tid, outcome: .failed)
+            default:          break   // 仅清实时态，不记结局
+            }
 
         case ServerNotificationMethod.statusChanged:
             let status = p["status"] as? [String: Any]
