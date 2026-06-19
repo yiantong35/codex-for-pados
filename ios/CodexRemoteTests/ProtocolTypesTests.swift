@@ -109,4 +109,9 @@ final class ProtocolTypesTests: XCTestCase {
         XCTAssertEqual(t.statusType, "idle")
         XCTAssertEqual(t.activeFlags, [])
     }
+
+    // Task 5: thread/status/changed 协议常量
+    func test_serverNotificationMethod_has_statusChanged() {
+        XCTAssertEqual(ServerNotificationMethod.statusChanged, "thread/status/changed")
+    }
 }

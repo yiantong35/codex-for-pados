@@ -30,6 +30,7 @@ enum ServerNotificationMethod {
     static let fileChangePatchUpdated = "item/fileChange/patchUpdated"
     static let turnStarted = "turn/started"
     static let turnCompleted = "turn/completed"
+    static let statusChanged = "thread/status/changed"
     static let turnDiffUpdated = "turn/diff/updated"
     static let turnPlanUpdated = "turn/plan/updated"
     static let threadStarted = "thread/started"
