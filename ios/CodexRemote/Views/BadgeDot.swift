@@ -16,7 +16,8 @@ struct BadgeDot: View {
                            ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true)
                            : .default,
                            value: pulse)
-                .onAppear { if badge == .running { pulse = true } }
+                // L3：用 .task(id: badge) 驱动脉冲——view 复用（态切到 .running 未触发 onAppear）也能启动。
+                .task(id: badge) { pulse = (badge == .running) }
                 .accessibilityLabel(Text(a11yKey))
         }
         // .none → 不渲染任何视图
@@ -33,8 +34,9 @@ struct BadgeDot: View {
     }
 
     private var a11yKey: LocalizedStringKey {
+        // .none 永不渲染（Circle 包在 if let fillColor 内），无需分支。
         switch badge {
-        case .none:             return ""
+        case .none:             return ""   // 不可达，仅为 switch 完备
         case .running:          return "badge.running"
         case .waiting:          return "badge.waiting"
         case .unreadFailed:     return "badge.unreadFailed"
