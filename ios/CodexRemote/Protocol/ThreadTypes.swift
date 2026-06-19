@@ -14,6 +14,12 @@ struct GitInfoSummary: Codable, Equatable {
     var originUrl: String?
 }
 
+/// ThreadStatus 子集（取自 v2/ThreadStatus.ts）。MVP 仅需 type + activeFlags 用于回填实时态。
+struct ThreadStatusSummary: Codable, Equatable {
+    var type: String?
+    var activeFlags: [String]?
+}
+
 struct ThreadSummary: Codable, Identifiable {
     let id: String
     let sessionId: String
@@ -25,6 +31,13 @@ struct ThreadSummary: Codable, Identifiable {
     let cliVersion: String
     let name: String?
     var gitInfo: GitInfoSummary?                    // null 表示非 git 仓库（分类信号，见 D8）
+    /// thread/list 返回的会话状态（sidebar-status-badges D3 回填实时态）。缺省时容错为 nil。
+    var status: ThreadStatusSummary?
+
+    /// 派生：状态类型字符串，缺省回落 "idle"（B5 兜底）。
+    var statusType: String { status?.type ?? "idle" }
+    /// 派生：active flags，缺省空数组。
+    var activeFlags: [String] { status?.activeFlags ?? [] }
 }
 
 struct ThreadListParams: Codable {

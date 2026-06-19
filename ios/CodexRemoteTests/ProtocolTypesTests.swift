@@ -67,4 +67,46 @@ final class ProtocolTypesTests: XCTestCase {
         let t = try JSONDecoder().decode(ThreadSummary.self, from: json)
         XCTAssertNil(t.gitInfo)
     }
+
+    // MARK: - ThreadSummary.status 解码（sidebar-status-badges D3）
+
+    func test_threadSummary_decodes_active_status_with_flags() throws {
+        let json = """
+        {
+          "id": "t1", "sessionId": "s1", "preview": "p", "modelProvider": "openai",
+          "createdAt": 1.0, "updatedAt": 2.0, "cwd": "/x", "cliVersion": "0.1.0",
+          "name": null,
+          "status": { "type": "active", "activeFlags": ["waitingOnApproval"] }
+        }
+        """.data(using: .utf8)!
+        let t = try JSONDecoder().decode(ThreadSummary.self, from: json)
+        XCTAssertEqual(t.statusType, "active")
+        XCTAssertEqual(t.activeFlags, ["waitingOnApproval"])
+    }
+
+    func test_threadSummary_decodes_idle_status() throws {
+        let json = """
+        {
+          "id": "t2", "sessionId": "s2", "preview": "p", "modelProvider": "openai",
+          "createdAt": 1.0, "updatedAt": 2.0, "cwd": "/x", "cliVersion": "0.1.0",
+          "name": null, "status": { "type": "idle" }
+        }
+        """.data(using: .utf8)!
+        let t = try JSONDecoder().decode(ThreadSummary.self, from: json)
+        XCTAssertEqual(t.statusType, "idle")
+        XCTAssertEqual(t.activeFlags, [])
+    }
+
+    // B5 兜底：缺 status 字段时不崩溃，statusType 默认 idle、activeFlags 空
+    func test_threadSummary_missing_status_defaults_idle() throws {
+        let json = """
+        {
+          "id": "t3", "sessionId": "s3", "preview": "p", "modelProvider": "openai",
+          "createdAt": 1.0, "updatedAt": 2.0, "cwd": "/x", "cliVersion": "0.1.0", "name": null
+        }
+        """.data(using: .utf8)!
+        let t = try JSONDecoder().decode(ThreadSummary.self, from: json)
+        XCTAssertEqual(t.statusType, "idle")
+        XCTAssertEqual(t.activeFlags, [])
+    }
 }
