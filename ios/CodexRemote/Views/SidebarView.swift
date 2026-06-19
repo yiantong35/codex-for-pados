@@ -89,15 +89,13 @@ struct SidebarView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            if projects.hasPendingApproval(thread.id) {
-                Label("sidebar.pendingApproval", systemImage: "clock.badge.exclamationmark")
-                    .labelStyle(.iconOnly)
-                    .foregroundStyle(.orange)
-                    .accessibilityLabel(Text("sidebar.pendingApproval"))
-            }
+            BadgeDot(badge: projects.badge(thread.id))
         }
         .contentShape(Rectangle())
-        .onTapGesture { selectedThreadId = thread.id }
+        .onTapGesture {
+            selectedThreadId = thread.id
+            projects.markViewed(thread.id)
+        }
     }
 
     private func displayTitle(_ thread: ThreadSummary) -> String {
