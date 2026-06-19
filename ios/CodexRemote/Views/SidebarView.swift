@@ -43,6 +43,10 @@ struct SidebarView: View {
             guard connection.phase == .ready, let rpc = connection.rpc else { return }
             await projects.loadFromServer(rpc: rpc)
         }
+        .onChange(of: selectedThreadId) { _, new in
+            // B4：覆盖非 tap 的选中变化（程序化选中、列表恢复等），保持「选中会话恒为已读」。
+            projects.setSelected(new)
+        }
     }
 
     /// 单个项目 = 可折叠 DisclosureGroup；标题行带文件夹图标 + 待批准计数徽标。
@@ -95,6 +99,7 @@ struct SidebarView: View {
         .onTapGesture {
             selectedThreadId = thread.id
             projects.markViewed(thread.id)
+            projects.setSelected(thread.id)
         }
     }
 

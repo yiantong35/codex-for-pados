@@ -32,6 +32,8 @@ final class ProjectsStore {
     private var pendingApproval: Set<String> = []
     /// sidebar-status-badges：每会话实时态映射（设计 D3）。断线不清空（B7）。
     private var liveStatus: [String: LiveStatus] = [:]
+    /// 当前选中的会话 id（设计 B4：选中会话恒为已读）。由 SidebarView 接线。
+    private(set) var selectedThreadId: String?
     /// 未读追踪（设计 D4）。构造注入；默认 .standard 供生产用。
     private let readState: ReadStateStore
 
@@ -81,6 +83,10 @@ final class ProjectsStore {
         for t in threads {
             liveStatus[t.id] = LiveStatus.from(threadStatus: t.statusType, activeFlags: t.activeFlags)
         }
+        // B4：选中会话每次刷新都重锚到新 updatedAt（在看期间不积累未读；离开后以最后所见为锚）。
+        if let sel = selectedThreadId, let t = threads.first(where: { $0.id == sel }) {
+            readState.markViewed(sel, updatedAt: t.updatedAt)
+        }
     }
 
     func setPendingApproval(threadId: String, pending: Bool) {
@@ -111,14 +117,23 @@ final class ProjectsStore {
         readState.markViewed(threadId, updatedAt: t.updatedAt)
     }
 
+    /// 设置当前选中会话（设计 B4：选中会话恒为已读）。SidebarView 接线。
+    func setSelected(_ id: String?) {
+        selectedThreadId = id
+    }
+
     /// 组合实时态 + 未读态，仲裁单一徽标（设计 D2/D4）。
     func badge(_ threadId: String) -> ThreadBadge {
         guard let t = threadById(threadId) else { return .none }
+        // M2：单一真相源——待批准期间 live 强制 .waiting（防完成事件清 live 致蓝点闪烁）。
+        let live: LiveStatus = hasPendingApproval(threadId) ? .waiting : (liveStatus[threadId] ?? .none)
+        // B4：选中会话恒为已读——viewedAt 视为 .infinity（updatedAt > ∞ 恒 false → 永不未读）。
+        let viewedAt = (threadId == selectedThreadId) ? .infinity : readState.viewedAt(threadId)
         return ThreadBadge.resolve(
-            live: liveStatus[threadId] ?? .none,
+            live: live,
             outcome: readState.lastOutcome(threadId),
             updatedAt: t.updatedAt,
-            viewedAt: readState.viewedAt(threadId))
+            viewedAt: viewedAt)
     }
 
     private func threadById(_ id: String) -> ThreadSummary? {

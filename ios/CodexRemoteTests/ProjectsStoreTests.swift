@@ -126,4 +126,64 @@ final class ProjectsStoreTests: XCTestCase {
         let (s, _) = storeWithReadState()
         XCTAssertEqual(s.badge("missing"), .none)
     }
+
+    // MARK: - H1+M3：选中会话恒为已读（设计 B4）
+
+    // 选中会话即使 outcome=completed 且 updatedAt>旧 viewedAt 也不显示未读
+    func test_selected_thread_never_unread_even_with_completed_outcome() {
+        let (s, rs) = storeWithReadState()
+        s.ingest([thread("a", cwd: "/repo/x", updatedAt: 10, origin: "o/x", git: true)])
+        rs.recordOutcome("a", outcome: .completed)
+        rs.markViewed("a", updatedAt: 5)            // 旧锚点 → 正常会判未读
+        XCTAssertEqual(s.badge("a"), .unreadCompleted)  // 未选中 → 未读绿
+        s.setSelected("a")                          // 选中
+        XCTAssertEqual(s.badge("a"), .none)         // 选中会话恒已读
+    }
+
+    // 选中会话刷新（ingest 整表替换 updatedAt）后仍不显示未读
+    func test_selected_thread_stays_read_after_ingest_refresh() {
+        let (s, rs) = storeWithReadState()
+        s.ingest([thread("a", cwd: "/repo/x", updatedAt: 10, origin: "o/x", git: true)])
+        rs.recordOutcome("a", outcome: .completed)
+        rs.markViewed("a", updatedAt: 10)
+        s.setSelected("a")
+        // 刷新：updatedAt 推进到 20（turn 完成但用户全程在看）
+        s.ingest([thread("a", cwd: "/repo/x", updatedAt: 20, origin: "o/x", git: true)])
+        XCTAssertEqual(s.badge("a"), .none)         // 仍已读（ingest 重锚选中会话）
+    }
+
+    // 离开选中会话（setSelected 别的 id）后，该会话按正常未读判定（离开时以最后所见 updatedAt 为锚）
+    func test_leaving_selected_thread_anchors_to_last_seen() {
+        let (s, rs) = storeWithReadState()
+        s.ingest([thread("a", cwd: "/repo/x", updatedAt: 10, origin: "o/x", git: true)])
+        rs.recordOutcome("a", outcome: .completed)
+        rs.markViewed("a", updatedAt: 10)
+        s.setSelected("a")
+        s.ingest([thread("a", cwd: "/repo/x", updatedAt: 20, origin: "o/x", git: true)])  // 在看时刷新→重锚 20
+        s.setSelected("b")                          // 离开 a
+        XCTAssertEqual(s.badge("a"), .none)         // updatedAt(20)==viewedAt(20) → 不未读
+        // 离开后新活动（updatedAt 推进）才算未读
+        s.ingest([thread("a", cwd: "/repo/x", updatedAt: 30, origin: "o/x", git: true)])
+        XCTAssertEqual(s.badge("a"), .unreadCompleted)  // 30 > 20
+    }
+
+    // 选中会话仍正常显示 live 态（running/waiting）
+    func test_selected_thread_still_shows_live_status() {
+        let (s, _) = storeWithReadState()
+        s.ingest([thread("a", cwd: "/repo/x", updatedAt: 10, origin: "o/x", git: true)])
+        s.setSelected("a")
+        s.setLiveStatus("a", .running)
+        XCTAssertEqual(s.badge("a"), .running)
+    }
+
+    // MARK: - M2：审批+完成竞态单一真相源
+
+    // setPendingApproval(true) 后即使 setLiveStatus(.none)，badge 仍 .waiting
+    func test_pendingApproval_is_single_source_of_truth_for_waiting() {
+        let (s, _) = storeWithReadState()
+        s.ingest([thread("a", cwd: "/repo/x", updatedAt: 10, origin: "o/x", git: true)])
+        s.setPendingApproval(threadId: "a", pending: true)
+        s.setLiveStatus("a", .none)                 // 完成事件清实时态
+        XCTAssertEqual(s.badge("a"), .waiting)      // 待批准仍在 → 强制蓝
+    }
 }
