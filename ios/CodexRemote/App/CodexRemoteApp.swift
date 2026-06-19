@@ -5,7 +5,7 @@ struct CodexRemoteApp: App {
     // Stores 在 App 持有（@State 保证生命周期），注入 environment 供全树访问。
     // 生产传 liveTransportFactory（SSH + codex app-server exec proxy）。
     @State private var connection = ConnectionStore(transportFactory: liveTransportFactory)
-    @State private var projects = ProjectsStore()
+    @State private var projects = ProjectsStore(readState: ReadStateStore.shared)
     @State private var approvals = ApprovalStore()
     // appearance-locale：语言/主题 manager 在根持有并注入；驱动运行时切换。
     @State private var localeManager = LocaleManager()
@@ -37,6 +37,7 @@ struct RootView: View {
     @Environment(ProjectsStore.self) private var projects
     @Environment(ApprovalStore.self) private var approvals
     @State private var coordinator: ApprovalCoordinator?
+    @State private var statusCoordinator: StatusCoordinator?
 
     var body: some View {
         Group {
@@ -53,8 +54,11 @@ struct RootView: View {
         .onChange(of: rpcIdentity) { _, _ in
             let coord = coordinator ?? ApprovalCoordinator(store: approvals, projects: projects)
             coordinator = coord
+            let scoord = statusCoordinator ?? StatusCoordinator(projects: projects)
+            statusCoordinator = scoord
             if connection.phase == .ready, let rpc = connection.rpc {
                 Task { await coord.bind(rpc: rpc) }
+                Task { await scoord.bind(rpc: rpc) }   // B6：重连时 rpcIdentity 变 → 重 bind
             }
         }
         .onChange(of: connection.phase) { _, phase in

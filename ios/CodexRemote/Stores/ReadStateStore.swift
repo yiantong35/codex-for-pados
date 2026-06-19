@@ -9,6 +9,9 @@ import Observation
 @Observable
 @MainActor
 final class ReadStateStore {
+    /// App 根与 ProjectsStore 共享的单实例（设计 D6 接线）。
+    static let shared = ReadStateStore()
+
     private let defaults: UserDefaults
     private static let viewedKey = "sidebar.readstate.viewedAt"
     private static let outcomeKey = "sidebar.readstate.lastOutcome"
