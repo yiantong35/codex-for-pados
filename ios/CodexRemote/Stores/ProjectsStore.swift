@@ -30,6 +30,14 @@ final class ProjectsStore {
         (projects.flatMap(\.threads) + looseConversations).sorted { $0.updatedAt > $1.updatedAt }
     }
     private var pendingApproval: Set<String> = []
+    /// sidebar-status-badges：每会话实时态映射（设计 D3）。断线不清空（B7）。
+    private var liveStatus: [String: LiveStatus] = [:]
+    /// 未读追踪（设计 D4）。构造注入；默认 .standard 供生产用。
+    private let readState: ReadStateStore
+
+    init(readState: ReadStateStore = ReadStateStore()) {
+        self.readState = readState
+    }
 
     /// session-management「桌面来源会话可见」：默认 sourceKinds 可能不含桌面 app（appServer）来源，
     /// 显式覆盖以确保桌面会话出现（设计 §13 Open Question，build 实测确认；不含也无害）。
@@ -69,6 +77,10 @@ final class ProjectsStore {
                            originUrl: sorted.first?.gitInfo?.originUrl, threads: sorted)
         }.sorted { ($0.threads.first?.updatedAt ?? 0) > ($1.threads.first?.updatedAt ?? 0) }
         looseConversations = loose.sorted { $0.updatedAt > $1.updatedAt }
+        // 回填实时态（设计 D3 兜底；B5：未推送的会话靠 thread/list status 字段）。
+        for t in threads {
+            liveStatus[t.id] = LiveStatus.from(threadStatus: t.statusType, activeFlags: t.activeFlags)
+        }
     }
 
     func setPendingApproval(threadId: String, pending: Bool) {
@@ -79,5 +91,38 @@ final class ProjectsStore {
 
     func pendingApprovalCount(in project: Project) -> Int {
         project.threads.filter { hasPendingApproval($0.id) }.count
+    }
+
+    // MARK: - sidebar-status-badges
+
+    /// StatusCoordinator 写入实时态（设计 D3）。
+    func setLiveStatus(_ threadId: String, _ status: LiveStatus) {
+        liveStatus[threadId] = status
+    }
+
+    /// turn/completed 时持久化结局（设计 D4，B8）。
+    func recordOutcome(_ threadId: String, outcome: Outcome) {
+        readState.recordOutcome(threadId, outcome: outcome)
+    }
+
+    /// 点击选中会话 → 标记已读到该会话当前 updatedAt（设计 D4，B3/B4）。
+    func markViewed(_ threadId: String) {
+        guard let t = threadById(threadId) else { return }
+        readState.markViewed(threadId, updatedAt: t.updatedAt)
+    }
+
+    /// 组合实时态 + 未读态，仲裁单一徽标（设计 D2/D4）。
+    func badge(_ threadId: String) -> ThreadBadge {
+        guard let t = threadById(threadId) else { return .none }
+        return ThreadBadge.resolve(
+            live: liveStatus[threadId] ?? .none,
+            outcome: readState.lastOutcome(threadId),
+            updatedAt: t.updatedAt,
+            viewedAt: readState.viewedAt(threadId))
+    }
+
+    private func threadById(_ id: String) -> ThreadSummary? {
+        if let t = projects.flatMap(\.threads).first(where: { $0.id == id }) { return t }
+        return looseConversations.first(where: { $0.id == id })
     }
 }

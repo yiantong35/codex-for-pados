@@ -58,4 +58,72 @@ final class ProjectsStoreTests: XCTestCase {
         store.setPendingApproval(threadId: "a", pending: false)
         XCTAssertFalse(store.hasPendingApproval("a"))
     }
+
+    // MARK: - sidebar-status-badges：liveStatus + badge() 组合
+
+    private func storeWithReadState() -> (ProjectsStore, ReadStateStore) {
+        let rs = ReadStateStore(defaults: UserDefaults(suiteName: "ps.\(UUID().uuidString)")!)
+        let s = ProjectsStore(readState: rs)
+        return (s, rs)
+    }
+
+    func test_setLiveStatus_drives_badge_running() {
+        let (s, _) = storeWithReadState()
+        s.ingest([thread("a", cwd: "/repo/x", updatedAt: 10, origin: "o/x", git: true)])
+        s.setLiveStatus("a", .running)
+        XCTAssertEqual(s.badge("a"), .running)
+    }
+
+    func test_setLiveStatus_waiting_drives_blue() {
+        let (s, _) = storeWithReadState()
+        s.ingest([thread("a", cwd: "/repo/x", updatedAt: 10, origin: "o/x", git: true)])
+        s.setLiveStatus("a", .waiting)
+        XCTAssertEqual(s.badge("a"), .waiting)
+    }
+
+    // 未读完成：live=none + outcome=completed + updatedAt > viewedAt(默认 ∞→需先有 outcome 且未 markViewed)
+    func test_unread_completed_when_outcome_recorded_and_not_viewed() {
+        let (s, rs) = storeWithReadState()
+        s.ingest([thread("a", cwd: "/repo/x", updatedAt: 10, origin: "o/x", git: true)])
+        // 模拟 turn/completed 记录结局，但 viewedAt 默认 ∞ → 仍判已读（B2）
+        rs.recordOutcome("a", outcome: .completed)
+        XCTAssertEqual(s.badge("a"), .none)
+        // 一旦 markViewed 把锚点设到过去，再来新 updatedAt 才算未读
+        rs.markViewed("a", updatedAt: 5)   // 上次看的是 ts=5
+        XCTAssertEqual(s.badge("a"), .unreadCompleted)  // updatedAt=10 > 5
+    }
+
+    // B3：自己发消息→点击已 markViewed 到当前 updatedAt → 不误亮
+    func test_markViewed_clears_unread() {
+        let (s, rs) = storeWithReadState()
+        s.ingest([thread("a", cwd: "/repo/x", updatedAt: 10, origin: "o/x", git: true)])
+        rs.recordOutcome("a", outcome: .failed)
+        rs.markViewed("a", updatedAt: 5)
+        XCTAssertEqual(s.badge("a"), .unreadFailed)
+        s.markViewed("a")   // 标记到当前 updatedAt=10
+        XCTAssertEqual(s.badge("a"), .none)  // 10 > 10 false
+    }
+
+    // B7：断线不清空 liveStatus（仅验证 setLiveStatus 不会被任何清空逻辑动到——无 clear API）
+    func test_liveStatus_persists_until_overwritten() {
+        let (s, _) = storeWithReadState()
+        s.ingest([thread("a", cwd: "/repo/x", updatedAt: 10, origin: "o/x", git: true)])
+        s.setLiveStatus("a", .running)
+        s.setLiveStatus("a", .none)  // 只有显式 setNone 才变
+        XCTAssertEqual(s.badge("a"), .none)
+    }
+
+    // ingest 回填：带 active+waitingOnApproval 的 status → badge=waiting
+    func test_ingest_backfills_liveStatus_from_status_field() {
+        let (s, _) = storeWithReadState()
+        var t = thread("a", cwd: "/repo/x", updatedAt: 10, origin: "o/x", git: true)
+        t.status = ThreadStatusSummary(type: "active", activeFlags: ["waitingOnApproval"])
+        s.ingest([t])
+        XCTAssertEqual(s.badge("a"), .waiting)
+    }
+
+    func test_badge_unknown_thread_is_none() {
+        let (s, _) = storeWithReadState()
+        XCTAssertEqual(s.badge("missing"), .none)
+    }
 }
