@@ -62,7 +62,8 @@ do {
 
 func installSignalHandler(_ sig: Int32) {
     signal(sig, SIG_IGN)
-    let src = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+    // 挂全局队列:不依赖 main runloop(async top-level 下没有跑着的 main runloop)。
+    let src = DispatchSource.makeSignalSource(signal: sig, queue: DispatchQueue.global())
     src.setEventHandler {
         FileHandle.standardError.write(Data("\n收到信号,正在关闭…\n".utf8))
         ws.stop()
@@ -80,5 +81,8 @@ var signalSources: [DispatchSourceSignal] = []
 installSignalHandler(SIGINT)
 installSignalHandler(SIGTERM)
 
-// 阻塞运行
-dispatchMain()
+// 永久挂起主任务(NIO 在自己线程跑 WS;信号 source 在全局队列触发优雅关闭)。
+// 不用 dispatchMain():async top-level 跑在协作线程池,dispatchMain 在非主线程不阻塞 → 进程会提前退出。
+while true {
+    try? await Task.sleep(nanoseconds: 3_600_000_000_000)
+}
