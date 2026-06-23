@@ -321,22 +321,6 @@
         }
       }
     },
-    "conn.error.appServerUnreachable": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "app-server unreachable. Check that the Mac launch script has enabled managed daemon remote control."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "app-server 不可达，请检查 Mac 端启动脚本是否已启用受管 daemon 远程控制。"
-          }
-        }
-      }
-    },
     "conn.error.authFailed %@": {
       "localizations": {
         "en": {
@@ -369,22 +353,6 @@
         }
       }
     },
-    "conn.error.noKey": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No connection key yet — generate one first"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "尚未生成连接密钥，请先生成"
-          }
-        }
-      }
-    },
     "conn.host": {
       "localizations": {
         "en": {
@@ -397,182 +365,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "主机 / IP"
-          }
-        }
-      }
-    },
-    "conn.key.copied": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Copied"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已复制"
-          }
-        }
-      }
-    },
-    "conn.key.copyPublic": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Copy public key"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "复制公钥"
-          }
-        }
-      }
-    },
-    "conn.key.generate": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Generate connection key"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "生成连接密钥"
-          }
-        }
-      }
-    },
-    "conn.key.generated": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connection key ready"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已生成连接密钥"
-          }
-        }
-      }
-    },
-    "conn.key.installHint": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Install on your Mac (append to ~/.ssh/authorized_keys):"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "安装到 Mac（追加到 ~/.ssh/authorized_keys）："
-          }
-        }
-      }
-    },
-    "conn.key.regenerate": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Regenerate"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重新生成"
-          }
-        }
-      }
-    },
-    "conn.key.regenerate.confirm": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Regenerate"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重新生成"
-          }
-        }
-      }
-    },
-    "conn.key.regenerate.message": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This invalidates the old public key. You must reinstall the new one on your Mac."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "这会让旧公钥失效，需要把新公钥重新安装到 Mac。"
-          }
-        }
-      }
-    },
-    "conn.key.regenerate.title": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Regenerate connection key?"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重新生成连接密钥？"
-          }
-        }
-      }
-    },
-    "conn.passwordPlaceholder": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Password"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "密码"
-          }
-        }
-      }
-    },
-    "conn.privateKeyPlaceholder": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Private key PEM (-----BEGIN OPENSSH PRIVATE KEY-----)"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "私钥 PEM（-----BEGIN OPENSSH PRIVATE KEY-----）"
           }
         }
       }
@@ -593,38 +385,6 @@
         }
       }
     },
-    "conn.sshPort": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SSH port"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SSH 端口"
-          }
-        }
-      }
-    },
-    "conn.sshUser": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SSH username"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SSH 用户名"
-          }
-        }
-      }
-    },
     "conn.title": {
       "localizations": {
         "en": {
@@ -637,22 +397,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "连接配置"
-          }
-        }
-      }
-    },
-    "conn.usePrivateKey": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Use private key (ed25519)"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "使用私钥（ed25519）"
           }
         }
       }
@@ -1421,6 +1165,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "摘要"
+          }
+        }
+      }
+    },
+    "conn.token": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Token"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接令牌"
+          }
+        }
+      }
+    },
+    "conn.port": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Port"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "端口"
           }
         }
       }

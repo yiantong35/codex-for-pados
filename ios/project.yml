@@ -24,10 +24,7 @@ settings:
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGN_STYLE: Manual
 
-packages:
-  Citadel:
-    url: https://github.com/orlandos-nl/Citadel
-    from: "0.12.1"
+packages: {}
 
 targets:
   CodexRemote:
@@ -50,8 +47,6 @@ targets:
         INFOPLIST_FILE: CodexRemote/Info.plist
         CODE_SIGN_ENTITLEMENTS: CodexRemote/CodexRemote.entitlements
         SWIFT_VERSION: "6.0"
-    dependencies:
-      - package: Citadel
 
   CodexRemoteTests:
     type: bundle.unit-test

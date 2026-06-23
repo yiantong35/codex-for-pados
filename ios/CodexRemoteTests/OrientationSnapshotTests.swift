@@ -98,12 +98,6 @@ final class OrientationSnapshotTests: XCTestCase {
         return store
     }
 
-    /// 快照用 KeyManager：内存存储，确定性且不触碰 Keychain。
-    @MainActor
-    private func makeKeyManager() -> KeyManager {
-        KeyManager(store: SnapshotKeyStore())
-    }
-
     /// 构造一个 git 项目会话（有 gitInfo → 归入项目区）。
     private func gitThread(_ id: String, cwd: String, origin: String, ago: Double, name: String? = nil) -> ThreadSummary {
         let now = Date().timeIntervalSince1970
@@ -127,7 +121,6 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(makeConnection())
             .environment(LocaleManager())
             .environment(ThemeManager())
-            .environment(makeKeyManager())
         snapshot(view, size: portrait, name: "connection-portrait")
     }
 
@@ -136,34 +129,7 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(makeConnection())
             .environment(LocaleManager())
             .environment(ThemeManager())
-            .environment(makeKeyManager())
         snapshot(view, size: landscape, name: "connection-landscape")
-    }
-
-    // MARK: - 场景 1b：连接密钥区（生成前 / 生成后）
-    //
-    // 局限：usePrivateKey 是 ConnectionConfigView 的私有 @State，离屏快照点不了开关，
-    // 故直接渲染抽出的生产组件 KeyAreaView（与开关打开后渲染的完全是同一个 View）。
-    // 产出落 /tmp/keyui/。
-
-    private func keyCard(_ km: KeyManager) -> some View {
-        KeyAreaView()
-            .environment(km)
-            .environment(LocaleManager())
-            .padding(24)
-            .frame(maxWidth: 480)
-            .background(Color(.secondarySystemGroupedBackground))
-    }
-
-    func testKeyAreaBeforeGenerate() {
-        let km = makeKeyManager()   // 空存储 → hasKey=false
-        snapshot(keyCard(km), size: CGSize(width: 480, height: 200), name: "key-before", dir: "/tmp/keyui")
-    }
-
-    func testKeyAreaAfterGenerate() {
-        let km = makeKeyManager()
-        km.generateIfNeeded()       // hasKey=true → 指纹 + 复制 + 安装提示 + 重新生成
-        snapshot(keyCard(km), size: CGSize(width: 480, height: 360), name: "key-after", dir: "/tmp/keyui")
     }
 
     // MARK: - 场景 2：RootSplitView 三栏（左栏项目树有内容）
@@ -443,12 +409,4 @@ final class OrientationSnapshotTests: XCTestCase {
             XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
         }
     }
-}
-
-/// 快照专用 KeyManager 存储替身：内存态，避免快照触碰 Keychain。
-private final class SnapshotKeyStore: KeyStoring {
-    private var data: Data?
-    func saveKey(_ value: Data) { data = value }
-    func loadKey() -> Data? { data }
-    func deleteKey() { data = nil }
 }

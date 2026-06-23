@@ -4,27 +4,37 @@ import os
 
 private let connLog = Logger(subsystem: "com.tangyujie.codexremote", category: "connection")
 
-/// 连接超时错误（SSH/握手在限定时间内未完成）。
+/// 连接超时错误（建连/握手在限定时间内未完成）。
 struct ConnectionTimeoutError: LocalizedError {
-    var errorDescription: String? { "连接超时（SSH 或握手在 20 秒内未完成）" }
+    var errorDescription: String? { "连接超时（连接或握手在 20 秒内未完成）" }
 }
 
-/// 连接配置（host + SSH 端口 + 鉴权）。`.stub` 供测试使用。
+/// 连接配置（ws endpoint + token）。`.stub` 供测试使用。
 struct ConnectionConfig: Sendable {
     var host: String
-    var sshPort: Int
-    var auth: SSHAuth
+    var port: Int
+    var token: String
+
+    /// 组装带 token 的 ws URL：ws://host:port/?token=<token>
+    var wsURL: URL {
+        var comps = URLComponents()
+        comps.scheme = "ws"
+        comps.host = host
+        comps.port = port
+        comps.path = "/"
+        comps.queryItems = [URLQueryItem(name: "token", value: token)]
+        return comps.url!
+    }
 
     static var stub: ConnectionConfig {
-        .init(host: "x", sshPort: 22, auth: .password(user: "u", password: "p"))
+        .init(host: "x", port: 8799, token: "t")
     }
 }
 
 /// 连接生命周期状态机（设计 §7）。
 enum ConnectionPhase: Equatable {
     case disconnected
-    case sshConnecting
-    case execProxy
+    case connecting
     case initializing
     case ready
     case reconnecting
@@ -39,10 +49,11 @@ enum ConnectionPhase: Equatable {
     }
 }
 
-/// 连接状态层：驱动 SSH→exec proxy→JSON-RPC initialize 握手，监听断线并指数退避重连。
+/// 连接状态层：驱动 ws 连接 → JSON-RPC initialize 握手（容忍 Already initialized），
+/// 订阅 transport 控制信号驱动 UI 重连指示与会话 resume。ws 物理抖动由 WSTransport 内部自吞。
 ///
 /// `transportFactory` 注入便于测试 mock：生产环境传 `liveTransportFactory`
-/// （内部走 SSH + `codex app-server --listen stdio://` exec），测试传返回 MockTransport 的闭包。
+/// （构造连 daemon 的 WSTransport），测试传返回 MockTransport 的闭包。
 @Observable
 @MainActor
 final class ConnectionStore {
@@ -52,8 +63,9 @@ final class ConnectionStore {
 
     private let transportFactory: @Sendable (ConnectionConfig) async throws -> MessageTransport
     private var config: ConnectionConfig?
-    private var reconnectAttempts = 0
-    private var disconnectObserver: Task<Void, Never>?
+    private var transport: MessageTransport?
+    private var resumeHandler: (@Sendable () async -> Void)?
+    private var controlObserver: Task<Void, Never>?
     /// 当前连接尝试序号：每次新连接 +1；超时也 +1 以作废仍在后台跑的旧 establish。
     private var activeAttempt = 0
 
@@ -61,17 +73,18 @@ final class ConnectionStore {
         self.transportFactory = transportFactory
     }
 
+    /// 注入「需要快照重建」时的回调（snapshotNeeded 控制信号触发，通常接当前会话的 resume）。
+    func setResumeHandler(_ h: @escaping @Sendable () async -> Void) { resumeHandler = h }
+
     /// 发起连接（fire-and-forget，结果经 `phase` 反映给 UI）。
-    /// 新连接立即把 phase 置为 execProxy → 自动清除上一次的 .failed 错误。
-    /// 含 20s 硬超时：SSH/握手卡住时强制转 .failed 并作废后台残留任务（不依赖 Task 取消，
-    /// 因为底层 Citadel/NIO 不一定响应取消）。
+    /// 新连接立即把 phase 置为 connecting → 自动清除上一次的 .failed 错误。
+    /// 含 20s 硬超时：建连/握手卡住时强制转 .failed 并作废后台残留任务。
     func connect(config: ConnectionConfig) {
         self.config = config
-        reconnectAttempts = 0
         activeAttempt += 1
         let attempt = activeAttempt
-        phase = .execProxy
-        connLog.info("connect 开始 host=\(config.host, privacy: .public):\(config.sshPort) attempt=\(attempt)")
+        phase = .connecting
+        connLog.info("connect 开始 host=\(config.host, privacy: .public):\(config.port) attempt=\(attempt)")
 
         // 建连 + 握手任务。仅当仍是当前 attempt 时才落地 phase。
         Task { [weak self] in
@@ -81,8 +94,7 @@ final class ConnectionStore {
                 guard attempt == self.activeAttempt else { await client.stop(); return }
                 self.rpc = client
                 self.phase = .ready
-                self.reconnectAttempts = 0
-                self.observeDisconnect(client)
+                if let transport = self.transport { self.observeControl(transport) }
                 connLog.info("connect 成功 phase=ready")
             } catch {
                 guard attempt == self.activeAttempt else { return }   // 已被超时/新尝试作废
@@ -101,25 +113,28 @@ final class ConnectionStore {
         }
     }
 
-    /// 主动断开（停止重连观察 + 关闭 RPC）。
+    /// 主动断开（停止控制信号观察 + 关闭 RPC）。
     func disconnect() async {
         activeAttempt += 1                // 作废任何在途连接
-        disconnectObserver?.cancel()
-        disconnectObserver = nil
+        controlObserver?.cancel()
+        controlObserver = nil
         if let rpc { await rpc.stop() }
         rpc = nil
+        transport = nil
         phase = .disconnected
     }
 
     // MARK: - 握手
 
-    /// 建 SSH + exec app-server + initialize 握手，返回就绪的 JSON-RPC client。
+    /// 建 ws transport + initialize 握手，返回就绪的 JSON-RPC client。
+    /// 容忍式 initialize：收到自己 id 的 -32600 Already initialized 也视为握手成功（设计 §4 A3）。
     /// 不直接落 phase=.ready（由调用方按 attempt token 判定后落地）。
     private func doEstablish(_ config: ConnectionConfig) async throws -> JSONRPCClient {
-        phase = .execProxy
-        connLog.notice("doEstablish: 开始建 SSH + exec app-server…")
+        phase = .connecting
+        connLog.notice("doEstablish: 开始建 ws transport…")
         let transport = try await transportFactory(config)
-        connLog.notice("doEstablish: SSH+exec 就绪, 启动 JSONRPCClient")
+        self.transport = transport
+        connLog.notice("doEstablish: transport 就绪, 启动 JSONRPCClient")
         let client = JSONRPCClient(transport: transport)
         await client.start()
 
@@ -128,44 +143,35 @@ final class ConnectionStore {
         let params = InitializeParams(
             clientInfo: ClientInfo(name: "CodexRemote", title: nil, version: "0.1.0"),
             capabilities: nil)
-        let result = try await client.send(method: RPCMethod.initialize,
-                                           params: try Self.encode(params))
-        serverInfo = try Self.decode(InitializeResponse.self, from: result)
-        connLog.notice("doEstablish: 收到 initialize 响应, 发 initialized")
-        try await client.notify(method: RPCMethod.initialized, params: nil)
-        connLog.notice("doEstablish: 握手完成")
+        do {
+            let result = try await client.send(method: RPCMethod.initialize,
+                                               params: try Self.encode(params))
+            serverInfo = try? Self.decode(InitializeResponse.self, from: result)
+            try? await client.notify(method: RPCMethod.initialized, params: nil)  // 仅首个初始化者
+            connLog.notice("doEstablish: 握手完成")
+        } catch let TransportError.proxyFailed(msg) where msg.contains("Already initialized") {
+            connLog.notice("doEstablish: app-server 已被别端初始化，视为握手成功")
+            // 不发 initialized（非首个初始化者）
+        }
         return client
     }
 
-    // MARK: - 断线观察 + 重连
+    // MARK: - 控制信号观察
 
-    private func observeDisconnect(_ client: JSONRPCClient) {
-        disconnectObserver?.cancel()
-        disconnectObserver = Task { [weak self] in
-            // 通知流结束（transport 关闭/出错）即视为断线。
-            for await _ in await client.notifications() { }
-            guard let self, !Task.isCancelled else { return }
-            guard let config = self.config else { return }
-            self.phase = .reconnecting
-            await self.reconnectWithBackoff(config)
-        }
-    }
-
-    private func reconnectWithBackoff(_ config: ConnectionConfig) async {
-        guard !Task.isCancelled else { return }
-        reconnectAttempts += 1
-        let delay = min(pow(2.0, Double(reconnectAttempts)), 30)   // 指数退避，封顶 30s
-        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-        guard !Task.isCancelled else { return }
-        do {
-            let client = try await doEstablish(config)   // 重新 initialize
-            rpc = client
-            phase = .ready
-            reconnectAttempts = 0
-            observeDisconnect(client)
-        } catch {
-            phase = .reconnecting
-            await reconnectWithBackoff(config)
+    /// 订阅 transport 控制信号：reconnecting/ready 驱动 UI 重连指示，snapshotNeeded 触发会话重建。
+    /// ws 物理抖动的重连由 WSTransport 内部负责（incoming 流跨重连不结束），此处不再重新 initialize。
+    private func observeControl(_ transport: MessageTransport) {
+        controlObserver?.cancel()
+        controlObserver = Task { [weak self] in
+            for await ev in transport.control() {
+                guard let self else { return }
+                switch ev {
+                case .reconnecting: self.phase = .reconnecting
+                case .ready:        self.phase = .ready
+                case .snapshotNeeded:
+                    if let h = self.resumeHandler { await h() }
+                }
+            }
         }
     }
 
@@ -173,10 +179,6 @@ final class ConnectionStore {
     static func friendlyMessage(_ error: Error) -> String {
         if let t = error as? TransportError {
             switch t {
-            case .sshAuthFailed(let m):
-                return String(localized: "conn.error.authFailed \(m)")   // 单行：SSH 鉴权失败：%@
-            case .appServerUnreachable:
-                return "已连上 SSH 但 app-server 不可达，请确认 Mac 上 codex 可用。"
             case .proxyFailed(let m):  return "通道建立失败：\(m)"
             case .channelClosed(let r): return "连接通道关闭：\(r ?? "未知原因")"
             case .notConnected:        return "未连接"

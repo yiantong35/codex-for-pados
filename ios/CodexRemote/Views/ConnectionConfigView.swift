@@ -1,31 +1,30 @@
 import SwiftUI
 
-/// 连接配置界面：主机/端口/SSH 用户 + 密码或私钥。
-/// 非敏感项（主机/端口/用户）存 `UserDefaults`；敏感项（私钥 PEM / 密码）存 `KeychainStore`。
+/// 连接配置界面：ws 主机/端口 + 鉴权 token。
+/// 非敏感项（主机/端口）存 `UserDefaults`；敏感项（token）存 `KeychainStore`。
 /// 点击「连接」调用 `ConnectionStore.connect`，并把传输层 typed error 映射为明确中文文案。
 ///
 /// 视觉：去大标题，表单收敛为屏幕居中卡片（maxWidth 480，适配 iPad 11/13 寸），
 /// 齿轮设置入口浮在右上角（带 safe-area 边距）。
 struct ConnectionConfigView: View {
     @Environment(ConnectionStore.self) private var connection
-    @Environment(KeyManager.self) private var keyManager
 
     @State private var host = UserDefaults.standard.string(forKey: "host") ?? ""
-    @State private var sshPort = UserDefaults.standard.string(forKey: "sshPort") ?? "22"
-    @State private var user = UserDefaults.standard.string(forKey: "sshUser") ?? ""
+    @State private var port = UserDefaults.standard.string(forKey: "wsPort") ?? "8799"
+    @State private var token = (try? KeychainStore(service: "com.tangyujie.codexremote").load("wsToken")) ?? ""
     /// 启动自动重连一次性闸门：仅本次 app 生命周期内自动连一次，失败后不自动重试（避免循环）。
     @State private var didAutoConnect = false
 
-    /// 错误文案直接由 phase 派生：重新点连接 → phase 变 execProxy → 旧错误自动消失。
+    /// 错误文案直接由 phase 派生：重新点连接 → phase 变 connecting → 旧错误自动消失。
     private var errorText: String? {
         if case .failed(let msg) = connection.phase { return msg }
         return nil
     }
 
-    /// 连接进行中（SSH/exec/握手任一阶段）：按钮转圈并禁用，给用户明确反馈。
+    /// 连接进行中（建连/握手任一阶段）：按钮转圈并禁用，给用户明确反馈。
     private var isConnecting: Bool {
         switch connection.phase {
-        case .sshConnecting, .execProxy, .initializing: return true
+        case .connecting, .initializing: return true
         default: return false
         }
     }
@@ -57,7 +56,7 @@ struct ConnectionConfigView: View {
         // 失败留在本界面（phase=.failed），由用户手动重试，不自动循环。
         .task {
             if !didAutoConnect, connection.phase == .disconnected,
-               !host.isEmpty, !user.isEmpty, keyManager.privateKey() != nil {
+               !host.isEmpty, !token.isEmpty {
                 didAutoConnect = true
                 connect()
             }
@@ -83,15 +82,12 @@ struct ConnectionConfigView: View {
                         .autocorrectionDisabled()
                 }
                 field {
-                    TextField("conn.sshUser", text: $user)
+                    SecureField("conn.token", text: $token)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 }
-                // 仅支持密钥登录：macOS 密码登录依赖 keyboard-interactive，
-                // 底层 swift-nio-ssh 不支持，故 UI 不再提供密码选项，密钥区常驻。
-                KeyAreaView()
                 field {
-                    TextField("conn.sshPort", text: $sshPort)
+                    TextField("conn.port", text: $port)
                         .keyboardType(.numberPad)
                 }
             }
@@ -114,7 +110,7 @@ struct ConnectionConfigView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(host.isEmpty || user.isEmpty || isConnecting)
+            .disabled(host.isEmpty || token.isEmpty || isConnecting)
         }
         .padding(28)
         .background(
@@ -140,103 +136,13 @@ struct ConnectionConfigView: View {
             )
     }
 
-    /// 发起连接：仅密钥登录。组装 ed25519 鉴权 + 配置，交给 ConnectionStore（fire-and-forget）。
+    /// 发起连接：保存 ws endpoint（UserDefaults）与 token（Keychain），用 token 构造 ConnectionConfig。
     /// 连接进度/错误经 `connection.phase` 反映（errorText 派生），不在此处 try/catch。
     private func connect() {
-        // 非敏感项落 UserDefaults。
         UserDefaults.standard.set(host, forKey: "host")
-        UserDefaults.standard.set(sshPort, forKey: "sshPort")
-        UserDefaults.standard.set(user, forKey: "sshUser")
-
-        // app 内生成并复用的 ed25519 密钥（CryptoKit 直传）。
-        keyManager.generateIfNeeded()
-        guard let key = keyManager.privateKey() else { return }
+        UserDefaults.standard.set(port, forKey: "wsPort")
+        try? KeychainStore(service: "com.tangyujie.codexremote").save(token, for: "wsToken")
         connection.connect(config: ConnectionConfig(
-            host: host, sshPort: Int(sshPort) ?? 22,
-            auth: .ed25519Key(user: user, key: key)))
-    }
-}
-
-/// 连接密钥区：未生成时给「生成」按钮；已生成时显示指纹 + 复制公钥 + 安装提示 + 重新生成。
-/// 抽成独立 View 以便单独快照与复用；密钥状态来自环境注入的 KeyManager，自动反映 hasKey。
-struct KeyAreaView: View {
-    @Environment(KeyManager.self) private var keyManager
-    @State private var showRegenerateAlert = false
-    @State private var copiedHint = false
-
-    var body: some View {
-        Group {
-            if !keyManager.hasKey {
-                Button {
-                    keyManager.generateIfNeeded()
-                } label: {
-                    Label("conn.key.generate", systemImage: "key.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-            } else {
-                generatedArea
-            }
-        }
-        .alert("conn.key.regenerate.title", isPresented: $showRegenerateAlert) {
-            Button("conn.key.regenerate.confirm", role: .destructive) {
-                keyManager.regenerate()
-            }
-            Button("common.cancel", role: .cancel) {}
-        } message: {
-            Text("conn.key.regenerate.message")
-        }
-    }
-
-    private var generatedArea: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("conn.key.generated", systemImage: "checkmark.seal.fill")
-                .font(.callout.weight(.medium))
-                .foregroundStyle(.green)
-
-            if let fp = keyManager.fingerprintSHA256() {
-                Text(fp)
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-
-            HStack(spacing: 10) {
-                Button {
-                    copyPublicKey()
-                } label: {
-                    Label(copiedHint ? "conn.key.copied" : "conn.key.copyPublic",
-                          systemImage: copiedHint ? "checkmark" : "doc.on.doc")
-                }
-                .buttonStyle(.bordered)
-
-                Button(role: .destructive) {
-                    showRegenerateAlert = true
-                } label: {
-                    Label("conn.key.regenerate", systemImage: "arrow.triangle.2.circlepath")
-                }
-                .buttonStyle(.bordered)
-            }
-            .controlSize(.regular)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color(.tertiarySystemGroupedBackground))
-        )
-    }
-
-    private func copyPublicKey() {
-        guard let pub = keyManager.publicKeyOpenSSH() else { return }
-        UIPasteboard.general.string = pub
-        copiedHint = true
-        Task {
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
-            copiedHint = false
-        }
+            host: host, port: Int(port) ?? 8799, token: token))
     }
 }
