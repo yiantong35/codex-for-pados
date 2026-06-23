@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// 连接配置界面：主机/端口/SSH 用户 + 密码或私钥。
-/// 非敏感项（主机/端口/用户）存 `UserDefaults`；敏感项（私钥 PEM / 密码）存 `KeychainStore`。
+/// 连接配置界面：ws 主机/端口 + 鉴权 token。
+/// 非敏感项（主机/端口）存 `UserDefaults`；敏感项（token）存 `KeychainStore`。
 /// 点击「连接」调用 `ConnectionStore.connect`，并把传输层 typed error 映射为明确中文文案。
 ///
 /// 视觉：去大标题，表单收敛为屏幕居中卡片（maxWidth 480，适配 iPad 11/13 寸），
@@ -11,8 +11,8 @@ struct ConnectionConfigView: View {
     @Environment(KeyManager.self) private var keyManager
 
     @State private var host = UserDefaults.standard.string(forKey: "host") ?? ""
-    @State private var sshPort = UserDefaults.standard.string(forKey: "sshPort") ?? "22"
-    @State private var user = UserDefaults.standard.string(forKey: "sshUser") ?? ""
+    @State private var port = UserDefaults.standard.string(forKey: "wsPort") ?? "8799"
+    @State private var token = (try? KeychainStore(service: "com.tangyujie.codexremote").load("wsToken")) ?? ""
     /// 启动自动重连一次性闸门：仅本次 app 生命周期内自动连一次，失败后不自动重试（避免循环）。
     @State private var didAutoConnect = false
 
@@ -57,7 +57,7 @@ struct ConnectionConfigView: View {
         // 失败留在本界面（phase=.failed），由用户手动重试，不自动循环。
         .task {
             if !didAutoConnect, connection.phase == .disconnected,
-               !host.isEmpty, !user.isEmpty, keyManager.privateKey() != nil {
+               !host.isEmpty, !token.isEmpty {
                 didAutoConnect = true
                 connect()
             }
@@ -83,7 +83,7 @@ struct ConnectionConfigView: View {
                         .autocorrectionDisabled()
                 }
                 field {
-                    TextField("conn.sshUser", text: $user)
+                    SecureField("conn.token", text: $token)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 }
@@ -91,7 +91,7 @@ struct ConnectionConfigView: View {
                 // 底层 swift-nio-ssh 不支持，故 UI 不再提供密码选项，密钥区常驻。
                 KeyAreaView()
                 field {
-                    TextField("conn.sshPort", text: $sshPort)
+                    TextField("conn.port", text: $port)
                         .keyboardType(.numberPad)
                 }
             }
@@ -114,7 +114,7 @@ struct ConnectionConfigView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(host.isEmpty || user.isEmpty || isConnecting)
+            .disabled(host.isEmpty || token.isEmpty || isConnecting)
         }
         .padding(28)
         .background(
@@ -140,20 +140,14 @@ struct ConnectionConfigView: View {
             )
     }
 
-    /// 发起连接：仅密钥登录。组装 ed25519 鉴权 + 配置，交给 ConnectionStore（fire-and-forget）。
+    /// 发起连接：保存 ws endpoint（UserDefaults）与 token（Keychain），用 token 构造 ConnectionConfig。
     /// 连接进度/错误经 `connection.phase` 反映（errorText 派生），不在此处 try/catch。
     private func connect() {
-        // 非敏感项落 UserDefaults。
         UserDefaults.standard.set(host, forKey: "host")
-        UserDefaults.standard.set(sshPort, forKey: "sshPort")
-        UserDefaults.standard.set(user, forKey: "sshUser")
-
-        // app 内生成并复用的 ed25519 密钥（CryptoKit 直传）。
-        keyManager.generateIfNeeded()
-        guard keyManager.privateKey() != nil else { return }
-        // Task 8 将把本 View 改为 ws endpoint+token 表单；此处先以占位 token 让新 ConnectionConfig 编译通过。
+        UserDefaults.standard.set(port, forKey: "wsPort")
+        try? KeychainStore(service: "com.tangyujie.codexremote").save(token, for: "wsToken")
         connection.connect(config: ConnectionConfig(
-            host: host, port: Int(sshPort) ?? 8799, token: user))
+            host: host, port: Int(port) ?? 8799, token: token))
     }
 }
 
