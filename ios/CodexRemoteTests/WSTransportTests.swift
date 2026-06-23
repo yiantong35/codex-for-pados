@@ -19,6 +19,20 @@ actor FakeWebSocketChannel: WebSocketChannel {
     func drop() { continuation?.finish(throwing: TransportError.channelClosed(reason: "test-drop")) }
 }
 
+final class ChannelQueue: @unchecked Sendable {
+    private var items: [FakeWebSocketChannel]
+    private let lock = NSLock()
+    init(_ items: [FakeWebSocketChannel]) { self.items = items }
+    func next() -> FakeWebSocketChannel {
+        lock.lock(); defer { lock.unlock() }
+        return items.isEmpty ? FakeWebSocketChannel() : items.removeFirst()
+    }
+}
+actor StreamFinishedBox {
+    private(set) var value = false
+    func markFinished() { value = true }
+}
+
 final class WSTransportTests: XCTestCase {
     // send 出去的文本应是 request envelope
     func testSendWrapsAsRequestEnvelope() async throws {
@@ -60,5 +74,54 @@ final class WSTransportTests: XCTestCase {
         try await Task.sleep(nanoseconds: 80_000_000)
         let last = await t.lastSeqForTesting
         XCTAssertEqual(last, 9)
+    }
+
+    // 断开后自动重连：新通道收到 resync(after=lastSeq)，且 incoming() 流不结束。
+    func testReconnectSendsResyncWithLastSeq() async throws {
+        let first = FakeWebSocketChannel()
+        let second = FakeWebSocketChannel()
+        let channels = ChannelQueue([first, second])
+        let t = WSTransport(reconnectDelay: 0.01, connect: { _ in channels.next() })
+        await t.start()
+
+        // 流消费者：跨重连应保持不结束（结束则 finished=true）。
+        let finished = StreamFinishedBox()
+        Task {
+            for try await _ in t.incoming() {}
+            await finished.markFinished()
+        }
+        // 先收一条 event 把 lastSeq 推到 5
+        await first.push(#"{"type":"event","seq":5,"payload":{"a":1}}"#)
+        try await Task.sleep(nanoseconds: 60_000_000)
+        // 物理断开 → 触发重连到 second
+        await first.drop()
+        try await Task.sleep(nanoseconds: 150_000_000)
+        // second 应收到 resync(after=5)
+        let sent = await second.sentTexts
+        XCTAssertTrue(sent.contains { $0.contains(#""type":"resync""#) && $0.contains(#""after":5"#) },
+                      "重连后应发 resync(after=lastSeq=5)；实际: \(sent)")
+        // incoming 逻辑流未结束
+        let didFinish = await finished.value
+        XCTAssertFalse(didFinish, "incoming() 流不应因 ws 抖动而结束")
+    }
+
+    // 重连期间控制通道发 reconnecting 然后 ready
+    func testReconnectEmitsControlEvents() async throws {
+        let first = FakeWebSocketChannel()
+        let second = FakeWebSocketChannel()
+        let channels = ChannelQueue([first, second])
+        let t = WSTransport(reconnectDelay: 0.01, connect: { _ in channels.next() })
+        await t.start()
+        let expReconnecting = expectation(description: "reconnecting")
+        let expReady = expectation(description: "ready")
+        Task {
+            for await ev in t.control() {
+                if ev == .reconnecting { expReconnecting.fulfill() }
+                if ev == .ready { expReady.fulfill() }
+            }
+        }
+        try await Task.sleep(nanoseconds: 40_000_000)
+        await first.drop()
+        await fulfillment(of: [expReconnecting, expReady], timeout: 3)
     }
 }

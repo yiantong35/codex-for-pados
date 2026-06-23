@@ -49,22 +49,31 @@ final class URLSessionWebSocketChannel: WebSocketChannel, @unchecked Sendable {
 actor WSTransport: MessageTransport {
     private let connect: @Sendable (URL) -> WebSocketChannel
     private let url: URL
+    private let reconnectDelay: TimeInterval
     private var channel: WebSocketChannel?
     private var lastSeq: UInt64 = 0
     private var pumpTask: Task<Void, Never>?
+    private var reconnecting = false
 
     private var incomingContinuation: AsyncThrowingStream<String, Error>.Continuation?
     private nonisolated let incomingStream: AsyncThrowingStream<String, Error>
+    private var controlContinuation: AsyncStream<TransportControlEvent>.Continuation?
+    private nonisolated let controlStream: AsyncStream<TransportControlEvent>
 
     /// 生产用：URL 已含 ?token=。测试用：注入 connect 替身，url 可为占位。
     init(url: URL = URL(string: "ws://placeholder")!,
+         reconnectDelay: TimeInterval = 1.0,
          connect: @escaping @Sendable (URL) -> WebSocketChannel =
             { URLSessionWebSocketChannel(url: $0) }) {
         self.url = url
+        self.reconnectDelay = reconnectDelay
         self.connect = connect
-        var c: AsyncThrowingStream<String, Error>.Continuation!
-        self.incomingStream = AsyncThrowingStream(bufferingPolicy: .unbounded) { c = $0 }
-        self.incomingContinuation = c
+        var ic: AsyncThrowingStream<String, Error>.Continuation!
+        self.incomingStream = AsyncThrowingStream(bufferingPolicy: .unbounded) { ic = $0 }
+        self.incomingContinuation = ic
+        var cc: AsyncStream<TransportControlEvent>.Continuation!
+        self.controlStream = AsyncStream(bufferingPolicy: .unbounded) { cc = $0 }
+        self.controlContinuation = cc
     }
 
     /// 测试可见的 lastSeq。
@@ -84,12 +93,27 @@ actor WSTransport: MessageTransport {
                 for try await frame in ch.receive() {
                     await self.handleFrame(frame)
                 }
-                // 物理流结束：本任务暂直接终结 incoming（Task 4 改为自动重连不终结）。
-                await self.finishIncoming(nil)
+                await self.handleChannelDropped()
             } catch {
-                await self.finishIncoming(error)
+                await self.handleChannelDropped()
             }
         }
+    }
+
+    /// 物理 ws 断开：保持逻辑 incoming() 流不结束，内部退避后重连并 resync。
+    private func handleChannelDropped() async {
+        guard !reconnecting else { return }
+        reconnecting = true
+        controlContinuation?.yield(.reconnecting)
+        await channel?.close()
+        channel = nil
+        try? await Task.sleep(nanoseconds: UInt64(reconnectDelay * 1_000_000_000))
+        openChannelAndPump()
+        // 重连后补发 resync(after=lastSeq)
+        let resync = #"{"type":"resync","after":\#(lastSeq)}"#
+        try? await channel?.send(text: resync)
+        reconnecting = false
+        controlContinuation?.yield(.ready)
     }
 
     private func handleFrame(_ frame: String) {
@@ -103,15 +127,6 @@ actor WSTransport: MessageTransport {
         }
     }
 
-    private func finishIncoming(_ error: Error?) {
-        if let error {
-            incomingContinuation?.finish(throwing: error)
-        } else {
-            incomingContinuation?.finish()
-        }
-        incomingContinuation = nil
-    }
-
     // MARK: MessageTransport
     func send(_ text: String) async throws {
         let framed = try EnvelopeCodec.encodeRequest(payloadJSON: text)
@@ -120,11 +135,15 @@ actor WSTransport: MessageTransport {
 
     nonisolated func incoming() -> AsyncThrowingStream<String, Error> { incomingStream }
 
+    nonisolated func control() -> AsyncStream<TransportControlEvent> { controlStream }
+
     func close() async {
         pumpTask?.cancel()
         await channel?.close()
         channel = nil
         incomingContinuation?.finish()
         incomingContinuation = nil
+        controlContinuation?.finish()
+        controlContinuation = nil
     }
 }
