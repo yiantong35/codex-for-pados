@@ -9,7 +9,6 @@ actor JSONRPCClient {
     typealias ServerRequestHandler = @Sendable (JSONRPCRequest) async -> AnyCodable
 
     private let transport: MessageTransport
-    private var nextId: Int64 = 0
     private var pending: [RequestId: CheckedContinuation<AnyCodable, Error>] = [:]
     private var serverRequestHandler: ServerRequestHandler?
     /// 多播：每个 notifications() 调用方拿到**独立**的 AsyncStream，actor 内部维护其
@@ -97,8 +96,7 @@ actor JSONRPCClient {
 
     /// 发起一个请求并挂起等待匹配 id 的响应；error 响应抛出。
     func send(method: String, params: AnyCodable?) async throws -> AnyCodable {
-        nextId += 1
-        let id = RequestId.int(nextId)
+        let id = RequestIdGenerator.next()
         let req = JSONRPCRequest(id: id, method: method, params: params)
         let text = String(data: try encoder.encode(req), encoding: .utf8)!
         return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<AnyCodable, Error>) in

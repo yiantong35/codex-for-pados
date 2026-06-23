@@ -16,7 +16,9 @@ final class JSONRPCClientTests: XCTestCase {
         }
         XCTAssertNotNil(sent)
         XCTAssertTrue(sent!.contains("thread/list"))
-        await mock.feed(#"{"jsonrpc":"2.0","id":1,"result":{"data":[]}}"#)
+        let obj = try JSONSerialization.jsonObject(with: Data(sent!.utf8)) as! [String: Any]
+        let myId = obj["id"] as! String
+        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(myId)","result":{"data":[]}}"#)
         let r = try await result
         // result.value 应为 {"data": []}
         let dict = r.value as? [String: Any]
@@ -101,11 +103,15 @@ final class JSONRPCClientTests: XCTestCase {
         let client = JSONRPCClient(transport: mock)
         await client.start()
         async let result: AnyCodable = client.send(method: "thread/list", params: nil)
+        var sent: String?
         for _ in 0..<100 {
             try await Task.sleep(nanoseconds: 10_000_000)
-            if await !mock.sent.isEmpty { break }
+            if let first = await mock.sent.first { sent = first; break }
         }
-        await mock.feed(#"{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"boom"}}"#)
+        XCTAssertNotNil(sent)
+        let obj = try JSONSerialization.jsonObject(with: Data(sent!.utf8)) as! [String: Any]
+        let myId = obj["id"] as! String
+        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(myId)","error":{"code":-32000,"message":"boom"}}"#)
         do {
             _ = try await result
             XCTFail("应抛错")
@@ -113,5 +119,48 @@ final class JSONRPCClientTests: XCTestCase {
             // 期望 TransportError.proxyFailed("boom")
             XCTAssertEqual(error as? TransportError, .proxyFailed("boom"))
         }
+    }
+
+    // ⑤ 喂入他人 id 的 response/error 不影响本端 pending 请求。
+    func testForeignIdResponseIgnored() async throws {
+        let mock = MockTransport()
+        let client = JSONRPCClient(transport: mock)
+        await client.start()
+        async let result: AnyCodable = client.send(method: "thread/list", params: nil)
+        // 等本端请求发出，取出其唯一 id
+        var myId: String?
+        for _ in 0..<200 {
+            try await Task.sleep(nanoseconds: 5_000_000)
+            if let first = await mock.sent.first,
+               let obj = try? JSONSerialization.jsonObject(with: Data(first.utf8)) as? [String: Any],
+               let id = obj["id"] as? String { myId = id; break }
+        }
+        XCTAssertNotNil(myId)
+        // 先喂一条「别人 id」的 error（不应让本请求抛错或被误消费）
+        await mock.feed(#"{"jsonrpc":"2.0","id":"mac-999","error":{"code":-32000,"message":"not mine"}}"#)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        // 再喂本端 id 的正确 response → 本请求应正常返回
+        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(myId!)","result":{"ok":true}}"#)
+        let r = try await result
+        XCTAssertNotNil((r.value as? [String: Any])?["ok"])
+    }
+
+    // ⑥ send 出向请求 id 是 ipad- 前缀的全局唯一 string id
+    func testSendUsesUniqueStringId() async throws {
+        let mock = MockTransport()
+        let client = JSONRPCClient(transport: mock)
+        await client.start()
+        async let result: AnyCodable = client.send(method: "thread/list", params: nil)
+        var sent: String?
+        for _ in 0..<200 {
+            try await Task.sleep(nanoseconds: 5_000_000)
+            if let f = await mock.sent.first { sent = f; break }
+        }
+        let obj = try JSONSerialization.jsonObject(with: Data(sent!.utf8)) as! [String: Any]
+        let myId = obj["id"] as? String
+        XCTAssertTrue(myId?.hasPrefix("ipad-") ?? false)
+        // 回填匹配 id 的 response 让 send 正常返回，避免 async let 在 scope 结束时永久挂起
+        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(myId!)","result":{}}"#)
+        _ = try await result
     }
 }
