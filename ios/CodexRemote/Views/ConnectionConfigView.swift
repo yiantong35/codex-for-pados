@@ -22,10 +22,10 @@ struct ConnectionConfigView: View {
         return nil
     }
 
-    /// 连接进行中（SSH/exec/握手任一阶段）：按钮转圈并禁用，给用户明确反馈。
+    /// 连接进行中（建连/握手任一阶段）：按钮转圈并禁用，给用户明确反馈。
     private var isConnecting: Bool {
         switch connection.phase {
-        case .sshConnecting, .execProxy, .initializing: return true
+        case .connecting, .initializing: return true
         default: return false
         }
     }
@@ -150,10 +150,10 @@ struct ConnectionConfigView: View {
 
         // app 内生成并复用的 ed25519 密钥（CryptoKit 直传）。
         keyManager.generateIfNeeded()
-        guard let key = keyManager.privateKey() else { return }
+        guard keyManager.privateKey() != nil else { return }
+        // Task 8 将把本 View 改为 ws endpoint+token 表单；此处先以占位 token 让新 ConnectionConfig 编译通过。
         connection.connect(config: ConnectionConfig(
-            host: host, sshPort: Int(sshPort) ?? 22,
-            auth: .ed25519Key(user: user, key: key)))
+            host: host, port: Int(sshPort) ?? 8799, token: user))
     }
 }
 

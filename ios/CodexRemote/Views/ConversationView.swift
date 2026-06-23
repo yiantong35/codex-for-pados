@@ -80,6 +80,8 @@ struct ConversationView: View {
             await s.startObserving()   // 先完成订阅注册（async），再 resume，避免漏掉随后到达的事件
             await s.resume()        // session-management：恢复已有会话历史
             store = s
+            // snapshot-needed 控制信号 → 重建当前活跃 thread（缺口过大时由 WSTransport 上抛）。
+            connection.setResumeHandler { [weak s] in await s?.resume() }
         }
     }
 
