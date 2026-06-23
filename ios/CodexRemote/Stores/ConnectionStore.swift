@@ -179,10 +179,6 @@ final class ConnectionStore {
     static func friendlyMessage(_ error: Error) -> String {
         if let t = error as? TransportError {
             switch t {
-            case .sshAuthFailed(let m):
-                return String(localized: "conn.error.authFailed \(m)")   // 单行：SSH 鉴权失败：%@
-            case .appServerUnreachable:
-                return "已连上但 app-server 不可达，请确认 Mac 上 codex 可用。"
             case .proxyFailed(let m):  return "通道建立失败：\(m)"
             case .channelClosed(let r): return "连接通道关闭：\(r ?? "未知原因")"
             case .notConnected:        return "未连接"
