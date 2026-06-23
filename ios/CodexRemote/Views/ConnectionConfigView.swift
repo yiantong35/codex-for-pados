@@ -15,7 +15,7 @@ struct ConnectionConfigView: View {
     /// 启动自动重连一次性闸门：仅本次 app 生命周期内自动连一次，失败后不自动重试（避免循环）。
     @State private var didAutoConnect = false
 
-    /// 错误文案直接由 phase 派生：重新点连接 → phase 变 execProxy → 旧错误自动消失。
+    /// 错误文案直接由 phase 派生：重新点连接 → phase 变 connecting → 旧错误自动消失。
     private var errorText: String? {
         if case .failed(let msg) = connection.phase { return msg }
         return nil

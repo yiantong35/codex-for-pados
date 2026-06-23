@@ -81,11 +81,14 @@ final class ConversationStoreTests: XCTestCase {
         let store = ConversationStore(rpc: rpc, threadId: "t1")
 
         await store.resume()
-        // 等 resume 请求发出（拿到将被匹配的 id=1）。
+        // 等 resume 请求发出，并解出其实际 id（Task 6 起 id 为 ipad-<UUID>，不再是整型 1）。
         try await waitUntil { await mock.sent.contains { $0.contains("thread/resume") } }
+        let resumeReq = await mock.sent.first { $0.contains("thread/resume") }!
+        let reqObj = try JSONSerialization.jsonObject(with: Data(resumeReq.utf8)) as! [String: Any]
+        let resumeId = reqObj["id"] as! String
 
-        // 模拟服务端用带历史的 result 响应 id=1。
-        let response = #"{"jsonrpc":"2.0","id":1,"result":{"thread":{"id":"t1","turns":[{"id":"turn-1","items":[{"type":"userMessage","id":"u1","content":[{"type":"text","text":"历史问题","text_elements":[]}]},{"type":"agentMessage","id":"a1","text":"历史回答"}]}]}}}"#
+        // 模拟服务端用带历史的 result 响应该 id。
+        let response = #"{"jsonrpc":"2.0","id":"\#(resumeId)","result":{"thread":{"id":"t1","turns":[{"id":"turn-1","items":[{"type":"userMessage","id":"u1","content":[{"type":"text","text":"历史问题","text_elements":[]}]},{"type":"agentMessage","id":"a1","text":"历史回答"}]}]}}}"#
         await mock.feed(response)
 
         try await waitUntil {
