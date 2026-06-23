@@ -122,8 +122,10 @@ actor WSTransport: MessageTransport {
         case .event(let seq, let payloadJSON):
             lastSeq = seq
             incomingContinuation?.yield(payloadJSON)
-        case .resync, .snapshotNeeded:
-            break   // Task 4/5 处理
+        case .snapshotNeeded:
+            controlContinuation?.yield(.snapshotNeeded)
+        case .resync:
+            break   // iPad 不消费入向 resync
         }
     }
 

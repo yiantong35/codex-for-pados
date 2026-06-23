@@ -124,4 +124,17 @@ final class WSTransportTests: XCTestCase {
         await first.drop()
         await fulfillment(of: [expReconnecting, expReady], timeout: 3)
     }
+
+    func testSnapshotNeededEmitsControlEvent() async throws {
+        let fake = FakeWebSocketChannel()
+        let t = WSTransport(connect: { _ in fake })
+        await t.start()
+        let exp = expectation(description: "snapshot")
+        Task {
+            for await ev in t.control() where ev == .snapshotNeeded { exp.fulfill(); break }
+        }
+        try await Task.sleep(nanoseconds: 40_000_000)
+        await fake.push(#"{"type":"snapshot-needed"}"#)
+        await fulfillment(of: [exp], timeout: 2)
+    }
 }
