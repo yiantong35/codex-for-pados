@@ -131,8 +131,11 @@ actor WSTransport: MessageTransport {
 
     // MARK: MessageTransport
     func send(_ text: String) async throws {
+        // 重连窗口内 channel 为 nil：抛 .notConnected 让调用方（JSONRPCClient）
+        // failPending 而非静默丢弃导致请求永久挂起。
+        guard let channel else { throw TransportError.notConnected }
         let framed = try EnvelopeCodec.encodeRequest(payloadJSON: text)
-        try await channel?.send(text: framed)
+        try await channel.send(text: framed)
     }
 
     nonisolated func incoming() -> AsyncThrowingStream<String, Error> { incomingStream }

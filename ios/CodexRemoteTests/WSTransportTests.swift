@@ -34,6 +34,18 @@ actor StreamFinishedBox {
 }
 
 final class WSTransportTests: XCTestCase {
+    // 未连接（channel 为 nil，如重连窗口内）send 应抛 .notConnected，而非静默丢弃导致请求挂起。
+    func testSendThrowsWhenNotConnected() async {
+        let t = WSTransport(connect: { _ in FakeWebSocketChannel() })
+        // 未调用 start()，channel 仍为 nil
+        do {
+            try await t.send(#"{"id":"ipad-1","method":"thread/list"}"#)
+            XCTFail("未连接时 send 应抛错")
+        } catch {
+            XCTAssertEqual(error as? TransportError, .notConnected)
+        }
+    }
+
     // send 出去的文本应是 request envelope
     func testSendWrapsAsRequestEnvelope() async throws {
         let fake = FakeWebSocketChannel()
