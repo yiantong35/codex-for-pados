@@ -12,7 +12,7 @@ final class TransportControlTests: XCTestCase {
 
     // 控制事件枚举可比较（ConnectionStore 据此分支）。
     func testControlEventEquatable() {
-        XCTAssertEqual(TransportControlEvent.snapshotNeeded, .snapshotNeeded)
+        XCTAssertEqual(TransportControlEvent.reconnecting, .reconnecting)
         XCTAssertNotEqual(TransportControlEvent.reconnecting, .ready)
     }
 }

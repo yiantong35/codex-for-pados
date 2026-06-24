@@ -2,6 +2,7 @@ enum RPCMethod {
     static let initialize = "initialize"
     static let initialized = "initialized"      // notification
     static let threadList = "thread/list"
+    static let threadLoadedList = "thread/loaded/list"  // 当前 app-server 内存中运行的 thread ids
     static let threadResume = "thread/resume"
     static let threadStart = "thread/start"
     static let turnStart = "turn/start"

@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ⚠️ 已废弃（switch-to-official-ws-appserver）：
+# 自建广播 daemon 已退役。请改用 scripts/start-codex-appserver.sh 起官方 ws app-server。
+# 本脚本保留仅供回退/对照，不在默认启动路径。
+echo "⚠️  start-bridge-daemon.sh 已废弃，请用 scripts/start-codex-appserver.sh（官方 ws app-server）。" >&2
+
 # 启动 Codex 广播 daemon(局域网,单一 app-server 连接 + WS 广播)。
 # 用法: scripts/start-bridge-daemon.sh [PORT] [TOKEN]
 #   PORT  默认 8765

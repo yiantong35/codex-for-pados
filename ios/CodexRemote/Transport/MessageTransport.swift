@@ -13,7 +13,7 @@ protocol MessageTransport: Sendable {
 
 extension MessageTransport {
     /// 控制信号通道默认实现：无控制信号的 transport（如 MockTransport）返回空流。
-    /// WSTransport 覆写以上报 reconnecting/ready/snapshotNeeded。
+    /// WSTransport 覆写以上报 reconnecting/ready。
     func control() -> AsyncStream<TransportControlEvent> {
         AsyncStream { $0.finish() }
     }

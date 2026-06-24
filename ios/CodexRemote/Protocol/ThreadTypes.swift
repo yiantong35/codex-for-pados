@@ -52,6 +52,16 @@ struct ThreadResumeParams: Codable {
     var cwd: String?
 }
 
+/// 空参数（编码为 `{}`）：用于 `thread/loaded/list` 等无参方法。
+struct EmptyParams: Encodable {}
+
+/// `thread/loaded/list` 响应：data 为当前 app-server 内存中运行/已加载的 thread id 数组，
+/// nextCursor 用于翻页（首页通常已覆盖全部活跃 thread）。字段名以 spike 实测坐实（spike-findings §4）。
+struct LoadedThreadList: Decodable {
+    let data: [String]
+    let nextCursor: String?
+}
+
 struct ThreadStartParams: Codable {
     var cwd: String?
     var model: String?

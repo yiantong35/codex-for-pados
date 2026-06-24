@@ -163,4 +163,32 @@ final class JSONRPCClientTests: XCTestCase {
         await mock.feed(#"{"jsonrpc":"2.0","id":"\#(myId!)","result":{}}"#)
         _ = try await result
     }
+
+    // H1: 物理断线时已发出、仍等响应的 in-flight 请求不得永久挂起。
+    // JSONRPCClient.failInflight() 应让所有 pending continuation 抛错失败（响应不会在新通道重放，
+    // 调用方可重试）。incoming 流跨重连不结束，故旧的「流结束才 failAllPending」覆盖不到此路径。
+    func testFailInflightFailsPendingRequests() async throws {
+        let mock = MockTransport()
+        let client = JSONRPCClient(transport: mock)
+        await client.start()
+        // 发出请求并挂起等响应（永不喂 response，模拟断线时在途）。
+        async let result: AnyCodable = client.send(method: "thread/list", params: nil)
+        // 等请求确实发出（进入 pending 表）。
+        var sent = false
+        for _ in 0..<200 {
+            try await Task.sleep(nanoseconds: 5_000_000)
+            let isEmpty = await mock.sent.isEmpty
+            if !isEmpty { sent = true; break }
+        }
+        XCTAssertTrue(sent, "请求应已发出并进入 pending")
+        // 物理断线：失败所有在途请求。
+        await client.failInflight(TransportError.channelClosed(reason: "drop"))
+        // in-flight 请求应抛错失败，而非永久挂起。
+        do {
+            _ = try await result
+            XCTFail("断线时在途请求应失败，不应永久挂起/正常返回")
+        } catch {
+            XCTAssertEqual(error as? TransportError, .channelClosed(reason: "drop"))
+        }
+    }
 }
