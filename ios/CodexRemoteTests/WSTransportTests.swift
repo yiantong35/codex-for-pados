@@ -46,50 +46,40 @@ final class WSTransportTests: XCTestCase {
         }
     }
 
-    // send 出去的文本应是 request envelope
-    func testSendWrapsAsRequestEnvelope() async throws {
+    // send() 直发裸 JSON-RPC 文本，不再包 {"type":"request",...} envelope（原样一帧发出）。
+    func testSendEmitsRawJSONRPC() async throws {
         let fake = FakeWebSocketChannel()
         let t = WSTransport(connect: { _ in fake })
         await t.start()
-        try await t.send(#"{"id":"ipad-1","method":"thread/list"}"#)
+        let raw = #"{"jsonrpc":"2.0","id":"ipad-1","method":"initialize","params":{}}"#
+        try await t.send(raw)
         try await Task.sleep(nanoseconds: 50_000_000)
         let sent = await fake.sentTexts
-        XCTAssertEqual(sent.count, 1)
-        let obj = try JSONSerialization.jsonObject(with: Data(sent[0].utf8)) as! [String: Any]
-        XCTAssertEqual(obj["type"] as? String, "request")
+        XCTAssertEqual(sent, [raw], "应原样发出裸 JSON-RPC，无 envelope 包裹")
     }
 
-    // 入向 event → incoming() 收到解包后的一行 payload JSON
-    func testIncomingUnwrapsEventPayload() async throws {
+    // incoming() 直接 yield 收到的整帧文本（不解 envelope、不取 payload）。
+    func testIncomingYieldsRawFrame() async throws {
         let fake = FakeWebSocketChannel()
         let t = WSTransport(connect: { _ in fake })
         await t.start()
+        let frame = #"{"jsonrpc":"2.0","method":"thread/started","params":{"threadId":"x"}}"#
         let exp = expectation(description: "incoming")
+        let box = ReceivedBox()
         Task {
             for try await line in t.incoming() {
-                let obj = try JSONSerialization.jsonObject(with: Data(line.utf8)) as! [String: Any]
-                if obj["id"] as? String == "ipad-1" { exp.fulfill(); break }
+                await box.set(line); exp.fulfill(); break
             }
         }
         try await Task.sleep(nanoseconds: 50_000_000)
-        await fake.push(#"{"type":"event","seq":1,"payload":{"jsonrpc":"2.0","id":"ipad-1","result":{}}}"#)
+        await fake.push(frame)
         await fulfillment(of: [exp], timeout: 2)
+        let got = await box.value
+        XCTAssertEqual(got, frame, "整帧裸 JSON-RPC 应原样透传给 incoming()")
     }
 
-    // 连续 event → lastSeq 跟踪到最新
-    func testLastSeqTracksLatestEvent() async throws {
-        let fake = FakeWebSocketChannel()
-        let t = WSTransport(connect: { _ in fake })
-        await t.start()
-        await fake.push(#"{"type":"event","seq":3,"payload":{"a":1}}"#)
-        await fake.push(#"{"type":"event","seq":9,"payload":{"a":2}}"#)
-        try await Task.sleep(nanoseconds: 80_000_000)
-        let last = await t.lastSeqForTesting
-        XCTAssertEqual(last, 9)
-    }
-
-    // 断开后自动重连：新通道收到 resync(after=lastSeq)，且 incoming() 流不结束。
-    func testReconnectSendsResyncWithLastSeq() async throws {
+    // 物理断开后重连：经 control() 先发 .reconnecting 再发 .ready，且不再发任何 resync 帧。
+    func testReconnectEmitsReadyAndNoResync() async throws {
         let first = FakeWebSocketChannel()
         let second = FakeWebSocketChannel()
         let channels = ChannelQueue([first, second])
@@ -102,28 +92,7 @@ final class WSTransportTests: XCTestCase {
             for try await _ in t.incoming() {}
             await finished.markFinished()
         }
-        // 先收一条 event 把 lastSeq 推到 5
-        await first.push(#"{"type":"event","seq":5,"payload":{"a":1}}"#)
-        try await Task.sleep(nanoseconds: 60_000_000)
-        // 物理断开 → 触发重连到 second
-        await first.drop()
-        try await Task.sleep(nanoseconds: 150_000_000)
-        // second 应收到 resync(after=5)
-        let sent = await second.sentTexts
-        XCTAssertTrue(sent.contains { $0.contains(#""type":"resync""#) && $0.contains(#""after":5"#) },
-                      "重连后应发 resync(after=lastSeq=5)；实际: \(sent)")
-        // incoming 逻辑流未结束
-        let didFinish = await finished.value
-        XCTAssertFalse(didFinish, "incoming() 流不应因 ws 抖动而结束")
-    }
 
-    // 重连期间控制通道发 reconnecting 然后 ready
-    func testReconnectEmitsControlEvents() async throws {
-        let first = FakeWebSocketChannel()
-        let second = FakeWebSocketChannel()
-        let channels = ChannelQueue([first, second])
-        let t = WSTransport(reconnectDelay: 0.01, connect: { _ in channels.next() })
-        await t.start()
         let expReconnecting = expectation(description: "reconnecting")
         let expReady = expectation(description: "ready")
         Task {
@@ -133,20 +102,22 @@ final class WSTransportTests: XCTestCase {
             }
         }
         try await Task.sleep(nanoseconds: 40_000_000)
-        await first.drop()
+        await first.drop()                          // 触发重连到 second
         await fulfillment(of: [expReconnecting, expReady], timeout: 3)
-    }
 
-    func testSnapshotNeededEmitsControlEvent() async throws {
-        let fake = FakeWebSocketChannel()
-        let t = WSTransport(connect: { _ in fake })
-        await t.start()
-        let exp = expectation(description: "snapshot")
-        Task {
-            for await ev in t.control() where ev == .snapshotNeeded { exp.fulfill(); break }
-        }
-        try await Task.sleep(nanoseconds: 40_000_000)
-        await fake.push(#"{"type":"snapshot-needed"}"#)
-        await fulfillment(of: [exp], timeout: 2)
+        // 重连后的新 channel 不应被发任何 resync 帧
+        try await Task.sleep(nanoseconds: 60_000_000)
+        let sent = await second.sentTexts
+        XCTAssertTrue(sent.allSatisfy { !$0.contains("resync") },
+                      "去 seq 后重连不应补发 resync；实际: \(sent)")
+        // incoming 逻辑流未结束
+        let didFinish = await finished.value
+        XCTAssertFalse(didFinish, "incoming() 流不应因 ws 抖动而结束")
     }
+}
+
+/// 收帧探针。
+actor ReceivedBox {
+    private(set) var value: String?
+    func set(_ s: String) { value = s }
 }

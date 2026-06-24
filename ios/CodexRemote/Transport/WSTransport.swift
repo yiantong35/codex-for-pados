@@ -43,15 +43,15 @@ final class URLSessionWebSocketChannel: WebSocketChannel, @unchecked Sendable {
     }
 }
 
-/// WSTransport：在 MessageTransport seam 上实现 daemon ws 传输。
-/// 出向包 request envelope，入向解 event 取 payload（一行 JSON）交给 incoming()，跟踪 lastSeq。
-/// 自动重连/resync/控制信号在后续任务加入（本任务仅单次连接收发）。
+/// WSTransport：在 MessageTransport seam 上实现官方 ws app-server 传输。
+/// 直收发裸 JSON-RPC（一条消息 = 一个 ws text frame），不包/不解 envelope、不跟踪 seq。
+/// 物理断开内部自动重连；重连完成只发 .ready（会话恢复由上层经 thread/loaded/list +
+/// thread/resume rejoin 完成，设计 D1/D3）。
 actor WSTransport: MessageTransport {
     private let connect: @Sendable (URL) -> WebSocketChannel
     private let url: URL
     private let reconnectDelay: TimeInterval
     private var channel: WebSocketChannel?
-    private var lastSeq: UInt64 = 0
     private var pumpTask: Task<Void, Never>?
     private var reconnecting = false
 
@@ -60,7 +60,7 @@ actor WSTransport: MessageTransport {
     private var controlContinuation: AsyncStream<TransportControlEvent>.Continuation?
     private nonisolated let controlStream: AsyncStream<TransportControlEvent>
 
-    /// 生产用：URL 已含 ?token=。测试用：注入 connect 替身，url 可为占位。
+    /// 生产用：URL 为官方 ws endpoint。测试用：注入 connect 替身，url 可为占位。
     init(url: URL = URL(string: "ws://placeholder")!,
          reconnectDelay: TimeInterval = 1.0,
          connect: @escaping @Sendable (URL) -> WebSocketChannel =
@@ -75,9 +75,6 @@ actor WSTransport: MessageTransport {
         self.controlStream = AsyncStream(bufferingPolicy: .unbounded) { cc = $0 }
         self.controlContinuation = cc
     }
-
-    /// 测试可见的 lastSeq。
-    var lastSeqForTesting: UInt64 { lastSeq }
 
     func start() {
         guard channel == nil else { return }
@@ -100,7 +97,9 @@ actor WSTransport: MessageTransport {
         }
     }
 
-    /// 物理 ws 断开：保持逻辑 incoming() 流不结束，内部退避后重连并 resync。
+    /// 物理 ws 断开：保持逻辑 incoming() 流不结束，内部退避后重连。
+    /// 去 seq 后不再补发 resync；重连完成只发 .ready，会话恢复由上层经
+    /// thread/loaded/list + thread/resume(rejoin) 完成（设计 D3）。
     private func handleChannelDropped() async {
         guard !reconnecting else { return }
         reconnecting = true
@@ -109,24 +108,13 @@ actor WSTransport: MessageTransport {
         channel = nil
         try? await Task.sleep(nanoseconds: UInt64(reconnectDelay * 1_000_000_000))
         openChannelAndPump()
-        // 重连后补发 resync(after=lastSeq)
-        let resync = #"{"type":"resync","after":\#(lastSeq)}"#
-        try? await channel?.send(text: resync)
         reconnecting = false
         controlContinuation?.yield(.ready)
     }
 
     private func handleFrame(_ frame: String) {
-        guard let env = try? EnvelopeCodec.decode(line: frame) else { return }
-        switch env {
-        case .event(let seq, let payloadJSON):
-            lastSeq = seq
-            incomingContinuation?.yield(payloadJSON)
-        case .snapshotNeeded:
-            controlContinuation?.yield(.snapshotNeeded)
-        case .resync:
-            break   // iPad 不消费入向 resync
-        }
+        // 直接把整帧裸 JSON-RPC 文本交给 incoming()，不解 envelope、不跟踪 seq。
+        incomingContinuation?.yield(frame)
     }
 
     // MARK: MessageTransport
@@ -134,8 +122,8 @@ actor WSTransport: MessageTransport {
         // 重连窗口内 channel 为 nil：抛 .notConnected 让调用方（JSONRPCClient）
         // failPending 而非静默丢弃导致请求永久挂起。
         guard let channel else { throw TransportError.notConnected }
-        let framed = try EnvelopeCodec.encodeRequest(payloadJSON: text)
-        try await channel.send(text: framed)
+        // 直发裸 JSON-RPC 文本，一条消息一帧（帧边界不变量），不再包 envelope。
+        try await channel.send(text: text)
     }
 
     nonisolated func incoming() -> AsyncThrowingStream<String, Error> { incomingStream }

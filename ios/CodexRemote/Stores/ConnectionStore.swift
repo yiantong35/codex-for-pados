@@ -73,7 +73,7 @@ final class ConnectionStore {
         self.transportFactory = transportFactory
     }
 
-    /// 注入「需要快照重建」时的回调（snapshotNeeded 控制信号触发，通常接当前会话的 resume）。
+    /// 注入「重连后会话恢复」的回调（§5 接 thread/loaded/list + resume；目前保留为通用钩子）。
     func setResumeHandler(_ h: @escaping @Sendable () async -> Void) { resumeHandler = h }
 
     /// 发起连接（fire-and-forget，结果经 `phase` 反映给 UI）。
@@ -158,8 +158,9 @@ final class ConnectionStore {
 
     // MARK: - 控制信号观察
 
-    /// 订阅 transport 控制信号：reconnecting/ready 驱动 UI 重连指示，snapshotNeeded 触发会话重建。
+    /// 订阅 transport 控制信号：reconnecting/ready 驱动 UI 重连指示。
     /// ws 物理抖动的重连由 WSTransport 内部负责（incoming 流跨重连不结束），此处不再重新 initialize。
+    /// 去 envelope 后无 snapshotNeeded；会话恢复（§5）将接到 .ready 后经 thread/loaded/list + resume。
     private func observeControl(_ transport: MessageTransport) {
         controlObserver?.cancel()
         controlObserver = Task { [weak self] in
@@ -168,8 +169,6 @@ final class ConnectionStore {
                 switch ev {
                 case .reconnecting: self.phase = .reconnecting
                 case .ready:        self.phase = .ready
-                case .snapshotNeeded:
-                    if let h = self.resumeHandler { await h() }
                 }
             }
         }
