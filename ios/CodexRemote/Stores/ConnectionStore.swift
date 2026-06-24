@@ -15,14 +15,14 @@ struct ConnectionConfig: Sendable {
     var port: Int
     var token: String
 
-    /// 组装带 token 的 ws URL：ws://host:port/?token=<token>
+    /// 组装 ws URL：ws://host:port/
+    /// token 改走 ws 握手的 Authorization: Bearer header（不进 query），避免日志/历史泄漏。
     var wsURL: URL {
         var comps = URLComponents()
         comps.scheme = "ws"
         comps.host = host
         comps.port = port
         comps.path = "/"
-        comps.queryItems = [URLQueryItem(name: "token", value: token)]
         return comps.url!
     }
 
@@ -80,6 +80,11 @@ final class ConnectionStore {
     /// 新连接立即把 phase 置为 connecting → 自动清除上一次的 .failed 错误。
     /// 含 20s 硬超时：建连/握手卡住时强制转 .failed 并作废后台残留任务。
     func connect(config: ConnectionConfig) {
+        guard !config.token.isEmpty else {
+            connLog.error("connect 拒绝：token 为空")
+            phase = .failed("请先在设置中配置 token")
+            return
+        }
         self.config = config
         activeAttempt += 1
         let attempt = activeAttempt

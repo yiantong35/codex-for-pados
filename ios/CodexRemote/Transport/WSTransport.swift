@@ -12,9 +12,16 @@ final class URLSessionWebSocketChannel: WebSocketChannel, @unchecked Sendable {
     private let task: URLSessionWebSocketTask
     private let stream: AsyncThrowingStream<String, Error>
     private let continuation: AsyncThrowingStream<String, Error>.Continuation
+    /// 建连所用的 URLRequest（供测试核对 Authorization header；token 不进 URL query）。
+    let requestForTesting: URLRequest
 
-    init(url: URL) {
-        self.task = URLSession.shared.webSocketTask(with: url)
+    init(url: URL, bearerToken: String) {
+        // token 走 ws 握手的 Authorization: Bearer header（官方 --ws-auth capability-token），
+        // 不进 URL query，避免日志/历史泄漏。
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        self.requestForTesting = req
+        self.task = URLSession.shared.webSocketTask(with: req)
         var c: AsyncThrowingStream<String, Error>.Continuation!
         self.stream = AsyncThrowingStream(bufferingPolicy: .unbounded) { c = $0 }
         self.continuation = c
@@ -60,14 +67,15 @@ actor WSTransport: MessageTransport {
     private var controlContinuation: AsyncStream<TransportControlEvent>.Continuation?
     private nonisolated let controlStream: AsyncStream<TransportControlEvent>
 
-    /// 生产用：URL 为官方 ws endpoint。测试用：注入 connect 替身，url 可为占位。
+    /// 生产用：URL 为官方 ws endpoint，token 经 Authorization: Bearer header 传递（不进 URL query）。
+    /// 测试用：注入 connect 替身，url/token 可为占位。
     init(url: URL = URL(string: "ws://placeholder")!,
+         bearerToken: String = "",
          reconnectDelay: TimeInterval = 1.0,
-         connect: @escaping @Sendable (URL) -> WebSocketChannel =
-            { URLSessionWebSocketChannel(url: $0) }) {
+         connect: (@Sendable (URL) -> WebSocketChannel)? = nil) {
         self.url = url
         self.reconnectDelay = reconnectDelay
-        self.connect = connect
+        self.connect = connect ?? { URLSessionWebSocketChannel(url: $0, bearerToken: bearerToken) }
         var ic: AsyncThrowingStream<String, Error>.Continuation!
         self.incomingStream = AsyncThrowingStream(bufferingPolicy: .unbounded) { ic = $0 }
         self.incomingContinuation = ic

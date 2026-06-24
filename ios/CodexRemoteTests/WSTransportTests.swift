@@ -78,6 +78,14 @@ final class WSTransportTests: XCTestCase {
         XCTAssertEqual(got, frame, "整帧裸 JSON-RPC 应原样透传给 incoming()")
     }
 
+    /// URLSessionWebSocketChannel 用带 Authorization: Bearer 的 URLRequest 建连，token 不进 URL query。
+    func testChannelUsesBearerHeaderNotQuery() {
+        let url = URL(string: "ws://host:8900/")!
+        let ch = URLSessionWebSocketChannel(url: url, bearerToken: "secret-abc")
+        XCTAssertEqual(ch.requestForTesting.value(forHTTPHeaderField: "Authorization"), "Bearer secret-abc")
+        XCTAssertFalse(ch.requestForTesting.url?.absoluteString.contains("token=") ?? true)
+    }
+
     // 物理断开后重连：经 control() 先发 .reconnecting 再发 .ready，且不再发任何 resync 帧。
     func testReconnectEmitsReadyAndNoResync() async throws {
         let first = FakeWebSocketChannel()

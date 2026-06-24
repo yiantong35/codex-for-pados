@@ -45,6 +45,21 @@ final class ConnectionStoreTests: XCTestCase {
         try await waitUntil { await store.phase == .ready }
     }
 
+    /// 空 token 时 connect 不调 transportFactory，直接落 .failed。
+    @MainActor
+    func testEmptyTokenDoesNotConnect() async throws {
+        let calledBox = CallBox()
+        let store = ConnectionStore(transportFactory: { _ in
+            await calledBox.mark()
+            throw TransportError.notConnected
+        })
+        store.connect(config: .init(host: "h", port: 8900, token: ""))
+        try await Task.sleep(nanoseconds: 100_000_000)
+        let called = await calledBox.value
+        XCTAssertFalse(called, "空 token 不应调用 transportFactory")
+        if case .failed = store.phase {} else { XCTFail("空 token 应落 .failed，实际 \(store.phase)") }
+    }
+
     // snapshotNeeded 控制信号已随去 envelope 移除（设计 D1）；重连后会话恢复改由
     // §5 经 thread/loaded/list + thread/resume 完成，相应测试归属 §5。
 
@@ -58,4 +73,10 @@ final class ConnectionStoreTests: XCTestCase {
         }
         XCTFail("waitUntil 超时")
     }
+}
+
+/// 记录 transportFactory 是否被调用（actor 保证跨任务并发安全）。
+actor CallBox {
+    private(set) var value = false
+    func mark() { value = true }
 }
