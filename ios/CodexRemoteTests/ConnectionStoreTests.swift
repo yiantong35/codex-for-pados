@@ -63,6 +63,39 @@ final class ConnectionStoreTests: XCTestCase {
     // snapshotNeeded 控制信号已随去 envelope 移除（设计 D1）；重连后会话恢复改由
     // §5 经 thread/loaded/list + thread/resume 完成，相应测试归属 §5。
 
+    /// §5 修正：首次连接成功（initialize 完成、phase=.ready）后也应触发一次 resumeHandler
+    /// （= rejoinRunningThreads），以「连上自动订阅全部活跃 thread」对齐需求——
+    /// 不能只在 WSTransport 物理重连的 .ready 上 rejoin（首连不经 control() 的 .ready）。
+    /// 真实接线顺序：connect() 先发起，ConversationView 的 .task 在 rpc 就绪后才 setResumeHandler，
+    /// 故 handler 可能晚于 .ready 注册——本测试模拟该顺序，断言 handler 仍被触发恰好一次。
+    func testInitialConnectAlsoRejoins() async throws {
+        let mock = MockTransport()
+        let store = await ConnectionStore(transportFactory: { _ in mock })
+
+        // 后台模拟服务端：对 initialize 回响应使握手到达 .ready。
+        Task {
+            var initId: String?
+            for _ in 0..<200 {
+                try? await Task.sleep(nanoseconds: 5_000_000)
+                if let s = await mock.sent.first(where: { $0.contains(#""method":"initialize""#) }),
+                   let obj = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any],
+                   let id = obj["id"] as? String { initId = id; break }
+            }
+            await mock.feed(#"{"jsonrpc":"2.0","id":"\#(initId!)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
+        }
+
+        let fired = FireBox()
+        await store.connect(config: .stub)
+        try await waitUntil { await store.phase == .ready }
+        // 模拟 ConversationView：rpc 就绪后才注册 resumeHandler（晚于 .ready）。
+        await store.setResumeHandler { await fired.bump() }
+
+        // 首连 + handler 注册后，应触发恰好一次 resume（rejoin）。
+        try await waitUntil { await fired.count >= 1 }
+        let count = await fired.count
+        XCTAssertEqual(count, 1, "首连成功后 resumeHandler 应被触发恰好一次，实际 \(count)")
+    }
+
     /// 轮询条件直到为真或超时。
     private func waitUntil(timeout: TimeInterval = 3,
                           _ condition: () async -> Bool) async throws {
@@ -79,4 +112,10 @@ final class ConnectionStoreTests: XCTestCase {
 actor CallBox {
     private(set) var value = false
     func mark() { value = true }
+}
+
+/// 记录 resumeHandler 被触发的次数（actor 保证跨任务并发安全）。
+actor FireBox {
+    private(set) var count = 0
+    func bump() { count += 1 }
 }

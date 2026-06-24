@@ -66,6 +66,11 @@ final class ConnectionStore {
     private var transport: MessageTransport?
     private var resumeHandler: (@Sendable () async -> Void)?
     private var controlObserver: Task<Void, Never>?
+    /// 本次连接是否已触发过「首连恢复」（rejoinRunningThreads），保证恰好一次。
+    /// 每次新 connect()/disconnect() 重置。物理重连走 observeControl 的 .ready，与此独立。
+    private var didInitialRejoin = false
+    /// 当前连接是否已就绪（phase=.ready），用于在 handler 晚于 .ready 注册时补触发首连恢复。
+    private var isReady = false
     /// 当前连接尝试序号：每次新连接 +1；超时也 +1 以作废仍在后台跑的旧 establish。
     private var activeAttempt = 0
 
@@ -73,8 +78,22 @@ final class ConnectionStore {
         self.transportFactory = transportFactory
     }
 
-    /// 注入「重连后会话恢复」的回调（§5 接 thread/loaded/list + resume；目前保留为通用钩子）。
-    func setResumeHandler(_ h: @escaping @Sendable () async -> Void) { resumeHandler = h }
+    /// 注入「重连后会话恢复」的回调（§5 接 thread/loaded/list + resume）。
+    /// 真实接线中 ConversationView 在 rpc 就绪后才注册，可能晚于首连 .ready——
+    /// 故注册时若连接已就绪且尚未做过首连恢复，立即补触发一次（对齐「连上自动订阅全部活跃 thread」）。
+    func setResumeHandler(_ h: @escaping @Sendable () async -> Void) {
+        resumeHandler = h
+        triggerInitialRejoinIfReady()
+    }
+
+    /// 首连恢复触发器：当「已就绪」且「handler 已注册」且「本次连接尚未做过首连恢复」三者满足时，
+    /// 触发恰好一次 resumeHandler。connect 落 .ready 与 setResumeHandler 谁后到都能触发，且不重复。
+    /// 物理重连的恢复由 observeControl 的 .ready 分支独立负责，不经此处。
+    private func triggerInitialRejoinIfReady() {
+        guard isReady, !didInitialRejoin, let h = resumeHandler else { return }
+        didInitialRejoin = true
+        Task { await h() }
+    }
 
     /// 发起连接（fire-and-forget，结果经 `phase` 反映给 UI）。
     /// 新连接立即把 phase 置为 connecting → 自动清除上一次的 .failed 错误。
@@ -89,6 +108,9 @@ final class ConnectionStore {
         activeAttempt += 1
         let attempt = activeAttempt
         phase = .connecting
+        // 新连接：重置首连恢复状态（上一次连接的 rejoin 不应抑制本次）。
+        didInitialRejoin = false
+        isReady = false
         connLog.info("connect 开始 host=\(config.host, privacy: .public):\(config.port) attempt=\(attempt)")
 
         // 建连 + 握手任务。仅当仍是当前 attempt 时才落地 phase。
@@ -99,7 +121,12 @@ final class ConnectionStore {
                 guard attempt == self.activeAttempt else { await client.stop(); return }
                 self.rpc = client
                 self.phase = .ready
+                self.isReady = true
                 if let transport = self.transport { self.observeControl(transport) }
+                // 首连成功也触发一次会话恢复（rejoin），对齐「连上自动订阅全部活跃 thread」。
+                // handler 可能尚未注册（ConversationView 在 rpc 就绪后才 setResumeHandler）：
+                // 那种情况下由 setResumeHandler 注册时补触发，二者谁后到都只触发一次。
+                self.triggerInitialRejoinIfReady()
                 connLog.info("connect 成功 phase=ready")
             } catch {
                 guard attempt == self.activeAttempt else { return }   // 已被超时/新尝试作废
@@ -126,6 +153,8 @@ final class ConnectionStore {
         if let rpc { await rpc.stop() }
         rpc = nil
         transport = nil
+        isReady = false
+        didInitialRejoin = false
         phase = .disconnected
     }
 
@@ -167,8 +196,9 @@ final class ConnectionStore {
     /// ws 物理抖动的重连由 WSTransport 内部负责（incoming 流跨重连不结束），此处不再重新 initialize。
     /// 去 envelope 后无 snapshotNeeded；重连成功（.ready）后经 resumeHandler 触发会话恢复
     /// （§5：thread/loaded/list + thread/resume rejoin）。
-    /// 注意：首连成功走 connect 里直接落 .ready（不经此处），故 rejoin 只由物理重连的 .ready 触发，
-    /// 首连恢复由 ConversationView 的 startObserving + resume 流程负责，不会重复 rejoin。
+    /// 注意：首连成功走 connect 里直接落 .ready（不经此处），其首连恢复由 connect 落 .ready /
+    /// setResumeHandler 经 triggerInitialRejoinIfReady 触发（恰好一次）；此处的 .ready 仅来自
+    /// WSTransport 物理重连，故 rejoin 在「首连一次 + 每次物理重连各一次」触发，不重复。
     private func observeControl(_ transport: MessageTransport) {
         controlObserver?.cancel()
         controlObserver = Task { [weak self] in
