@@ -156,4 +156,13 @@ actor JSONRPCClient {
         for (_, cont) in pending { cont.resume(throwing: error) }
         pending.removeAll()
     }
+
+    /// 失败所有在途请求（物理断线时由上层调用）。incoming() 流跨重连不结束，
+    /// 故 start() 的「流结束才 failAllPending」覆盖不到物理断线；断线瞬间已发出、
+    /// 等响应的请求若不在此失败将永久挂起（响应不会在新通道重放）。调用方据此重试。
+    /// 注意：只动 pending 表，不触碰正常 dispatch/通知流（保持「上层零改动」原则，
+    /// 这是必要的正确性补充入口，不改 dispatch 逻辑）。
+    func failInflight(_ error: Error) {
+        failAllPending(error)
+    }
 }

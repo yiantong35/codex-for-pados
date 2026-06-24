@@ -122,12 +122,19 @@ final class ConnectionStore {
         Task { [weak self] in
             guard let self else { return }
             do {
-                let client = try await self.doEstablish(config)
-                guard attempt == self.activeAttempt else { await client.stop(); return }
+                let (client, newTransport) = try await self.doEstablish(config)
+                guard attempt == self.activeAttempt else {
+                    // 本 attempt 已被超时/新连接作废：关掉自己建的 client + transport，
+                    // 否则其 WSTransport.pumpTask/ws task 泄漏并继续自动重连一个已丢弃的连接（H2）。
+                    await client.stop()
+                    await newTransport.close()
+                    return
+                }
                 self.rpc = client
+                self.transport = newTransport
                 self.phase = .ready
                 self.isReady = true
-                if let transport = self.transport { self.observeControl(transport) }
+                self.observeControl(newTransport)
                 // 首连成功也触发一次会话恢复（rejoin），对齐「连上自动订阅全部活跃 thread」。
                 // handler 可能尚未注册（ConversationView 在 rpc 就绪后才 setResumeHandler）：
                 // 那种情况下由 setResumeHandler 注册时补触发，二者谁后到都只触发一次。
@@ -150,13 +157,16 @@ final class ConnectionStore {
         }
     }
 
-    /// 主动断开（停止控制信号观察 + 关闭 RPC）。
+    /// 主动断开（停止控制信号观察 + 关闭 RPC + 关闭底层 transport）。
     func disconnect() async {
         activeAttempt += 1                // 作废任何在途连接
         controlObserver?.cancel()
         controlObserver = nil
         if let rpc { await rpc.stop() }
         rpc = nil
+        // 关闭底层 transport：否则 WSTransport.pumpTask + URLSession ws task 泄漏，
+        // 断线后还会自动重连一个 UI 已丢弃的连接并继续 yield（H2）。须在置 nil 前 close。
+        if let transport { await transport.close() }
         transport = nil
         isReady = false
         didInitialRejoin = false
@@ -165,15 +175,15 @@ final class ConnectionStore {
 
     // MARK: - 握手
 
-    /// 建 ws transport + initialize 握手，返回就绪的 JSON-RPC client。
+    /// 建 ws transport + initialize 握手，返回就绪的 JSON-RPC client 及其 transport。
     /// initialize 是连接级（spike 实测）：本连接发 initialize 期待自己的 InitializeResponse，
     /// 失败即握手失败（向上抛出，由 connect 落 .failed），不做任何 -32600 特殊容忍。
-    /// 不直接落 phase=.ready（由调用方按 attempt token 判定后落地）。
-    private func doEstablish(_ config: ConnectionConfig) async throws -> JSONRPCClient {
+    /// 不直接落 phase=.ready，也不写 self.transport（由调用方按 attempt token 判定后落地，
+    /// 避免被作废的 attempt 污染 self.transport / 泄漏 transport，H2）。
+    private func doEstablish(_ config: ConnectionConfig) async throws -> (JSONRPCClient, MessageTransport) {
         phase = .connecting
         connLog.notice("doEstablish: 开始建 ws transport…")
         let transport = try await transportFactory(config)
-        self.transport = transport
         connLog.notice("doEstablish: transport 就绪, 启动 JSONRPCClient")
         let client = JSONRPCClient(transport: transport)
         await client.start()
@@ -189,7 +199,7 @@ final class ConnectionStore {
         serverInfo = try? Self.decode(InitializeResponse.self, from: result)
         try? await client.notify(method: RPCMethod.initialized, params: nil)
         connLog.notice("doEstablish: 握手完成")
-        return client
+        return (client, transport)
     }
 
     // MARK: - 控制信号观察
@@ -207,7 +217,14 @@ final class ConnectionStore {
             for await ev in transport.control() {
                 guard let self else { return }
                 switch ev {
-                case .reconnecting: self.phase = .reconnecting
+                case .reconnecting:
+                    self.phase = .reconnecting
+                    // 物理断线：失败断线瞬间已发出、仍等响应的在途请求，避免其永久挂起（H1）。
+                    // 响应不会在新通道重放；失败后调用方/UI 可重试。control() 单消费者由本处独占，
+                    // 故由 ConnectionStore（同时持 rpc 与控制流）触发，而非让 JSONRPCClient 抢消费控制流。
+                    if let rpc = self.rpc {
+                        Task { await rpc.failInflight(TransportError.channelClosed(reason: "reconnecting")) }
+                    }
                 case .ready:
                     self.phase = .ready
                     if let h = self.resumeHandler { await h() }   // 重连成功 → 经官方列表恢复并重新订阅

@@ -114,6 +114,110 @@ final class ConnectionStoreTests: XCTestCase {
         }
         XCTFail("waitUntil 超时")
     }
+
+    // H2: disconnect() 必须关闭底层 transport（否则 WSTransport.pumpTask + ws task 泄漏，
+    // 断线后还自动重连一个 UI 已丢弃的连接并继续 yield）。
+    func testDisconnectClosesTransport() async throws {
+        let spy = CloseSpyTransport()
+        let store = await ConnectionStore(transportFactory: { _ in spy })
+        // 后台模拟服务端：对 initialize 回响应使握手到达 .ready。
+        Task {
+            var initId: String?
+            for _ in 0..<200 {
+                try? await Task.sleep(nanoseconds: 5_000_000)
+                if let s = await spy.sent.first(where: { $0.contains(#""method":"initialize""#) }),
+                   let obj = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any],
+                   let id = obj["id"] as? String { initId = id; break }
+            }
+            await spy.feed(#"{"jsonrpc":"2.0","id":"\#(initId!)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
+        }
+        await store.connect(config: .stub)
+        try await waitUntil { await store.phase == .ready }
+        let before = await spy.closeCount
+        XCTAssertEqual(before, 0, "断开前不应已关闭 transport")
+        await store.disconnect()
+        let after = await spy.closeCount
+        XCTAssertGreaterThanOrEqual(after, 1, "disconnect() 必须关闭底层 transport")
+    }
+
+    // H1 接线：物理重连信号（.reconnecting）到达时，ConnectionStore 应让 rpc 失败在途请求，
+    // 使断线瞬间挂起的请求抛错而非永久挂起。
+    func testReconnectingControlFailsInflightRequest() async throws {
+        let ctrl = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in ctrl })
+        Task {
+            var initId: String?
+            for _ in 0..<200 {
+                try? await Task.sleep(nanoseconds: 5_000_000)
+                if let s = await ctrl.sent.first(where: { $0.contains(#""method":"initialize""#) }),
+                   let obj = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any],
+                   let id = obj["id"] as? String { initId = id; break }
+            }
+            await ctrl.feed(#"{"jsonrpc":"2.0","id":"\#(initId!)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
+        }
+        await store.connect(config: .stub)
+        try await waitUntil { await store.phase == .ready }
+        let client = await store.rpc!
+        let failed = FailBox()
+        Task {
+            do { _ = try await client.send(method: "thread/list", params: nil) }
+            catch { await failed.mark() }
+        }
+        try await waitUntil {
+            let s = await ctrl.sent
+            return s.contains { $0.contains("thread/list") }
+        }
+        await ctrl.emitControl(.reconnecting)
+        try await waitUntil { await failed.value }
+        let didFail = await failed.value
+        XCTAssertTrue(didFail, "重连信号到达后在途请求应失败，不应永久挂起")
+    }
+}
+
+/// 记录 close() 调用次数的 transport（用于断言 disconnect 关闭底层连接）。
+actor CloseSpyTransport: MessageTransport {
+    private(set) var sent: [String] = []
+    private(set) var closeCount = 0
+    private var cont: AsyncThrowingStream<String, Error>.Continuation?
+    private nonisolated let stream: AsyncThrowingStream<String, Error>
+    init() {
+        var c: AsyncThrowingStream<String, Error>.Continuation!
+        stream = AsyncThrowingStream(bufferingPolicy: .unbounded) { c = $0 }
+        cont = c
+    }
+    func send(_ text: String) async throws { sent.append(text) }
+    nonisolated func incoming() -> AsyncThrowingStream<String, Error> { stream }
+    func close() async { closeCount += 1; cont?.finish(); cont = nil }
+    func feed(_ json: String) { cont?.yield(json) }
+}
+
+/// 可发控制事件的 transport：用于驱动 ConnectionStore 的 .reconnecting → failInflight 接线测试。
+actor ControlEmittingTransport: MessageTransport {
+    private(set) var sent: [String] = []
+    private var inCont: AsyncThrowingStream<String, Error>.Continuation?
+    private nonisolated let inStream: AsyncThrowingStream<String, Error>
+    private var ctlCont: AsyncStream<TransportControlEvent>.Continuation?
+    private nonisolated let ctlStream: AsyncStream<TransportControlEvent>
+    init() {
+        var ic: AsyncThrowingStream<String, Error>.Continuation!
+        inStream = AsyncThrowingStream(bufferingPolicy: .unbounded) { ic = $0 }
+        inCont = ic
+        var cc: AsyncStream<TransportControlEvent>.Continuation!
+        ctlStream = AsyncStream(bufferingPolicy: .unbounded) { cc = $0 }
+        ctlCont = cc
+    }
+    func send(_ text: String) async throws { sent.append(text) }
+    nonisolated func incoming() -> AsyncThrowingStream<String, Error> { inStream }
+    nonisolated func control() -> AsyncStream<TransportControlEvent> { ctlStream }
+    func close() async { inCont?.finish(); inCont = nil; ctlCont?.finish(); ctlCont = nil }
+    func feed(_ json: String) { inCont?.yield(json) }
+    func emitControl(_ ev: TransportControlEvent) { ctlCont?.yield(ev) }
+}
+
+/// 记录在途请求是否失败。
+actor FailBox {
+    private(set) var value = false
+    func mark() { value = true }
 }
 
 /// 记录 transportFactory 是否被调用（actor 保证跨任务并发安全）。

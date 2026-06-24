@@ -4,6 +4,9 @@ import Foundation
 protocol WebSocketChannel: Sendable {
     func send(text: String) async throws
     func receive() -> AsyncThrowingStream<String, Error>
+    /// 等待通道握手完成（连上）；握手失败/不可达应抛错。
+    /// 重连路径据此判定「真正连上」后才发 .ready（设计 D3，避免假 ready）。
+    func waitUntilOpen() async throws
     func close() async
 }
 
@@ -44,6 +47,16 @@ final class URLSessionWebSocketChannel: WebSocketChannel, @unchecked Sendable {
 
     func send(text: String) async throws { try await task.send(.string(text)) }
     func receive() -> AsyncThrowingStream<String, Error> { stream }
+    /// 用 ws ping 探测握手是否完成：连接已打开则 ping 成功返回；握手失败/不可达则回调带 error。
+    /// 这是对「通道真正连上」的真实确认（URLSessionWebSocketTask 无握手成功回调）。
+    func waitUntilOpen() async throws {
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            task.sendPing { error in
+                if let error { cont.resume(throwing: error) }
+                else { cont.resume() }
+            }
+        }
+    }
     func close() async {
         task.cancel(with: .normalClosure, reason: nil)
         continuation.finish()
@@ -89,9 +102,8 @@ actor WSTransport: MessageTransport {
         openChannelAndPump()
     }
 
-    private func openChannelAndPump() {
-        let ch = connect(url)
-        channel = ch
+    /// 在「已确认连上」的 channel 上启动收帧 pump。channel 必须已 assign 到 self.channel。
+    private func startPump(on ch: WebSocketChannel) {
         pumpTask = Task { [weak self] in
             guard let self else { return }
             do {
@@ -105,19 +117,46 @@ actor WSTransport: MessageTransport {
         }
     }
 
-    /// 物理 ws 断开：保持逻辑 incoming() 流不结束，内部退避后重连。
-    /// 去 seq 后不再补发 resync；重连完成只发 .ready，会话恢复由上层经
-    /// thread/loaded/list + thread/resume(rejoin) 完成（设计 D3）。
+    /// 首连：建 channel 并直接 pump（首连的「连上」由上层 initialize 握手 + 超时判定，
+    /// 见 ConnectionStore.doEstablish；故首连不在此处探测 waitUntilOpen）。
+    private func openChannelAndPump() {
+        let ch = connect(url)
+        channel = ch
+        startPump(on: ch)
+    }
+
+    /// 物理 ws 断开：保持逻辑 incoming() 流不结束，内部退避后**重试直到真正连上**才发 .ready。
+    /// 关键修复（C1）：openChannelAndPump 只启动 pump 不保证握手成功；若新通道仍不可达却无条件
+    /// 发 .ready 会产生「假 ready」——上层落 .ready 并 rejoin 一个没连上的连接、UI 抖动、事件错序。
+    /// 现改为：连新通道 → waitUntilOpen() 确认握手 → 成功才 startPump + 发 .ready；
+    /// 失败则 close、退避、继续重试，期间保持 .reconnecting（设计 D3「重连完成才发 .ready」）。
+    /// incoming() 流跨重连不结束（既有正确行为）。
     private func handleChannelDropped() async {
         guard !reconnecting else { return }
         reconnecting = true
         controlContinuation?.yield(.reconnecting)
         await channel?.close()
         channel = nil
-        try? await Task.sleep(nanoseconds: UInt64(reconnectDelay * 1_000_000_000))
-        openChannelAndPump()
+
+        // 重试直到某条新通道真正连上才退出循环并发 .ready。
+        while !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: UInt64(reconnectDelay * 1_000_000_000))
+            let ch = connect(url)
+            do {
+                try await ch.waitUntilOpen()      // 真正握手确认
+            } catch {
+                await ch.close()                  // 连不上：丢弃，继续重试
+                continue
+            }
+            // 确认连上：装载并启动 pump，发恰好一次 .ready。
+            channel = ch
+            startPump(on: ch)
+            reconnecting = false
+            controlContinuation?.yield(.ready)
+            return
+        }
+        // 被取消（close()）：不发 .ready。
         reconnecting = false
-        controlContinuation?.yield(.ready)
     }
 
     private func handleFrame(_ frame: String) {
