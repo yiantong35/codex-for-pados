@@ -27,8 +27,12 @@ final class ConnectionStoreTests: XCTestCase {
         XCTAssertEqual(info?.userAgent, "codex")
     }
 
-    // 收到自己 id 的 Already initialized(-32600) 也视为握手成功 → ready。
-    func testAlreadyInitializedReachesReady() async throws {
+    // spike 实测坐实：官方 ws app-server 的 initialize 是连接级（per-connection），
+    // iPad 自己的连接发 initialize 永远各自成功，绝不会拿 -32600 Already initialized。
+    // 旧「Already initialized 容忍」分支是针对自建 daemon 进程级单次语义的死代码，已删除。
+    // 新行为：initialize 失败（含收到 -32600 error）就是失败，按正常错误处理落 .failed，
+    // 不再把 Already-initialized 当作握手成功。
+    func testInitializeErrorReachesFailed() async throws {
         let mock = MockTransport()
         let store = await ConnectionStore(transportFactory: { _ in mock })
         Task {
@@ -42,7 +46,11 @@ final class ConnectionStoreTests: XCTestCase {
             await mock.feed(#"{"jsonrpc":"2.0","id":"\#(initId!)","error":{"code":-32600,"message":"Already initialized"}}"#)
         }
         await store.connect(config: .stub)
-        try await waitUntil { await store.phase == .ready }
+        try await waitUntil {
+            if case .failed = await store.phase { return true } else { return false }
+        }
+        // 不应到达 ready：initialize 错误 = 连接失败。
+        if case .ready = await store.phase { XCTFail("initialize 收到 -32600 不应视为 ready") }
     }
 
     /// 空 token 时 connect 不调 transportFactory，直接落 .failed。

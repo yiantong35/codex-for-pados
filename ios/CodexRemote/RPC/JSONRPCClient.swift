@@ -128,6 +128,10 @@ actor JSONRPCClient {
         guard let data = line.data(using: .utf8),
               let msg = try? JSONDecoder().decode(JSONRPCMessage.self, from: data) else { return }
         switch msg {
+        // response/error 按 id 精确匹配 pending 表唤醒发起者；查无此 id 则 removeValue 返回 nil、静默丢弃。
+        // 保留依据（spike 2026-06-24 实测坐实，§6.2）：官方 ws response 点对点按 id 回发起连接，
+        // iPad 本就只收到自己 id 的 response，「按 id 精确匹配、未匹配则丢弃」是裸 JSON-RPC 下
+        // 天然正确的分发机制（非为去串台而加的特殊逻辑），无需改动。
         case .response(let r):
             pending.removeValue(forKey: r.id)?.resume(returning: r.result)
         case .error(let e):

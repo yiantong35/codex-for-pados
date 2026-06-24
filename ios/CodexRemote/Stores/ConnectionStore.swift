@@ -49,11 +49,16 @@ enum ConnectionPhase: Equatable {
     }
 }
 
-/// 连接状态层：驱动 ws 连接 → JSON-RPC initialize 握手（容忍 Already initialized），
+/// 连接状态层：驱动 ws 连接 → JSON-RPC initialize 握手，
 /// 订阅 transport 控制信号驱动 UI 重连指示与会话 resume。ws 物理抖动由 WSTransport 内部自吞。
 ///
+/// initialize 语义（spike 2026-06-24 实测坐实）：官方 ws app-server 的 initialize 是**连接级**
+/// （per-connection）——每个 ws 连接各自发 initialize 并各自成功返回 InitializeResponse，互不影响，
+/// 不存在「进程级单次」语义，自己的连接绝不会拿 -32600 Already initialized。故无「Already initialized
+/// 容忍」逻辑：initialize 失败即握手失败，正常落 .failed。
+///
 /// `transportFactory` 注入便于测试 mock：生产环境传 `liveTransportFactory`
-/// （构造连 daemon 的 WSTransport），测试传返回 MockTransport 的闭包。
+/// （构造连官方 app-server 的 WSTransport），测试传返回 MockTransport 的闭包。
 @Observable
 @MainActor
 final class ConnectionStore {
@@ -161,7 +166,8 @@ final class ConnectionStore {
     // MARK: - 握手
 
     /// 建 ws transport + initialize 握手，返回就绪的 JSON-RPC client。
-    /// 容忍式 initialize：收到自己 id 的 -32600 Already initialized 也视为握手成功（设计 §4 A3）。
+    /// initialize 是连接级（spike 实测）：本连接发 initialize 期待自己的 InitializeResponse，
+    /// 失败即握手失败（向上抛出，由 connect 落 .failed），不做任何 -32600 特殊容忍。
     /// 不直接落 phase=.ready（由调用方按 attempt token 判定后落地）。
     private func doEstablish(_ config: ConnectionConfig) async throws -> JSONRPCClient {
         phase = .connecting
@@ -177,16 +183,12 @@ final class ConnectionStore {
         let params = InitializeParams(
             clientInfo: ClientInfo(name: "CodexRemote", title: nil, version: "0.1.0"),
             capabilities: nil)
-        do {
-            let result = try await client.send(method: RPCMethod.initialize,
-                                               params: try Self.encode(params))
-            serverInfo = try? Self.decode(InitializeResponse.self, from: result)
-            try? await client.notify(method: RPCMethod.initialized, params: nil)  // 仅首个初始化者
-            connLog.notice("doEstablish: 握手完成")
-        } catch let TransportError.proxyFailed(msg) where msg.contains("Already initialized") {
-            connLog.notice("doEstablish: app-server 已被别端初始化，视为握手成功")
-            // 不发 initialized（非首个初始化者）
-        }
+        // 连接级 initialize：失败直接抛出（不容忍 -32600），由 connect 落 .failed。
+        let result = try await client.send(method: RPCMethod.initialize,
+                                           params: try Self.encode(params))
+        serverInfo = try? Self.decode(InitializeResponse.self, from: result)
+        try? await client.notify(method: RPCMethod.initialized, params: nil)
+        connLog.notice("doEstablish: 握手完成")
         return client
     }
 
