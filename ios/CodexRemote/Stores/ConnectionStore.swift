@@ -165,7 +165,10 @@ final class ConnectionStore {
 
     /// 订阅 transport 控制信号：reconnecting/ready 驱动 UI 重连指示。
     /// ws 物理抖动的重连由 WSTransport 内部负责（incoming 流跨重连不结束），此处不再重新 initialize。
-    /// 去 envelope 后无 snapshotNeeded；会话恢复（§5）将接到 .ready 后经 thread/loaded/list + resume。
+    /// 去 envelope 后无 snapshotNeeded；重连成功（.ready）后经 resumeHandler 触发会话恢复
+    /// （§5：thread/loaded/list + thread/resume rejoin）。
+    /// 注意：首连成功走 connect 里直接落 .ready（不经此处），故 rejoin 只由物理重连的 .ready 触发，
+    /// 首连恢复由 ConversationView 的 startObserving + resume 流程负责，不会重复 rejoin。
     private func observeControl(_ transport: MessageTransport) {
         controlObserver?.cancel()
         controlObserver = Task { [weak self] in
@@ -173,7 +176,9 @@ final class ConnectionStore {
                 guard let self else { return }
                 switch ev {
                 case .reconnecting: self.phase = .reconnecting
-                case .ready:        self.phase = .ready
+                case .ready:
+                    self.phase = .ready
+                    if let h = self.resumeHandler { await h() }   // 重连成功 → 经官方列表恢复并重新订阅
                 }
             }
         }

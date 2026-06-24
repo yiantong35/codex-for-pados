@@ -86,6 +86,25 @@ final class ConversationStore {
         Task { _ = try? await call(RPCMethod.turnStart, params) }
     }
 
+    /// 重连/连接后经官方权威列表恢复（设计 D3）：
+    /// 1) thread/loaded/list 拿当前 app-server 内存中运行的 thread ids（不依赖本地 threadId 作唯一依据）；
+    /// 2) 对每个 id thread/resume —— 命中 running thread 时官方按 rejoin 重新加入（不 fork/不新建），
+    ///    同时**自动订阅**该 thread（官方无显式 subscribe，start/resume 即订阅），之后才收其 turn/item 通知；
+    /// 3) 单个 thread 尚未跑过 turn 时 resume 返回 `-32600 no rollout found`（经 call 抛 TransportError）
+    ///    → 用 `try?` 吞掉并跳过，继续处理其余 thread，绝不因单个失败中断整批恢复（spike-findings §5）。
+    /// 仅把命中当前 threadId 的 resume 历史灌入本 store 的 state；其余 thread 的订阅副作用仍生效。
+    func rejoinRunningThreads() async {
+        guard let listResult = try? await call(RPCMethod.threadLoadedList, EmptyParams()),
+              let list = try? decode(LoadedThreadList.self, from: listResult) else { return }
+        // 首页 data 已覆盖当前活跃 thread；翻页（nextCursor）留待需要时再实现。
+        for tid in list.data {
+            let params = ThreadResumeParams(threadId: tid, model: nil, cwd: nil)
+            guard let r = try? await call(RPCMethod.threadResume, params),
+                  let dict = r.value as? [String: Any] else { continue }   // no rollout 等单个失败：跳过
+            if tid == state.threadId { reducer.ingest(resumeResult: dict, to: &state) }
+        }
+    }
+
     // MARK: - private
 
     /// 缺省 threadId 全收；带 threadId 时只收本线程。
@@ -108,6 +127,12 @@ final class ConversationStore {
         let data = try JSONEncoder().encode(params)
         let any = try JSONDecoder().decode(AnyCodable.self, from: data)
         return try await rpc.send(method: method, params: any)
+    }
+
+    /// AnyCodable → 具体 Decodable 类型（用于把 thread/loaded/list 等响应解成强类型）。
+    private func decode<T: Decodable>(_ t: T.Type, from a: AnyCodable) throws -> T {
+        let data = try JSONEncoder().encode(a)
+        return try JSONDecoder().decode(t, from: data)
     }
 }
 
