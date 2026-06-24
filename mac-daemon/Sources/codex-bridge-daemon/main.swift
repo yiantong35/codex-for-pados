@@ -1,3 +1,7 @@
+// ⚠️ 已废弃（DEPRECATED，退役日期 2026-06-24，change: switch-to-official-ws-appserver）：
+// 自建广播 daemon 已退役，官方 `codex app-server --listen ws` 原生支持多客户端广播已替代之；
+// 改用 `scripts/start-codex-appserver.sh` 启动官方 app-server。本包代码保留仅供回退/对照，不在默认启动路径。
+
 import Foundation
 import DaemonCore
 
