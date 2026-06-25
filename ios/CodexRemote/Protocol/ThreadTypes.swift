@@ -66,3 +66,64 @@ struct ThreadStartParams: Codable {
     var cwd: String?
     var model: String?
 }
+
+// MARK: - 会话管理（ipad-follower-session-control，protocol v2）
+
+struct ThreadArchiveParams: Codable { let threadId: String }
+struct ThreadUnarchiveParams: Codable { let threadId: String }
+struct ThreadDeleteParams: Codable { let threadId: String }
+struct ThreadCompactStartParams: Codable { let threadId: String }
+
+/// schema 类型名 ThreadSetNameParams，参数名为 name（非 title）。method = thread/name/set。
+struct ThreadSetNameParams: Codable {
+    let threadId: String
+    let name: String
+}
+
+/// rollback 语义：从末尾丢弃 numTurns 轮（≥1），非任意点回滚。
+struct ThreadRollbackParams: Codable {
+    let threadId: String
+    let numTurns: Int
+}
+
+enum ThreadGoalStatus: String, Codable {
+    case active, paused, blocked, usageLimited, budgetLimited, complete
+}
+
+struct ThreadGoalSetParams: Codable {
+    let threadId: String
+    var objective: String?
+    var status: ThreadGoalStatus?
+    var tokenBudget: Int?
+}
+struct ThreadGoalGetParams: Codable { let threadId: String }
+struct ThreadGoalClearParams: Codable { let threadId: String }
+
+struct ThreadGoal: Codable, Equatable {
+    let threadId: String
+    let objective: String
+    let status: ThreadGoalStatus
+    let createdAt: Int
+    let updatedAt: Int
+    let timeUsedSeconds: Int
+    let tokensUsed: Int
+    var tokenBudget: Int?
+}
+
+/// thread/goal/get 响应：goal 可为 null（未设目标）。
+struct ThreadGoalGetResponse: Codable { let goal: ThreadGoal? }
+/// thread/goal/set 响应：goal 必填。
+struct ThreadGoalSetResponse: Codable { let goal: ThreadGoal }
+
+/// thread/name/updated 广播 payload：字段名为 threadName（可空），非 name。
+struct ThreadNameUpdatedNotification: Codable {
+    let threadId: String
+    var threadName: String?
+}
+
+/// thread/goal/updated 广播 payload。
+struct ThreadGoalUpdatedNotification: Codable {
+    let threadId: String
+    let goal: ThreadGoal
+    var turnId: String?
+}
