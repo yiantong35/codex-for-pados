@@ -23,7 +23,7 @@ struct ThreadSummary: Codable, Identifiable {
     let updatedAt: Double                           // Unix 秒
     let cwd: String                                 // AbsolutePathBuf -> String
     let cliVersion: String
-    let name: String?
+    var name: String?
     var gitInfo: GitInfoSummary?                    // null 表示非 git 仓库（分类信号，见 D8）
 }
 

@@ -31,6 +31,104 @@ final class ProjectsStore {
     }
     private var pendingApproval: Set<String> = []
 
+    private var rpc: JSONRPCClient?
+    private var broadcastObserver: Task<Void, Never>?
+
+    /// 注入 rpc 并启动官方广播监听（设计 D3：多端一致靠广播，不自建同步）。幂等。
+    func attach(rpc: JSONRPCClient) async {
+        self.rpc = rpc
+        guard broadcastObserver == nil else { return }
+        let stream = await rpc.notifications()
+        broadcastObserver = Task { [weak self] in
+            for await n in stream {
+                await MainActor.run { self?.applyBroadcast(n) }
+            }
+        }
+    }
+
+    /// 官方广播 → 本地列表更新（删除/归档移除，改名就地改，取消归档重拉）。
+    private func applyBroadcast(_ n: JSONRPCNotification) {
+        guard let p = n.params?.value as? [String: Any],
+              let tid = p["threadId"] as? String else { return }
+        switch n.method {
+        case ServerNotificationMethod.threadDeleted,
+             ServerNotificationMethod.threadArchived:
+            removeThread(tid)
+        case ServerNotificationMethod.threadNameUpdated:
+            let newName = p["threadName"] as? String
+            renameLocal(tid, to: newName)
+        case ServerNotificationMethod.threadUnarchived:
+            Task { if let rpc = self.rpc { await self.loadFromServer(rpc: rpc) } }
+        default:
+            break
+        }
+    }
+
+    private func removeThread(_ id: String) {
+        for i in projects.indices { projects[i].threads.removeAll { $0.id == id } }
+        projects.removeAll { $0.threads.isEmpty }
+        looseConversations.removeAll { $0.id == id }
+    }
+
+    private func renameLocal(_ id: String, to name: String?) {
+        for i in projects.indices {
+            for j in projects[i].threads.indices where projects[i].threads[j].id == id {
+                projects[i].threads[j].name = name
+            }
+        }
+        for j in looseConversations.indices where looseConversations[j].id == id {
+            looseConversations[j].name = name
+        }
+    }
+
+    // MARK: - 管理动作（成功后重拉列表；广播会再叠加）
+
+    private func sendThenRefresh<T: Encodable>(_ method: String, _ params: T) async {
+        guard let rpc else { return }
+        guard let data = try? JSONEncoder().encode(params),
+              let any = try? JSONDecoder().decode(AnyCodable.self, from: data) else { return }
+        _ = try? await rpc.send(method: method, params: any)
+        await loadFromServer(rpc: rpc)
+    }
+
+    func archive(threadId: String) async {
+        await sendThenRefresh(RPCMethod.threadArchive, ThreadArchiveParams(threadId: threadId))
+    }
+    func unarchive(threadId: String) async {
+        await sendThenRefresh(RPCMethod.threadUnarchive, ThreadUnarchiveParams(threadId: threadId))
+    }
+    func delete(threadId: String) async {
+        await sendThenRefresh(RPCMethod.threadDelete, ThreadDeleteParams(threadId: threadId))
+    }
+    func rename(threadId: String, name: String) async {
+        await sendThenRefresh(RPCMethod.threadNameSet, ThreadSetNameParams(threadId: threadId, name: name))
+    }
+    func rollback(threadId: String, numTurns: Int) async {
+        await sendThenRefresh(RPCMethod.threadRollback,
+                              ThreadRollbackParams(threadId: threadId, numTurns: max(1, numTurns)))
+    }
+    func compact(threadId: String) async {
+        await sendThenRefresh(RPCMethod.threadCompactStart, ThreadCompactStartParams(threadId: threadId))
+    }
+    func setGoal(threadId: String, objective: String?, status: ThreadGoalStatus?) async {
+        await sendThenRefresh(RPCMethod.threadGoalSet,
+                              ThreadGoalSetParams(threadId: threadId, objective: objective, status: status, tokenBudget: nil))
+    }
+    func clearGoal(threadId: String) async {
+        await sendThenRefresh(RPCMethod.threadGoalClear, ThreadGoalClearParams(threadId: threadId))
+    }
+    /// 查目标：返回当前 goal（nil = 未设）。供 UI 打开 goal 编辑面板时预填。
+    func fetchGoal(threadId: String) async -> ThreadGoal? {
+        guard let rpc else { return nil }
+        guard let data = try? JSONEncoder().encode(ThreadGoalGetParams(threadId: threadId)),
+              let any = try? JSONDecoder().decode(AnyCodable.self, from: data),
+              let res = try? await rpc.send(method: RPCMethod.threadGoalGet, params: any),
+              let resData = try? JSONEncoder().encode(res),
+              let resp = try? JSONDecoder().decode(ThreadGoalGetResponse.self, from: resData)
+        else { return nil }
+        return resp.goal
+    }
+
     /// session-management「桌面来源会话可见」：默认 sourceKinds 可能不含桌面 app（appServer）来源，
     /// 显式覆盖以确保桌面会话出现（设计 §13 Open Question，build 实测确认；不含也无害）。
     /// 真实 ThreadSourceKind 字符串值见 protocol/ts/v2/ThreadSourceKind.ts，桌面来源为 "appServer"。

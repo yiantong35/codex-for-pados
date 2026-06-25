@@ -117,4 +117,92 @@ final class SessionControlTests: XCTestCase {
         XCTAssertEqual(ServerNotificationMethod.threadGoalUpdated, "thread/goal/updated")
         XCTAssertEqual(ServerNotificationMethod.threadGoalCleared, "thread/goal/cleared")
     }
+
+    // MARK: - store 层：管理动作调用 + 广播驱动列表刷新（Task 3）
+
+    private func makeStore() async -> (ProjectsStore, MockTransport, JSONRPCClient) {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ProjectsStore()
+        await store.attach(rpc: rpc)   // 注入 rpc 并启动广播监听
+        return (store, mock, rpc)
+    }
+
+    private func thread(_ id: String, name: String? = nil) -> ThreadSummary {
+        ThreadSummary(id: id, sessionId: id, preview: "p", modelProvider: "openai",
+                      createdAt: 0, updatedAt: 1, cwd: "/r", cliVersion: "0",
+                      name: name, gitInfo: GitInfoSummary(sha: nil, branch: "main", originUrl: "o/r"))
+    }
+
+    func testArchiveSendsMethod() async throws {
+        let (store, mock, _) = await makeStore()
+        await store.archive(threadId: "t1")
+        try await waitUntil { await mock.sent.contains { $0.contains("thread/archive") } }
+        let sent = await mock.sent.first { $0.contains("thread/archive") }!
+        XCTAssertTrue(sent.contains(#""threadId":"t1""#), sent)
+    }
+
+    func testRenameSendsNameField() async throws {
+        let (store, mock, _) = await makeStore()
+        await store.rename(threadId: "t1", name: "新名")
+        try await waitUntil { await mock.sent.contains { $0.contains("thread/name/set") } }
+        let sent = await mock.sent.first { $0.contains("thread/name/set") }!
+        XCTAssertTrue(sent.contains(#""name":"新名""#), sent)
+    }
+
+    func testRollbackSendsNumTurns() async throws {
+        let (store, mock, _) = await makeStore()
+        await store.rollback(threadId: "t1", numTurns: 2)
+        try await waitUntil { await mock.sent.contains { $0.contains("thread/rollback") } }
+        let sent = await mock.sent.first { $0.contains("thread/rollback") }!
+        XCTAssertTrue(sent.contains(#""numTurns":2"#), sent)
+        XCTAssertTrue(sent.contains(#""threadId":"t1""#), sent)
+    }
+
+    func testDeleteSendsMethod() async throws {
+        let (store, mock, _) = await makeStore()
+        await store.delete(threadId: "t1")
+        try await waitUntil { await mock.sent.contains { $0.contains("thread/delete") } }
+    }
+
+    func testCompactSendsMethod() async throws {
+        let (store, mock, _) = await makeStore()
+        await store.compact(threadId: "t1")
+        try await waitUntil { await mock.sent.contains { $0.contains("thread/compact/start") } }
+    }
+
+    func testGoalSetGetClearSend() async throws {
+        let (store, mock, _) = await makeStore()
+        await store.setGoal(threadId: "t1", objective: "发版", status: .active)
+        await store.clearGoal(threadId: "t1")
+        try await waitUntil { await mock.sent.contains { $0.contains("thread/goal/set") } }
+        try await waitUntil { await mock.sent.contains { $0.contains("thread/goal/clear") } }
+        let setFrame = await mock.sent.first { $0.contains("thread/goal/set") }!
+        XCTAssertTrue(setFrame.contains(#""objective":"发版""#), setFrame)
+    }
+
+    func testDeletedBroadcastRemovesThread() async throws {
+        let (store, mock, _) = await makeStore()
+        store.ingest([thread("t1"), thread("t2")])
+        await mock.feed(#"{"jsonrpc":"2.0","method":"thread/deleted","params":{"threadId":"t1"}}"#)
+        try await waitUntil { !store.allThreadsSorted.contains { $0.id == "t1" } }
+        XCTAssertTrue(store.allThreadsSorted.contains { $0.id == "t2" })
+    }
+
+    func testNameUpdatedBroadcastRenamesThread() async throws {
+        let (store, mock, _) = await makeStore()
+        store.ingest([thread("t1", name: "旧名")])
+        await mock.feed(#"{"jsonrpc":"2.0","method":"thread/name/updated","params":{"threadId":"t1","threadName":"新名"}}"#)
+        try await waitUntil { store.allThreadsSorted.first { $0.id == "t1" }?.name == "新名" }
+    }
+
+    private func waitUntil(timeout: TimeInterval = 2.0, _ condition: () async -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await condition() { return }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("waitUntil timed out")
+    }
 }
