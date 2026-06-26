@@ -122,6 +122,7 @@ final class SessionControlTests: XCTestCase {
 
     private func makeStore() async -> (ProjectsStore, MockTransport, JSONRPCClient) {
         let mock = MockTransport()
+        await mock.setAutoRespond(true)   // 管理动作走 rpc.send 请求-响应，需自动应答否则永久挂起
         let rpc = JSONRPCClient(transport: mock)
         await rpc.start()
         let store = ProjectsStore()
