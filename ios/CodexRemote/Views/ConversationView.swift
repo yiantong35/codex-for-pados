@@ -80,8 +80,9 @@ struct ConversationView: View {
             await s.startObserving()   // 先完成订阅注册（async），再 resume，避免漏掉随后到达的事件
             await s.resume()        // session-management：恢复已有会话历史
             store = s
-            // 重连成功（WSTransport 物理重连发 .ready）→ 经官方 thread/loaded/list +
+            // 首连/重连成功（.ready）→ 经官方 thread/loaded/list +
             // thread/resume(rejoin) 重建并重新订阅全部活跃 thread（§5），不依赖本地 seq/threadId。
+            // 注：SSH 通道物理重连属 Phase 5，当前 ProxyChannel 的 control() 为空流。
             connection.setResumeHandler { [weak s] in await s?.rejoinRunningThreads() }
         }
     }

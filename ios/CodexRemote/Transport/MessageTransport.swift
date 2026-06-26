@@ -12,8 +12,8 @@ protocol MessageTransport: Sendable {
 }
 
 extension MessageTransport {
-    /// 控制信号通道默认实现：无控制信号的 transport（如 MockTransport）返回空流。
-    /// WSTransport 覆写以上报 reconnecting/ready。
+    /// 控制信号通道默认实现：无控制信号的 transport（如 MockTransport / 当前 ProxyChannel）返回空流。
+    /// 具备物理重连能力的 transport 可覆写以上报 reconnecting/ready（SSH 重连属 Phase 5）。
     func control() -> AsyncStream<TransportControlEvent> {
         AsyncStream { $0.finish() }
     }

@@ -2,6 +2,14 @@ import XCTest
 @testable import CodexRemote
 
 final class ConnectionStoreTests: XCTestCase {
+    /// connect() 现含「本机密钥已生成」前置校验（KeyManager.hasKey）。
+    /// 走 mock transport 的握手/重连测试与密钥无关，故先确保 Keychain 里存在密钥，
+    /// 让 .stub 连接能越过前置校验进入注入的 mock 工厂。
+    override func setUp() async throws {
+        try await super.setUp()
+        await MainActor.run { KeyManager().generateIfNeeded() }
+    }
+
     func testHandshakeReachesReady() async throws {
         let mock = MockTransport()
         let store = await ConnectionStore(transportFactory: { _ in mock })
@@ -53,19 +61,20 @@ final class ConnectionStoreTests: XCTestCase {
         if case .ready = await store.phase { XCTFail("initialize 收到 -32600 不应视为 ready") }
     }
 
-    /// 空 token 时 connect 不调 transportFactory，直接落 .failed。
+    /// 必填项缺失（host/user/sock 路径任一为空）时 connect 不调 transportFactory，直接落 .failed。
     @MainActor
-    func testEmptyTokenDoesNotConnect() async throws {
+    func testIncompleteConfigDoesNotConnect() async throws {
         let calledBox = CallBox()
         let store = ConnectionStore(transportFactory: { _ in
             await calledBox.mark()
             throw TransportError.notConnected
         })
-        store.connect(config: .init(host: "h", port: 8900, token: ""))
+        // sock 路径为空 → 前置校验拒绝，不应进入工厂。
+        store.connect(config: .init(host: "h", user: "u", sshPort: 22, controlSockPath: ""))
         try await Task.sleep(nanoseconds: 100_000_000)
         let called = await calledBox.value
-        XCTAssertFalse(called, "空 token 不应调用 transportFactory")
-        if case .failed = store.phase {} else { XCTFail("空 token 应落 .failed，实际 \(store.phase)") }
+        XCTAssertFalse(called, "必填项缺失不应调用 transportFactory")
+        if case .failed = store.phase {} else { XCTFail("必填项缺失应落 .failed，实际 \(store.phase)") }
     }
 
     // snapshotNeeded 控制信号已随去 envelope 移除（设计 D1）；重连后会话恢复改由
