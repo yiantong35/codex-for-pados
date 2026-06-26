@@ -240,6 +240,8 @@ final class ConnectionStore {
             case .proxyFailed(let m):  return "通道建立失败：\(m)"
             case .channelClosed(let r): return "连接通道关闭：\(r ?? "未知原因")"
             case .notConnected:        return "未连接"
+            // TODO(T2.4): 替换为 sshAuthFailed/handshakeFailed 的正式中文文案
+            default:                    return error.localizedDescription
             }
         }
         if let to = error as? ConnectionTimeoutError { return to.errorDescription ?? "连接超时" }
