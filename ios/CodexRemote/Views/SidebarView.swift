@@ -32,6 +32,22 @@ struct SidebarView: View {
             }
         }
         .navigationTitle("sidebar.title")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    guard let rpc = connection.rpc else { return }
+                    Task {
+                        let any = try? await rpc.send(method: RPCMethod.threadStart,
+                                                      params: AnyCodable(["cwd": nil, "model": nil] as [String: String?]))
+                        if let dict = any?.value as? [String: Any],
+                           let id = (dict["thread"] as? [String: Any])?["id"] as? String {
+                            await MainActor.run { selectedThreadId = id }
+                        }
+                    }
+                } label: { Image(systemName: "square.and.pencil") }
+                .accessibilityLabel(Text("sidebar.newThread"))
+            }
+        }
         .overlay {
             if projects.projects.isEmpty && projects.looseConversations.isEmpty {
                 ContentUnavailableView("sidebar.empty.title", systemImage: "tray",
@@ -98,6 +114,19 @@ struct SidebarView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { selectedThreadId = thread.id }
+        .contextMenu {
+            Button {
+                guard let rpc = connection.rpc else { return }
+                Task {
+                    let any = try? await rpc.send(method: RPCMethod.threadFork,
+                                                  params: AnyCodable(["threadId": thread.id]))
+                    if let dict = any?.value as? [String: Any],
+                       let id = (dict["thread"] as? [String: Any])?["id"] as? String {
+                        await MainActor.run { selectedThreadId = id }
+                    }
+                }
+            } label: { Label("sidebar.fork", systemImage: "arrow.triangle.branch") }
+        }
     }
 
     private func displayTitle(_ thread: ThreadSummary) -> String {

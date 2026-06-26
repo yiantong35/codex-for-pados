@@ -67,16 +67,29 @@ final class ConversationStore {
         }
     }
 
-    /// 新建对话：发 thread/start。返回的新 threadId 异步写回 state。
+    /// 新建对话：发 thread/start。fire-and-forget——网络调用包进 Task{} 立即返回；
+    /// 返回的新 threadId 异步写回 state。响应 shape 为 {thread:{id,...},...}（protocol v2）。
     func start(cwd: String? = nil, model: String? = nil) async {
         let params = ThreadStartParams(cwd: cwd, model: model)
-        Task {
-            guard let result = try? await call(RPCMethod.threadStart, params) else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            guard let result = try? await self.call(RPCMethod.threadStart, params) else { return }
             if let dict = result.value as? [String: Any],
-               let newId = dict["threadId"] as? String {
-                state.threadId = newId
+               let newId = (dict["thread"] as? [String: Any])?["id"] as? String {
+                self.state.threadId = newId
             }
         }
+    }
+
+    /// 派生当前对话：发 thread/fork，得到新 thread id（不影响源 thread）。返回新 id（失败 nil）。
+    /// 响应 shape 为 {thread:{id,...},...}（protocol v2 ThreadForkResponse）。
+    @discardableResult
+    func fork() async -> String? {
+        let params = ThreadForkParams(threadId: state.threadId)
+        guard let result = try? await call(RPCMethod.threadFork, params),
+              let dict = result.value as? [String: Any],
+              let newId = (dict["thread"] as? [String: Any])?["id"] as? String else { return nil }
+        return newId
     }
 
     /// 发送 prompt：发 turn/start。turn 输出经 notifications 流式回来，故发出即返回。
