@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		00D035F4CCE176BD3E53D4F1 /* CodexRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C01C7EC77E19B927C5E72B /* CodexRemoteApp.swift */; };
+		01BE5A03B6CE5A4875A7AD98 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 55AF6C40AC2043794D057E06 /* Citadel */; };
 		046D60CECEF36F595B491834 /* ProjectsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F3DFDE3E35F47099089A687 /* ProjectsStore.swift */; };
 		092CD1F52D3E6A361F9BFFE5 /* RightPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1642FA85A90C056E5D3064 /* RightPanelView.swift */; };
 		09EBBCF3632D7D40FE2228CE /* MidTurnControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 114A352157315BC15F79C989 /* MidTurnControlTests.swift */; };
@@ -182,6 +183,17 @@
 		FCE6EE6E276995AE35699CCF /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		FFBA120F4EEB38BFB307D900 /* CodexRemoteTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CodexRemoteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		19CBFC54B7F6EF69F7664F3B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				01BE5A03B6CE5A4875A7AD98 /* Citadel in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		26E8B07B1351ED1808A9FD03 /* Resources */ = {
@@ -396,6 +408,7 @@
 			buildPhases = (
 				219244036FF2F3C4FF8E50FD /* Sources */,
 				27EDDC8C7674EF46AE66C99E /* Resources */,
+				19CBFC54B7F6EF69F7664F3B /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -403,6 +416,7 @@
 			);
 			name = CodexRemote;
 			packageProductDependencies = (
+				55AF6C40AC2043794D057E06 /* Citadel */,
 			);
 			productName = CodexRemote;
 			productReference = FA7C5D102DC860D73AE1ADE9 /* CodexRemote.app */;
@@ -456,6 +470,9 @@
 			);
 			mainGroup = 712AD02F05D26361AF729D70;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				935CA715DF2ED02C0C97E7BA /* XCRemoteSwiftPackageReference "Citadel" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CA7B3B413DBEC4A5D2B2B3C3 /* Products */;
 			projectDirPath = "";
@@ -824,6 +841,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		935CA715DF2ED02C0C97E7BA /* XCRemoteSwiftPackageReference "Citadel" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/orlandos-nl/Citadel";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.12.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		55AF6C40AC2043794D057E06 /* Citadel */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 935CA715DF2ED02C0C97E7BA /* XCRemoteSwiftPackageReference "Citadel" */;
+			productName = Citadel;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 123073DF2A1E467EE83C90DF /* Project object */;
 }
