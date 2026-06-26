@@ -52,6 +52,19 @@ struct ThreadResumeParams: Codable {
     var cwd: String?
 }
 
+/// thread/start：新建对话。参数 shape 对齐 protocol v2 ThreadStartParams（全字段 optional），
+/// 仅取建会话所需子集 {cwd, model}（v2 schema 合法子集）。
+struct ThreadStartParams: Codable {
+    var cwd: String?
+    var model: String?
+}
+
+/// thread/fork：从已有 thread 派生新 thread。对齐 protocol v2 ThreadForkParams：
+/// threadId 必填，其余 override 字段全 optional（此处仅传必填 threadId）。
+struct ThreadForkParams: Codable {
+    let threadId: String
+}
+
 /// 空参数（编码为 `{}`）：用于 `thread/loaded/list` 等无参方法。
 struct EmptyParams: Encodable {}
 
@@ -60,11 +73,6 @@ struct EmptyParams: Encodable {}
 struct LoadedThreadList: Decodable {
     let data: [String]
     let nextCursor: String?
-}
-
-struct ThreadStartParams: Codable {
-    var cwd: String?
-    var model: String?
 }
 
 // MARK: - 会话管理（ipad-follower-session-control，protocol v2）

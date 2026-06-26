@@ -5,6 +5,7 @@ enum RPCMethod {
     static let threadLoadedList = "thread/loaded/list"  // 当前 app-server 内存中运行的 thread ids
     static let threadResume = "thread/resume"
     static let threadStart = "thread/start"
+    static let threadFork = "thread/fork"
     static let threadArchive = "thread/archive"
     static let threadUnarchive = "thread/unarchive"
     static let threadDelete = "thread/delete"
