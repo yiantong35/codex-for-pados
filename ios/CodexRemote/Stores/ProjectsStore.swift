@@ -240,6 +240,9 @@ final class ProjectsStore {
     func hasPendingApproval(_ threadId: String) -> Bool { pendingApproval.contains(threadId) }
 
     func pendingApprovalCount(in project: Project) -> Int {
-        project.threads.filter { hasPendingApproval($0.id) }.count
+        project.threads.filter {
+            if case .active(let flags) = threadStatus[$0.id], flags.contains(.waitingOnApproval) { return true }
+            return false
+        }.count
     }
 }

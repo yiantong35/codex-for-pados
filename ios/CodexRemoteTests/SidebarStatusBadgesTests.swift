@@ -116,4 +116,16 @@ struct SidebarStatusBadgesTests {
         let store2 = ProjectsStore(unreadDefaults: defaults)
         #expect(store2.hasUnread(makeThread("t1", updatedAt: 100), isSelected: false) == false)
     }
+
+    // MARK: - Task 6: 项目级待审批计数改 daemon 来源
+
+    @MainActor @Test func pendingApprovalCountFromDaemonStatus() {
+        let store = ProjectsStore()
+        let t1 = makeThread("t1", updatedAt: 0)
+        let t2 = makeThread("t2", updatedAt: 0)
+        let proj = Project(id: "p", cwd: "/p", originUrl: nil, threads: [t1, t2])
+        store.handleStatusChanged(threadId: "t1", status: .active(activeFlags: [.waitingOnApproval]))
+        store.handleStatusChanged(threadId: "t2", status: .idle)
+        #expect(store.pendingApprovalCount(in: proj) == 1)
+    }
 }
