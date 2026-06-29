@@ -51,6 +51,16 @@ final class ProjectsStore {
     }
     private var pendingApproval: Set<String> = []
 
+    /// per-thread 运行态（来源：thread/list 初值 + thread/status/changed 广播）。批次②。
+    private(set) var threadStatus: [String: ThreadStatus] = [:]
+
+    func status(of threadId: String) -> ThreadStatus? { threadStatus[threadId] }
+
+    /// 消费 thread/status/changed（internal 供单测）。
+    func handleStatusChanged(threadId: String, status: ThreadStatus) {
+        threadStatus[threadId] = status
+    }
+
     private var rpc: JSONRPCClient?
     private var broadcastObserver: Task<Void, Never>?
 
@@ -79,6 +89,12 @@ final class ProjectsStore {
             renameLocal(tid, to: newName)
         case ServerNotificationMethod.threadUnarchived:
             Task { if let rpc = self.rpc { await self.loadFromServer(rpc: rpc) } }
+        case ServerNotificationMethod.threadStatusChanged:
+            if let dict = p["status"],
+               let data = try? JSONSerialization.data(withJSONObject: dict),
+               let st = try? JSONDecoder().decode(ThreadStatus.self, from: data) {
+                handleStatusChanged(threadId: tid, status: st)
+            }
         default:
             break
         }
@@ -187,6 +203,8 @@ final class ProjectsStore {
                            originUrl: sorted.first?.gitInfo?.originUrl, threads: sorted)
         }.sorted { ($0.threads.first?.updatedAt ?? 0) > ($1.threads.first?.updatedAt ?? 0) }
         looseConversations = loose.sorted { $0.updatedAt > $1.updatedAt }
+        // 运行态初值（批次②）：thread/list 项携带 status。
+        for t in threads where t.status != nil { threadStatus[t.id] = t.status }
     }
 
     func setPendingApproval(threadId: String, pending: Bool) {

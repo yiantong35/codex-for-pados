@@ -74,4 +74,15 @@ struct SidebarStatusBadgesTests {
         #expect(RunStateBadge.from(.notLoaded) == RunStateBadge.none)
         #expect(RunStateBadge.from(nil) == RunStateBadge.none)
     }
+
+    // MARK: - Task 4: ProjectsStore 维护 threadStatus
+
+    @MainActor @Test func statusChangedUpdatesMap() {
+        let store = ProjectsStore()
+        store.handleStatusChanged(threadId: "t1", status: .active(activeFlags: [.waitingOnApproval]))
+        #expect(store.status(of: "t1") == .active(activeFlags: [.waitingOnApproval]))
+        #expect(store.status(of: "t2") == nil)
+        store.handleStatusChanged(threadId: "t1", status: .idle)
+        #expect(store.status(of: "t1") == .idle)
+    }
 }
