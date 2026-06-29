@@ -54,6 +54,32 @@ final class ProjectsStore {
     /// per-thread 运行态（来源：thread/list 初值 + thread/status/changed 广播）。批次②。
     private(set) var threadStatus: [String: ThreadStatus] = [:]
 
+    // MARK: - 未读活动点（批次②，本地持久化）
+
+    @ObservationIgnored private let unreadDefaults: UserDefaults
+    private static let unreadKey = "ipad.sidebar.lastViewedAt.v1"
+    /// per-thread 已读时间戳（threadId → lastViewedAt）。
+    private var lastViewedAt: [String: Double] = [:]
+
+    /// 注入 UserDefaults（默认 .standard），加载持久化的已读时间戳。
+    /// 默认参数保证 `ProjectsStore()` 仍可用。
+    init(unreadDefaults: UserDefaults = .standard) {
+        self.unreadDefaults = unreadDefaults
+        self.lastViewedAt = (unreadDefaults.dictionary(forKey: Self.unreadKey) as? [String: Double]) ?? [:]
+    }
+
+    /// 未读判定：当前选中不亮（前置）；否则 updatedAt > lastViewedAt。
+    func hasUnread(_ thread: ThreadSummary, isSelected: Bool) -> Bool {
+        if isSelected { return false }
+        return thread.updatedAt > (lastViewedAt[thread.id] ?? 0)
+    }
+
+    /// 进入会话：更新已读时间戳并持久化。
+    func markViewed(threadId: String, updatedAt: Double) {
+        lastViewedAt[threadId] = updatedAt
+        unreadDefaults.set(lastViewedAt, forKey: Self.unreadKey)
+    }
+
     func status(of threadId: String) -> ThreadStatus? { threadStatus[threadId] }
 
     /// 消费 thread/status/changed（internal 供单测）。

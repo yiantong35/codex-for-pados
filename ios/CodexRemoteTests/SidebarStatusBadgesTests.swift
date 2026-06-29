@@ -85,4 +85,35 @@ struct SidebarStatusBadgesTests {
         store.handleStatusChanged(threadId: "t1", status: .idle)
         #expect(store.status(of: "t1") == .idle)
     }
+
+    // MARK: - Task 5: 未读活动点（lastViewedAt 持久化 + 当前选中前置）
+
+    private func makeThread(_ id: String, updatedAt: Double) -> ThreadSummary {
+        ThreadSummary(id: id, sessionId: "s", preview: "", modelProvider: "",
+                      createdAt: 0, updatedAt: updatedAt, cwd: "", cliVersion: "")
+    }
+
+    @MainActor @Test func unreadDotLogic() {
+        let defaults = UserDefaults(suiteName: "test.unread.\(UUID().uuidString)")!
+        let store = ProjectsStore(unreadDefaults: defaults)
+        let t = makeThread("t1", updatedAt: 100)
+        // 没看过 + 非选中 → 未读
+        #expect(store.hasUnread(t, isSelected: false) == true)
+        // 当前选中 → 不亮（前置规则）
+        #expect(store.hasUnread(t, isSelected: true) == false)
+        // 看过后熄灭
+        store.markViewed(threadId: "t1", updatedAt: 100)
+        #expect(store.hasUnread(t, isSelected: false) == false)
+        // 又有新活动（updatedAt 前进）→ 再亮
+        #expect(store.hasUnread(makeThread("t1", updatedAt: 200), isSelected: false) == true)
+    }
+
+    @MainActor @Test func unreadPersistsAcrossReload() {
+        let defaults = UserDefaults(suiteName: "test.unread.\(UUID().uuidString)")!
+        let store1 = ProjectsStore(unreadDefaults: defaults)
+        store1.markViewed(threadId: "t1", updatedAt: 100)
+        // 新实例（模拟重启）读同一 suite
+        let store2 = ProjectsStore(unreadDefaults: defaults)
+        #expect(store2.hasUnread(makeThread("t1", updatedAt: 100), isSelected: false) == false)
+    }
 }
