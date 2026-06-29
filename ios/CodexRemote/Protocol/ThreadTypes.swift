@@ -25,6 +25,7 @@ struct ThreadSummary: Codable, Identifiable {
     let cliVersion: String
     var name: String?
     var gitInfo: GitInfoSummary?                    // null 表示非 git 仓库（分类信号，见 D8）
+    var status: ThreadStatus?                       // 运行态（批次②，thread/list 携带；缺省 nil）
 }
 
 struct ThreadListParams: Codable {

@@ -39,4 +39,25 @@ struct SidebarStatusBadgesTests {
         #expect(n.threadId == "t1")
         #expect(n.status == .active(activeFlags: [.waitingOnApproval]))
     }
+
+    // MARK: - Task 2: ThreadSummary.status
+
+    @Test func threadSummaryDecodesStatus() throws {
+        let json = #"""
+        {"id":"t1","sessionId":"s1","preview":"hi","modelProvider":"openai",
+         "createdAt":1.0,"updatedAt":2.0,"cwd":"/x","cliVersion":"0.1",
+         "status":{"type":"active","activeFlags":[]}}
+        """#
+        let t = try decode(ThreadSummary.self, json)
+        #expect(t.status == .active(activeFlags: []))
+    }
+
+    @Test func threadSummaryStatusOptionalDefaultsNil() throws {
+        let json = #"""
+        {"id":"t1","sessionId":"s1","preview":"hi","modelProvider":"openai",
+         "createdAt":1.0,"updatedAt":2.0,"cwd":"/x","cliVersion":"0.1"}
+        """#
+        let t = try decode(ThreadSummary.self, json)
+        #expect(t.status == nil)
+    }
 }
