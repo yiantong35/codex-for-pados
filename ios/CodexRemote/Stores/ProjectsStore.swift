@@ -19,6 +19,26 @@ struct Project: Identifiable {
     }
 }
 
+/// 侧栏运行态徽标种类（批次②，纯派生自 ThreadStatus）。
+enum RunStateBadge: Equatable {
+    case none
+    case running         // active 无 flag → spinner
+    case waitingInput    // waitingOnUserInput
+    case waitingApproval // waitingOnApproval（与 input 并存时优先）
+    case error           // systemError
+
+    static func from(_ status: ThreadStatus?) -> RunStateBadge {
+        switch status {
+        case .active(let flags):
+            if flags.contains(.waitingOnApproval) { return .waitingApproval }
+            if flags.contains(.waitingOnUserInput) { return .waitingInput }
+            return .running
+        case .systemError: return .error
+        case .idle, .notLoaded, nil: return RunStateBadge.none
+        }
+    }
+}
+
 /// 状态层：拉取 `thread/list`，按 cwd 分组为项目，并维护「待批准」徽标集合。
 @Observable
 @MainActor

@@ -60,4 +60,18 @@ struct SidebarStatusBadgesTests {
         let t = try decode(ThreadSummary.self, json)
         #expect(t.status == nil)
     }
+
+    // MARK: - Task 3: 运行态→徽标映射纯函数
+
+    @Test func runStateBadgeMapping() {
+        #expect(RunStateBadge.from(.active(activeFlags: [])) == .running)
+        #expect(RunStateBadge.from(.active(activeFlags: [.waitingOnUserInput])) == .waitingInput)
+        #expect(RunStateBadge.from(.active(activeFlags: [.waitingOnApproval])) == .waitingApproval)
+        // 同时含两 flag：审批优先（更需用户动作）
+        #expect(RunStateBadge.from(.active(activeFlags: [.waitingOnUserInput, .waitingOnApproval])) == .waitingApproval)
+        #expect(RunStateBadge.from(.systemError) == .error)
+        #expect(RunStateBadge.from(.idle) == RunStateBadge.none)
+        #expect(RunStateBadge.from(.notLoaded) == RunStateBadge.none)
+        #expect(RunStateBadge.from(nil) == RunStateBadge.none)
+    }
 }
