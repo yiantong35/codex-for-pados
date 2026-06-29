@@ -94,7 +94,7 @@ final class OrientationSnapshotTests: XCTestCase {
             t("a1", "/repo/app", "接入推送", "集成 APNs 并处理后台静默推送回执上报逻辑", 600),
             t("a2", "/repo/app", nil, "排查启动崩溃", 7200),
         ])
-        store.setPendingApproval(threadId: "a1", pending: true)
+        store.handleStatusChanged(threadId: "a1", status: .active(activeFlags: [.waitingOnApproval]))
         return store
     }
 
@@ -179,7 +179,7 @@ final class OrientationSnapshotTests: XCTestCase {
             gitThread("c", cwd: "/repo/api", origin: "o/api", ago: 30, name: "接入推送"),
             looseThread("d", cwd: "/Volumes/mount", ago: 40, name: "随手对话"),
         ])
-        projects.setPendingApproval(threadId: "a", pending: true)
+        projects.handleStatusChanged(threadId: "a", status: .active(activeFlags: [.waitingOnApproval]))
         XCTAssertTrue(projects.isGrouped)
         // 新增本地化键必须可解析（解析失败会回落为键名本身）。
         let conv = String(localized: "sidebar.conversations", bundle: .main)

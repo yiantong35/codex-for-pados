@@ -49,7 +49,6 @@ final class ProjectsStore {
     var allThreadsSorted: [ThreadSummary] {
         (projects.flatMap(\.threads) + looseConversations).sorted { $0.updatedAt > $1.updatedAt }
     }
-    private var pendingApproval: Set<String> = []
 
     /// per-thread 运行态（来源：thread/list 初值 + thread/status/changed 广播）。批次②。
     private(set) var threadStatus: [String: ThreadStatus] = [:]
@@ -232,12 +231,6 @@ final class ProjectsStore {
         // 运行态初值（批次②）：thread/list 项携带 status。
         for t in threads where t.status != nil { threadStatus[t.id] = t.status }
     }
-
-    func setPendingApproval(threadId: String, pending: Bool) {
-        if pending { pendingApproval.insert(threadId) } else { pendingApproval.remove(threadId) }
-    }
-
-    func hasPendingApproval(_ threadId: String) -> Bool { pendingApproval.contains(threadId) }
 
     func pendingApprovalCount(in project: Project) -> Int {
         project.threads.filter {
