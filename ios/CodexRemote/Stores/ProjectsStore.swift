@@ -115,10 +115,10 @@ final class ProjectsStore {
         case ServerNotificationMethod.threadUnarchived:
             Task { if let rpc = self.rpc { await self.loadFromServer(rpc: rpc) } }
         case ServerNotificationMethod.threadStatusChanged:
-            if let dict = p["status"],
-               let data = try? JSONSerialization.data(withJSONObject: dict),
-               let st = try? JSONDecoder().decode(ThreadStatus.self, from: data) {
-                handleStatusChanged(threadId: tid, status: st)
+            // 用 ThreadStatusChangedNotification 整体解码（去重 params 二次解析）。
+            if let data = try? JSONSerialization.data(withJSONObject: p),
+               let note = try? JSONDecoder().decode(ThreadStatusChangedNotification.self, from: data) {
+                handleStatusChanged(threadId: note.threadId, status: note.status)
             }
         default:
             break
@@ -129,6 +129,11 @@ final class ProjectsStore {
         for i in projects.indices { projects[i].threads.removeAll { $0.id == id } }
         projects.removeAll { $0.threads.isEmpty }
         looseConversations.removeAll { $0.id == id }
+        // 批次②：清理该 thread 的运行态与已读记录，避免 map 无界增长。
+        threadStatus.removeValue(forKey: id)
+        if lastViewedAt.removeValue(forKey: id) != nil {
+            unreadDefaults.set(lastViewedAt, forKey: Self.unreadKey)
+        }
     }
 
     private func renameLocal(_ id: String, to name: String?) {
@@ -229,6 +234,8 @@ final class ProjectsStore {
         }.sorted { ($0.threads.first?.updatedAt ?? 0) > ($1.threads.first?.updatedAt ?? 0) }
         looseConversations = loose.sorted { $0.updatedAt > $1.updatedAt }
         // 运行态初值（批次②）：thread/list 项携带 status。
+        // 假设 thread/list 返回的是最新态（daemon 侧 list 与 broadcast 无显式时序号，
+        // 重拉以 list 为准）；仅在 status 非 nil 时覆盖，避免把已知态降级为 nil。
         for t in threads where t.status != nil { threadStatus[t.id] = t.status }
     }
 

@@ -41,7 +41,11 @@ struct SidebarView: View {
                                                       params: AnyCodable(["cwd": nil, "model": nil] as [String: String?]))
                         if let dict = any?.value as? [String: Any],
                            let id = (dict["thread"] as? [String: Any])?["id"] as? String {
-                            await MainActor.run { selectedThreadId = id }
+                            await MainActor.run {
+                                selectedThreadId = id
+                                // 新建即视为已读（标到当前时刻），避免切走再回误亮未读点。
+                                projects.markViewed(threadId: id, updatedAt: Date().timeIntervalSince1970)
+                            }
                         }
                     }
                 } label: { Image(systemName: "square.and.pencil") }
