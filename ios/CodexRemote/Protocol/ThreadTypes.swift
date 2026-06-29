@@ -135,3 +135,55 @@ struct ThreadGoalUpdatedNotification: Codable {
     let goal: ThreadGoal
     var turnId: String?
 }
+
+// MARK: - 会话运行态（批次② 侧栏徽标）
+
+/// 会话活动标志（protocol v2 ThreadActiveFlag）。未知值在解码层跳过。
+enum ThreadActiveFlag: String, Codable, Equatable {
+    case waitingOnApproval
+    case waitingOnUserInput
+}
+
+/// 会话运行态（protocol v2 ThreadStatus，带 type 标签）。
+enum ThreadStatus: Equatable {
+    case notLoaded
+    case idle
+    case systemError
+    case active(activeFlags: [ThreadActiveFlag])
+}
+
+extension ThreadStatus: Codable {
+    private enum CodingKeys: String, CodingKey { case type, activeFlags }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try c.decode(String.self, forKey: .type)
+        switch type {
+        case "active":
+            // 容忍未知 flag：逐个尝试映射，跳过无法识别的。
+            let raw = (try? c.decode([String].self, forKey: .activeFlags)) ?? []
+            self = .active(activeFlags: raw.compactMap(ThreadActiveFlag.init(rawValue:)))
+        case "idle":        self = .idle
+        case "systemError": self = .systemError
+        default:            self = .notLoaded   // notLoaded + 未知 type 兜底
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .notLoaded:    try c.encode("notLoaded", forKey: .type)
+        case .idle:         try c.encode("idle", forKey: .type)
+        case .systemError:  try c.encode("systemError", forKey: .type)
+        case .active(let flags):
+            try c.encode("active", forKey: .type)
+            try c.encode(flags.map(\.rawValue), forKey: .activeFlags)
+        }
+    }
+}
+
+/// thread/status/changed 广播 payload。
+struct ThreadStatusChangedNotification: Codable, Equatable {
+    let threadId: String
+    let status: ThreadStatus
+}
