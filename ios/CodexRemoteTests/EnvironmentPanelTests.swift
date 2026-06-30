@@ -67,4 +67,30 @@ struct EnvironmentPanelTests {
         #expect(j.contains("\"mergeStrategy\":\"replace\""))
         #expect(j.contains("\"value\":\"gpt-5\""))
     }
+
+    // MARK: - Task 4: EnvironmentStore
+
+    @MainActor @Test func storeConsumesAccountBroadcast() {
+        let s = EnvironmentStore()
+        s.handleAccountUpdated(.chatgpt(email: "x@y.com", planType: "pro"))
+        #expect(s.account == .chatgpt(email: "x@y.com", planType: "pro"))
+    }
+    @MainActor @Test func storeConsumesRateLimitsBroadcast() {
+        let s = EnvironmentStore()
+        let snap = RateLimitSnapshot(limitId: "codex", limitName: nil,
+                                     primary: RateLimitWindow(usedPercent: 10, windowDurationMins: nil, resetsAt: nil),
+                                     secondary: nil)
+        s.handleRateLimitsUpdated(snap)
+        #expect(s.rateLimits?.primary?.usedPercent == 10)
+    }
+    @MainActor @Test func modelSwitchParams() {
+        let p = EnvironmentStore.modelWriteParams(modelId: "gpt-5")
+        #expect(p.keyPath == "model")
+        #expect(p.mergeStrategy == "replace")
+    }
+    @MainActor @Test func configWriteParamsFor() {
+        let p = EnvironmentStore.configWriteParams(keyPath: "approval_policy", stringValue: "never")
+        #expect(p.keyPath == "approval_policy")
+        #expect(p.mergeStrategy == "replace")
+    }
 }
