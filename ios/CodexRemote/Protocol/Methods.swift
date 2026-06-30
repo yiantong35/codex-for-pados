@@ -19,6 +19,11 @@ enum RPCMethod {
     static let turnSteer = "turn/steer"
     static let turnInterrupt = "turn/interrupt"
     static let modelList = "model/list"
+    static let accountRead = "account/read"
+    static let accountUsageRead = "account/usage/read"
+    static let accountRateLimitsRead = "account/rateLimits/read"
+    static let configRead = "config/read"
+    static let configValueWrite = "config/value/write"
 }
 
 enum ServerRequestMethod {
@@ -50,6 +55,8 @@ enum ServerNotificationMethod {
     static let threadNameUpdated = "thread/name/updated"
     static let threadGoalUpdated = "thread/goal/updated"
     static let threadGoalCleared = "thread/goal/cleared"
+    static let accountUpdated = "account/updated"
+    static let accountRateLimitsUpdated = "account/rateLimits/updated"
     static let serverRequestResolved = "serverRequest/resolved"
     static let error = "error"
     static let warning = "warning"
