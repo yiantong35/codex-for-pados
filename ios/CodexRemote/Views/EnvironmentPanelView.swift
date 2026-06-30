@@ -54,14 +54,14 @@ struct EnvironmentPanelView: View {
             if env.models.isEmpty {
                 Text("env.model.none").foregroundStyle(.secondary)
             } else {
-                ForEach(env.models, id: \.self) { m in
+                ForEach(env.models, id: \.id) { m in
                     Button {
-                        Task { await env.switchModel(m) }
+                        Task { await env.switchModel(m.slug) }
                     } label: {
                         HStack {
-                            Text(m).foregroundStyle(.primary)
+                            Text(m.displayName ?? m.slug).foregroundStyle(.primary)
                             Spacer()
-                            if env.config?.model == m { Image(systemName: "checkmark").foregroundStyle(.tint) }
+                            if env.config?.model == m.slug { Image(systemName: "checkmark").foregroundStyle(.tint) }
                         }
                     }
                 }
@@ -94,7 +94,7 @@ struct EnvironmentPanelView: View {
         if editable() {
             Picker(titleKey, selection: Binding(
                 get: { current() ?? "" },
-                set: { v in if !v.isEmpty { Task { await env.writeConfig(keyPath: keyPath, stringValue: v) } } }
+                set: { v in if !v.isEmpty, v != current() { Task { await env.writeConfig(keyPath: keyPath, stringValue: v) } } }
             )) {
                 ForEach(options, id: \.self) { Text($0).tag($0) }
             }
@@ -103,7 +103,8 @@ struct EnvironmentPanelView: View {
         }
     }
 
+    private static let relativeFormatter = RelativeDateTimeFormatter()
     private static func reset(_ ts: Double) -> String {
-        RelativeDateTimeFormatter().localizedString(for: Date(timeIntervalSince1970: ts), relativeTo: Date())
+        relativeFormatter.localizedString(for: Date(timeIntervalSince1970: ts), relativeTo: Date())
     }
 }

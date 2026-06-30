@@ -11,7 +11,7 @@ final class EnvironmentStore {
     private(set) var usage: AccountTokenUsageSummary?
     private(set) var rateLimits: RateLimitSnapshot?
     private(set) var config: CuratedConfig?
-    private(set) var models: [String] = []          // model/list 结果（id 列表，MVP）
+    private(set) var models: [ModelSummary] = []    // model/list 结果（过滤隐藏）
 
     private var rpc: JSONRPCClient?
     private var observer: Task<Void, Never>?
@@ -38,7 +38,9 @@ final class EnvironmentStore {
     private func applyBroadcast(_ n: JSONRPCNotification) {
         switch n.method {
         case ServerNotificationMethod.accountUpdated:
-            if let a = Self.decodeNested(n, key: "account", as: Account.self) { handleAccountUpdated(a) }
+            // account/updated payload 为 sparse {authMode, planType}，不含完整 Account；
+            // 收到即重拉 account/read（最稳，规避 sparse 合并）。
+            Task { await fetchAccount() }
         case ServerNotificationMethod.accountRateLimitsUpdated:
             if let s = Self.decodeNested(n, key: "rateLimits", as: RateLimitSnapshot.self) { handleRateLimitsUpdated(s) }
         default: break
@@ -83,7 +85,7 @@ final class EnvironmentStore {
     }
     private func fetchModels() async {
         if let r: ModelListResponse = await sendDecode(RPCMethod.modelList, as: ModelListResponse.self) {
-            models = r.data.filter { !$0.hidden }.map(\.id)   // 隐藏模型过滤
+            models = r.data.filter { !$0.hidden }   // 隐藏模型过滤
         }
     }
 

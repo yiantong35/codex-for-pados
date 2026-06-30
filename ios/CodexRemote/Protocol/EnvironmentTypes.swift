@@ -28,6 +28,13 @@ struct GetAccountResponse: Decodable {
     let requiresOpenaiAuth: Bool
 }
 
+/// account/updated 广播 payload（sparse；真相以重读为准）。
+/// 协议为 `{authMode, planType}`——不含完整 Account，故收到后重拉 account/read。
+struct AccountUpdatedNotification: Decodable, Equatable {
+    var authMode: String?
+    var planType: String?
+}
+
 /// bigint 字段以 Int? 解码（JSON number）；缺失/类型异常容忍为 nil。
 struct AccountTokenUsageSummary: Decodable, Equatable {
     var lifetimeTokens: Int?
@@ -120,15 +127,20 @@ struct ConfigValueWriteParams: Encodable {
 
 // MARK: - 模型（model/list）
 
-/// protocol v2 Model 子集（MVP 仅取展示所需）。
+/// protocol v2 Model 子集（MVP 仅取展示/切换所需）。
+/// `id` 与 `model`(slug) 语义不同：config.model 存的是 slug，故切换/选中比较用 `slug`。
 struct ModelSummary: Decodable, Equatable {
     let id: String
+    var model: String?          // slug，写入 config.model 与选中比较用
     var displayName: String?
     var hidden: Bool = false
-    enum CodingKeys: String, CodingKey { case id, displayName, hidden }
+    /// 写入/比较用的稳定标识：优先 slug，回退 id。
+    var slug: String { model ?? id }
+    enum CodingKeys: String, CodingKey { case id, model, displayName, hidden }
     init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
+        model = try? c.decode(String.self, forKey: .model)
         displayName = try? c.decode(String.self, forKey: .displayName)
         hidden = (try? c.decode(Bool.self, forKey: .hidden)) ?? false
     }

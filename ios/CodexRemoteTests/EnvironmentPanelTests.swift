@@ -98,13 +98,25 @@ struct EnvironmentPanelTests {
 
     @Test func decodeModelList() throws {
         let r = try decode(ModelListResponse.self, #"""
-        {"data":[{"id":"gpt-5","displayName":"GPT-5","hidden":false},
-                 {"id":"o3","displayName":"o3","hidden":false},
-                 {"id":"secret","displayName":"Secret","hidden":true}],"nextCursor":null}
+        {"data":[{"id":"gpt-5-id","model":"gpt-5","displayName":"GPT-5","hidden":false},
+                 {"id":"o3-id","model":"o3","displayName":"o3","hidden":false},
+                 {"id":"secret","model":"secret","displayName":"Secret","hidden":true}],"nextCursor":null}
         """#)
-        #expect(r.data.map(\.id) == ["gpt-5", "o3", "secret"])
+        #expect(r.data.map(\.id) == ["gpt-5-id", "o3-id", "secret"])
         #expect(r.data.first?.displayName == "GPT-5")
-        // 可见模型过滤（hidden 隐藏）
-        #expect(r.data.filter { !$0.hidden }.map(\.id) == ["gpt-5", "o3"])
+        // slug 优先 model（写入/比较用）；可见模型过滤 hidden
+        #expect(r.data.first?.slug == "gpt-5")
+        #expect(r.data.filter { !$0.hidden }.map(\.slug) == ["gpt-5", "o3"])
+    }
+
+    @Test func modelSummarySlugFallsBackToId() throws {
+        let m = try decode(ModelSummary.self, #"{"id":"only-id"}"#)
+        #expect(m.slug == "only-id")   // 无 model 字段时回退 id
+    }
+
+    @Test func decodeAccountUpdatedSparse() throws {
+        // account/updated 是 sparse {authMode, planType}，不含完整 Account
+        let n = try decode(AccountUpdatedNotification.self, #"{"authMode":"chatgpt","planType":"pro"}"#)
+        #expect(n.planType == "pro")
     }
 }
