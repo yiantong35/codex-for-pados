@@ -28,7 +28,7 @@ final class EnvironmentStore {
     }
 
     func refreshAll() async {
-        await fetchAccount(); await fetchUsage(); await fetchRateLimits(); await fetchConfig()
+        await fetchAccount(); await fetchUsage(); await fetchRateLimits(); await fetchConfig(); await fetchModels()
     }
 
     // MARK: 广播（internal 供单测）
@@ -80,6 +80,11 @@ final class EnvironmentStore {
     }
     private func fetchConfig() async {
         if let r: ConfigReadResponse = await sendDecode(RPCMethod.configRead, as: ConfigReadResponse.self) { config = r.config }
+    }
+    private func fetchModels() async {
+        if let r: ModelListResponse = await sendDecode(RPCMethod.modelList, as: ModelListResponse.self) {
+            models = r.data.filter { !$0.hidden }.map(\.id)   // 隐藏模型过滤
+        }
     }
 
     private func write(_ p: ConfigValueWriteParams) async {

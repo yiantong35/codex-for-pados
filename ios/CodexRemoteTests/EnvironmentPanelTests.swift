@@ -93,4 +93,18 @@ struct EnvironmentPanelTests {
         #expect(p.keyPath == "approval_policy")
         #expect(p.mergeStrategy == "replace")
     }
+
+    // MARK: - Task 5: model/list 解码
+
+    @Test func decodeModelList() throws {
+        let r = try decode(ModelListResponse.self, #"""
+        {"data":[{"id":"gpt-5","displayName":"GPT-5","hidden":false},
+                 {"id":"o3","displayName":"o3","hidden":false},
+                 {"id":"secret","displayName":"Secret","hidden":true}],"nextCursor":null}
+        """#)
+        #expect(r.data.map(\.id) == ["gpt-5", "o3", "secret"])
+        #expect(r.data.first?.displayName == "GPT-5")
+        // 可见模型过滤（hidden 隐藏）
+        #expect(r.data.filter { !$0.hidden }.map(\.id) == ["gpt-5", "o3"])
+    }
 }

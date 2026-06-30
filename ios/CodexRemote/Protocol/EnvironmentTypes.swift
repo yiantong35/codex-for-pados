@@ -118,3 +118,26 @@ struct ConfigValueWriteParams: Encodable {
     let mergeStrategy: String   // "replace" | "upsert"
 }
 
+// MARK: - 模型（model/list）
+
+/// protocol v2 Model 子集（MVP 仅取展示所需）。
+struct ModelSummary: Decodable, Equatable {
+    let id: String
+    var displayName: String?
+    var hidden: Bool = false
+    enum CodingKeys: String, CodingKey { case id, displayName, hidden }
+    init(from d: Decoder) throws {
+        let c = try d.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        displayName = try? c.decode(String.self, forKey: .displayName)
+        hidden = (try? c.decode(Bool.self, forKey: .hidden)) ?? false
+    }
+}
+
+/// model/list 响应：data + nextCursor（cursor 忽略，MVP 取首页）。
+struct ModelListResponse: Decodable {
+    let data: [ModelSummary]
+    var nextCursor: String?
+}
+
+
