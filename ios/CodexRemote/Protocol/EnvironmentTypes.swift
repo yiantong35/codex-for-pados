@@ -60,3 +60,61 @@ struct GetAccountRateLimitsResponse: Decodable {
     let rateLimits: RateLimitSnapshot
     // rateLimitsByLimitId 忽略
 }
+
+// MARK: - 配置（curated 子集）
+
+/// approval_policy：字符串简单态 或 granular 对象（对象态只读）。
+enum ApprovalPolicyValue: Equatable {
+    case simple(String)   // untrusted/on-failure/on-request/never
+    case granular         // 对象态，移动端只读不编辑
+}
+
+extension ApprovalPolicyValue: Decodable {
+    init(from d: Decoder) throws {
+        let c = try d.singleValueContainer()
+        if let s = try? c.decode(String.self) { self = .simple(s) }
+        else { self = .granular }   // 对象/其它 → granular 只读
+    }
+}
+
+/// 仅 curated 子集；其余 Config 字段宽容忽略。
+struct CuratedConfig: Decodable {
+    var model: String?
+    var approvalPolicy: ApprovalPolicyValue?
+    var sandboxMode: String?
+    var modelReasoningEffort: String?
+    var modelReasoningSummary: String?
+    var modelVerbosity: String?
+    var webSearch: AnyCodable?     // WebSearchMode：字符串或对象，原样持有用于展示
+
+    enum CodingKeys: String, CodingKey {
+        case model
+        case approvalPolicy = "approval_policy"
+        case sandboxMode = "sandbox_mode"
+        case modelReasoningEffort = "model_reasoning_effort"
+        case modelReasoningSummary = "model_reasoning_summary"
+        case modelVerbosity = "model_verbosity"
+        case webSearch = "web_search"
+    }
+}
+
+extension CuratedConfig: Equatable {
+    static func == (l: CuratedConfig, r: CuratedConfig) -> Bool {
+        l.model == r.model && l.approvalPolicy == r.approvalPolicy && l.sandboxMode == r.sandboxMode
+            && l.modelReasoningEffort == r.modelReasoningEffort && l.modelReasoningSummary == r.modelReasoningSummary
+            && l.modelVerbosity == r.modelVerbosity
+    }
+}
+
+struct ConfigReadResponse: Decodable {
+    let config: CuratedConfig
+    // origins / layers 忽略
+}
+
+/// config/value/write 参数。value 用 AnyCodable 容纳任意 JsonValue。
+struct ConfigValueWriteParams: Encodable {
+    let keyPath: String
+    let value: AnyCodable
+    let mergeStrategy: String   // "replace" | "upsert"
+}
+

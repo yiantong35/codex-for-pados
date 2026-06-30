@@ -41,4 +41,30 @@ struct EnvironmentPanelTests {
         #expect(r.rateLimits.primary?.usedPercent == 42.5)
         #expect(r.rateLimits.primary?.resetsAt == 1700000000)
     }
+
+    // MARK: - Task 3: 配置 curated 子集 + 写参数
+
+    @Test func decodeCuratedConfig() throws {
+        let r = try decode(ConfigReadResponse.self, #"""
+        {"config":{"model":"gpt-5","approval_policy":"on-request","sandbox_mode":"workspace-write",
+         "model_reasoning_effort":"high","model_verbosity":"low","instructions":"忽略我",
+         "tools":{"x":1}},"origins":{},"layers":null}
+        """#)
+        #expect(r.config.model == "gpt-5")
+        #expect(r.config.approvalPolicy == .simple("on-request"))
+        #expect(r.config.sandboxMode == "workspace-write")
+        #expect(r.config.modelReasoningEffort == "high")
+    }
+    @Test func decodeGranularApprovalReadOnly() throws {
+        let r = try decode(ConfigReadResponse.self,
+            #"{"config":{"approval_policy":{"granular":{"rules":true}}},"origins":{}}"#)
+        #expect(r.config.approvalPolicy == .granular)   // 对象态 → 只读
+    }
+    @Test func configWriteParamsShape() throws {
+        let p = ConfigValueWriteParams(keyPath: "model", value: AnyCodable("gpt-5"), mergeStrategy: "replace")
+        let j = String(decoding: try JSONEncoder().encode(p), as: UTF8.self)
+        #expect(j.contains("\"keyPath\":\"model\""))
+        #expect(j.contains("\"mergeStrategy\":\"replace\""))
+        #expect(j.contains("\"value\":\"gpt-5\""))
+    }
 }
