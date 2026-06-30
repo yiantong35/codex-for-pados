@@ -7,6 +7,7 @@ struct SettingsMenu: View {
     @Environment(LocaleManager.self) private var locale
     @Environment(ThemeManager.self) private var theme
     @State private var showPopover = false
+    @State private var showEnvironment = false
 
     var body: some View {
         // 用 .popover 而非 Menu：popover 带箭头指向按钮、不遮挡按钮本身（#8）；
@@ -19,10 +20,17 @@ struct SettingsMenu: View {
             settingsList
                 .presentationCompactAdaptation(.popover)
         }
+        .sheet(isPresented: $showEnvironment) { EnvironmentPanelView() }
     }
 
     private var settingsList: some View {
         List {
+            Section {
+                Button { showPopover = false; showEnvironment = true } label: {
+                    row("settings.environment", selected: false)
+                }
+                .foregroundStyle(.primary)
+            }
             Section("settings.language") {
                 ForEach(AppLanguage.allCases, id: \.self) { lang in
                     Button { locale.language = lang; showPopover = false } label: {
