@@ -25,4 +25,38 @@ struct EnvironmentInspectorTests {
         let r = try decode(GetAuthStatusResponse.self, #"{"authMethod":null,"authToken":null,"requiresOpenaiAuth":null}"#)
         #expect(r.authMethod == nil)
     }
+
+    // MARK: - Task 2: 子智能体聚合
+
+    private func notif(_ m: String, item: [String: Any]) -> JSONRPCNotification {
+        JSONRPCNotification(method: m, params: AnyCodable(["item": item]))
+    }
+
+    @MainActor @Test func reducerAggregatesCollabAgents() {
+        var s = ConversationState(threadId: "t")
+        let r = ThreadReducer()
+        r.apply(notif("item/started", item: [
+            "id": "c1", "type": "collabAgentToolCall",
+            "agentsStates": ["a1": ["status": "running", "message": "go"],
+                             "a2": ["status": "pendingInit"]]
+        ]), to: &s)
+        #expect(s.subAgents["a1"]?.status == .running)
+        #expect(s.subAgents["a2"]?.status == .pendingInit)
+        r.apply(notif("item/completed", item: [
+            "id": "c1", "type": "collabAgentToolCall",
+            "agentsStates": ["a1": ["status": "completed"]]
+        ]), to: &s)
+        #expect(s.subAgents["a1"]?.status == .completed)
+    }
+
+    @MainActor @Test func reducerSubAgentActivityUpdatesPath() {
+        var s = ConversationState(threadId: "t")
+        let r = ThreadReducer()
+        r.apply(notif("item/started", item: [
+            "id": "s1", "type": "subAgentActivity",
+            "agentThreadId": "a1", "agentPath": "/repo/agents/Hypatia.md", "kind": "started"
+        ]), to: &s)
+        #expect(s.subAgents["a1"]?.path == "/repo/agents/Hypatia.md")
+        #expect(s.subAgents["a1"]?.displayName == "Hypatia.md")
+    }
 }
