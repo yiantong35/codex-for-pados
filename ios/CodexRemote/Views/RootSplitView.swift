@@ -57,8 +57,8 @@ struct RootSplitView: View {
         return projects.allThreadsSorted.first { $0.id == id }
     }
 
-    // 批次⑤：摘要打开/切换会话时触发环境信息刷新的 key。
-    private var summaryEnvKey: String { "\(showSummary)-\(selectedThreadId ?? "")" }
+    // 批次⑤：摘要打开/切换会话/连接就绪时触发环境信息刷新的 key（含连接态避免冷启动漏刷 I2）。
+    private var summaryEnvKey: String { "\(showSummary)-\(selectedThreadId ?? "")-\(connection.phase == .ready)" }
 
     var body: some View {
         split

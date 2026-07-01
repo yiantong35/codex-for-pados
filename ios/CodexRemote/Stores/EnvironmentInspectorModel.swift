@@ -18,8 +18,10 @@ final class EnvironmentInspectorModel {
 
     /// inspector 打开/会话切换时拉取（cwd 取当前会话）。
     func refresh(cwd: String?) async {
+        // 清场：避免切换会话时上一会话的 auth/diff 残留串场（I1）。
+        authStatus = nil; diffStats = nil; diffSha = nil
         await fetchAuth()
-        guard let cwd, !cwd.isEmpty else { diffStats = nil; diffSha = nil; return }
+        guard let cwd, !cwd.isEmpty else { return }
         await fetchDiff(cwd: cwd)
     }
 
