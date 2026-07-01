@@ -34,4 +34,32 @@ struct TerminalTests {
         #expect(j.contains("\"processId\":\"pid1\""))
         #expect(j.contains("\"deltaBase64\":\"bHM=\""))
     }
+
+    // MARK: - Task 2: ANSI 解析器
+
+    @Test func ansiPlainText() {
+        var p = ANSIParser()
+        let runs = p.feed("hello world")
+        #expect(runs.map(\.text).joined() == "hello world")
+    }
+    @Test func ansiColor() {
+        var p = ANSIParser()
+        let runs = p.feed("\u{1b}[31mred\u{1b}[0mplain")
+        #expect(runs.count == 2)
+        #expect(runs[0].text == "red")
+        #expect(runs[0].color == .red)
+        #expect(runs[1].text == "plain")
+        #expect(runs[1].color == nil)
+    }
+    @Test func ansiSplitAcrossFeeds() {
+        var p = ANSIParser()
+        _ = p.feed("\u{1b}[3")
+        let runs = p.feed("1mred")
+        #expect(runs.contains { $0.text == "red" && $0.color == .red })
+    }
+    @Test func ansiCursorSeqDropped() {
+        var p = ANSIParser()
+        let runs = p.feed("a\u{1b}[2J\u{1b}[Hb")
+        #expect(runs.map(\.text).joined() == "ab")
+    }
 }
