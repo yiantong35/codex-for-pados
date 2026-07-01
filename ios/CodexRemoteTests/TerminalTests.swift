@@ -62,4 +62,32 @@ struct TerminalTests {
         let runs = p.feed("a\u{1b}[2J\u{1b}[Hb")
         #expect(runs.map(\.text).joined() == "ab")
     }
+
+    // MARK: - Task 3: TerminalSession
+
+    @MainActor @Test func sessionConsumesOutputDelta() {
+        let s = TerminalSession()
+        s.start(cwd: "/repo")
+        let pid = s.processId!
+        s.handleOutputDelta(processId: pid, base64: Data("hi".utf8).base64EncodedString())
+        #expect(s.runs.map(\.text).joined().contains("hi"))
+        s.handleOutputDelta(processId: "other", base64: Data("x".utf8).base64EncodedString())
+        #expect(!s.runs.map(\.text).joined().contains("x"))
+    }
+    @MainActor @Test func sessionWriteParams() {
+        let s = TerminalSession()
+        s.start(cwd: "/repo")
+        let p = s.makeWriteParams(input: "ls\n")
+        #expect(p?.processId == s.processId)
+        #expect(p?.deltaBase64 == Data("ls\n".utf8).base64EncodedString())
+    }
+    @MainActor @Test func sessionReconnectMarksBreak() {
+        let s = TerminalSession()
+        s.start(cwd: "/repo")
+        let old = s.processId
+        s.handleDisconnect()
+        #expect(s.runs.map(\.text).joined().contains("──"))
+        s.start(cwd: "/repo")
+        #expect(s.processId != old)
+    }
 }
