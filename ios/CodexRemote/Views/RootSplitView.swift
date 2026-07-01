@@ -19,6 +19,7 @@ final class ActiveConversationHolder {
 struct RootSplitView: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(ProjectsStore.self) private var projects
+    @Environment(EnvironmentInspectorModel.self) private var envInspector
     @State private var selectedThreadId: String?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
@@ -56,6 +57,9 @@ struct RootSplitView: View {
         return projects.allThreadsSorted.first { $0.id == id }
     }
 
+    // 批次⑤：摘要打开/切换会话时触发环境信息刷新的 key。
+    private var summaryEnvKey: String { "\(showSummary)-\(selectedThreadId ?? "")" }
+
     var body: some View {
         split
             // 摘要：常驻悬浮浮层（design D2 改）。用 overlay 而非 .popover，故点击别处不收回，
@@ -63,8 +67,14 @@ struct RootSplitView: View {
             // 不会遮挡顶栏按钮（否则会盖住摘要按钮本身导致收不回）。
             .overlay(alignment: .topTrailing) {
                 if showSummary {
-                    SummaryPopoverView(state: activeConversation.state, thread: selectedThread)
+                    SummaryPopoverView(state: activeConversation.state, thread: selectedThread, env: envInspector)
                         .frame(width: 340)
+                        .task(id: summaryEnvKey) {
+                            if connection.phase == .ready, let rpc = connection.rpc {
+                                envInspector.attach(rpc: rpc)
+                                await envInspector.refresh(cwd: selectedThread?.cwd)
+                            }
+                        }
                         .frame(maxHeight: 480)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
                         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))
