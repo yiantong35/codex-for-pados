@@ -21,15 +21,19 @@ struct BottomPanelView: View {
             terminalInput
         }
         .frame(height: height)
-        .task(id: connection.phase) {
+        .task(id: TerminalKey(ready: connection.phase == .ready, cwd: cwd)) {
+            // cwd 真跟随：连接就绪 + 会话 cwd 变化时(re)绑定并起 shell。
             guard connection.phase == .ready, let rpc = connection.rpc else { return }
             await terminal.attach(rpc: rpc)
-            if terminal.processId == nil { terminal.start(cwd: cwd) }
+            terminal.startIfNeeded(cwd: cwd)
         }
         .onChange(of: connection.phase) { _, ph in
             if ph == .reconnecting { terminal.handleDisconnect() }
         }
     }
+
+    /// .task id：连接就绪态 + cwd 组合，cwd 变化时重触发（切会话跟随）。
+    private struct TerminalKey: Equatable { let ready: Bool; let cwd: String? }
 
     // MARK: - 终端输出区（滚动 + 右侧固定 gutter 常驻滚动条）
 

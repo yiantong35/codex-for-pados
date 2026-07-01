@@ -90,4 +90,19 @@ struct TerminalTests {
         s.start(cwd: "/repo")
         #expect(s.processId != old)
     }
+    @MainActor @Test func startIfNeededFollowsCwd() {
+        let s = TerminalSession()
+        s.startIfNeeded(cwd: "/a")
+        let pidA = s.processId
+        s.startIfNeeded(cwd: "/a")          // 同 cwd 不重起
+        #expect(s.processId == pidA)
+        s.startIfNeeded(cwd: "/b")          // cwd 变 → 重起
+        #expect(s.processId != pidA)
+    }
+    @MainActor @Test func capReachedAppendsTruncationLine() {
+        let s = TerminalSession()
+        s.start(cwd: "/repo")
+        s.handleOutputDelta(processId: s.processId!, base64: Data("x".utf8).base64EncodedString(), capReached: true)
+        #expect(s.runs.map(\.text).joined().contains("截断"))
+    }
 }
