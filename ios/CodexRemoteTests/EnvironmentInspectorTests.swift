@@ -59,4 +59,15 @@ struct EnvironmentInspectorTests {
         #expect(s.subAgents["a1"]?.path == "/repo/agents/Hypatia.md")
         #expect(s.subAgents["a1"]?.displayName == "Hypatia.md")
     }
+
+    // MARK: - Task 3: EnvironmentInspectorModel
+
+    @MainActor @Test func diffParamsAndStats() {
+        let p = EnvironmentInspectorModel.diffParams(cwd: "/repo")
+        #expect(p.cwd == "/repo")
+        let stats = EnvironmentInspectorModel.stats(fromDiff: "diff --git a/x b/x\n+a\n+b\n-c\n")
+        #expect(stats.added == 2)
+        #expect(stats.removed == 1)
+        #expect(stats.changedFiles == 1)
+    }
 }

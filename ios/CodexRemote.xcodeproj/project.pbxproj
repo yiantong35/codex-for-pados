@@ -11,6 +11,7 @@
 		01BE5A03B6CE5A4875A7AD98 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 55AF6C40AC2043794D057E06 /* Citadel */; };
 		046D60CECEF36F595B491834 /* ProjectsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F3DFDE3E35F47099089A687 /* ProjectsStore.swift */; };
 		06B05F7B8EDDC80C8B347B7C /* WSFrameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 629C4BF64FE053EFFD673A46 /* WSFrameTests.swift */; };
+		07E73B67D096F08A50FB5DEB /* EnvironmentInspectorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDF45B41996E136FC0ED72F4 /* EnvironmentInspectorModel.swift */; };
 		092CD1F52D3E6A361F9BFFE5 /* RightPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1642FA85A90C056E5D3064 /* RightPanelView.swift */; };
 		09EBBCF3632D7D40FE2228CE /* MidTurnControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 114A352157315BC15F79C989 /* MidTurnControlTests.swift */; };
 		0D779937FAD9F552AAECEFF9 /* TransportControlEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C73D50DE0A51AB89EF6CC7 /* TransportControlEvent.swift */; };
@@ -179,6 +180,7 @@
 		EAE2C5B99FC08141E9BA12DE /* WorkspaceSummaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceSummaryTests.swift; sourceTree = "<group>"; };
 		EB0423A12391FFC9C188F1C0 /* ThreadCreationAvailableTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadCreationAvailableTests.swift; sourceTree = "<group>"; };
 		EB4E24CD7D089598C083CD03 /* ConnectionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStore.swift; sourceTree = "<group>"; };
+		EDF45B41996E136FC0ED72F4 /* EnvironmentInspectorModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentInspectorModel.swift; sourceTree = "<group>"; };
 		EE826C2EEEFE8229D048565F /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		F08F54E99F6B68924A02EFF3 /* PanelEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelEmptyState.swift; sourceTree = "<group>"; };
 		F1ED1C6167187E761CB4F080 /* Methods.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Methods.swift; sourceTree = "<group>"; };
@@ -246,6 +248,7 @@
 				299CE3AF94910F633856C075 /* ApprovalStore.swift */,
 				EB4E24CD7D089598C083CD03 /* ConnectionStore.swift */,
 				3EB7C9E83303FF08058487D8 /* ConversationStore.swift */,
+				EDF45B41996E136FC0ED72F4 /* EnvironmentInspectorModel.swift */,
 				2F3DFDE3E35F47099089A687 /* ProjectsStore.swift */,
 				2E2FC2BAB94125D5C1A15DCC /* SidebarCollapseStore.swift */,
 			);
@@ -541,6 +544,7 @@
 				A5E3135117192215A58A0725 /* ConversationModels.swift in Sources */,
 				A0657FFE6724B05B96DEEF24 /* ConversationStore.swift in Sources */,
 				CF8F6B2441D5F2864FF029F2 /* ConversationView.swift in Sources */,
+				07E73B67D096F08A50FB5DEB /* EnvironmentInspectorModel.swift in Sources */,
 				BE8038DC1A529C8C141A2CE1 /* EnvironmentInspectorTypes.swift in Sources */,
 				27868CE1EA50E45AA73B6C43 /* InitializeTypes.swift in Sources */,
 				7C1E8B9263F5008571A38230 /* InspectorView.swift in Sources */,
