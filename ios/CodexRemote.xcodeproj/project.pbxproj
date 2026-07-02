@@ -65,6 +65,7 @@
 		84A18F4EE4591FB4E5B73085 /* TerminalTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A84EDBFE836AF7DBF4037EA /* TerminalTypes.swift */; };
 		857DA199BA47CB2FE34937FF /* SidebarStatusBadgesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B3C59E77F035114A636C87 /* SidebarStatusBadgesTests.swift */; };
 		86EDA4A60ECC1981BFBD9F47 /* KeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143B36880763EB0B23DF98E5 /* KeyManager.swift */; };
+		887D5ED994C791F9488720D1 /* RightPanelContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0275E1295AF8C61CD1A4E5A8 /* RightPanelContainerView.swift */; };
 		8924E2361FB43E1B59B0C06C /* ApprovalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 299CE3AF94910F633856C075 /* ApprovalStore.swift */; };
 		8AFABE458B76F5E22A83EE28 /* ReviewPanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F685AC990DC66E88E516025 /* ReviewPanelTests.swift */; };
 		8D149C418824DDC92C03C15A /* RequestIdGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265FEEA4EBD145A97B6C6769 /* RequestIdGenerator.swift */; };
@@ -122,6 +123,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0275E1295AF8C61CD1A4E5A8 /* RightPanelContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightPanelContainerView.swift; sourceTree = "<group>"; };
 		02F9A9AAD9F7FFA810F6D770 /* TransportError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportError.swift; sourceTree = "<group>"; };
 		044B2FFC23DFE4CE15D6EABC /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		0497AFEB2BBEEB2BA956BB6B /* AnyCodable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnyCodable.swift; sourceTree = "<group>"; };
@@ -363,6 +365,7 @@
 				2748B1BAA038016681DA082B /* PlanStepList.swift */,
 				1A8F629A7787DCC01BADA85F /* ProgressCardBar.swift */,
 				239D1247A5B1E3511AE98C8D /* ReviewPanelView.swift */,
+				0275E1295AF8C61CD1A4E5A8 /* RightPanelContainerView.swift */,
 				BF1642FA85A90C056E5D3064 /* RightPanelView.swift */,
 				44181632C721FBFB09ED69C0 /* SummaryPopoverView.swift */,
 				99616A4BE43A7944EC073310 /* WorkspaceMetrics.swift */,
@@ -628,6 +631,7 @@
 				8D149C418824DDC92C03C15A /* RequestIdGenerator.swift in Sources */,
 				EADECAF1E766FE76F7974EF7 /* ReviewPanelTypes.swift in Sources */,
 				AE36BA993EB1C60C751C416A /* ReviewPanelView.swift in Sources */,
+				887D5ED994C791F9488720D1 /* RightPanelContainerView.swift in Sources */,
 				092CD1F52D3E6A361F9BFFE5 /* RightPanelView.swift in Sources */,
 				FFA2F39B69D91D29675AC2E5 /* RootSplitView.swift in Sources */,
 				63920F05BE49A3245FE7CAA3 /* SSHClient.swift in Sources */,
