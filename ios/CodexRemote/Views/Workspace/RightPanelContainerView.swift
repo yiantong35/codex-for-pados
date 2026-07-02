@@ -21,7 +21,7 @@ struct RightPanelContainerView: View {
             Divider()
             switch selectedTab {
             case .review:
-                RightPanelView(cwd: cwd)   // Task 7 换成 ReviewTabView
+                ReviewTabView(cwd: cwd)
             case .files:
                 Color(.systemBackground)   // Task 11 换成 FileBrowserView
             }
