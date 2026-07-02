@@ -2,8 +2,8 @@ import Foundation
 
 // MARK: - 全量 diff / 认证（批次⑤ 环境信息 inspector）
 
-struct GitDiffToRemoteParams: Encodable { let cwd: String }
-struct GitDiffToRemoteResponse: Decodable { let sha: String; let diff: String }
+// 注:GitDiffToRemoteParams/Response 由 review-panel 的 ReviewPanelTypes.swift 提供(同模块共用),
+// 本 change 与 review-panel 合并后去重,避免 invalid redeclaration。
 
 struct GetAuthStatusResponse: Decodable {
     var authMethod: String?
