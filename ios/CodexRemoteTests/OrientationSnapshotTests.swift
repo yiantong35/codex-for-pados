@@ -136,6 +136,8 @@ final class OrientationSnapshotTests: XCTestCase {
 
     func testRootSplitPortrait() {
         let view = RootSplitView()
+            .environment(EnvironmentInspectorModel())
+            .environment(TerminalSession())
             .environment(makeConnection())
             .environment(makeProjects())
             .environment(LocaleManager())
@@ -145,6 +147,8 @@ final class OrientationSnapshotTests: XCTestCase {
 
     func testRootSplitLandscape() {
         let view = RootSplitView()
+            .environment(EnvironmentInspectorModel())
+            .environment(TerminalSession())
             .environment(makeConnection())
             .environment(makeProjects())
             .environment(LocaleManager())
@@ -161,6 +165,8 @@ final class OrientationSnapshotTests: XCTestCase {
         let toggle = String(localized: "sidebar.toggle", bundle: .main)
         XCTAssertNotEqual(toggle, "sidebar.toggle", "缺少 sidebar.toggle 本地化键")
         let view = RootSplitView()
+            .environment(EnvironmentInspectorModel())
+            .environment(TerminalSession())
             .environment(makeConnection())
             .environment(makeProjects())
             .environment(LocaleManager())
@@ -381,6 +387,8 @@ final class OrientationSnapshotTests: XCTestCase {
             XCTAssertNotEqual(v, key, "缺少 \(key)")
         }
         let view = RootSplitView()
+            .environment(EnvironmentInspectorModel())
+            .environment(TerminalSession())
             .environment(makeConnection())
             .environment(makeProjects())
             .environment(LocaleManager())
@@ -392,6 +400,8 @@ final class OrientationSnapshotTests: XCTestCase {
     /// 用注入初始展开态的便利初始化器（见实现 Step 3）。
     func test_workspace_all_panels_snapshot() {
         let view = RootSplitView(initialRightOpen: true, initialBottomOpen: true)
+            .environment(EnvironmentInspectorModel())
+            .environment(TerminalSession())
             .environment(makeConnection())
             .environment(makeProjects())
             .environment(LocaleManager())

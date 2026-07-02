@@ -24,6 +24,7 @@ enum RPCMethod {
     static let commandExecResize = "command/exec/resize"
     static let commandExecTerminate = "command/exec/terminate"
     static let gitDiffToRemote = "gitDiffToRemote"
+    static let getAuthStatus = "getAuthStatus"
 }
 
 enum ServerRequestMethod {
