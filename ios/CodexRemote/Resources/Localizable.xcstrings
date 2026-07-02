@@ -1232,6 +1232,22 @@
           }
         }
       }
+    },
+    "terminal.input.placeholder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter command…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入命令…"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -83,7 +83,7 @@ struct RootSplitView: View {
                 if showBottomPanel {
                     VStack(spacing: 0) {
                         Divider()
-                        BottomPanelView(height: $bottomHeight)
+                        BottomPanelView(height: $bottomHeight, cwd: selectedThread?.cwd)
                     }
                     // 从底部滑入/滑出，配合顶栏按钮的 withAnimation，弹出不再僵硬（#1）。
                     .transition(.move(edge: .bottom))
