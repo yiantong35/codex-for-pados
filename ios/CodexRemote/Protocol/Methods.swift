@@ -24,6 +24,12 @@ enum RPCMethod {
     static let accountRateLimitsRead = "account/rateLimits/read"
     static let configRead = "config/read"
     static let configValueWrite = "config/value/write"
+    static let commandExec = "command/exec"
+    static let commandExecWrite = "command/exec/write"
+    static let commandExecResize = "command/exec/resize"
+    static let commandExecTerminate = "command/exec/terminate"
+    static let gitDiffToRemote = "gitDiffToRemote"
+    static let getAuthStatus = "getAuthStatus"
 }
 
 enum ServerRequestMethod {
@@ -57,6 +63,7 @@ enum ServerNotificationMethod {
     static let threadGoalCleared = "thread/goal/cleared"
     static let accountUpdated = "account/updated"
     static let accountRateLimitsUpdated = "account/rateLimits/updated"
+    static let commandExecOutputDelta = "command/exec/outputDelta"
     static let serverRequestResolved = "serverRequest/resolved"
     static let error = "error"
     static let warning = "warning"

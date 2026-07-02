@@ -35,6 +35,7 @@ struct ThreadReducer {
             // （旧实现读扁平 params.itemId/itemType/command → 命令卡片永不出现，是滞后 bug 根因 B）。
             guard let item = p["item"] as? [String: Any],
                   let id = item["id"] as? String else { return }
+            applySubAgentItem(item, &state)   // 批次⑤：子智能体聚合
             switch item["type"] as? String {
             case "agentMessage":
                 upsert(.agentMessage(id: id, text: item["text"] as? String ?? ""), &state)
@@ -89,6 +90,7 @@ struct ThreadReducer {
             // 退出码 item.exitCode、耗时 item.durationMs。
             guard let item = p["item"] as? [String: Any],
                   let id = item["id"] as? String else { return }
+            applySubAgentItem(item, &state)   // 批次⑤：子智能体状态迁移
             // reasoning 收尾：若完成事件带了最终 summary/content，且本地为空则补落（不覆盖已累加的 delta）。
             if item["type"] as? String == "reasoning" {
                 finishReasoning(id: id, fallbackText: reasoningText(from: item), &state)
@@ -205,6 +207,34 @@ struct ThreadReducer {
               case .commandExecution(_, let c, let o, let st, let ec, let dm) = s.items[i] else { return }
         s.items[i] = .commandExecution(id: id, command: c, output: o + append,
                                        status: st, exitCode: ec, durationMs: dm)
+    }
+
+    /// 批次⑤：从 item 聚合子智能体状态到 ConversationState.subAgents。幂等，非相关 type 无操作。
+    private func applySubAgentItem(_ item: [String: Any], _ s: inout ConversationState) {
+        switch item["type"] as? String {
+        case "collabAgentToolCall":
+            guard let states = item["agentsStates"] as? [String: Any] else { return }
+            for (tid, raw) in states {
+                let st = raw as? [String: Any]
+                let status = CollabAgentStatus.from(st?["status"] as? String)
+                let msg = st?["message"] as? String
+                if var existing = s.subAgents[tid] {
+                    existing.status = status; existing.message = msg; s.subAgents[tid] = existing
+                } else {
+                    s.subAgents[tid] = SubAgentState(agentThreadId: tid, path: nil, status: status, message: msg)
+                }
+            }
+        case "subAgentActivity":
+            guard let tid = item["agentThreadId"] as? String else { return }
+            let path = item["agentPath"] as? String
+            if var existing = s.subAgents[tid] {
+                if let path { existing.path = path }; s.subAgents[tid] = existing
+            } else {
+                s.subAgents[tid] = SubAgentState(agentThreadId: tid, path: path, status: .running, message: nil)
+            }
+        default:
+            break
+        }
     }
 
     /// 处理 fileChange/patchUpdated：遍历 changes[]，对每个 {path, diff} 用 TurnDiffStats 解析行数，
