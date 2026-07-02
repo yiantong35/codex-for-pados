@@ -1,0 +1,105 @@
+import Testing
+import Foundation
+@testable import CodexRemote
+
+@MainActor
+struct FileBrowserStoreTests {
+
+    private func makeStore() async -> (MockTransport, JSONRPCClient, FileBrowserStore) {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = FileBrowserStore()
+        store.attach(rpc: rpc)
+        return (mock, rpc, store)
+    }
+
+    private func respond(_ mock: MockTransport, to method: String, resultJSON: String) -> Task<Void, Never> {
+        Task {
+            var answered = Set<String>()
+            for _ in 0..<400 {
+                if Task.isCancelled { return }
+                let sent = await mock.sent
+                for frame in sent {
+                    guard let obj = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any],
+                          let id = obj["id"] as? String,
+                          obj["method"] as? String == method,
+                          !answered.contains(id) else { continue }
+                    answered.insert(id)
+                    await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":\#(resultJSON)}"#)
+                }
+                try? await Task.sleep(nanoseconds: 5_000_000)
+            }
+        }
+    }
+
+    private func count(_ mock: MockTransport, method: String) async -> Int {
+        let sent = await mock.sent
+        return sent.filter {
+            (try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any])?["method"] as? String == method
+        }.count
+    }
+
+    @Test func noCwdIsEmptyAndSendsNothing() async {
+        let (mock, _, store) = await makeStore()
+        store.setRoot(nil)
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        #expect(store.isEmpty == true)
+        #expect(await count(mock, method: RPCMethod.fsReadDirectory) == 0)
+    }
+
+    @Test func setRootFetchesRootOnce() async {
+        let (mock, _, store) = await makeStore()
+        let responder = respond(mock, to: RPCMethod.fsReadDirectory,
+            resultJSON: #"{"entries":[{"fileName":"src","isDirectory":true,"isFile":false}]}"#)
+        store.setRoot("/repo")
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        responder.cancel()
+        #expect(store.isEmpty == false)
+        #expect(store.nodes["/repo"]?.entries?.count == 1)
+        #expect(await count(mock, method: RPCMethod.fsReadDirectory) == 1)
+    }
+
+    @Test func expandLoadedDirReusesCache() async {
+        let (mock, _, store) = await makeStore()
+        let responder = respond(mock, to: RPCMethod.fsReadDirectory,
+            resultJSON: #"{"entries":[{"fileName":"a.txt","isDirectory":false,"isFile":true}]}"#)
+        store.setRoot("/repo")
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        await store.toggleExpand("/repo") // collapse
+        await store.toggleExpand("/repo") // expand（复用缓存）
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        responder.cancel()
+        #expect(await count(mock, method: RPCMethod.fsReadDirectory) == 1)
+    }
+
+    @Test func refreshClearsAndRefetches() async {
+        let (mock, _, store) = await makeStore()
+        let responder = respond(mock, to: RPCMethod.fsReadDirectory,
+            resultJSON: #"{"entries":[{"fileName":"src","isDirectory":true,"isFile":false}]}"#)
+        store.setRoot("/repo")
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        await store.refresh()
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        responder.cancel()
+        #expect(await count(mock, method: RPCMethod.fsReadDirectory) == 2)
+        #expect(store.nodes["/repo"]?.entries?.count == 1)
+    }
+
+    @Test func openTextFileClassifiesText() async {
+        let (mock, _, store) = await makeStore()
+        let responder = respond(mock, to: RPCMethod.fsReadFile, resultJSON: #"{"dataBase64":"aGk="}"#)
+        await store.openFile("/repo/a.txt")
+        responder.cancel()
+        #expect(store.selectedFile?.path == "/repo/a.txt")
+        #expect(store.selectedFile?.content == .text("hi"))
+    }
+
+    @Test func openBinaryFileClassifiesBinary() async {
+        let (mock, _, store) = await makeStore()
+        let responder = respond(mock, to: RPCMethod.fsReadFile, resultJSON: #"{"dataBase64":"AA=="}"#)
+        await store.openFile("/repo/blob.bin")
+        responder.cancel()
+        #expect(store.selectedFile?.content == .binary)
+    }
+}
