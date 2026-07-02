@@ -255,11 +255,11 @@ final class OrientationSnapshotTests: XCTestCase {
                  name: "panel-empty", dir: "/tmp/workspace")
     }
 
-    // MARK: - 场景 5b：右边栏占位视图 RightPanelView（Task 9）
+    // MARK: - 场景 5b：右边栏容器视图 RightPanelContainerView（Task 9）
 
-    /// 右栏占位：本期裹共享空态（design D3），渲染不崩溃、PNG 非空，落 /tmp/workspace。
+    /// 右栏容器：tab 条 + 审查 tab（design D1/D3），渲染不崩溃、PNG 非空，落 /tmp/workspace。
     func test_right_panel_snapshot() {
-        let view = RightPanelView()
+        let view = RightPanelContainerView()
             .environment(LocaleManager())
             .environment(ThemeManager())
             .environment(ActiveConversationHolder())
