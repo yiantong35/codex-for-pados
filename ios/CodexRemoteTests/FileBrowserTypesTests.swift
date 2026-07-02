@@ -35,4 +35,10 @@ struct FileBrowserTypesTests {
         #expect(s.contains("\"path\""))
         #expect(s.contains("/repo"))
     }
+
+    @Test func methodConstants() {
+        #expect(RPCMethod.fsReadDirectory == "fs/readDirectory")
+        #expect(RPCMethod.fsReadFile == "fs/readFile")
+        #expect(RPCMethod.fsGetMetadata == "fs/getMetadata")
+    }
 }
