@@ -103,4 +103,44 @@ struct ReviewPanelTests {
         #expect(src.isEmpty == false)
         #expect(ReviewDiffSource(diff: "", label: "空", cwd: nil).isEmpty)
     }
+    @Test func sourceModeResolve() {
+        let turn = "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n"
+        let full = "diff --git a/y b/y\n--- a/y\n+++ b/y\n@@ -1 +1 @@\n-c\n+d\n"
+        #expect(ReviewDiffSource.resolve(mode: .turn, turnDiff: turn, fullDiff: full).label == "本轮")
+        #expect(ReviewDiffSource.resolve(mode: .turn, turnDiff: turn, fullDiff: full).files.first?.path == "x")
+        #expect(ReviewDiffSource.resolve(mode: .full, turnDiff: turn, fullDiff: full).files.first?.path == "y")
+        // 全量未拉取(nil)→空,面板显示空态
+        #expect(ReviewDiffSource.resolve(mode: .full, turnDiff: turn, fullDiff: nil).isEmpty)
+    }
+    @MainActor @Test func fetchFullDiffCallsGitDiffToRemote() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "t1")
+        // 后台模拟服务端:对 gitDiffToRemote 回 {sha,diff}
+        let responder = Task { await Self.replyToGitDiff(mock, diff: "diff --git a/z b/z\n") }
+        let diff = await store.fetchFullDiff(cwd: "/repo")
+        responder.cancel()
+        #expect(diff?.contains("diff --git a/z") == true)
+        let sent = await mock.sent
+        #expect(sent.contains { $0.contains("gitDiffToRemote") && $0.contains("/repo") })
+    }
+
+    /// 测试用模拟服务端:轮询 mock.sent,对 gitDiffToRemote 回注入的 diff。
+    private static func replyToGitDiff(_ mock: MockTransport, diff: String) async {
+        var answered = false
+        for _ in 0..<400 {
+            if Task.isCancelled { return }
+            let sent = await mock.sent
+            for frame in sent {
+                guard let obj = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any],
+                      let id = obj["id"] as? String,
+                      obj["method"] as? String == "gitDiffToRemote", !answered else { continue }
+                answered = true
+                let escaped = diff.replacingOccurrences(of: "\n", with: "\\n")
+                await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"sha":"abc","diff":"\#(escaped)"}}"#)
+            }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+    }
 }
