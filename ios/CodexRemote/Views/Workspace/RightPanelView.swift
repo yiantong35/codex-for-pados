@@ -1,32 +1,11 @@
 import SwiftUI
 
-/// 右边栏（design D3）。本 change：占位文案 + 当前 turn 变更文件名列表（审查面板转跳目标）。
-/// 逐行 diff 内容留待 change3。
+/// 右边栏（design D3）：审查面板。占位升级为纯 diff 查看器（UnifiedDiffParser + 文件树 + 逐行红绿）。
 struct RightPanelView: View {
     @Environment(ActiveConversationHolder.self) private var activeConversation
 
-    private var files: [String] {
-        guard let diff = activeConversation.state?.turnDiff else { return [] }
-        return TurnDiffStats.parse(diff).files
-    }
-
     var body: some View {
-        if files.isEmpty {
-            PanelEmptyState()
-        } else {
-            List {
-                Section {
-                    ForEach(files, id: \.self) { path in
-                        Label(path, systemImage: "doc.text")
-                            .font(.callout).lineLimit(1).truncationMode(.middle)
-                    }
-                } header: {
-                    Text("变更文件")
-                } footer: {
-                    Text("逐行 diff 即将到来（敬请期待）")
-                }
-            }
-            .listStyle(.insetGrouped)
-        }
+        // 默认数据源=当前会话本轮 diff；⑤变更/进度条跳转接线待各分支合 master 后接(TODO)。
+        ReviewPanelView(source: ReviewDiffSource(diff: activeConversation.state?.turnDiff ?? "", label: "本轮", cwd: nil))
     }
 }
