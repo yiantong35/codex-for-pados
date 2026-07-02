@@ -13,7 +13,10 @@ struct RightPanelContainerView: View {
     /// 当前选中 thread 的 cwd：审查「全量」拉取 + 文件浏览根均需要。
     var cwd: String?
 
+    @Environment(ConnectionStore.self) private var connection
+
     @State private var selectedTab: RightPanelTab = .review
+    @State private var fileBrowser = FileBrowserStore()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -23,9 +26,19 @@ struct RightPanelContainerView: View {
             case .review:
                 ReviewTabView(cwd: cwd)
             case .files:
-                Color(.systemBackground)   // Task 11 换成 FileBrowserView
+                FileBrowserView(store: fileBrowser)
             }
         }
+        .task(id: fileBrowserKey) {
+            guard connection.phase == .ready, let rpc = connection.rpc else { return }
+            fileBrowser.attach(rpc: rpc)
+            await fileBrowser.setRoot(cwd)
+        }
+    }
+
+    // rpc 就绪态 + cwd 组合 key：任一变化即重跑 attach/setRoot。
+    private var fileBrowserKey: String {
+        "\(connection.phase == .ready)-\(cwd ?? "")"
     }
 
     // 自绘分段 tab 条（非 Picker/TabView）。
