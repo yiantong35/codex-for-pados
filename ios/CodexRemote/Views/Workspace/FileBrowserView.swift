@@ -5,6 +5,8 @@ import SwiftUI
 struct FileBrowserView: View {
     let store: FileBrowserStore
 
+    private static let threshold: CGFloat = 520
+
     var body: some View {
         if store.isEmpty {
             emptyState
@@ -12,9 +14,21 @@ struct FileBrowserView: View {
             VStack(spacing: 0) {
                 toolbar
                 Divider()
-                directoryTree
-                Divider()
-                contentArea
+                GeometryReader { geo in
+                    if geo.size.width >= Self.threshold {
+                        HStack(spacing: 0) {
+                            directoryTree.frame(width: 220)
+                            Divider()
+                            contentArea
+                        }
+                    } else {
+                        VStack(spacing: 0) {
+                            directoryTree.frame(maxHeight: 220)
+                            Divider()
+                            contentArea
+                        }
+                    }
+                }
             }
         }
     }
