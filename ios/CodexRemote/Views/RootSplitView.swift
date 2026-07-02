@@ -9,6 +9,9 @@ final class ActiveConversationHolder {
     var state: ConversationState?
     /// 进度卡片点「X 文件」请求打开右栏的信号（一次性，RootSplitView 消费后复位）。
     var requestRightPanel: Bool = false
+    /// 拉取远端全量 diff 的回调（由持有 ConversationStore 的 ConversationView 注入）。
+    /// 审查面板切到「全量」时调用；未接线（nil）时返回 nil，面板降级空态。
+    var fetchFullDiff: ((_ cwd: String) async -> String?)?
 }
 
 /// 主界面（复刻 Codex desktop 五窗口工作区骨架，三列系统列重构 workspace-3col-layout）：
@@ -19,6 +22,7 @@ final class ActiveConversationHolder {
 struct RootSplitView: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(ProjectsStore.self) private var projects
+    @Environment(EnvironmentInspectorModel.self) private var envInspector
     @State private var selectedThreadId: String?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
@@ -56,6 +60,9 @@ struct RootSplitView: View {
         return projects.allThreadsSorted.first { $0.id == id }
     }
 
+    // 批次⑤：摘要打开/切换会话/连接就绪时触发环境信息刷新的 key（含连接态避免冷启动漏刷 I2）。
+    private var summaryEnvKey: String { "\(showSummary)-\(selectedThreadId ?? "")-\(connection.phase == .ready)" }
+
     var body: some View {
         split
             // 摘要：常驻悬浮浮层（design D2 改）。用 overlay 而非 .popover，故点击别处不收回，
@@ -63,8 +70,14 @@ struct RootSplitView: View {
             // 不会遮挡顶栏按钮（否则会盖住摘要按钮本身导致收不回）。
             .overlay(alignment: .topTrailing) {
                 if showSummary {
-                    SummaryPopoverView(state: activeConversation.state, thread: selectedThread)
+                    SummaryPopoverView(state: activeConversation.state, thread: selectedThread, env: envInspector)
                         .frame(width: 340)
+                        .task(id: summaryEnvKey) {
+                            if connection.phase == .ready, let rpc = connection.rpc {
+                                envInspector.attach(rpc: rpc)
+                                await envInspector.refresh(cwd: selectedThread?.cwd)
+                            }
+                        }
                         .frame(maxHeight: 480)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
                         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))
@@ -80,7 +93,7 @@ struct RootSplitView: View {
                 if showBottomPanel {
                     VStack(spacing: 0) {
                         Divider()
-                        BottomPanelView(height: $bottomHeight)
+                        BottomPanelView(height: $bottomHeight, cwd: selectedThread?.cwd)
                     }
                     // 从底部滑入/滑出，配合顶栏按钮的 withAnimation，弹出不再僵硬（#1）。
                     .transition(.move(edge: .bottom))
@@ -185,7 +198,7 @@ struct RootSplitView: View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .inspector(isPresented: $showRightPanel) {
-                RightPanelView()
+                RightPanelView(cwd: selectedThread?.cwd)
                     // inspector 内容在独立系统列，不保证继承 body 链上的 .environment，
                     // 故在此显式注入 ActiveConversationHolder（否则 RightPanelView 读环境时运行时崩溃）。
                     .environment(activeConversation)

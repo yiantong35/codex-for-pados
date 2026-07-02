@@ -19,6 +19,17 @@ enum RPCMethod {
     static let turnSteer = "turn/steer"
     static let turnInterrupt = "turn/interrupt"
     static let modelList = "model/list"
+    static let accountRead = "account/read"
+    static let accountUsageRead = "account/usage/read"
+    static let accountRateLimitsRead = "account/rateLimits/read"
+    static let configRead = "config/read"
+    static let configValueWrite = "config/value/write"
+    static let commandExec = "command/exec"
+    static let commandExecWrite = "command/exec/write"
+    static let commandExecResize = "command/exec/resize"
+    static let commandExecTerminate = "command/exec/terminate"
+    static let gitDiffToRemote = "gitDiffToRemote"
+    static let getAuthStatus = "getAuthStatus"
 }
 
 enum ServerRequestMethod {
@@ -51,6 +62,9 @@ enum ServerNotificationMethod {
     static let threadGoalUpdated = "thread/goal/updated"
     static let threadGoalCleared = "thread/goal/cleared"
     static let threadStatusChanged = "thread/status/changed"
+    static let accountUpdated = "account/updated"
+    static let accountRateLimitsUpdated = "account/rateLimits/updated"
+    static let commandExecOutputDelta = "command/exec/outputDelta"
     static let serverRequestResolved = "serverRequest/resolved"
     static let error = "error"
     static let warning = "warning"

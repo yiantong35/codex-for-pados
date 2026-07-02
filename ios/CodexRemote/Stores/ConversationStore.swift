@@ -149,6 +149,19 @@ final class ConversationStore {
     }
 }
 
+// MARK: - 审查面板：全量 diff 拉取（gitDiffToRemote）
+
+extension ConversationStore {
+    /// 拉取远端仓库全量 diff（发 gitDiffToRemote{cwd}），返回 unified diff 字符串。
+    /// 失败（传输错误 / 解码失败）返回 nil，由调用方降级为空态。
+    func fetchFullDiff(cwd: String) async -> String? {
+        let params = GitDiffToRemoteParams(cwd: cwd)
+        guard let result = try? await call(RPCMethod.gitDiffToRemote, params),
+              let resp = try? decode(GitDiffToRemoteResponse.self, from: result) else { return nil }
+        return resp.diff
+    }
+}
+
 // MARK: - Task 17：中途控制（steer / 排队 / interrupt）
 
 extension ConversationStore {

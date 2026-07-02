@@ -39,6 +39,8 @@ struct ConversationState: Equatable {
     /// 当前 turn 的聚合 unified diff 全文（来自 turn/diff/updated）。
     /// +A−B、变更文件数、change3 逐行 diff 的唯一真相源。
     var turnDiff: String = ""
+    /// 当前会话子智能体聚合状态（批次⑤，agentThreadId → 状态）。
+    var subAgents: [String: SubAgentState] = [:]
     var isTurnRunning: Bool { activeTurnId != nil }
 
     /// 本会话执行过的命令条数（纯派生，用于「已运行 N 条命令」汇总）。
