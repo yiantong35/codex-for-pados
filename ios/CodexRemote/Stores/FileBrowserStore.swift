@@ -35,8 +35,10 @@ final class FileBrowserStore {
     func attach(rpc: JSONRPCClient) { self.rpc = rpc }
 
     /// 设根路径 = 当前 cwd。清空缓存与选中文件；非空则拉根，空则进空态不发请求。
-    /// async：与 refresh/toggleExpand/openFile 一致串行，调用方 await 到根加载完成，
-    /// 避免 thread 切换（cwd 变化）驱动的重叠 setRoot 相互覆盖。
+    /// async：调用方 await 到根加载完成。thread 切换（cwd 变化）驱动的重叠 setRoot 不做
+    /// 硬串行——被 .task(id:) 取消的旧 setRoot 迟到写入会落在旧 rootPath 的 key 下，而每次
+    /// setRoot 先 removeAll 并改写 rootPath，树只从当前 rootPath 渲染，故陈旧写入是不可达
+    /// 孤儿、由下次 removeAll 回收，无可见错误。（若未来需精确取消，可引入 attempt token。）
     func setRoot(_ cwd: String?) async {
         nodes.removeAll()
         selectedFile = nil
