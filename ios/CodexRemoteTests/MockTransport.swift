@@ -10,6 +10,13 @@ actor MockTransport: MessageTransport {
     private var continuation: AsyncThrowingStream<String, Error>.Continuation?
     private nonisolated let stream: AsyncThrowingStream<String, Error>
 
+    /// 自动应答开关（默认关）。开启后 `send` 解析发出的请求 id，自动回一条匹配的 response，
+    /// 使 `rpc.send(...)` 的请求-响应调用（如 ProjectsStore.sendThenRefresh）能解挂。
+    /// 默认关闭以免影响刻意保持请求挂起的测试（如 failPending / rejoin）。
+    var autoRespond = false
+
+    func setAutoRespond(_ enabled: Bool) { autoRespond = enabled }
+
     init() {
         var cont: AsyncThrowingStream<String, Error>.Continuation!
         stream = AsyncThrowingStream(bufferingPolicy: .unbounded) { cont = $0 }
@@ -18,7 +25,23 @@ actor MockTransport: MessageTransport {
 
     // MARK: MessageTransport
 
-    func send(_ text: String) async throws { sent.append(text) }
+    func send(_ text: String) async throws {
+        sent.append(text)
+        guard autoRespond,
+              let data = text.data(using: .utf8),
+              case .request(let req)? = try? JSONDecoder().decode(JSONRPCMessage.self, from: data)
+        else { return }
+        // thread/list 回空列表（满足 loadFromServer 的 ThreadListResponse 解码）；其余回空对象。
+        let resultJSON = req.method == RPCMethod.threadList
+            ? #"{"data":[],"nextCursor":null,"backwardsCursor":null}"#
+            : "{}"
+        let idJSON: String
+        switch req.id {
+        case .string(let s): idJSON = "\"\(s)\""
+        case .int(let i): idJSON = "\(i)"
+        }
+        continuation?.yield(#"{"id":\#(idJSON),"result":\#(resultJSON)}"#)
+    }
     nonisolated func incoming() -> AsyncThrowingStream<String, Error> { stream }
     func close() async {
         continuation?.finish()

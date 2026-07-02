@@ -881,6 +881,38 @@
         }
       }
     },
+    "sidebar.fork": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fork"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "派生"
+          }
+        }
+      }
+    },
+    "sidebar.newThread": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Thread"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建会话"
+          }
+        }
+      }
+    },
     "sidebar.pendingApproval": {
       "localizations": {
         "en": {

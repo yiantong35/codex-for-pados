@@ -3,7 +3,7 @@ import SwiftUI
 @main
 struct CodexRemoteApp: App {
     // Stores 在 App 持有（@State 保证生命周期），注入 environment 供全树访问。
-    // 生产传 liveTransportFactory（连 daemon 的 WSTransport）。
+    // 生产传 liveTransportFactory（经 SSH+proxy 接共享 daemon，密钥由 KeyManager 提供）。
     @State private var connection = ConnectionStore(transportFactory: liveTransportFactory)
     @State private var projects = ProjectsStore()
     @State private var approvals = ApprovalStore()

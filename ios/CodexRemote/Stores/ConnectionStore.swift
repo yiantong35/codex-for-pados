@@ -9,25 +9,16 @@ struct ConnectionTimeoutError: LocalizedError {
     var errorDescription: String? { "连接超时（连接或握手在 20 秒内未完成）" }
 }
 
-/// 连接配置（ws endpoint + token）。`.stub` 供测试使用。
+/// 连接配置（共享 daemon：SSH host/user + 远端 control socket 路径）。`.stub` 供测试使用。
+/// 鉴权由 SSH（ed25519，密钥在 Keychain，由 KeyManager 管）承担，配置本身不含敏感字段。
 struct ConnectionConfig: Sendable {
-    var host: String
-    var port: Int
-    var token: String
-
-    /// 组装 ws URL：ws://host:port/
-    /// token 改走 ws 握手的 Authorization: Bearer header（不进 query），避免日志/历史泄漏。
-    var wsURL: URL {
-        var comps = URLComponents()
-        comps.scheme = "ws"
-        comps.host = host
-        comps.port = port
-        comps.path = "/"
-        return comps.url!
-    }
+    var host: String              // macmini SSH host
+    var user: String              // SSH 用户名
+    var sshPort: Int = 22
+    var controlSockPath: String   // 远端 ~/.codex/app-server-control/app-server-control.sock
 
     static var stub: ConnectionConfig {
-        .init(host: "x", port: 8799, token: "t")
+        .init(host: "x", user: "u", sshPort: 22, controlSockPath: "/tmp/s.sock")
     }
 }
 
@@ -50,15 +41,17 @@ enum ConnectionPhase: Equatable {
 }
 
 /// 连接状态层：驱动 ws 连接 → JSON-RPC initialize 握手，
-/// 订阅 transport 控制信号驱动 UI 重连指示与会话 resume。ws 物理抖动由 WSTransport 内部自吞。
+/// 订阅 transport 控制信号驱动 UI 重连指示与会话 resume。
+/// 注：当前共享 daemon 走 SSH+proxy（ProxyChannel），其 control() 为协议默认空流——
+/// SSH 通道断线重连属本 change 范围外（Phase 5），故 observeControl 暂收不到 .reconnecting/.ready。
 ///
 /// initialize 语义（spike 2026-06-24 实测坐实）：官方 ws app-server 的 initialize 是**连接级**
 /// （per-connection）——每个 ws 连接各自发 initialize 并各自成功返回 InitializeResponse，互不影响，
 /// 不存在「进程级单次」语义，自己的连接绝不会拿 -32600 Already initialized。故无「Already initialized
 /// 容忍」逻辑：initialize 失败即握手失败，正常落 .failed。
 ///
-/// `transportFactory` 注入便于测试 mock：生产环境传 `liveTransportFactory`
-/// （构造连官方 app-server 的 WSTransport），测试传返回 MockTransport 的闭包。
+/// `transportFactory` 注入便于测试 mock：生产环境传捕获 KeyManager 的闭包
+/// （经 SSH+proxy 接共享 daemon 的 ProxyChannel），测试传返回 MockTransport 的闭包。
 @Observable
 @MainActor
 final class ConnectionStore {
@@ -104,9 +97,14 @@ final class ConnectionStore {
     /// 新连接立即把 phase 置为 connecting → 自动清除上一次的 .failed 错误。
     /// 含 20s 硬超时：建连/握手卡住时强制转 .failed 并作废后台残留任务。
     func connect(config: ConnectionConfig) {
-        guard !config.token.isEmpty else {
-            connLog.error("connect 拒绝：token 为空")
-            phase = .failed("请先在设置中配置 token")
+        guard !config.host.isEmpty, !config.user.isEmpty, !config.controlSockPath.isEmpty else {
+            connLog.error("connect 拒绝：host/user/sock 路径不完整")
+            phase = .failed("请先填写主机、用户名与 control socket 路径")
+            return
+        }
+        guard KeyManager().hasKey else {
+            connLog.error("connect 拒绝：本机密钥缺失")
+            phase = .failed("缺少本机密钥，请在设置中生成并把公钥加入 authorized_keys")
             return
         }
         self.config = config
@@ -116,7 +114,7 @@ final class ConnectionStore {
         // 新连接：重置首连恢复状态（上一次连接的 rejoin 不应抑制本次）。
         didInitialRejoin = false
         isReady = false
-        connLog.info("connect 开始 host=\(config.host, privacy: .public):\(config.port) attempt=\(attempt)")
+        connLog.info("connect 开始 host=\(config.host, privacy: .public):\(config.sshPort) attempt=\(attempt)")
 
         // 建连 + 握手任务。仅当仍是当前 attempt 时才落地 phase。
         Task { [weak self] in
@@ -125,7 +123,7 @@ final class ConnectionStore {
                 let (client, newTransport) = try await self.doEstablish(config)
                 guard attempt == self.activeAttempt else {
                     // 本 attempt 已被超时/新连接作废：关掉自己建的 client + transport，
-                    // 否则其 WSTransport.pumpTask/ws task 泄漏并继续自动重连一个已丢弃的连接（H2）。
+                    // 否则其底层 transport 资源泄漏（旧 WSTransport 会继续自动重连一个已丢弃的连接，H2）。
                     await client.stop()
                     await newTransport.close()
                     return
@@ -164,8 +162,8 @@ final class ConnectionStore {
         controlObserver = nil
         if let rpc { await rpc.stop() }
         rpc = nil
-        // 关闭底层 transport：否则 WSTransport.pumpTask + URLSession ws task 泄漏，
-        // 断线后还会自动重连一个 UI 已丢弃的连接并继续 yield（H2）。须在置 nil 前 close。
+        // 关闭底层 transport：须在置 nil 前 close，释放通道资源
+        // （旧 WSTransport 不 close 会自动重连一个 UI 已丢弃的连接并继续 yield，H2）。
         if let transport { await transport.close() }
         transport = nil
         isReady = false
@@ -175,14 +173,14 @@ final class ConnectionStore {
 
     // MARK: - 握手
 
-    /// 建 ws transport + initialize 握手，返回就绪的 JSON-RPC client 及其 transport。
+    /// 建底层 transport + initialize 握手，返回就绪的 JSON-RPC client 及其 transport。
     /// initialize 是连接级（spike 实测）：本连接发 initialize 期待自己的 InitializeResponse，
     /// 失败即握手失败（向上抛出，由 connect 落 .failed），不做任何 -32600 特殊容忍。
     /// 不直接落 phase=.ready，也不写 self.transport（由调用方按 attempt token 判定后落地，
     /// 避免被作废的 attempt 污染 self.transport / 泄漏 transport，H2）。
     private func doEstablish(_ config: ConnectionConfig) async throws -> (JSONRPCClient, MessageTransport) {
         phase = .connecting
-        connLog.notice("doEstablish: 开始建 ws transport…")
+        connLog.notice("doEstablish: 开始建 transport…")
         let transport = try await transportFactory(config)
         connLog.notice("doEstablish: transport 就绪, 启动 JSONRPCClient")
         let client = JSONRPCClient(transport: transport)
@@ -205,12 +203,11 @@ final class ConnectionStore {
     // MARK: - 控制信号观察
 
     /// 订阅 transport 控制信号：reconnecting/ready 驱动 UI 重连指示。
-    /// ws 物理抖动的重连由 WSTransport 内部负责（incoming 流跨重连不结束），此处不再重新 initialize。
-    /// 去 envelope 后无 snapshotNeeded；重连成功（.ready）后经 resumeHandler 触发会话恢复
-    /// （§5：thread/loaded/list + thread/resume rejoin）。
+    /// 重连成功（.ready）后经 resumeHandler 触发会话恢复（§5：thread/loaded/list + thread/resume rejoin）。
     /// 注意：首连成功走 connect 里直接落 .ready（不经此处），其首连恢复由 connect 落 .ready /
-    /// setResumeHandler 经 triggerInitialRejoinIfReady 触发（恰好一次）；此处的 .ready 仅来自
-    /// WSTransport 物理重连，故 rejoin 在「首连一次 + 每次物理重连各一次」触发，不重复。
+    /// setResumeHandler 经 triggerInitialRejoinIfReady 触发（恰好一次）。
+    /// 当前 ProxyChannel(SSH+proxy) 的 control() 是协议默认空流——SSH 通道断线重连属本 change
+    /// 范围外（Phase 5），故此处暂收不到事件；待 Phase 5 实现 SSH 重连后再经此分支触发物理重连恢复。
     private func observeControl(_ transport: MessageTransport) {
         controlObserver?.cancel()
         controlObserver = Task { [weak self] in
@@ -237,9 +234,11 @@ final class ConnectionStore {
     static func friendlyMessage(_ error: Error) -> String {
         if let t = error as? TransportError {
             switch t {
-            case .proxyFailed(let m):  return "通道建立失败：\(m)"
-            case .channelClosed(let r): return "连接通道关闭：\(r ?? "未知原因")"
-            case .notConnected:        return "未连接"
+            case .proxyFailed(let m):    return "通道建立失败：\(m)"
+            case .channelClosed(let r):  return "连接通道关闭：\(r ?? "未知原因")"
+            case .notConnected:          return "未连接"
+            case .sshAuthFailed(let m):  return "SSH 鉴权失败：\(m)"
+            case .handshakeFailed(let m): return "WebSocket 握手失败：\(m)"
             }
         }
         if let to = error as? ConnectionTimeoutError { return to.errorDescription ?? "连接超时" }
