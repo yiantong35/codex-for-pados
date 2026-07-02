@@ -42,7 +42,7 @@ struct FileBrowserStoreTests {
 
     @Test func noCwdIsEmptyAndSendsNothing() async {
         let (mock, _, store) = await makeStore()
-        store.setRoot(nil)
+        await store.setRoot(nil)
         try? await Task.sleep(nanoseconds: 50_000_000)
         #expect(store.isEmpty == true)
         #expect(await count(mock, method: RPCMethod.fsReadDirectory) == 0)
@@ -52,7 +52,7 @@ struct FileBrowserStoreTests {
         let (mock, _, store) = await makeStore()
         let responder = respond(mock, to: RPCMethod.fsReadDirectory,
             resultJSON: #"{"entries":[{"fileName":"src","isDirectory":true,"isFile":false}]}"#)
-        store.setRoot("/repo")
+        await store.setRoot("/repo")
         try? await Task.sleep(nanoseconds: 100_000_000)
         responder.cancel()
         #expect(store.isEmpty == false)
@@ -64,7 +64,7 @@ struct FileBrowserStoreTests {
         let (mock, _, store) = await makeStore()
         let responder = respond(mock, to: RPCMethod.fsReadDirectory,
             resultJSON: #"{"entries":[{"fileName":"a.txt","isDirectory":false,"isFile":true}]}"#)
-        store.setRoot("/repo")
+        await store.setRoot("/repo")
         try? await Task.sleep(nanoseconds: 100_000_000)
         await store.toggleExpand("/repo") // collapse
         await store.toggleExpand("/repo") // expand（复用缓存）
@@ -77,7 +77,7 @@ struct FileBrowserStoreTests {
         let (mock, _, store) = await makeStore()
         let responder = respond(mock, to: RPCMethod.fsReadDirectory,
             resultJSON: #"{"entries":[{"fileName":"src","isDirectory":true,"isFile":false}]}"#)
-        store.setRoot("/repo")
+        await store.setRoot("/repo")
         try? await Task.sleep(nanoseconds: 100_000_000)
         await store.refresh()
         try? await Task.sleep(nanoseconds: 100_000_000)
