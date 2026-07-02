@@ -90,4 +90,11 @@ struct ReviewPanelTests {
     @Test func parseEmpty() {
         #expect(UnifiedDiffParser.parse("").isEmpty)
     }
+    @Test func gitDiffMethodAndDecode() throws {
+        #expect(RPCMethod.gitDiffToRemote == "gitDiffToRemote")
+        let r = try JSONDecoder().decode(GitDiffToRemoteResponse.self,
+            from: Data(#"{"sha":"abc","diff":"diff --git a/x b/x\n"}"#.utf8))
+        #expect(r.sha == "abc")
+        #expect(r.diff.contains("diff --git"))
+    }
 }

@@ -19,6 +19,7 @@ enum RPCMethod {
     static let turnSteer = "turn/steer"
     static let turnInterrupt = "turn/interrupt"
     static let modelList = "model/list"
+    static let gitDiffToRemote = "gitDiffToRemote"
 }
 
 enum ServerRequestMethod {
