@@ -37,7 +37,7 @@ final class ProtocolTypesTests: XCTestCase {
     }
     func testThreadListResponseDecodesRealThreadSubset() throws {
         let json = #"""
-        {"data":[{"id":"t1","sessionId":"s1","forkedFromId":null,"preview":"hello","ephemeral":false,"modelProvider":"openai","createdAt":1700000000.0,"updatedAt":1700000100.0,"status":{"kind":"idle"},"path":null,"cwd":"/Users/x/proj","cliVersion":"0.1.0","source":{"kind":"cli"},"threadSource":null,"agentNickname":null,"agentRole":null,"gitInfo":null,"name":"My Thread","turns":[]}],"nextCursor":"c2","backwardsCursor":null}
+        {"data":[{"id":"t1","sessionId":"s1","forkedFromId":null,"preview":"hello","ephemeral":false,"modelProvider":"openai","createdAt":1700000000.0,"updatedAt":1700000100.0,"status":{"type":"idle"},"path":null,"cwd":"/Users/x/proj","cliVersion":"0.1.0","source":{"kind":"cli"},"threadSource":null,"agentNickname":null,"agentRole":null,"gitInfo":null,"name":"My Thread","turns":[]}],"nextCursor":"c2","backwardsCursor":null}
         """#
         let r = try JSONDecoder().decode(ThreadListResponse.self, from: json.data(using: .utf8)!)
         XCTAssertEqual(r.data.count, 1)

@@ -39,7 +39,8 @@ final class ProjectsStoreTests: XCTestCase {
         let s = ProjectsStore()
         s.ingest([ thread("a", cwd: "/repo/x", updatedAt: 1, origin: "o/x", git: true),
                    thread("b", cwd: "/repo/x", updatedAt: 2, origin: "o/x", git: true) ])
-        s.setPendingApproval(threadId: "a", pending: true)
+        // 批次②：待审批计数改由 daemon ThreadStatus.waitingOnApproval 派生。
+        s.handleStatusChanged(threadId: "a", status: .active(activeFlags: [.waitingOnApproval]))
         XCTAssertEqual(s.pendingApprovalCount(in: s.projects[0]), 1)
     }
 
@@ -48,14 +49,5 @@ final class ProjectsStoreTests: XCTestCase {
         // 真实 ThreadSourceKind 桌面来源字符串为 "appServer"（见 protocol/ts/v2/ThreadSourceKind.ts）。
         let params = ProjectsStore.listParamsForDesktopVisibility()
         XCTAssertTrue(params.sourceKinds?.contains("appServer") ?? false)
-    }
-
-    func testPendingApprovalBadge() {
-        let store = ProjectsStore()
-        store.ingest([thread("a", cwd: "/r", updatedAt: 2, origin: "o/r", git: true)])
-        store.setPendingApproval(threadId: "a", pending: true)
-        XCTAssertTrue(store.hasPendingApproval("a"))
-        store.setPendingApproval(threadId: "a", pending: false)
-        XCTAssertFalse(store.hasPendingApproval("a"))
     }
 }

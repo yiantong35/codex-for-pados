@@ -19,9 +19,8 @@ final class ApprovalCoordinator {
     init(store: ApprovalStore, projects: ProjectsStore) {
         self.store = store
         self.projects = projects
-        store.onPendingChange = { [weak projects] tid, pending in
-            projects?.setPendingApproval(threadId: tid, pending: pending)
-        }
+        // 批次②：侧栏「等待审批」徽标改由 daemon ThreadStatus.waitingOnApproval 驱动，
+        // 不再由本端审批卡片状态驱动 ProjectsStore 徽标。ApprovalStore 仍管审批卡片本身。
     }
 
     /// 绑定到一个新的 rpc（连接建立/重连后调用）。直接经 rpc.respond 回传决定。

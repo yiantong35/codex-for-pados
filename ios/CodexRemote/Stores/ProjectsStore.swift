@@ -19,6 +19,26 @@ struct Project: Identifiable {
     }
 }
 
+/// 侧栏运行态徽标种类（批次②，纯派生自 ThreadStatus）。
+enum RunStateBadge: Equatable {
+    case none
+    case running         // active 无 flag → spinner
+    case waitingInput    // waitingOnUserInput
+    case waitingApproval // waitingOnApproval（与 input 并存时优先）
+    case error           // systemError
+
+    static func from(_ status: ThreadStatus?) -> RunStateBadge {
+        switch status {
+        case .active(let flags):
+            if flags.contains(.waitingOnApproval) { return .waitingApproval }
+            if flags.contains(.waitingOnUserInput) { return .waitingInput }
+            return .running
+        case .systemError: return .error
+        case .idle, .notLoaded, nil: return RunStateBadge.none
+        }
+    }
+}
+
 /// 状态层：拉取 `thread/list`，按 cwd 分组为项目，并维护「待批准」徽标集合。
 @Observable
 @MainActor
@@ -29,7 +49,42 @@ final class ProjectsStore {
     var allThreadsSorted: [ThreadSummary] {
         (projects.flatMap(\.threads) + looseConversations).sorted { $0.updatedAt > $1.updatedAt }
     }
-    private var pendingApproval: Set<String> = []
+
+    /// per-thread 运行态（来源：thread/list 初值 + thread/status/changed 广播）。批次②。
+    private(set) var threadStatus: [String: ThreadStatus] = [:]
+
+    // MARK: - 未读活动点（批次②，本地持久化）
+
+    @ObservationIgnored private let unreadDefaults: UserDefaults
+    private static let unreadKey = "ipad.sidebar.lastViewedAt.v1"
+    /// per-thread 已读时间戳（threadId → lastViewedAt）。
+    private var lastViewedAt: [String: Double] = [:]
+
+    /// 注入 UserDefaults（默认 .standard），加载持久化的已读时间戳。
+    /// 默认参数保证 `ProjectsStore()` 仍可用。
+    init(unreadDefaults: UserDefaults = .standard) {
+        self.unreadDefaults = unreadDefaults
+        self.lastViewedAt = (unreadDefaults.dictionary(forKey: Self.unreadKey) as? [String: Double]) ?? [:]
+    }
+
+    /// 未读判定：当前选中不亮（前置）；否则 updatedAt > lastViewedAt。
+    func hasUnread(_ thread: ThreadSummary, isSelected: Bool) -> Bool {
+        if isSelected { return false }
+        return thread.updatedAt > (lastViewedAt[thread.id] ?? 0)
+    }
+
+    /// 进入会话：更新已读时间戳并持久化。
+    func markViewed(threadId: String, updatedAt: Double) {
+        lastViewedAt[threadId] = updatedAt
+        unreadDefaults.set(lastViewedAt, forKey: Self.unreadKey)
+    }
+
+    func status(of threadId: String) -> ThreadStatus? { threadStatus[threadId] }
+
+    /// 消费 thread/status/changed（internal 供单测）。
+    func handleStatusChanged(threadId: String, status: ThreadStatus) {
+        threadStatus[threadId] = status
+    }
 
     private var rpc: JSONRPCClient?
     private var broadcastObserver: Task<Void, Never>?
@@ -59,6 +114,12 @@ final class ProjectsStore {
             renameLocal(tid, to: newName)
         case ServerNotificationMethod.threadUnarchived:
             Task { if let rpc = self.rpc { await self.loadFromServer(rpc: rpc) } }
+        case ServerNotificationMethod.threadStatusChanged:
+            // 用 ThreadStatusChangedNotification 整体解码（去重 params 二次解析）。
+            if let data = try? JSONSerialization.data(withJSONObject: p),
+               let note = try? JSONDecoder().decode(ThreadStatusChangedNotification.self, from: data) {
+                handleStatusChanged(threadId: note.threadId, status: note.status)
+            }
         default:
             break
         }
@@ -68,6 +129,11 @@ final class ProjectsStore {
         for i in projects.indices { projects[i].threads.removeAll { $0.id == id } }
         projects.removeAll { $0.threads.isEmpty }
         looseConversations.removeAll { $0.id == id }
+        // 批次②：清理该 thread 的运行态与已读记录，避免 map 无界增长。
+        threadStatus.removeValue(forKey: id)
+        if lastViewedAt.removeValue(forKey: id) != nil {
+            unreadDefaults.set(lastViewedAt, forKey: Self.unreadKey)
+        }
     }
 
     private func renameLocal(_ id: String, to name: String?) {
@@ -167,15 +233,16 @@ final class ProjectsStore {
                            originUrl: sorted.first?.gitInfo?.originUrl, threads: sorted)
         }.sorted { ($0.threads.first?.updatedAt ?? 0) > ($1.threads.first?.updatedAt ?? 0) }
         looseConversations = loose.sorted { $0.updatedAt > $1.updatedAt }
+        // 运行态初值（批次②）：thread/list 项携带 status。
+        // 假设 thread/list 返回的是最新态（daemon 侧 list 与 broadcast 无显式时序号，
+        // 重拉以 list 为准）；仅在 status 非 nil 时覆盖，避免把已知态降级为 nil。
+        for t in threads where t.status != nil { threadStatus[t.id] = t.status }
     }
-
-    func setPendingApproval(threadId: String, pending: Bool) {
-        if pending { pendingApproval.insert(threadId) } else { pendingApproval.remove(threadId) }
-    }
-
-    func hasPendingApproval(_ threadId: String) -> Bool { pendingApproval.contains(threadId) }
 
     func pendingApprovalCount(in project: Project) -> Int {
-        project.threads.filter { hasPendingApproval($0.id) }.count
+        project.threads.filter {
+            if case .active(let flags) = threadStatus[$0.id], flags.contains(.waitingOnApproval) { return true }
+            return false
+        }.count
     }
 }

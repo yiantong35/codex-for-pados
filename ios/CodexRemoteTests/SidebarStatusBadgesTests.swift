@@ -1,0 +1,131 @@
+import Testing
+import Foundation
+@testable import CodexRemote
+
+struct SidebarStatusBadgesTests {
+
+    private func decode<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
+        try JSONDecoder().decode(T.self, from: Data(json.utf8))
+    }
+
+    @Test func methodConstant() {
+        #expect(ServerNotificationMethod.threadStatusChanged == "thread/status/changed")
+    }
+
+    @Test func decodeActiveWithFlags() throws {
+        let s = try decode(ThreadStatus.self, #"{"type":"active","activeFlags":["waitingOnApproval"]}"#)
+        #expect(s == .active(activeFlags: [.waitingOnApproval]))
+    }
+
+    @Test func decodeActiveEmptyFlags() throws {
+        let s = try decode(ThreadStatus.self, #"{"type":"active","activeFlags":[]}"#)
+        #expect(s == .active(activeFlags: []))
+    }
+
+    @Test func decodeIdleAndSystemError() throws {
+        #expect(try decode(ThreadStatus.self, #"{"type":"idle"}"#) == .idle)
+        #expect(try decode(ThreadStatus.self, #"{"type":"systemError"}"#) == .systemError)
+        #expect(try decode(ThreadStatus.self, #"{"type":"notLoaded"}"#) == .notLoaded)
+    }
+
+    @Test func decodeUnknownFlagTolerated() throws {
+        let s = try decode(ThreadStatus.self, #"{"type":"active","activeFlags":["waitingOnUserInput","futureFlag"]}"#)
+        #expect(s == .active(activeFlags: [.waitingOnUserInput]))
+    }
+
+    @Test func decodeStatusChangedNotification() throws {
+        let n = try decode(ThreadStatusChangedNotification.self,
+            #"{"threadId":"t1","status":{"type":"active","activeFlags":["waitingOnApproval"]}}"#)
+        #expect(n.threadId == "t1")
+        #expect(n.status == .active(activeFlags: [.waitingOnApproval]))
+    }
+
+    // MARK: - Task 2: ThreadSummary.status
+
+    @Test func threadSummaryDecodesStatus() throws {
+        let json = #"""
+        {"id":"t1","sessionId":"s1","preview":"hi","modelProvider":"openai",
+         "createdAt":1.0,"updatedAt":2.0,"cwd":"/x","cliVersion":"0.1",
+         "status":{"type":"active","activeFlags":[]}}
+        """#
+        let t = try decode(ThreadSummary.self, json)
+        #expect(t.status == .active(activeFlags: []))
+    }
+
+    @Test func threadSummaryStatusOptionalDefaultsNil() throws {
+        let json = #"""
+        {"id":"t1","sessionId":"s1","preview":"hi","modelProvider":"openai",
+         "createdAt":1.0,"updatedAt":2.0,"cwd":"/x","cliVersion":"0.1"}
+        """#
+        let t = try decode(ThreadSummary.self, json)
+        #expect(t.status == nil)
+    }
+
+    // MARK: - Task 3: 运行态→徽标映射纯函数
+
+    @Test func runStateBadgeMapping() {
+        #expect(RunStateBadge.from(.active(activeFlags: [])) == .running)
+        #expect(RunStateBadge.from(.active(activeFlags: [.waitingOnUserInput])) == .waitingInput)
+        #expect(RunStateBadge.from(.active(activeFlags: [.waitingOnApproval])) == .waitingApproval)
+        // 同时含两 flag：审批优先（更需用户动作）
+        #expect(RunStateBadge.from(.active(activeFlags: [.waitingOnUserInput, .waitingOnApproval])) == .waitingApproval)
+        #expect(RunStateBadge.from(.systemError) == .error)
+        #expect(RunStateBadge.from(.idle) == RunStateBadge.none)
+        #expect(RunStateBadge.from(.notLoaded) == RunStateBadge.none)
+        #expect(RunStateBadge.from(nil) == RunStateBadge.none)
+    }
+
+    // MARK: - Task 4: ProjectsStore 维护 threadStatus
+
+    @MainActor @Test func statusChangedUpdatesMap() {
+        let store = ProjectsStore()
+        store.handleStatusChanged(threadId: "t1", status: .active(activeFlags: [.waitingOnApproval]))
+        #expect(store.status(of: "t1") == .active(activeFlags: [.waitingOnApproval]))
+        #expect(store.status(of: "t2") == nil)
+        store.handleStatusChanged(threadId: "t1", status: .idle)
+        #expect(store.status(of: "t1") == .idle)
+    }
+
+    // MARK: - Task 5: 未读活动点（lastViewedAt 持久化 + 当前选中前置）
+
+    private func makeThread(_ id: String, updatedAt: Double) -> ThreadSummary {
+        ThreadSummary(id: id, sessionId: "s", preview: "", modelProvider: "",
+                      createdAt: 0, updatedAt: updatedAt, cwd: "", cliVersion: "")
+    }
+
+    @MainActor @Test func unreadDotLogic() {
+        let defaults = UserDefaults(suiteName: "test.unread.\(UUID().uuidString)")!
+        let store = ProjectsStore(unreadDefaults: defaults)
+        let t = makeThread("t1", updatedAt: 100)
+        // 没看过 + 非选中 → 未读
+        #expect(store.hasUnread(t, isSelected: false) == true)
+        // 当前选中 → 不亮（前置规则）
+        #expect(store.hasUnread(t, isSelected: true) == false)
+        // 看过后熄灭
+        store.markViewed(threadId: "t1", updatedAt: 100)
+        #expect(store.hasUnread(t, isSelected: false) == false)
+        // 又有新活动（updatedAt 前进）→ 再亮
+        #expect(store.hasUnread(makeThread("t1", updatedAt: 200), isSelected: false) == true)
+    }
+
+    @MainActor @Test func unreadPersistsAcrossReload() {
+        let defaults = UserDefaults(suiteName: "test.unread.\(UUID().uuidString)")!
+        let store1 = ProjectsStore(unreadDefaults: defaults)
+        store1.markViewed(threadId: "t1", updatedAt: 100)
+        // 新实例（模拟重启）读同一 suite
+        let store2 = ProjectsStore(unreadDefaults: defaults)
+        #expect(store2.hasUnread(makeThread("t1", updatedAt: 100), isSelected: false) == false)
+    }
+
+    // MARK: - Task 6: 项目级待审批计数改 daemon 来源
+
+    @MainActor @Test func pendingApprovalCountFromDaemonStatus() {
+        let store = ProjectsStore()
+        let t1 = makeThread("t1", updatedAt: 0)
+        let t2 = makeThread("t2", updatedAt: 0)
+        let proj = Project(id: "p", cwd: "/p", originUrl: nil, threads: [t1, t2])
+        store.handleStatusChanged(threadId: "t1", status: .active(activeFlags: [.waitingOnApproval]))
+        store.handleStatusChanged(threadId: "t2", status: .idle)
+        #expect(store.pendingApprovalCount(in: proj) == 1)
+    }
+}

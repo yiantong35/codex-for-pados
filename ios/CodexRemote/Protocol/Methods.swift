@@ -61,6 +61,7 @@ enum ServerNotificationMethod {
     static let threadNameUpdated = "thread/name/updated"
     static let threadGoalUpdated = "thread/goal/updated"
     static let threadGoalCleared = "thread/goal/cleared"
+    static let threadStatusChanged = "thread/status/changed"
     static let accountUpdated = "account/updated"
     static let accountRateLimitsUpdated = "account/rateLimits/updated"
     static let commandExecOutputDelta = "command/exec/outputDelta"

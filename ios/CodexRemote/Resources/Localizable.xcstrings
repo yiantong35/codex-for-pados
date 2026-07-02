@@ -1233,6 +1233,22 @@
         }
       }
     },
+    "sidebar.systemError": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System error"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统错误"
+          }
+        }
+      }
+    },
     "sidebar.title": {
       "localizations": {
         "en": {
@@ -1265,6 +1281,22 @@
         }
       }
     },
+    "sidebar.unread": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unread activity"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未读活动"
+          }
+        }
+      }
+    },
     "sidebar.untitled": {
       "localizations": {
         "en": {
@@ -1277,6 +1309,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "(无标题)"
+          }
+        }
+      }
+    },
+    "sidebar.waitingInput": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for input"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待输入"
           }
         }
       }

@@ -41,7 +41,11 @@ struct SidebarView: View {
                                                       params: AnyCodable(["cwd": nil, "model": nil] as [String: String?]))
                         if let dict = any?.value as? [String: Any],
                            let id = (dict["thread"] as? [String: Any])?["id"] as? String {
-                            await MainActor.run { selectedThreadId = id }
+                            await MainActor.run {
+                                selectedThreadId = id
+                                // 新建即视为已读（标到当前时刻），避免切走再回误亮未读点。
+                                projects.markViewed(threadId: id, updatedAt: Date().timeIntervalSince1970)
+                            }
                         }
                     }
                 } label: { Image(systemName: "square.and.pencil") }
@@ -105,15 +109,33 @@ struct SidebarView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            if projects.hasPendingApproval(thread.id) {
-                Label("sidebar.pendingApproval", systemImage: "clock.badge.exclamationmark")
-                    .labelStyle(.iconOnly)
-                    .foregroundStyle(.orange)
+            // 运行态徽标（批次②，daemon ThreadStatus 来源）
+            switch RunStateBadge.from(projects.status(of: thread.id)) {
+            case .running:
+                ProgressView().controlSize(.small)
+            case .waitingInput:
+                Image(systemName: "questionmark.circle.fill").foregroundStyle(.blue)
+                    .accessibilityLabel(Text("sidebar.waitingInput"))
+            case .waitingApproval:
+                Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
                     .accessibilityLabel(Text("sidebar.pendingApproval"))
+            case .error:
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                    .accessibilityLabel(Text("sidebar.systemError"))
+            case .none:
+                EmptyView()
+            }
+            // 未读活动点（批次②，本地；当前选中不亮）
+            if projects.hasUnread(thread, isSelected: selected) {
+                Circle().fill(Color.accentColor).frame(width: 7, height: 7)
+                    .accessibilityLabel(Text("sidebar.unread"))
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture { selectedThreadId = thread.id }
+        .onTapGesture {
+            selectedThreadId = thread.id
+            projects.markViewed(threadId: thread.id, updatedAt: thread.updatedAt)
+        }
         .contextMenu {
             Button {
                 guard let rpc = connection.rpc else { return }
