@@ -43,7 +43,7 @@ struct RightPanelContainerView: View {
                         .padding(.vertical, 8)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(Text(tab.label))
+                .accessibilityAddTraits(selectedTab == tab ? [.isSelected] : [])
             }
         }
         .background(.bar)
