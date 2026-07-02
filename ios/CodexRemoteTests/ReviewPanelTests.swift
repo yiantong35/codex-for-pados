@@ -97,4 +97,10 @@ struct ReviewPanelTests {
         #expect(r.sha == "abc")
         #expect(r.diff.contains("diff --git"))
     }
+    @Test func diffSourceParsing() {
+        let src = ReviewDiffSource(diff: "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n", label: "本轮", cwd: nil)
+        #expect(src.files.count == 1)
+        #expect(src.isEmpty == false)
+        #expect(ReviewDiffSource(diff: "", label: "空", cwd: nil).isEmpty)
+    }
 }
