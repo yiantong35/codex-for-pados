@@ -269,6 +269,8 @@ final class OrientationSnapshotTests: XCTestCase {
     func test_bottom_panel_snapshot() {
         let view = BottomPanelView(height: .constant(WorkspaceMetrics.bottomPanelIdealHeight))
             .environment(LocaleManager())
+            .environment(TerminalSession())
+            .environment(makeConnection())
             .frame(width: 800, height: 260)
         snapshot(view, size: CGSize(width: 800, height: 260),
                  name: "bottom-panel", dir: "/tmp/workspace")
@@ -394,6 +396,7 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(makeProjects())
             .environment(LocaleManager())
             .environment(ThemeManager())
+            .environment(TerminalSession())
         snapshot(view, size: landscape, name: "workspace-all-open", dir: "/tmp/workspace")
     }
 

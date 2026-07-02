@@ -23,6 +23,7 @@ enum RPCMethod {
     static let commandExecWrite = "command/exec/write"
     static let commandExecResize = "command/exec/resize"
     static let commandExecTerminate = "command/exec/terminate"
+    static let gitDiffToRemote = "gitDiffToRemote"
 }
 
 enum ServerRequestMethod {
