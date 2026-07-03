@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// 右边栏（design D3）：审查面板。占位升级为纯 diff 查看器（UnifiedDiffParser + 文件树 + 逐行红绿）。
-/// 顶部数据源切换：本轮（当前 turn 的 turnDiff，现成）/ 全量（gitDiffToRemote 拉取的仓库全量 diff）。
-struct RightPanelView: View {
+/// 审查 tab（原 RightPanelView，纯剪切进 tab 容器）：数据源切换（本轮/全量）+ 逐行红绿 diff。
+/// 逻辑与容器化之前完全一致，靠 ReviewPanelTests 回归兜底。
+struct ReviewTabView: View {
     @Environment(ActiveConversationHolder.self) private var activeConversation
     /// 全量 diff 拉取所需的工作目录（取自选中 thread；缺失则「全量」不可用）。
     var cwd: String?
