@@ -198,7 +198,7 @@ struct RootSplitView: View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .inspector(isPresented: $showRightPanel) {
-                RightPanelContainerView(cwd: selectedThread?.cwd)
+                RightPanelContainerView(cwd: selectedThread?.cwd, mainThreadId: selectedThreadId)
                     // inspector 内容在独立系统列，不保证继承 body 链上的 .environment，
                     // 故在此显式注入 ActiveConversationHolder（否则 RightPanelContainerView 读环境时运行时崩溃）。
                     .environment(activeConversation)
