@@ -81,15 +81,22 @@ final class ConversationStore {
         }
     }
 
-    /// 派生当前对话：发 thread/fork，得到新 thread id（不影响源 thread）。返回新 id（失败 nil）。
-    /// 响应 shape 为 {thread:{id,...},...}（protocol v2 ThreadForkResponse）。
+    /// fork 结果：新侧聊 threadId + daemon 记录的父指针（forkedFromId，用于标题展示）。
+    struct ForkResult: Equatable {
+        let threadId: String
+        let forkedFromId: String?
+    }
+
+    /// 派生当前对话：发 thread/fork，得到新 thread（不影响源 thread）。
+    /// `ephemeral` 默认 false —— 现有侧栏持久 fork 行为不变（编码时省略 ephemeral 键）；
+    /// 侧聊路径传 true → 请求带 ephemeral、daemon 不落盘。返回新 threadId + forkedFromId（失败 nil）。
     @discardableResult
-    func fork() async -> String? {
-        let params = ThreadForkParams(threadId: state.threadId)
+    func fork(ephemeral: Bool = false) async -> ForkResult? {
+        // false → nil：省略 ephemeral 键，保持旧持久 fork 的线格式不变（直接传 Bool 会写出 "ephemeral":false）
+        let params = ThreadForkParams(threadId: state.threadId, ephemeral: ephemeral ? true : nil)
         guard let result = try? await call(RPCMethod.threadFork, params),
-              let dict = result.value as? [String: Any],
-              let newId = (dict["thread"] as? [String: Any])?["id"] as? String else { return nil }
-        return newId
+              let resp = try? decode(ForkedThreadResponse.self, from: result) else { return nil }
+        return ForkResult(threadId: resp.thread.id, forkedFromId: resp.thread.forkedFromId)
     }
 
     /// 发送 prompt：发 turn/start。turn 输出经 notifications 流式回来，故发出即返回。

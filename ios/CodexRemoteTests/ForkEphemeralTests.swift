@@ -21,3 +21,48 @@ struct ForkEphemeralTests {
         #expect(decoded.thread.forkedFromId == "t1")
     }
 }
+
+@MainActor
+struct ConversationStoreForkTests {
+    private func makeStore() async -> (MockTransport, ConversationStore) {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        return (mock, ConversationStore(rpc: rpc, threadId: "t1"))
+    }
+    private func respondFork(_ mock: MockTransport, newId: String, from: String) -> Task<Void, Never> {
+        Task {
+            var answered = Set<String>()
+            for _ in 0..<400 {
+                if Task.isCancelled { return }
+                for frame in await mock.sent {
+                    guard let obj = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any],
+                          let id = obj["id"] as? String,
+                          obj["method"] as? String == RPCMethod.threadFork,
+                          !answered.contains(id) else { continue }
+                    answered.insert(id)
+                    await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"thread":{"id":"\#(newId)","forkedFromId":"\#(from)","ephemeral":true}}}"#)
+                }
+                try? await Task.sleep(nanoseconds: 5_000_000)
+            }
+        }
+    }
+    @Test func defaultForkOmitsEphemeral() async {
+        let (mock, store) = await makeStore()
+        let r = respondFork(mock, newId: "fork-1", from: "t1")
+        _ = await store.fork()
+        r.cancel()
+        let forkFrame = await mock.sent.first { $0.contains(RPCMethod.threadFork) } ?? ""
+        #expect(!forkFrame.contains("ephemeral"))
+    }
+    @Test func ephemeralForkReturnsIdAndParent() async {
+        let (mock, store) = await makeStore()
+        let r = respondFork(mock, newId: "fork-1", from: "t1")
+        let result = await store.fork(ephemeral: true)
+        r.cancel()
+        let forkFrame = await mock.sent.first { $0.contains(RPCMethod.threadFork) } ?? ""
+        #expect(forkFrame.contains("\"ephemeral\":true"))
+        #expect(result?.threadId == "fork-1")
+        #expect(result?.forkedFromId == "t1")
+    }
+}
