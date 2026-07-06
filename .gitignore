@@ -42,3 +42,6 @@ ios/**/DerivedData/
 # 本地副产物:截图 / memory 备份等(不进仓库)
 *.HEIC
 *.tgz
+
+# 会话 transcript 续写导出（勿入库）
+*-this-session-is-being-continued-from-a-previous-c.txt
