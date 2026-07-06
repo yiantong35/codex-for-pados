@@ -37,4 +37,23 @@ final class SettingsSectionViewLogicTests: XCTestCase {
             XCTAssertEqual(theme.theme == t, t == .light)
         }
     }
+
+    // MARK: - 语言（Task 4）
+
+    func testLanguageSelectSwitchesLocaleAndPersists() {
+        let locale = LocaleManager(store: defaults)
+        XCTAssertEqual(locale.language, .zh)
+        locale.language = .en
+        XCTAssertEqual(locale.language, .en)
+        XCTAssertEqual(locale.locale.identifier, "en")
+        XCTAssertEqual(LocaleManager(store: defaults).language, .en)
+    }
+
+    func testLanguageCurrentSelectionMarker() {
+        let locale = LocaleManager(store: defaults)
+        locale.language = .zh
+        for l in AppLanguage.allCases {
+            XCTAssertEqual(locale.language == l, l == .zh)
+        }
+    }
 }
