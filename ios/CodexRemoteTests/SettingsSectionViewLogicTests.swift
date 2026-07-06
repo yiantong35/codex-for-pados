@@ -56,4 +56,30 @@ final class SettingsSectionViewLogicTests: XCTestCase {
             XCTAssertEqual(locale.language == l, l == .zh)
         }
     }
+
+    // MARK: - 账户（Task 5）：展示态映射纯逻辑
+
+    func testAccountRowsForChatgpt() {
+        let rows = AccountInfoView.rows(
+            account: .chatgpt(email: "a@b.com", planType: "plus"),
+            usage: AccountTokenUsageSummary(lifetimeTokens: 1000, peakDailyTokens: nil,
+                                            longestRunningTurnSec: nil, currentStreakDays: nil,
+                                            longestStreakDays: nil),
+            rateLimits: RateLimitSnapshot(limitId: "codex", limitName: nil,
+                                          primary: RateLimitWindow(usedPercent: 42, windowDurationMins: nil, resetsAt: nil),
+                                          secondary: nil))
+        XCTAssertTrue(rows.contains(.email("a@b.com")))
+        XCTAssertTrue(rows.contains(.plan("plus")))
+        XCTAssertTrue(rows.contains(.lifetime("1000")))
+        XCTAssertTrue(rows.contains(.rateUsed("42%")))
+    }
+
+    func testAccountRowsApiKey() {
+        let rows = AccountInfoView.rows(account: .apiKey, usage: nil, rateLimits: nil)
+        XCTAssertTrue(rows.contains(.kind("API Key")))
+    }
+
+    func testAccountRowsEmptyWhenNil() {
+        XCTAssertTrue(AccountInfoView.rows(account: nil, usage: nil, rateLimits: nil).isEmpty)
+    }
 }
