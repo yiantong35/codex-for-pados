@@ -10,13 +10,15 @@ import SwiftUI
 struct ConnectionConfigView: View {
     @Environment(ConnectionStore.self) private var connection
 
-    /// control socket 默认路径（T1.1 确认存在）。
-    private static let defaultSockPath = "/Users/tangyujie/.codex/app-server-control/app-server-control.sock"
+    /// control socket 路径由 SSH 用户名派生（每台机器用户名不同，避免写死单一路径）。
+    /// 纯函数便于单测：`/Users/<user>/.codex/app-server-control/app-server-control.sock`。
+    static func sockPath(forUser user: String) -> String {
+        "/Users/\(user)/.codex/app-server-control/app-server-control.sock"
+    }
 
     @State private var host = UserDefaults.standard.string(forKey: "host") ?? ""
     @State private var user = UserDefaults.standard.string(forKey: "sshUser") ?? ""
     @State private var sshPort = UserDefaults.standard.string(forKey: "sshPort") ?? "22"
-    @State private var sockPath = UserDefaults.standard.string(forKey: "sockPath") ?? ConnectionConfigView.defaultSockPath
     /// 本机 KeyManager：无密钥时生成，展示公钥供复制。
     @State private var keyManager = KeyManager()
     @State private var copied = false
@@ -39,9 +41,9 @@ struct ConnectionConfigView: View {
         }
     }
 
-    /// 必填项是否齐全（host/user/sockPath 非空）。
+    /// 必填项是否齐全（host/user 非空；sockPath 由 user 派生，无需校验）。
     private var canConnect: Bool {
-        !host.isEmpty && !user.isEmpty && !sockPath.isEmpty
+        !host.isEmpty && !user.isEmpty
     }
 
     var body: some View {
@@ -106,11 +108,6 @@ struct ConnectionConfigView: View {
                 field {
                     TextField("SSH 端口", text: $sshPort)
                         .keyboardType(.numberPad)
-                }
-                field {
-                    TextField("control socket 路径", text: $sockPath)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
                 }
             }
 
@@ -202,11 +199,10 @@ struct ConnectionConfigView: View {
         UserDefaults.standard.set(host, forKey: "host")
         UserDefaults.standard.set(user, forKey: "sshUser")
         UserDefaults.standard.set(sshPort, forKey: "sshPort")
-        UserDefaults.standard.set(sockPath, forKey: "sockPath")
         keyManager.generateIfNeeded()
         connection.connect(config: ConnectionConfig(
             host: host, user: user,
             sshPort: Int(sshPort) ?? 22,
-            controlSockPath: sockPath))
+            controlSockPath: Self.sockPath(forUser: user)))
     }
 }

@@ -14,10 +14,21 @@ struct SettingsPageView: View {
                 Label(section.label, systemImage: section.icon)
                     .tag(section)
             }
-            .navigationTitle("settings.title")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // 左上角关闭：明确的 X 按钮，符合 iPad sheet 惯例。
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .accessibilityLabel(Text("settings.close"))
+                    }
+                }
+                // 右上角完成：醒目主操作按钮（borderedProminent）而非裸文字。
                 ToolbarItem(placement: .confirmationAction) {
                     Button("settings.done") { dismiss() }
+                        .buttonStyle(.borderedProminent)
                 }
             }
         } detail: {
