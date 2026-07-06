@@ -89,4 +89,12 @@ final class ThemeManager {
         case .dark: return .dark
         }
     }
+
+    /// sheet 专用：把 `.system` 解析成一个**具体**的 ColorScheme（由外部宿主传入真实系统值），
+    /// 而非返回 nil。原因：`.preferredColorScheme(nil)` 施加在 sheet 上时**不会**重置之前
+    /// 已强制的深/浅色（SwiftUI 把 nil 当「未表态」而非「回到系统」），导致深色→跟随系统时
+    /// sheet 卡在深色（里黑外白）。传入具体值可彻底规避该问题。
+    func resolvedColorScheme(system: ColorScheme) -> ColorScheme {
+        colorScheme ?? system
+    }
 }

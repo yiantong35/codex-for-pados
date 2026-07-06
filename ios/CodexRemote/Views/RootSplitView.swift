@@ -23,6 +23,9 @@ struct RootSplitView: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(ProjectsStore.self) private var projects
     @Environment(EnvironmentInspectorModel.self) private var envInspector
+    // 真实系统深浅值：theme=.system 时本视图跟随系统，此值即真实系统外观，传给设置 sheet
+    // 以正确解析 .system（规避 sheet .preferredColorScheme(nil) 无法重置强制值）。
+    @Environment(\.colorScheme) private var systemColorScheme
     @State private var selectedThreadId: String?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
@@ -113,7 +116,7 @@ struct RootSplitView: View {
                 }
             }
             .environment(activeConversation)
-            .sheet(isPresented: $showSettings) { SettingsPageView() }
+            .sheet(isPresented: $showSettings) { SettingsPageView(systemColorScheme: systemColorScheme) }
     }
 
     // MARK: - 顶部固定全局工具栏：左面板 · 下面板 · 右面板 · 摘要(:≡) · 设置
