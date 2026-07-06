@@ -9,16 +9,25 @@ import Observation
 // MARK: - 语言
 
 enum AppLanguage: String, CaseIterable {
+    case system   // 跟随系统（与外观 AppTheme.system 对齐），放首位 = UI 首项
     case zh
     case en
 
     /// SwiftUI 环境 locale 注入用的标识。zh 走简体中文资源。
-    var localeIdentifier: String {
+    /// `.system` 动态解析系统首选语言：以 "zh" 开头→简体中文，其余→英文。
+    /// `preferredLanguages` 参数化以便单测（默认取 `Locale.preferredLanguages`，避免 flaky）。
+    func localeIdentifier(preferredLanguages: [String] = Locale.preferredLanguages) -> String {
         switch self {
+        case .system:
+            let first = preferredLanguages.first ?? "en"
+            return first.hasPrefix("zh") ? "zh-Hans" : "en"
         case .zh: return "zh-Hans"
         case .en: return "en"
         }
     }
+
+    /// 无参入口：转调参数化版本，兼容既有调用点。
+    var localeIdentifier: String { localeIdentifier() }
 }
 
 /// 语言管理器：持久化 "app_language"，暴露当前 locale。默认中文。
@@ -38,11 +47,11 @@ final class LocaleManager {
         if let raw = store.string(forKey: Self.key), let lang = AppLanguage(rawValue: raw) {
             self.language = lang
         } else {
-            self.language = .zh   // 默认中文
+            self.language = .system   // 默认跟随系统
         }
     }
 
-    var locale: Locale { Locale(identifier: language.localeIdentifier) }
+    var locale: Locale { Locale(identifier: language.localeIdentifier()) }
 }
 
 // MARK: - 主题
@@ -79,5 +88,13 @@ final class ThemeManager {
         case .light: return .light
         case .dark: return .dark
         }
+    }
+
+    /// sheet 专用：把 `.system` 解析成一个**具体**的 ColorScheme（由外部宿主传入真实系统值），
+    /// 而非返回 nil。原因：`.preferredColorScheme(nil)` 施加在 sheet 上时**不会**重置之前
+    /// 已强制的深/浅色（SwiftUI 把 nil 当「未表态」而非「回到系统」），导致深色→跟随系统时
+    /// sheet 卡在深色（里黑外白）。传入具体值可彻底规避该问题。
+    func resolvedColorScheme(system: ColorScheme) -> ColorScheme {
+        colorScheme ?? system
     }
 }

@@ -23,6 +23,9 @@ struct RootSplitView: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(ProjectsStore.self) private var projects
     @Environment(EnvironmentInspectorModel.self) private var envInspector
+    // 真实系统深浅值：theme=.system 时本视图跟随系统，此值即真实系统外观，传给设置 sheet
+    // 以正确解析 .system（规避 sheet .preferredColorScheme(nil) 无法重置强制值）。
+    @Environment(\.colorScheme) private var systemColorScheme
     @State private var selectedThreadId: String?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
@@ -30,6 +33,7 @@ struct RootSplitView: View {
     @State private var showRightPanel: Bool
     @State private var showBottomPanel: Bool
     @State private var showSummary = false
+    @State private var showSettings = false
     // 下栏高度（自绘纵向拖 + clamp）。下栏挂在 split 外层全宽 safeAreaInset（design D2）。
     @State private var bottomHeight: CGFloat = WorkspaceMetrics.bottomPanelIdealHeight
     // 左栏把手拖动高亮：系统列钩不到拖动事件，改为监听真实分隔线坐标变化——拖系统分隔线时坐标持续变，
@@ -112,6 +116,7 @@ struct RootSplitView: View {
                 }
             }
             .environment(activeConversation)
+            .sheet(isPresented: $showSettings) { SettingsPageView(systemColorScheme: systemColorScheme) }
     }
 
     // MARK: - 顶部固定全局工具栏：左面板 · 下面板 · 右面板 · 摘要(:≡) · 设置
@@ -149,8 +154,11 @@ struct RootSplitView: View {
             }
             .accessibilityLabel(Text("workspace.rightPanel.toggle"))
 
-            // 设置。
-            SettingsMenu()
+            // 设置：gear 直接打开设置页 .sheet（移除旧 popover，设计 D3）。
+            Button { showSettings.toggle() } label: {
+                Image(systemName: "gearshape")
+                    .accessibilityLabel(Text("settings.accessibility"))
+            }
         }
         .font(.title3)
         // 图标用 .primary（标签色，随深浅自动适配黑/白），不用 iOS 默认蓝。

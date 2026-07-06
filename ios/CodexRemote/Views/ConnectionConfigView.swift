@@ -9,19 +9,25 @@ import SwiftUI
 /// 齿轮设置入口浮在右上角（带 safe-area 边距）。
 struct ConnectionConfigView: View {
     @Environment(ConnectionStore.self) private var connection
+    // 真实系统深浅值（theme=.system 时本视图跟随系统），传给设置 sheet 解析 .system 主题。
+    @Environment(\.colorScheme) private var systemColorScheme
 
-    /// control socket 默认路径（T1.1 确认存在）。
-    private static let defaultSockPath = "/Users/tangyujie/.codex/app-server-control/app-server-control.sock"
+    /// control socket 路径由 SSH 用户名派生（每台机器用户名不同，避免写死单一路径）。
+    /// 纯函数便于单测：`/Users/<user>/.codex/app-server-control/app-server-control.sock`。
+    static func sockPath(forUser user: String) -> String {
+        "/Users/\(user)/.codex/app-server-control/app-server-control.sock"
+    }
 
     @State private var host = UserDefaults.standard.string(forKey: "host") ?? ""
     @State private var user = UserDefaults.standard.string(forKey: "sshUser") ?? ""
     @State private var sshPort = UserDefaults.standard.string(forKey: "sshPort") ?? "22"
-    @State private var sockPath = UserDefaults.standard.string(forKey: "sockPath") ?? ConnectionConfigView.defaultSockPath
     /// 本机 KeyManager：无密钥时生成，展示公钥供复制。
     @State private var keyManager = KeyManager()
     @State private var copied = false
     /// 启动自动重连一次性闸门：仅本次 app 生命周期内自动连一次，失败后不自动重试（避免循环）。
     @State private var didAutoConnect = false
+    /// 设置页 sheet 显隐（gear 直接打开，移除旧 popover，设计 D3）。
+    @State private var showSettings = false
 
     /// 错误文案直接由 phase 派生：重新点连接 → phase 变 connecting → 旧错误自动消失。
     private var errorText: String? {
@@ -37,9 +43,9 @@ struct ConnectionConfigView: View {
         }
     }
 
-    /// 必填项是否齐全（host/user/sockPath 非空）。
+    /// 必填项是否齐全（host/user 非空；sockPath 由 user 派生，无需校验）。
     private var canConnect: Bool {
-        !host.isEmpty && !user.isEmpty && !sockPath.isEmpty
+        !host.isEmpty && !user.isEmpty
     }
 
     var body: some View {
@@ -58,10 +64,14 @@ struct ConnectionConfigView: View {
             }
         }
         .overlay(alignment: .topTrailing) {
-            SettingsMenu()
-                .font(.title3)
-                .padding(20)
+            Button { showSettings.toggle() } label: {
+                Image(systemName: "gearshape")
+                    .accessibilityLabel(Text("settings.accessibility"))
+            }
+            .font(.title3)
+            .padding(20)
         }
+        .sheet(isPresented: $showSettings) { SettingsPageView(systemColorScheme: systemColorScheme) }
         // 进入即确保本机密钥存在（幂等：已有不动），保证公钥可展示、连接前置满足。
         .onAppear { keyManager.generateIfNeeded() }
         // 启动自动重连：有上次连接信息(host+user+sock)且密钥已存、当前断开时，自动发起连接一次。
@@ -101,21 +111,17 @@ struct ConnectionConfigView: View {
                     TextField("SSH 端口", text: $sshPort)
                         .keyboardType(.numberPad)
                 }
-                field {
-                    TextField("control socket 路径", text: $sockPath)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                }
             }
 
             publicKeyBlock
 
-            if let e = errorText {
-                Text(e)
-                    .font(.callout)
-                    .foregroundStyle(.red)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            // 错误位常驻两行高：无错时占位（空格）不塌陷、报错出现/消失都不改卡片布局，
+            // 避免观感跳版。超两行的长错误（内嵌原始 error）截断，保证高度稳定。
+            Text(errorText ?? " ")
+                .font(.callout)
+                .foregroundStyle(.red)
+                .lineLimit(2, reservesSpace: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             Button {
                 connect()
@@ -154,8 +160,14 @@ struct ConnectionConfigView: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
                     }
                 } label: {
-                    Label(copied ? "已复制" : "复制", systemImage: copied ? "checkmark" : "doc.on.doc")
-                        .font(.caption)
+                    // 用两个隐藏占位取并集，锁定按钮尺寸——避免 checkmark 比 doc.on.doc 矮
+                    // 时按钮变矮、整张登录卡片跟着上下抖动。
+                    ZStack {
+                        Label("复制", systemImage: "doc.on.doc").hidden()
+                        Label("已复制", systemImage: "checkmark").hidden()
+                        Label(copied ? "已复制" : "复制", systemImage: copied ? "checkmark" : "doc.on.doc")
+                    }
+                    .font(.caption)
                 }
                 .disabled(keyManager.publicKeyOpenSSH() == nil)
             }
@@ -196,11 +208,10 @@ struct ConnectionConfigView: View {
         UserDefaults.standard.set(host, forKey: "host")
         UserDefaults.standard.set(user, forKey: "sshUser")
         UserDefaults.standard.set(sshPort, forKey: "sshPort")
-        UserDefaults.standard.set(sockPath, forKey: "sockPath")
         keyManager.generateIfNeeded()
         connection.connect(config: ConnectionConfig(
             host: host, user: user,
             sshPort: Int(sshPort) ?? 22,
-            controlSockPath: sockPath))
+            controlSockPath: Self.sockPath(forUser: user)))
     }
 }
