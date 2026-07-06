@@ -9,6 +9,7 @@ struct AccountInfoView: View {
     let rateLimits: RateLimitSnapshot?
 
     enum Row: Equatable {
+        case notSignedIn
         case email(String)
         case plan(String)
         case kind(String)
@@ -27,7 +28,12 @@ struct AccountInfoView: View {
             rows.append(.plan(planType))
         case .apiKey:        rows.append(.kind("API Key"))
         case .amazonBedrock: rows.append(.kind("Amazon Bedrock"))
-        case nil:            break
+        case nil:
+            // 未登录：仅当已有用量/限额（混合态，账户未到但数据先到）才追加身份占位行，
+            // 避免"只见用量不知归属"。三者全 nil 时保持空数组，走 body 的 settings.account.empty 空态。
+            if usage != nil || rateLimits != nil {
+                rows.append(.notSignedIn)
+            }
         }
         if let life = usage?.lifetimeTokens {
             rows.append(.lifetime("\(life)"))
@@ -54,6 +60,7 @@ struct AccountInfoView: View {
 
     @ViewBuilder private func labeled(_ row: Row) -> some View {
         switch row {
+        case .notSignedIn:     Text("settings.account.none").foregroundStyle(.secondary)
         case .email(let v):    LabeledContent("env.account.email", value: v)
         case .plan(let v):     LabeledContent("env.account.plan", value: v)
         case .kind(let v):     LabeledContent("env.account", value: v)

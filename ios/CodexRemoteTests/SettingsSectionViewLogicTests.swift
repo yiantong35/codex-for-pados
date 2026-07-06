@@ -82,4 +82,21 @@ final class SettingsSectionViewLogicTests: XCTestCase {
     func testAccountRowsEmptyWhenNil() {
         XCTAssertTrue(AccountInfoView.rows(account: nil, usage: nil, rateLimits: nil).isEmpty)
     }
+
+    /// 混合态：账户未到（nil）但用量已到——必须显示"未登录"身份行，避免只见用量不知归属。
+    func testAccountRowsNilAccountWithUsageShowsNotSignedIn() {
+        let rows = AccountInfoView.rows(
+            account: nil,
+            usage: AccountTokenUsageSummary(lifetimeTokens: 1000, peakDailyTokens: nil,
+                                            longestRunningTurnSec: nil, currentStreakDays: nil,
+                                            longestStreakDays: nil),
+            rateLimits: nil)
+        XCTAssertTrue(rows.contains(.notSignedIn))
+        XCTAssertTrue(rows.contains(.lifetime("1000")))
+    }
+
+    /// 全空态不变：account/usage/rateLimits 全 nil → rows 为空（走 settings.account.empty 空态）。
+    func testAccountRowsAllNilStaysEmpty() {
+        XCTAssertTrue(AccountInfoView.rows(account: nil, usage: nil, rateLimits: nil).isEmpty)
+    }
 }
