@@ -42,7 +42,8 @@ final class SettingsSectionViewLogicTests: XCTestCase {
 
     func testLanguageSelectSwitchesLocaleAndPersists() {
         let locale = LocaleManager(store: defaults)
-        XCTAssertEqual(locale.language, .zh)
+        // Task 5.4：默认改为 .system；显式切换到 .en 仍应生效并持久化。
+        XCTAssertEqual(locale.language, .system)
         locale.language = .en
         XCTAssertEqual(locale.language, .en)
         XCTAssertEqual(locale.locale.identifier, "en")
@@ -54,6 +55,15 @@ final class SettingsSectionViewLogicTests: XCTestCase {
         locale.language = .zh
         for l in AppLanguage.allCases {
             XCTAssertEqual(locale.language == l, l == .zh)
+        }
+    }
+
+    // Task 5.4：切到 .system 后，仅 .system 判定选中（含新增枚举项）。
+    func testLanguageSystemSelectionMarker() {
+        let locale = LocaleManager(store: defaults)
+        locale.language = .system
+        for l in AppLanguage.allCases {
+            XCTAssertEqual(locale.language == l, l == .system)
         }
     }
 

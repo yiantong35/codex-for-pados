@@ -24,10 +24,10 @@ final class AppearanceLocaleTests: XCTestCase {
 
     // MARK: - LocaleManager
 
-    func testLanguageDefaultsToChinese() {
+    // Task 5.4：默认从 .zh 改为 .system（首次跟随系统，与外观 AppTheme.system 对齐）。
+    func testLanguageDefaultsToSystem() {
         let m = LocaleManager(store: defaults)
-        XCTAssertEqual(m.language, .zh)
-        XCTAssertEqual(m.locale.identifier, "zh-Hans")
+        XCTAssertEqual(m.language, .system)
     }
 
     func testSwitchToEnglishPersistsAndReadsBack() {
@@ -44,6 +44,30 @@ final class AppearanceLocaleTests: XCTestCase {
         m.language = .zh
         XCTAssertEqual(m.language, .zh)
         XCTAssertEqual(LocaleManager(store: defaults).language, .zh)
+    }
+
+    // MARK: - Task 5.4：.system 动态解析系统首选语言
+
+    func testSystemResolvesChineseWhenPreferredChinese() {
+        XCTAssertEqual(AppLanguage.system.localeIdentifier(preferredLanguages: ["zh-CN"]), "zh-Hans")
+    }
+
+    func testSystemResolvesEnglishWhenPreferredEnglish() {
+        XCTAssertEqual(AppLanguage.system.localeIdentifier(preferredLanguages: ["en-US"]), "en")
+    }
+
+    func testSystemFallsBackToEnglishForOtherLanguages() {
+        XCTAssertEqual(AppLanguage.system.localeIdentifier(preferredLanguages: ["fr"]), "en")
+    }
+
+    func testSystemFallsBackToEnglishWhenEmptyPreferred() {
+        XCTAssertEqual(AppLanguage.system.localeIdentifier(preferredLanguages: []), "en")
+    }
+
+    func testExplicitLanguagesIgnorePreferred() {
+        // 显式 zh/en 不受系统首选影响。
+        XCTAssertEqual(AppLanguage.zh.localeIdentifier(preferredLanguages: ["en-US"]), "zh-Hans")
+        XCTAssertEqual(AppLanguage.en.localeIdentifier(preferredLanguages: ["zh-CN"]), "en")
     }
 
     // MARK: - ThemeManager

@@ -28,6 +28,7 @@ struct LanguageSettingsSectionView: View {
 
     private func title(_ l: AppLanguage) -> LocalizedStringKey {
         switch l {
+        case .system: return "settings.language.system"
         case .zh: return "settings.language.zh"
         case .en: return "settings.language.en"
         }
