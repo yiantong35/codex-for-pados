@@ -4,6 +4,8 @@ import SwiftUI
 /// 以 .sheet 呈现（Task 6 接线 env.attach + gear 触发）。默认选中 .account。
 struct SettingsPageView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(ConnectionStore.self) private var connection
+    @Environment(EnvironmentStore.self) private var env
     @State private var selection: SettingsSection? = .default
 
     var body: some View {
@@ -24,6 +26,10 @@ struct SettingsPageView: View {
             case .appearance: AppearanceSettingsSectionView()
             case .language:   LanguageSettingsSectionView()
             }
+        }
+        .task(id: connection.phase) {
+            guard connection.phase == .ready, let rpc = connection.rpc else { return }
+            await env.attach(rpc: rpc)
         }
     }
 }

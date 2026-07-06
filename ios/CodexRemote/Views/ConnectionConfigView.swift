@@ -22,6 +22,8 @@ struct ConnectionConfigView: View {
     @State private var copied = false
     /// 启动自动重连一次性闸门：仅本次 app 生命周期内自动连一次，失败后不自动重试（避免循环）。
     @State private var didAutoConnect = false
+    /// 设置页 sheet 显隐（gear 直接打开，移除旧 popover，设计 D3）。
+    @State private var showSettings = false
 
     /// 错误文案直接由 phase 派生：重新点连接 → phase 变 connecting → 旧错误自动消失。
     private var errorText: String? {
@@ -58,10 +60,14 @@ struct ConnectionConfigView: View {
             }
         }
         .overlay(alignment: .topTrailing) {
-            SettingsMenu()
-                .font(.title3)
-                .padding(20)
+            Button { showSettings.toggle() } label: {
+                Image(systemName: "gearshape")
+                    .accessibilityLabel(Text("settings.accessibility"))
+            }
+            .font(.title3)
+            .padding(20)
         }
+        .sheet(isPresented: $showSettings) { SettingsPageView() }
         // 进入即确保本机密钥存在（幂等：已有不动），保证公钥可展示、连接前置满足。
         .onAppear { keyManager.generateIfNeeded() }
         // 启动自动重连：有上次连接信息(host+user+sock)且密钥已存、当前断开时，自动发起连接一次。
