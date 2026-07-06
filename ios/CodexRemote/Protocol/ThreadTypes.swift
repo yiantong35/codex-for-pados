@@ -61,9 +61,23 @@ struct ThreadStartParams: Codable {
 }
 
 /// thread/fork：从已有 thread 派生新 thread。对齐 protocol v2 ThreadForkParams：
-/// threadId 必填，其余 override 字段全 optional（此处仅传必填 threadId）。
+/// threadId 必填；ephemeral optional（true = 不落盘、不进左栏，用于侧聊；nil = 现有侧栏持久 fork，
+/// 编码时省略该键以保持旧行为不变）；其余 override 字段暂不建模。
 struct ThreadForkParams: Codable {
     let threadId: String
+    var ephemeral: Bool?
+}
+
+/// thread/fork 响应子集（protocol v2 ThreadForkResponse.thread：Thread）。
+/// MVP 仅取渲染/标题所需 id + forkedFromId；ephemeral 供调试核对，其余 Thread 字段容错忽略。
+struct ForkedThread: Codable, Equatable {
+    let id: String
+    var forkedFromId: String?
+    var ephemeral: Bool?
+}
+
+struct ForkedThreadResponse: Codable, Equatable {
+    let thread: ForkedThread
 }
 
 /// 空参数（编码为 `{}`）：用于 `thread/loaded/list` 等无参方法。

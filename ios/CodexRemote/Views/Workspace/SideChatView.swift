@@ -1,0 +1,90 @@
+import SwiftUI
+
+/// 侧聊面板（design D3/D4）：顶部侧聊选择器（多侧聊切换条 + 「开始侧聊」+ 每条关闭）+
+/// 选中侧聊的完整 ConversationView（复用中栏视图：消息流 + 输入 + 审批卡，窄栏不特殊处理）。
+/// 无主对话（mainThreadId 空）→ 空态提示、「开始侧聊」禁用、不 fork。
+struct SideChatView: View {
+    @Bindable var store: SideChatStore
+    /// 当前主对话 threadId：侧聊从它 fork。nil/空 → 无主对话空态。
+    var mainThreadId: String?
+
+    private var hasMainThread: Bool {
+        !(mainThreadId ?? "").isEmpty
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            selectorBar
+            Divider()
+            content
+        }
+    }
+
+    private var selectorBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                Button {
+                    Task { await store.start(fromThreadId: mainThreadId) }
+                } label: {
+                    Label("开始侧聊", systemImage: "plus.bubble")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!hasMainThread)
+
+                ForEach(store.sessions) { session in
+                    sessionChip(session)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+        }
+    }
+
+    private func sessionChip(_ session: SideChatSession) -> some View {
+        HStack(spacing: 4) {
+            Button { store.selectedId = session.id } label: {
+                Text(session.title)
+                    .font(.caption)
+                    .fontWeight(store.selectedId == session.id ? .semibold : .regular)
+            }
+            .buttonStyle(.plain)
+            Button { store.close(id: session.id) } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("关闭侧聊")
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(store.selectedId == session.id ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.1))
+        .clipShape(Capsule())
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if !hasMainThread {
+            emptyState(text: "无选中主对话，先在中栏选一个对话再开始侧聊")
+        } else if let id = store.selectedId,
+                  let session = store.sessions.first(where: { $0.id == id }) {
+            ConversationView(threadId: session.conversation.threadId)
+        } else {
+            emptyState(text: "点「开始侧聊」从当前主对话派生一个侧聊")
+        }
+    }
+
+    private func emptyState(text: String) -> some View {
+        VStack {
+            Spacer()
+            Text(text)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding()
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
