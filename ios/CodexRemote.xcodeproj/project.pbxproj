@@ -19,7 +19,6 @@
 		0D779937FAD9F552AAECEFF9 /* TransportControlEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C73D50DE0A51AB89EF6CC7 /* TransportControlEvent.swift */; };
 		123F9BDEDD1CADB7A435CB82 /* ConnectionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5B0B06C966AB8B15879FD39 /* ConnectionStoreTests.swift */; };
 		13472DEE88E768A9DEF5651A /* MockTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0BD4E81945814B56FD25C0 /* MockTransport.swift */; };
-		159D4E8773AA4216D0658E65 /* SettingsMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = D040C9BE53B75E6C6529FFF3 /* SettingsMenu.swift */; };
 		1716314F9A8F435F6D8701A6 /* SettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A814FA7149708A1316C3679A /* SettingsSection.swift */; };
 		1981A6B89E98BA1871511153 /* FileBrowserStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66560143A3317ECD701C4DD /* FileBrowserStore.swift */; };
 		19D62A239106D552D1C812A9 /* JSONRPCEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B8A2809870EB2C408134910 /* JSONRPCEnvelope.swift */; };
@@ -231,7 +230,6 @@
 		C8F51BD06F0FA6F6B8896FEA /* TurnTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnTypes.swift; sourceTree = "<group>"; };
 		CADC1D5FAC4F625511CDF599 /* TransportControlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportControlTests.swift; sourceTree = "<group>"; };
 		CC4B92A18365176499E0BFAD /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
-		D040C9BE53B75E6C6529FFF3 /* SettingsMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsMenu.swift; sourceTree = "<group>"; };
 		D357AD1CF6AF4E964407917D /* realTurnSequence.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = realTurnSequence.json; sourceTree = "<group>"; };
 		D9267A14CDE31BC18019A9A4 /* ConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationView.swift; sourceTree = "<group>"; };
 		DABB3808D7F992E8E64B2D8B /* TurnDiffStatsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnDiffStatsTests.swift; sourceTree = "<group>"; };
@@ -339,7 +337,6 @@
 				F739862A665E7A7C169F4704 /* InspectorView.swift */,
 				C3F2D64D4DBE754E71DE9785 /* ItemCards.swift */,
 				5213B70EFC0F91FF7C6EAF29 /* RootSplitView.swift */,
-				D040C9BE53B75E6C6529FFF3 /* SettingsMenu.swift */,
 				FCE6EE6E276995AE35699CCF /* SidebarView.swift */,
 				71B1F39CB986D0924C5E9675 /* Settings */,
 				800EA382914F32F102EBFBDA /* Workspace */,
@@ -687,7 +684,6 @@
 				887D5ED994C791F9488720D1 /* RightPanelContainerView.swift in Sources */,
 				FFA2F39B69D91D29675AC2E5 /* RootSplitView.swift in Sources */,
 				63920F05BE49A3245FE7CAA3 /* SSHClient.swift in Sources */,
-				159D4E8773AA4216D0658E65 /* SettingsMenu.swift in Sources */,
 				A189C6DCC3A1441225146DFA /* SettingsPageView.swift in Sources */,
 				1716314F9A8F435F6D8701A6 /* SettingsSection.swift in Sources */,
 				5E98EA83344E9775CD6E274F /* SideChatStore.swift in Sources */,
