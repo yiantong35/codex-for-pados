@@ -3,7 +3,7 @@ import Citadel
 import NIOCore
 import os
 
-/// ProxyChannel 定位期 instrument 日志。定位收敛后保留精简版（握手写出 / 握手完成 / 首个 inbound）。
+/// ProxyChannel 精简版 instrument 日志。定位收敛后保留三个关键可观测点（握手写出 / 握手完成 / 异常退出）。
 private let pcLog = Logger(subsystem: "com.tangyujie.codexremote", category: "proxychannel")
 
 /// SSH 字节通道上的 ws 握手 + 帧编解码传输实现，接共享 daemon control socket。
@@ -121,9 +121,8 @@ actor ProxyChannel: MessageTransport {
                             await Task.yield()
                             try await Task.sleep(nanoseconds: 300_000_000)   // 300ms 时序兜底
                             let hsBytes = Array(handshakeRequest.utf8)
-                            pcLog.notice("② 握手写出前: \(hsBytes.count) bytes")
+                            pcLog.notice("② 握手写出: \(hsBytes.count) bytes")
                             try await outBox.value.write(ByteBuffer(bytes: hsBytes))
-                            pcLog.notice("② 握手写出返回（writeAndFlush 已 resolve）")
                             for await text in stdinStream {
                                 try await outBox.value.write(ByteBuffer(bytes: WSFrame.encodeTextFrame(text)))
                             }
@@ -133,21 +132,7 @@ actor ProxyChannel: MessageTransport {
                             var headBuffer = Data()      // 握手阶段累积 HTTP 响应头
                             var frameBuffer = Data()     // 握手后累积 ws 帧字节
                             var handshakeDone = false
-                            var loggedFirstChunk = false
                             for try await chunk in inBox.value {
-                                if !loggedFirstChunk {
-                                    loggedFirstChunk = true
-                                    switch chunk {
-                                    case .stdout(let b):
-                                        let n = min(64, b.readableBytes)
-                                        let head = b.getBytes(at: b.readerIndex, length: n) ?? []
-                                        pcLog.notice("③ 首个 inbound=.stdout \(b.readableBytes) bytes, 前\(n): \(head.map { String(format: "%02x", $0) }.joined(separator: " "), privacy: .public)")
-                                    case .stderr(let b):
-                                        let n = min(64, b.readableBytes)
-                                        let head = b.getBytes(at: b.readerIndex, length: n) ?? []
-                                        pcLog.notice("③ 首个 inbound=.stderr \(b.readableBytes) bytes, 前\(n): \(String(decoding: head, as: UTF8.self), privacy: .public)")
-                                    }
-                                }
                                 guard case .stdout(let buffer) = chunk else { continue }
                                 guard let bytes = buffer.getBytes(at: buffer.readerIndex,
                                                                   length: buffer.readableBytes) else { continue }
@@ -184,7 +169,6 @@ actor ProxyChannel: MessageTransport {
                         group.cancelAll()
                     }
                 }
-                pcLog.notice("④ withExec 闭包正常返回（write loop 结束触发 close）")
                 onFinish(nil)
             } catch {
                 pcLog.error("④ exec 通道结束/抛错: \(String(describing: error), privacy: .public)")
