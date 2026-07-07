@@ -60,8 +60,13 @@ final class ConnectionStore {
     var rpc: JSONRPCClient?
 
     private let transportFactory: @Sendable (ConnectionConfig) async throws -> MessageTransport
+    /// 建连/握手硬超时（纳秒）。默认 20s；测试可注入更短值以快速复现超时失效路径。
+    private let connectTimeoutNanos: UInt64
     private var config: ConnectionConfig?
     private var transport: MessageTransport?
+    /// 当前 attempt 正在构建、尚未落地的 transport。超时/被新连接或 disconnect 作废时须关闭它，
+    /// 触发其 close() → ProxyChannel 标记握手失败 → awaitHandshake 抛出 → doEstablish 解挂（#1 防泄漏）。
+    private var inFlightTransport: MessageTransport?
     private var resumeHandler: (@Sendable () async -> Void)?
     private var controlObserver: Task<Void, Never>?
     /// 本次连接是否已触发过「首连恢复」（rejoinRunningThreads），保证恰好一次。
@@ -72,8 +77,10 @@ final class ConnectionStore {
     /// 当前连接尝试序号：每次新连接 +1；超时也 +1 以作废仍在后台跑的旧 establish。
     private var activeAttempt = 0
 
-    init(transportFactory: @escaping @Sendable (ConnectionConfig) async throws -> MessageTransport) {
+    init(transportFactory: @escaping @Sendable (ConnectionConfig) async throws -> MessageTransport,
+         connectTimeoutNanos: UInt64 = 20_000_000_000) {
         self.transportFactory = transportFactory
+        self.connectTimeoutNanos = connectTimeoutNanos
     }
 
     /// 注入「重连后会话恢复」的回调（§5 接 thread/loaded/list + resume）。
@@ -108,6 +115,11 @@ final class ConnectionStore {
             return
         }
         self.config = config
+        // 新连接作废上一次仍在途的 transport（若上次卡在握手未落地也未超时）：关闭之避免泄漏（#1）。
+        if let stale = inFlightTransport {
+            inFlightTransport = nil
+            Task { await stale.close() }
+        }
         activeAttempt += 1
         let attempt = activeAttempt
         phase = .connecting
@@ -130,6 +142,7 @@ final class ConnectionStore {
                 }
                 self.rpc = client
                 self.transport = newTransport
+                self.inFlightTransport = nil    // 已落地为 self.transport，不再算「在途」
                 self.phase = .ready
                 self.isReady = true
                 self.observeControl(newTransport)
@@ -146,12 +159,18 @@ final class ConnectionStore {
         }
 
         // 硬超时：到点若仍未 settle，强制失败并作废本次 attempt。
+        let timeoutNanos = connectTimeoutNanos
         Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 20_000_000_000)
+            try? await Task.sleep(nanoseconds: timeoutNanos)
             guard let self, attempt == self.activeAttempt, !self.phase.isSettled else { return }
             connLog.error("connect 超时 attempt=\(attempt)")
             self.phase = .failed(ConnectionTimeoutError().errorDescription ?? "连接超时")
             self.activeAttempt += 1   // 作废仍在后台跑的 establish（其完成时 token 不匹配 → 忽略）
+            // #1：关闭本 attempt 仍在构建的在途 transport，令其 close() 运行（ProxyChannel 标记
+            // 握手失败 → awaitHandshake 抛出 → doEstablish 解挂），避免 SSH 连接 + 挂起任务泄漏。
+            let inflight = self.inFlightTransport
+            self.inFlightTransport = nil
+            await inflight?.close()
         }
     }
 
@@ -166,6 +185,9 @@ final class ConnectionStore {
         // （旧 WSTransport 不 close 会自动重连一个 UI 已丢弃的连接并继续 yield，H2）。
         if let transport { await transport.close() }
         transport = nil
+        // 作废任何仍在握手途中、尚未落地的 transport，避免其 SSH 连接 + 挂起任务泄漏（#1）。
+        if let inflight = inFlightTransport { await inflight.close() }
+        inFlightTransport = nil
         isReady = false
         didInitialRejoin = false
         phase = .disconnected
@@ -182,6 +204,8 @@ final class ConnectionStore {
         phase = .connecting
         connLog.notice("doEstablish: 开始建 transport…")
         let transport = try await transportFactory(config)
+        // 记录在途 transport：超时/被作废时由调用方关闭它以解挂 awaitHandshake（#1 防泄漏）。
+        inFlightTransport = transport
         connLog.notice("doEstablish: transport 就绪, 启动 JSONRPCClient")
         let client = JSONRPCClient(transport: transport)
         await client.start()

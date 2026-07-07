@@ -17,6 +17,16 @@ actor MockTransport: MessageTransport {
 
     func setAutoRespond(_ enabled: Bool) { autoRespond = enabled }
 
+    /// close() 被调用次数（断言超时/失效时在途 transport 被关闭恰好一次）。
+    private(set) var closeCount = 0
+    /// 握手阻塞开关（默认关）。开启后 `awaitHandshake()` 挂起直到 `close()` 被调用才抛出，
+    /// 用于复现「远端接受 exec 但永不发 101 也不关流」导致 doEstablish 永久挂起的泄漏路径。
+    private var blockHandshake = false
+    private var closed = false
+    private var handshakeWaiter: CheckedContinuation<Void, Error>?
+
+    func setBlockHandshake(_ enabled: Bool) { blockHandshake = enabled }
+
     init() {
         var cont: AsyncThrowingStream<String, Error>.Continuation!
         stream = AsyncThrowingStream(bufferingPolicy: .unbounded) { cont = $0 }
@@ -43,9 +53,25 @@ actor MockTransport: MessageTransport {
         continuation?.yield(#"{"id":\#(idJSON),"result":\#(resultJSON)}"#)
     }
     nonisolated func incoming() -> AsyncThrowingStream<String, Error> { stream }
+
+    /// 覆写协议默认空实现：blockHandshake 开启时挂起直到 close()（模拟永不到达的 101 握手）。
+    func awaitHandshake() async throws {
+        guard blockHandshake else { return }
+        if closed { throw TransportError.channelClosed(reason: "closed before handshake") }
+        try await withCheckedThrowingContinuation { cont in
+            self.handshakeWaiter = cont
+        }
+    }
+
     func close() async {
+        closeCount += 1
+        closed = true
         continuation?.finish()
         continuation = nil
+        if let w = handshakeWaiter {
+            handshakeWaiter = nil
+            w.resume(throwing: TransportError.channelClosed(reason: "连接主动关闭"))
+        }
     }
 
     // MARK: 测试驱动

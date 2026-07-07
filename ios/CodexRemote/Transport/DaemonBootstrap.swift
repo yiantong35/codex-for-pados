@@ -13,7 +13,12 @@ enum DaemonBootstrap {
         "\(pathPrefix) codex app-server daemon start"
     }
     static func proxyCommand(sockPath: String) -> String {
-        "\(pathPrefix) codex app-server proxy --sock \(sockPath)"
+        "\(pathPrefix) codex app-server proxy --sock \(shellSingleQuote(sockPath))"
+    }
+    /// POSIX 单引号包裹（#4）：抗路径中的空格/元字符。内嵌单引号用 `'\''` 技巧转义
+    /// （关单引号 → 转义单引号 → 重开单引号），使结果始终是单个合法 shell 参数。
+    private static func shellSingleQuote(_ s: String) -> String {
+        "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
     static func parse(_ output: String) throws -> Result {
         for line in output.split(whereSeparator: \.isNewline) {
