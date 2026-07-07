@@ -7,6 +7,9 @@ protocol MessageTransport: Sendable {
     /// 持续产出收到的每一条 JSON 文本帧，直到连接关闭。
     func incoming() -> AsyncThrowingStream<String, Error>
     func close() async
+    /// 阻塞直到底层 ws 握手完成（收到 101 且 Accept 校验通过）；已完成则立即返回，握手失败则抛出。
+    /// 无独立握手阶段的 transport（MockTransport）用默认空实现立即返回。
+    func awaitHandshake() async throws
     /// 控制信号流（有默认空实现）。
     func control() -> AsyncStream<TransportControlEvent>
 }
@@ -17,4 +20,7 @@ extension MessageTransport {
     func control() -> AsyncStream<TransportControlEvent> {
         AsyncStream { $0.finish() }
     }
+
+    /// 默认：无独立 ws 握手阶段的 transport 立即返回。
+    func awaitHandshake() async throws { }
 }

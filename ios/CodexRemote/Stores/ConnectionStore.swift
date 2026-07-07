@@ -186,6 +186,9 @@ final class ConnectionStore {
         let client = JSONRPCClient(transport: transport)
         await client.start()
 
+        connLog.notice("doEstablish: 等待 ws 握手完成…")
+        try await transport.awaitHandshake()
+
         phase = .initializing
         connLog.notice("doEstablish: 发送 initialize, 等响应…")
         let params = InitializeParams(
