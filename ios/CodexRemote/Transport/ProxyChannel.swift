@@ -1,6 +1,10 @@
 import Foundation
 import Citadel
 import NIOCore
+import os
+
+/// ProxyChannel 精简版 instrument 日志。定位收敛后保留三个关键可观测点（握手写出 / 握手完成 / 异常退出）。
+private let pcLog = Logger(subsystem: "com.tangyujie.codexremote", category: "proxychannel")
 
 /// SSH 字节通道上的 ws 握手 + 帧编解码传输实现，接共享 daemon control socket。
 ///
@@ -51,6 +55,12 @@ actor ProxyChannel: MessageTransport {
     private var execTask: Task<Void, Never>?
     private var didStart = false
 
+    /// ws 握手完成信号状态机：read loop 校验通过 → done，失败/通道提前关闭 → failed。
+    /// awaitHandshake() 在 pending 时挂起于 continuation，done/failed 时立即返回/抛出。
+    private enum HandshakeState { case pending, done, failed(Error) }
+    private var handshakeState: HandshakeState = .pending
+    private var handshakeContinuation: CheckedContinuation<Void, Error>?
+
     init(client: Citadel.SSHClient, command: String) {
         self.clientBox = UncheckedBox(client)
         self.command = command
@@ -78,6 +88,14 @@ actor ProxyChannel: MessageTransport {
         let onFinish: @Sendable (Error?) -> Void = { [weak self] err in
             Task { await self?.finishIncoming(err) }
         }
+        let onHandshake: @Sendable (Result<Void, Error>) -> Void = { [weak self] result in
+            Task {
+                switch result {
+                case .success: await self?.markHandshakeDone()
+                case .failure(let e): await self?.markHandshakeFailed(e)
+                }
+            }
+        }
 
         // 本次连接的 ws 握手请求 + 随机 key（read/write loop 共享：write 写请求、read 校验 Accept）。
         let handshake = WSFrame.handshakeRequest()
@@ -93,7 +111,18 @@ actor ProxyChannel: MessageTransport {
                     try await withThrowingTaskGroup(of: Void.self) { group in
                         // write loop：先写 ws 握手请求，再把每条 text 编成 ws 帧写 outbound。
                         group.addTask {
-                            try await outBox.value.write(ByteBuffer(string: handshakeRequest))
+                            // D1 病A 补强：Citadel `.command` 模式拿不到 channelSuccess，无法感知 exec
+                            // channel 何时 active。立即写握手会早于 ExecRequest 出站 / 远端 proxy 起读
+                            // stdin —— 字节被本地 writeAndFlush 接受（resolve）却未真正投递到远端，proxy
+                            // 干等直至超时。先 yield 让出，令 withExec 的 ExecRequest 排上 event loop
+                            // 出站；再短暂 sleep 覆盖 child-channel 建立往返 + 远端 proxy 起读 stdin 的
+                            // 时间窗（对齐 D1 openssh 停顿 0.5s → 立即 101 的决定性证据）。架构约束下无
+                            // channel-ready 信号可等，此为最可靠的时序补强；确定性端到端验证留 Task 6。
+                            await Task.yield()
+                            try await Task.sleep(nanoseconds: 300_000_000)   // 300ms 时序兜底
+                            let hsBytes = Array(handshakeRequest.utf8)
+                            pcLog.notice("② 握手写出: \(hsBytes.count) bytes")
+                            try await outBox.value.write(ByteBuffer(bytes: hsBytes))
                             for await text in stdinStream {
                                 try await outBox.value.write(ByteBuffer(bytes: WSFrame.encodeTextFrame(text)))
                             }
@@ -116,9 +145,13 @@ actor ProxyChannel: MessageTransport {
                                     let headData = headBuffer[headBuffer.startIndex..<sep.lowerBound]
                                     let responseHead = String(decoding: headData, as: UTF8.self)
                                     guard WSFrame.validateHandshake(responseHead: responseHead, key: handshakeKey) else {
-                                        throw TransportError.handshakeFailed("ws 握手失败：\(responseHead)")
+                                        let e = TransportError.handshakeFailed("ws 握手失败：\(responseHead)")
+                                        onHandshake(.failure(e))
+                                        throw e
                                     }
                                     handshakeDone = true
+                                    pcLog.notice("① 握手校验通过 handshakeDone=true")
+                                    onHandshake(.success(()))
                                     // 头结束分隔后剩余字节属第一批 ws 帧，保留进 frameBuffer。
                                     let rest = headBuffer[sep.upperBound..<headBuffer.endIndex]
                                     frameBuffer.append(contentsOf: rest)
@@ -138,6 +171,7 @@ actor ProxyChannel: MessageTransport {
                 }
                 onFinish(nil)
             } catch {
+                pcLog.error("④ exec 通道结束/抛错: \(String(describing: error), privacy: .public)")
                 onFinish(error)
             }
         }
@@ -147,7 +181,38 @@ actor ProxyChannel: MessageTransport {
         incomingContinuation?.yield(line)
     }
 
+    /// 阻塞直到 ws 握手完成：done 立即返回、failed 抛错、pending 挂起于 continuation。
+    func awaitHandshake() async throws {
+        switch handshakeState {
+        case .done: return
+        case .failed(let e): throw e
+        case .pending:
+            try await withCheckedThrowingContinuation { cont in
+                self.handshakeContinuation = cont
+            }
+        }
+    }
+
+    /// read loop 握手校验通过时调用：置 done 并唤醒等待者（幂等，仅首次 pending 生效）。
+    private func markHandshakeDone() {
+        guard case .pending = handshakeState else { return }
+        handshakeState = .done
+        handshakeContinuation?.resume()
+        handshakeContinuation = nil
+    }
+
+    /// 握手失败 / 通道在握手前关闭时调用：置 failed 并让等待者抛出（幂等）。
+    private func markHandshakeFailed(_ error: Error) {
+        guard case .pending = handshakeState else { return }
+        handshakeState = .failed(error)
+        handshakeContinuation?.resume(throwing: error)
+        handshakeContinuation = nil
+    }
+
     private func finishIncoming(_ error: Error?) {
+        if case .pending = handshakeState {
+            markHandshakeFailed(TransportError.channelClosed(reason: error.map { "\($0)" } ?? "通道在握手完成前关闭"))
+        }
         if let error {
             incomingContinuation?.finish(throwing: TransportError.channelClosed(reason: "\(error)"))
         } else {
@@ -168,8 +233,31 @@ actor ProxyChannel: MessageTransport {
 
     func close() async {
         stdinContinuation.finish()   // write loop 退出 → withExec 闭包返回 → 通道 close
+        if case .pending = handshakeState {
+            markHandshakeFailed(TransportError.channelClosed(reason: "连接主动关闭"))
+        }
         incomingContinuation?.finish()
         incomingContinuation = nil
         execTask?.cancel()
     }
+
+    #if DEBUG
+    /// 测试工厂：造一个不启动 exec 的实例，仅用于验证握手状态机（绝不调 start()）。
+    static func makeForTesting() -> ProxyChannel {
+        ProxyChannel(testingSentinel: ())
+    }
+    /// 测试专用 init：clientBox 内的 client 是无效指针占位，测试实例绝不触碰它、绝不 start()。
+    private init(testingSentinel: Void) {
+        self.clientBox = UncheckedBox(unsafeBitCast(0, to: Citadel.SSHClient.self))
+        self.command = ""
+        var stdinCont: AsyncStream<String>.Continuation!
+        self.stdinStream = AsyncStream<String>(bufferingPolicy: .unbounded) { stdinCont = $0 }
+        self.stdinContinuation = stdinCont
+        var inCont: AsyncThrowingStream<String, Error>.Continuation!
+        self.incomingStream = AsyncThrowingStream<String, Error>(bufferingPolicy: .unbounded) { inCont = $0 }
+        self.incomingContinuation = inCont
+    }
+    func markHandshakeDoneForTesting() { markHandshakeDone() }
+    func markHandshakeFailedForTesting(_ e: Error) { markHandshakeFailed(e) }
+    #endif
 }

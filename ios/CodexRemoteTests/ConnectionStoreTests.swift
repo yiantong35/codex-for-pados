@@ -113,6 +113,26 @@ final class ConnectionStoreTests: XCTestCase {
         XCTAssertEqual(count, 1, "首连成功后 resumeHandler 应被触发恰好一次，实际 \(count)")
     }
 
+    // #1：远端接受 exec 但永不发 101、也不关流时，doEstablish 会永久挂在 awaitHandshake()。
+    // 硬超时作废本 attempt 时，必须关闭在途 transport（否则 SSH 连接 + 挂起任务泄漏）。
+    // 断言：失效后 transport.close() 被调用恰好一次，且 store 落 .failed。
+    func testConnectTimeoutClosesInFlightTransport() async throws {
+        let mock = MockTransport()
+        await mock.setBlockHandshake(true)   // 握手永不完成，doEstablish 挂在 awaitHandshake
+        // 注入极短超时（120ms），避免真的等 20 秒。
+        let store = await ConnectionStore(transportFactory: { _ in mock },
+                                          connectTimeoutNanos: 120_000_000)
+        await store.connect(config: .stub)
+        // 超时后应落 .failed。
+        try await waitUntil {
+            if case .failed = await store.phase { return true } else { return false }
+        }
+        // 关键断言：在途 transport 被关闭恰好一次。
+        try await waitUntil { await mock.closeCount >= 1 }
+        let count = await mock.closeCount
+        XCTAssertEqual(count, 1, "超时作废在途 attempt 时应关闭 transport 恰好一次，实际 \(count)")
+    }
+
     /// 轮询条件直到为真或超时。
     private func waitUntil(timeout: TimeInterval = 3,
                           _ condition: () async -> Bool) async throws {
