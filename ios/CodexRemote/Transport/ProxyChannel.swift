@@ -111,6 +111,15 @@ actor ProxyChannel: MessageTransport {
                     try await withThrowingTaskGroup(of: Void.self) { group in
                         // write loop：先写 ws 握手请求，再把每条 text 编成 ws 帧写 outbound。
                         group.addTask {
+                            // D1 病A 补强：Citadel `.command` 模式拿不到 channelSuccess，无法感知 exec
+                            // channel 何时 active。立即写握手会早于 ExecRequest 出站 / 远端 proxy 起读
+                            // stdin —— 字节被本地 writeAndFlush 接受（resolve）却未真正投递到远端，proxy
+                            // 干等直至超时。先 yield 让出，令 withExec 的 ExecRequest 排上 event loop
+                            // 出站；再短暂 sleep 覆盖 child-channel 建立往返 + 远端 proxy 起读 stdin 的
+                            // 时间窗（对齐 D1 openssh 停顿 0.5s → 立即 101 的决定性证据）。架构约束下无
+                            // channel-ready 信号可等，此为最可靠的时序补强；确定性端到端验证留 Task 6。
+                            await Task.yield()
+                            try await Task.sleep(nanoseconds: 300_000_000)   // 300ms 时序兜底
                             let hsBytes = Array(handshakeRequest.utf8)
                             pcLog.notice("② 握手写出前: \(hsBytes.count) bytes")
                             try await outBox.value.write(ByteBuffer(bytes: hsBytes))
