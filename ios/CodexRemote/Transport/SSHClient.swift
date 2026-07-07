@@ -69,7 +69,20 @@ enum SSHClientWrapper {
         // region，传入 actor init 不构成跨边界竞争。
         // 接共享 daemon control sock（路径来自配置 T2.4，不硬编码）。
         // 注：受信内网、路径为已知固定值，暂不做 shell 转义；如未来路径含特殊字符再加引用。
-        let command = "codex app-server proxy --sock \(controlSockPath)"
+        // 缺口①：连接前经官方幂等命令确保 app-server 就绪，并以其返回 socketPath 作 proxy 入参
+        //（替代硬拼 controlSockPath，天然适配非默认 CODEX_HOME/用户目录）。
+        let sockPath: String
+        do {
+            let startOut = try await connected.executeCommand(DaemonBootstrap.startCommand)
+            let text = startOut.getString(at: startOut.readerIndex, length: startOut.readableBytes) ?? ""
+            sockPath = try DaemonBootstrap.parse(text).socketPath
+        } catch let e as TransportError {
+            throw e
+        } catch {
+            throw TransportError.proxyFailed("daemon start 失败：\(error)")
+        }
+
+        let command = DaemonBootstrap.proxyCommand(sockPath: sockPath)
         let channel = ProxyChannel(client: connected, command: command)
         await channel.start()
         return channel
