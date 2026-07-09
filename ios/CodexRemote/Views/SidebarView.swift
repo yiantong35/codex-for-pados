@@ -7,6 +7,7 @@ import SwiftUI
 struct SidebarView: View {
     @Environment(ProjectsStore.self) private var projects
     @Environment(ConnectionStore.self) private var connection
+    @Environment(EnvironmentStore.self) private var env
     @Environment(\.scenePhase) private var scenePhase
     @Binding var selectedThreadId: String?
     @State private var collapse = SidebarCollapseStore()
@@ -43,6 +44,7 @@ struct SidebarView: View {
             // ready 后接线：attach（启动官方广播监听，D5-a）+ 首拉 thread/list 填充。
             guard connection.phase == .ready, let rpc = connection.rpc else { return }
             await projects.attach(rpc: rpc)
+            await env.attach(rpc: rpc)   // 拉 config/model-list，供 composer 服务器驱动选模型
             await projects.loadFromServer(rpc: rpc)
             projects.startPolling()   // D5-b：列表可见即准实时轮询
         }
