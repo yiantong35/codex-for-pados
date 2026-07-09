@@ -36,9 +36,16 @@ struct ThreadReducer {
             // （旧实现读扁平 params.itemId/itemType/command → 命令卡片永不出现，是滞后 bug 根因 B）。
             guard let item = p["item"] as? [String: Any],
                   let id = item["id"] as? String else { return }
-            state.inFlightItemIds.insert(id)   // D4：item 进行中 → 运行态为真
+            // D4：item 进行中 → 运行态为真。userMessage 是即时项（无对应 completed），
+            // 计入会使运行态永久卡住，故排除。
+            if item["type"] as? String != "userMessage" {
+                state.inFlightItemIds.insert(id)
+            }
             applySubAgentItem(item, &state)   // 批次⑤：子智能体聚合
             switch item["type"] as? String {
+            case "userMessage":
+                // D3：流式 userMessage（本端或他端回显）。与乐观项对账，避免重复气泡。
+                reconcileUserMessage(id: id, text: textFromContent(item["content"]), &state)
             case "agentMessage":
                 upsert(.agentMessage(id: id, text: item["text"] as? String ?? ""), &state)
             case "commandExecution":
@@ -164,6 +171,24 @@ struct ThreadReducer {
 
     private func upsert(_ item: ConversationItem, _ s: inout ConversationState) {
         if !s.items.contains(where: { $0.id == item.id }) { s.items.append(item) }
+    }
+
+    /// D3 乐观回显：插入本地临时 userMessage（供 ConversationStore.send 调用）。
+    func upsertUserMessage(id: String, text: String, to s: inout ConversationState) {
+        upsert(.userMessage(id: id, text: text), &s)
+    }
+
+    /// D3 对账：权威 userMessage 到达时，若存在内容相同的乐观项（local- 前缀）则替换其 id 为
+    /// 权威 id；否则按权威 id 插入（他端发起场景）。避免重复气泡。
+    private func reconcileUserMessage(id: String, text: String, _ s: inout ConversationState) {
+        if let idx = s.items.firstIndex(where: {
+            if case .userMessage(let i, let t) = $0 { return i.hasPrefix("local-") && t == text }
+            return false
+        }) {
+            s.items[idx] = .userMessage(id: id, text: text)   // 替换乐观项为权威项
+        } else if !s.items.contains(where: { $0.id == id }) {
+            s.items.append(.userMessage(id: id, text: text))  // 他端发起：正常插入
+        }
     }
 
     private func mutateAgent(id: String, append: String, _ s: inout ConversationState) {

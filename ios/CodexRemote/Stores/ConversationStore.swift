@@ -17,6 +17,8 @@ final class ConversationStore {
     private var observer: Task<Void, Never>?
     /// D2：最近一次发送的输入暂存，供失败重发（retryLastSend）。
     private var lastSent: (input: [UserInput], model: String?, effort: ReasoningEffort?)?
+    /// D3：乐观回显临时 id 单调序号（同会话内唯一，用于与权威回显对账）。
+    private var optimisticSeq = 0
 
     init(rpc: JSONRPCClient, threadId: String) {
         self.rpc = rpc
@@ -104,6 +106,13 @@ final class ConversationStore {
     /// 发送 prompt：发 turn/start。turn 输出经 notifications 流式回来，故发出即返回。
     func send(input: [UserInput], model: String?, effort: ReasoningEffort?) async {
         state.lastSendError = nil
+        // D3：乐观回显——发送即在本端插入用户消息，不等服务器广播。
+        optimisticSeq += 1
+        let localId = "local-\(optimisticSeq)"
+        let text = input.compactMap { if case .text(let t) = $0 { return t } else { return nil } }.joined()
+        if !text.isEmpty {
+            reducer.upsertUserMessage(id: localId, text: text, to: &state)
+        }
         lastSent = (input, model, effort)   // D2：暂存以支持失败重发
         let params = TurnStartParams(threadId: state.threadId, input: input,
                                      model: model, effort: effort, cwd: nil)
