@@ -26,6 +26,23 @@ struct ComposerView: View {
 
     var body: some View {
         VStack(spacing: 6) {
+            if let err = store.state.lastSendError {
+                // D2：发送失败显式提示，点按清错并重发上次输入（不再假"生成中"）。
+                Button {
+                    Task { await store.retryLastSend() }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                        Text("composer.sendFailed \(err)")
+                            .font(.footnote).multilineTextAlignment(.leading)
+                        Spacer()
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 4)
+                }
+                .buttonStyle(.plain)
+            }
             if imageDataURL != nil {
                 HStack(spacing: 6) {
                     Image(systemName: "photo").foregroundStyle(.secondary)
