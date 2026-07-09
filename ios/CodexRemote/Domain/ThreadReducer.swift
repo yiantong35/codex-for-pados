@@ -29,12 +29,14 @@ struct ThreadReducer {
         case ServerNotificationMethod.turnCompleted:
             state.activeTurnId = nil
             state.activeTurnKind = nil
+            state.inFlightItemIds.removeAll()   // D4：兜底清空进行中 item 计数
 
         case ServerNotificationMethod.itemStarted:
             // 真实通知：item 是嵌套对象，字段在 params.item.{id,type,command,file}
             // （旧实现读扁平 params.itemId/itemType/command → 命令卡片永不出现，是滞后 bug 根因 B）。
             guard let item = p["item"] as? [String: Any],
                   let id = item["id"] as? String else { return }
+            state.inFlightItemIds.insert(id)   // D4：item 进行中 → 运行态为真
             applySubAgentItem(item, &state)   // 批次⑤：子智能体聚合
             switch item["type"] as? String {
             case "agentMessage":
@@ -90,6 +92,7 @@ struct ThreadReducer {
             // 退出码 item.exitCode、耗时 item.durationMs。
             guard let item = p["item"] as? [String: Any],
                   let id = item["id"] as? String else { return }
+            state.inFlightItemIds.remove(id)   // D4：item 完成 → 移出进行中集合
             applySubAgentItem(item, &state)   // 批次⑤：子智能体状态迁移
             // reasoning 收尾：若完成事件带了最终 summary/content，且本地为空则补落（不覆盖已累加的 delta）。
             if item["type"] as? String == "reasoning" {
