@@ -7,6 +7,7 @@ import SwiftUI
 struct SidebarView: View {
     @Environment(ProjectsStore.self) private var projects
     @Environment(ConnectionStore.self) private var connection
+    @Environment(\.scenePhase) private var scenePhase
     @Binding var selectedThreadId: String?
     @State private var collapse = SidebarCollapseStore()
 
@@ -39,9 +40,23 @@ struct SidebarView: View {
             }
         }
         .task(id: connection.phase) {
-            // ready 后拉取 thread/list 填充 ProjectsStore；失败静默（store 内部处理）。
+            // ready 后接线：attach（启动官方广播监听，D5-a）+ 首拉 thread/list 填充。
             guard connection.phase == .ready, let rpc = connection.rpc else { return }
+            await projects.attach(rpc: rpc)
             await projects.loadFromServer(rpc: rpc)
+            projects.startPolling()   // D5-b：列表可见即准实时轮询
+        }
+        .onDisappear { projects.stopPolling() }
+        .onChange(of: scenePhase) { _, phase in
+            // D5-b：前台/获焦立即刷新并轮询；退后台暂停轮询省电。
+            switch phase {
+            case .active:
+                projects.startPolling()
+                Task { await projects.refreshNow() }
+            case .background, .inactive:
+                projects.stopPolling()
+            @unknown default: break
+            }
         }
     }
 

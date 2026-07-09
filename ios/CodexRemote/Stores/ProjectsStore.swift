@@ -90,6 +90,33 @@ final class ProjectsStore {
 
     private var rpc: JSONRPCClient?
     private var broadcastObserver: Task<Void, Never>?
+    /// D5-b：准实时轮询任务；nil = 未轮询。列表可见时启动、退后台/不可见时停止。
+    @ObservationIgnored private var pollTask: Task<Void, Never>?
+
+    /// 启动周期轮询（D5-b）：列表可见时调用。幂等——已在轮询则忽略。
+    /// intervalNanos 默认 4s（3–5s 区间取中）。列表不可见/后台时须调 stopPolling。
+    /// 先 sleep 后 fetch，避免与首次 `.task` 的 loadFromServer 重复即时拉取。
+    func startPolling(intervalNanos: UInt64 = 4_000_000_000) {
+        guard pollTask == nil, let rpc else { return }
+        pollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: intervalNanos)
+                if Task.isCancelled { break }
+                await self?.loadFromServer(rpc: rpc)
+            }
+        }
+    }
+
+    /// 停止周期轮询（列表不可见/退后台）。
+    func stopPolling() {
+        pollTask?.cancel()
+        pollTask = nil
+    }
+
+    /// 立即刷新一次（回前台/列表获焦时调用）。
+    func refreshNow() async {
+        if let rpc { await loadFromServer(rpc: rpc) }
+    }
 
     /// 注入 rpc 并启动官方广播监听（设计 D3：多端一致靠广播，不自建同步）。幂等。
     func attach(rpc: JSONRPCClient) async {
@@ -116,6 +143,8 @@ final class ProjectsStore {
             renameLocal(tid, to: newName)
         case ServerNotificationMethod.threadUnarchived:
             Task { if let rpc = self.rpc { await self.loadFromServer(rpc: rpc) } }
+        case ServerNotificationMethod.threadStarted:
+            Task { await self.handleThreadStarted(n) }
         case ServerNotificationMethod.threadStatusChanged:
             // 用 ThreadStatusChangedNotification 整体解码（去重 params 二次解析）。
             if let data = try? JSONSerialization.data(withJSONObject: p),
@@ -125,6 +154,16 @@ final class ProjectsStore {
         default:
             break
         }
+    }
+
+    /// 消费 thread/started 广播（D5-a）。已存在按 id 去重直接返回；
+    /// 未知 id → 重拉 thread/list 一次，由既有 ingest 归一化（广播 payload 字段不足以
+    /// 构造完整 ThreadSummary，ingest 依赖 gitInfo/status 分类，故不手拼摘要）。
+    func handleThreadStarted(_ n: JSONRPCNotification) async {
+        guard let p = n.params?.value as? [String: Any],
+              let tid = p["threadId"] as? String else { return }
+        if allThreadsSorted.contains(where: { $0.id == tid }) { return }   // 去重
+        if let rpc { await loadFromServer(rpc: rpc) }                       // 重拉让 ingest 归一化
     }
 
     private func removeThread(_ id: String) {

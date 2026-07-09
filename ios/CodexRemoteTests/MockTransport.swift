@@ -22,6 +22,11 @@ actor MockTransport: MessageTransport {
     private var threadStartResponse: String?
     func setAutoRespondThreadStart(_ json: String) { autoRespond = true; threadStartResponse = json }
 
+    /// 定制 `thread/list` 的应答体（默认 nil → 回空 data 数组）。
+    /// 用于验证 thread/started 未知 id 触发重拉后由 ingest 归一化出现的逻辑。
+    private var threadListResponse: String?
+    func setThreadListResponse(_ json: String) { threadListResponse = json }
+
     /// thread/start 响应延迟（纳秒，默认 0）。用于测试并发防抖：首个请求延迟应答，
     /// 制造「创建进行中」窗口，验证第二次调用被拦下——且请求最终会回，测试不悬挂。
     private var threadStartDelayNanos: UInt64 = 0
@@ -55,7 +60,7 @@ actor MockTransport: MessageTransport {
         // thread/start 回定制体（若设了 threadStartResponse）；其余回空对象。
         let resultJSON: String
         if req.method == RPCMethod.threadList {
-            resultJSON = #"{"data":[],"nextCursor":null,"backwardsCursor":null}"#
+            resultJSON = threadListResponse ?? #"{"data":[],"nextCursor":null,"backwardsCursor":null}"#
         } else if req.method == RPCMethod.threadStart, let r = threadStartResponse {
             resultJSON = r
         } else {

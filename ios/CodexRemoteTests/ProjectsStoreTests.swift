@@ -130,4 +130,27 @@ final class ProjectsStoreTests: XCTestCase {
         let count2 = await mock.sent.filter { $0.contains("thread/start") }.count
         XCTAssertEqual(count2, 2, "节流窗后应再发一个 thread/start")
     }
+
+    // D5-a：未知 thread 的 thread/started → 触发重拉（rpc 提供该 thread 时被 ingest）
+    func test_threadStarted_unknown_triggers_reload() async {
+        let s = ProjectsStore()
+        let mock = MockTransport()
+        await mock.setThreadListResponse(#"{"data":[{"id":"b","sessionId":"b","preview":"","modelProvider":"openai","createdAt":0,"updatedAt":5,"cwd":"/Volumes/mount","cliVersion":"0.133.0","name":null,"gitInfo":null}],"nextCursor":null,"backwardsCursor":null}"#)
+        let rpc = JSONRPCClient(transport: mock); await mock.setAutoRespond(true); await rpc.start()
+        await s.attach(rpc: rpc)
+        let n = JSONRPCNotification(method: ServerNotificationMethod.threadStarted,
+            params: AnyCodable(["threadId": "b"]))
+        await s.handleThreadStarted(n)
+        XCTAssertTrue(s.allThreadsSorted.contains { $0.id == "b" }, "未知 thread 应经重拉出现")
+    }
+
+    // D5-a：已存在则不重复（不重拉）
+    func test_threadStarted_broadcast_dedupes() async {
+        let s = ProjectsStore()
+        s.ingest([ thread("a", cwd: "/repo/x", updatedAt: 1, origin: "o/x", git: true) ])
+        let n = JSONRPCNotification(method: ServerNotificationMethod.threadStarted,
+            params: AnyCodable(["threadId": "a", "cwd": "/repo/x", "updatedAt": 9.0]))
+        await s.handleThreadStarted(n)
+        XCTAssertEqual(s.allThreadsSorted.filter { $0.id == "a" }.count, 1, "已存在不应重复插入")
+    }
 }
