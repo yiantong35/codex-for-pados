@@ -17,6 +17,16 @@ actor MockTransport: MessageTransport {
 
     func setAutoRespond(_ enabled: Bool) { autoRespond = enabled }
 
+    /// 定制 `thread/start` 的应答体（默认 nil → 回 `{}`）。开启 autoRespond。
+    /// 用于验证新建会话解析响应 `{thread:{id}}` 后切换 threadId 的逻辑。
+    private var threadStartResponse: String?
+    func setAutoRespondThreadStart(_ json: String) { autoRespond = true; threadStartResponse = json }
+
+    /// thread/start 响应延迟（纳秒，默认 0）。用于测试并发防抖：首个请求延迟应答，
+    /// 制造「创建进行中」窗口，验证第二次调用被拦下——且请求最终会回，测试不悬挂。
+    private var threadStartDelayNanos: UInt64 = 0
+    func setThreadStartDelay(_ nanos: UInt64) { threadStartDelayNanos = nanos }
+
     /// close() 被调用次数（断言超时/失效时在途 transport 被关闭恰好一次）。
     private(set) var closeCount = 0
     /// 握手阻塞开关（默认关）。开启后 `awaitHandshake()` 挂起直到 `close()` 被调用才抛出，
@@ -41,16 +51,29 @@ actor MockTransport: MessageTransport {
               let data = text.data(using: .utf8),
               case .request(let req)? = try? JSONDecoder().decode(JSONRPCMessage.self, from: data)
         else { return }
-        // thread/list 回空列表（满足 loadFromServer 的 ThreadListResponse 解码）；其余回空对象。
-        let resultJSON = req.method == RPCMethod.threadList
-            ? #"{"data":[],"nextCursor":null,"backwardsCursor":null}"#
-            : "{}"
+        // thread/list 回空列表（满足 loadFromServer 的 ThreadListResponse 解码）；
+        // thread/start 回定制体（若设了 threadStartResponse）；其余回空对象。
+        let resultJSON: String
+        if req.method == RPCMethod.threadList {
+            resultJSON = #"{"data":[],"nextCursor":null,"backwardsCursor":null}"#
+        } else if req.method == RPCMethod.threadStart, let r = threadStartResponse {
+            resultJSON = r
+        } else {
+            resultJSON = "{}"
+        }
         let idJSON: String
         switch req.id {
         case .string(let s): idJSON = "\"\(s)\""
         case .int(let i): idJSON = "\(i)"
         }
-        continuation?.yield(#"{"id":\#(idJSON),"result":\#(resultJSON)}"#)
+        let response = #"{"id":\#(idJSON),"result":\#(resultJSON)}"#
+        if req.method == RPCMethod.threadStart, threadStartDelayNanos > 0 {
+            let delay = threadStartDelayNanos
+            let cont = continuation
+            Task { try? await Task.sleep(nanoseconds: delay); cont?.yield(response) }
+        } else {
+            continuation?.yield(response)
+        }
     }
     nonisolated func incoming() -> AsyncThrowingStream<String, Error> { stream }
 

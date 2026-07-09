@@ -32,26 +32,6 @@ struct SidebarView: View {
             }
         }
         .navigationTitle("sidebar.title")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    guard let rpc = connection.rpc else { return }
-                    Task {
-                        let any = try? await rpc.send(method: RPCMethod.threadStart,
-                                                      params: AnyCodable(["cwd": nil, "model": nil] as [String: String?]))
-                        if let dict = any?.value as? [String: Any],
-                           let id = (dict["thread"] as? [String: Any])?["id"] as? String {
-                            await MainActor.run {
-                                selectedThreadId = id
-                                // 新建即视为已读（标到当前时刻），避免切走再回误亮未读点。
-                                projects.markViewed(threadId: id, updatedAt: Date().timeIntervalSince1970)
-                            }
-                        }
-                    }
-                } label: { Image(systemName: "square.and.pencil") }
-                .accessibilityLabel(Text("sidebar.newThread"))
-            }
-        }
         .overlay {
             if projects.projects.isEmpty && projects.looseConversations.isEmpty {
                 ContentUnavailableView("sidebar.empty.title", systemImage: "tray",

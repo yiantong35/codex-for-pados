@@ -128,6 +128,20 @@ struct RootSplitView: View {
         HStack(spacing: 18) {
             Spacer()
 
+            // 新建会话：SidebarView 的系统 .toolbar 按钮在「split + 自定义顶栏 safeAreaInset」布局下不渲染，
+            // 故新建入口挂在此自定义顶栏（design D1 深挖）。点击发 thread/start，切 selectedThreadId 进入新会话。
+            // rpc 从 connection 显式取（projects.self.rpc 未经 attach 注入，对齐 loadFromServer(rpc:) 模式）。
+            Button {
+                guard let rpc = connection.rpc else { return }
+                Task {
+                    guard let newId = await projects.createThread(rpc: rpc) else { return }
+                    selectedThreadId = newId
+                    projects.markViewed(threadId: newId, updatedAt: Date().timeIntervalSince1970)
+                }
+            } label: { Image(systemName: "square.and.pencil") }
+            .accessibilityLabel(Text("sidebar.newThread"))
+            .disabled(projects.isCreatingThread)   // 防抖：创建进行中禁用，避免连点建多个会话
+
             // 左面板：显式控制 columnVisibility（不叠加系统 sidebarToggle）。
             Button {
                 withAnimation {

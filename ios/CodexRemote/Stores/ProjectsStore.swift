@@ -60,10 +60,12 @@ final class ProjectsStore {
     /// per-thread 已读时间戳（threadId → lastViewedAt）。
     private var lastViewedAt: [String: Double] = [:]
 
-    /// 注入 UserDefaults（默认 .standard），加载持久化的已读时间戳。
-    /// 默认参数保证 `ProjectsStore()` 仍可用。
-    init(unreadDefaults: UserDefaults = .standard) {
+    /// 注入 UserDefaults（默认 .standard）与时钟（默认 Date()）。
+    /// 默认参数保证 `ProjectsStore()` 仍可用；`now` 注入供节流测试用假时钟。
+    @ObservationIgnored private let now: () -> Date
+    init(unreadDefaults: UserDefaults = .standard, now: @escaping () -> Date = { Date() }) {
         self.unreadDefaults = unreadDefaults
+        self.now = now
         self.lastViewedAt = (unreadDefaults.dictionary(forKey: Self.unreadKey) as? [String: Double]) ?? [:]
     }
 
@@ -148,6 +150,34 @@ final class ProjectsStore {
     }
 
     // MARK: - 管理动作（成功后重拉列表；广播会再叠加）
+
+    /// 新建会话进行中标志（防抖）：createThread 期间为 true，禁止并发重复新建。
+    private(set) var isCreatingThread = false
+    /// 上次成功发起新建的时间（节流）：窗内再次新建被拒，治本机往返极快、串行快速连点建多个空会话。
+    @ObservationIgnored private var lastCreateAt: Date?
+    private static let createThrottleInterval: TimeInterval = 2.0
+
+    /// 新建会话：发 `thread/start`，解析响应 `{thread:{id}}` 返回新 thread id（失败 nil）。
+    /// 供顶栏新建按钮调用——View 拿到新 id 后切 `selectedThreadId` 进入新会话。
+    /// rpc 显式传入（对齐 `loadFromServer(rpc:)`；`projects` 实例的 `self.rpc` 从未经 attach 注入，
+    /// 见 design D1 深挖——attach 未接线是 Task 4/5 同步层的既有问题，此处不依赖 self.rpc）。
+    func createThread(rpc: JSONRPCClient, cwd: String? = nil, model: String? = nil) async -> String? {
+        guard !isCreatingThread else { return nil }   // 防抖：创建进行中拒绝并发重复新建
+        let t = now()
+        if let last = lastCreateAt, t.timeIntervalSince(last) < Self.createThrottleInterval {
+            return nil                                // 节流：1s 内的连续新建被拒
+        }
+        lastCreateAt = t
+        isCreatingThread = true
+        defer { isCreatingThread = false }
+        guard let data = try? JSONEncoder().encode(ThreadStartParams(cwd: cwd, model: model)),
+              let any = try? JSONDecoder().decode(AnyCodable.self, from: data),
+              let result = try? await rpc.send(method: RPCMethod.threadStart, params: any),
+              let dict = result.value as? [String: Any],
+              let id = (dict["thread"] as? [String: Any])?["id"] as? String
+        else { return nil }
+        return id
+    }
 
     private func sendThenRefresh<T: Encodable>(_ method: String, _ params: T) async {
         guard let rpc else { return }
