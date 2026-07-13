@@ -1,0 +1,7 @@
+# Comet 项目配置
+# build_command / verify_command 供 comet-guard 的 Build passes 检查使用。
+# 用包装脚本：comet-guard 的 run_command_string 禁 shell 元字符（= , &&），
+# 而 xcodebuild -destination 'platform=...' 必须用到。脚本内先 xcodegen generate
+# （目录纳入源文件，新增文件自动包含）再 xcodebuild build。
+build_command: "bash ios/comet-build-check.sh"
+verify_command: "bash ios/comet-build-check.sh"
