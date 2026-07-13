@@ -1937,7 +1937,39 @@
         }
       }
     },
-    "composer.sendFailed": {
+    "composer.model.default %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Account default (%@)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "账号默认 (%@)"
+          }
+        }
+      }
+    },
+    "composer.effort.default %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Account default (%@)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "账号默认 (%@)"
+          }
+        }
+      }
+    },
+    "composer.sendFailed %@": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -1949,38 +1981,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "发送失败：%@ · 点按重试"
-          }
-        }
-      }
-    },
-    "composer.model.default": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Account default (%@)"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "账号默认 (%@)"
-          }
-        }
-      }
-    },
-    "composer.effort.default": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Account default (%@)"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "账号默认 (%@)"
           }
         }
       }
