@@ -50,4 +50,107 @@ final class ProjectsStoreTests: XCTestCase {
         let params = ProjectsStore.listParamsForDesktopVisibility()
         XCTAssertTrue(params.sourceKinds?.contains("appServer") ?? false)
     }
+
+    // Task 0.5：新建会话 —— 发 thread/start，解析 {thread:{id}} 返回新 thread id。
+    // rpc 显式传入（不经 attach——projects 实例生产中从未 attach，测试须走生产同款路径）。
+    func test_createThread_returns_new_id_from_response() async {
+        let s = ProjectsStore()
+        let mock = MockTransport()
+        await mock.setAutoRespondThreadStart(#"{"thread":{"id":"new-tid-1","sessionId":"new-tid-1","status":{"type":"idle"}}}"#)
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+
+        let newId = await s.createThread(rpc: rpc)
+        XCTAssertEqual(newId, "new-tid-1", "createThread 应返回响应 thread.id")
+    }
+
+    // Task 0.5：响应缺 thread.id（畸形/拒绝）→ 返回 nil，不崩溃。
+    func test_createThread_returns_nil_on_malformed_response() async {
+        let s = ProjectsStore()
+        let mock = MockTransport()
+        await mock.setAutoRespondThreadStart(#"{"unexpected":true}"#)
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+
+        let newId = await s.createThread(rpc: rpc)
+        XCTAssertNil(newId, "响应无 thread.id 时应返回 nil")
+    }
+
+    // Task 0.5 防抖：创建进行中，第二次调用被拒（返回 nil，不发第二个 thread/start）。
+    func test_createThread_debounces_concurrent_calls() async throws {
+        let s = ProjectsStore()
+        let mock = MockTransport()
+        await mock.setAutoRespondThreadStart(#"{"thread":{"id":"new-tid-1"}}"#)
+        await mock.setThreadStartDelay(300_000_000)   // 首个应答延迟 300ms，制造创建窗口且最终会回
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+
+        // 第一次：延迟应答期间保持创建态
+        async let first = s.createThread(rpc: rpc)
+        try await Task.sleep(nanoseconds: 100_000_000)   // 100ms：请求已发、应答未到
+        XCTAssertTrue(s.isCreatingThread, "创建进行中应置 isCreatingThread")
+
+        // 第二次：应被防抖立即拒绝
+        let second = await s.createThread(rpc: rpc)
+        XCTAssertNil(second, "创建进行中第二次调用应返回 nil")
+
+        // 第一次最终成功返回，创建态复位
+        let firstId = await first
+        XCTAssertEqual(firstId, "new-tid-1", "首个创建应正常返回新 id")
+        XCTAssertFalse(s.isCreatingThread, "创建结束后 isCreatingThread 复位")
+
+        let startCount = await mock.sent.filter { $0.contains("thread/start") }.count
+        XCTAssertEqual(startCount, 1, "只应发出一个 thread/start（第二次被防抖拦下）")
+    }
+
+    // Task 0.5 节流：一次新建后 1s 内的再次调用被拒（治本机往返极快、串行快速连点建多个）。
+    func test_createThread_throttles_rapid_serial_taps() async {
+        var fakeNow = Date(timeIntervalSince1970: 1000)
+        let s = ProjectsStore(now: { fakeNow })
+        let mock = MockTransport()
+        await mock.setAutoRespondThreadStart(#"{"thread":{"id":"tid-A"}}"#)
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+
+        // 第一次：成功
+        let first = await s.createThread(rpc: rpc)
+        XCTAssertEqual(first, "tid-A")
+
+        // 300ms 后再点（本机往返已返回、并发标志已复位）→ 应被 2s 节流拦下
+        fakeNow = Date(timeIntervalSince1970: 1000.3)
+        let second = await s.createThread(rpc: rpc)
+        XCTAssertNil(second, "2s 内再次新建应被节流拒绝")
+        let count1 = await mock.sent.filter { $0.contains("thread/start") }.count
+        XCTAssertEqual(count1, 1, "节流期内不应再发 thread/start")
+
+        // 超过 2s 后再点 → 放行
+        fakeNow = Date(timeIntervalSince1970: 1002.5)
+        let third = await s.createThread(rpc: rpc)
+        XCTAssertEqual(third, "tid-A", "超过节流窗后应放行新建")
+        let count2 = await mock.sent.filter { $0.contains("thread/start") }.count
+        XCTAssertEqual(count2, 2, "节流窗后应再发一个 thread/start")
+    }
+
+    // D5-a：未知 thread 的 thread/started → 触发重拉（rpc 提供该 thread 时被 ingest）
+    func test_threadStarted_unknown_triggers_reload() async {
+        let s = ProjectsStore()
+        let mock = MockTransport()
+        await mock.setThreadListResponse(#"{"data":[{"id":"b","sessionId":"b","preview":"","modelProvider":"openai","createdAt":0,"updatedAt":5,"cwd":"/Volumes/mount","cliVersion":"0.133.0","name":null,"gitInfo":null}],"nextCursor":null,"backwardsCursor":null}"#)
+        let rpc = JSONRPCClient(transport: mock); await mock.setAutoRespond(true); await rpc.start()
+        await s.attach(rpc: rpc)
+        let n = JSONRPCNotification(method: ServerNotificationMethod.threadStarted,
+            params: AnyCodable(["threadId": "b"]))
+        await s.handleThreadStarted(n)
+        XCTAssertTrue(s.allThreadsSorted.contains { $0.id == "b" }, "未知 thread 应经重拉出现")
+    }
+
+    // D5-a：已存在则不重复（不重拉）
+    func test_threadStarted_broadcast_dedupes() async {
+        let s = ProjectsStore()
+        s.ingest([ thread("a", cwd: "/repo/x", updatedAt: 1, origin: "o/x", git: true) ])
+        let n = JSONRPCNotification(method: ServerNotificationMethod.threadStarted,
+            params: AnyCodable(["threadId": "a", "cwd": "/repo/x", "updatedAt": 9.0]))
+        await s.handleThreadStarted(n)
+        XCTAssertEqual(s.allThreadsSorted.filter { $0.id == "a" }.count, 1, "已存在不应重复插入")
+    }
 }

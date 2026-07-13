@@ -45,3 +45,4 @@ ios/**/DerivedData/
 
 # 会话 transcript 续写导出（勿入库）
 *-this-session-is-being-continued-from-a-previous-c.txt
+ios/build/

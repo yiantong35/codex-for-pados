@@ -137,6 +137,7 @@ final class OrientationSnapshotTests: XCTestCase {
     func testRootSplitPortrait() {
         let view = RootSplitView()
             .environment(EnvironmentInspectorModel())
+            .environment(EnvironmentStore())
             .environment(TerminalSession())
             .environment(makeConnection())
             .environment(makeProjects())
@@ -148,6 +149,7 @@ final class OrientationSnapshotTests: XCTestCase {
     func testRootSplitLandscape() {
         let view = RootSplitView()
             .environment(EnvironmentInspectorModel())
+            .environment(EnvironmentStore())
             .environment(TerminalSession())
             .environment(makeConnection())
             .environment(makeProjects())
@@ -166,6 +168,7 @@ final class OrientationSnapshotTests: XCTestCase {
         XCTAssertNotEqual(toggle, "sidebar.toggle", "缺少 sidebar.toggle 本地化键")
         let view = RootSplitView()
             .environment(EnvironmentInspectorModel())
+            .environment(EnvironmentStore())
             .environment(TerminalSession())
             .environment(makeConnection())
             .environment(makeProjects())
@@ -192,6 +195,7 @@ final class OrientationSnapshotTests: XCTestCase {
         XCTAssertNotEqual(conv, "sidebar.conversations", "缺少 sidebar.conversations 本地化键")
         let view = SidebarView(selectedThreadId: .constant(nil))
             .environment(projects)
+            .environment(EnvironmentStore())
             .environment(makeConnection())
             .environment(LocaleManager())   // SettingsMenu（侧栏 toolbar，Task 26）依赖
             .environment(ThemeManager())
@@ -209,6 +213,7 @@ final class OrientationSnapshotTests: XCTestCase {
         XCTAssertFalse(projects.isGrouped)
         let view = SidebarView(selectedThreadId: .constant(nil))
             .environment(projects)
+            .environment(EnvironmentStore())
             .environment(makeConnection())
             .environment(LocaleManager())   // SettingsMenu（侧栏 toolbar，Task 26）依赖
             .environment(ThemeManager())
@@ -389,6 +394,7 @@ final class OrientationSnapshotTests: XCTestCase {
         }
         let view = RootSplitView()
             .environment(EnvironmentInspectorModel())
+            .environment(EnvironmentStore())
             .environment(TerminalSession())
             .environment(makeConnection())
             .environment(makeProjects())
@@ -402,6 +408,7 @@ final class OrientationSnapshotTests: XCTestCase {
     func test_workspace_all_panels_snapshot() {
         let view = RootSplitView(initialRightOpen: true, initialBottomOpen: true)
             .environment(EnvironmentInspectorModel())
+            .environment(EnvironmentStore())
             .environment(TerminalSession())
             .environment(makeConnection())
             .environment(makeProjects())

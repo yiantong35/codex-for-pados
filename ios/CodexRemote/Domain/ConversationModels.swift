@@ -41,7 +41,13 @@ struct ConversationState: Equatable {
     var turnDiff: String = ""
     /// 当前会话子智能体聚合状态（批次⑤，agentThreadId → 状态）。
     var subAgents: [String: SubAgentState] = [:]
-    var isTurnRunning: Bool { activeTurnId != nil }
+    /// 进行中的 item id 集合（来源：item/started 加入、item/completed 移除）。
+    /// D4：turn/started 不广播给非发起端，运行态改由逐-item 信号驱动，跨端一致真实。
+    var inFlightItemIds: Set<String> = []
+    /// 最近一次发送失败信息（D2）；nil = 无错误。UI 据此显式提示并停止"生成中"。
+    var lastSendError: String?
+    /// 运行态（"生成中"）：有进行中 item 即为真；activeTurnId 作发起端兜底信号。
+    var isTurnRunning: Bool { !inFlightItemIds.isEmpty || activeTurnId != nil }
 
     /// 本会话执行过的命令条数（纯派生，用于「已运行 N 条命令」汇总）。
     var commandCount: Int {

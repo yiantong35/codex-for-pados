@@ -1936,6 +1936,54 @@
           }
         }
       }
+    },
+    "composer.model.default %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Account default (%@)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "账号默认 (%@)"
+          }
+        }
+      }
+    },
+    "composer.effort.default %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Account default (%@)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "账号默认 (%@)"
+          }
+        }
+      }
+    },
+    "composer.sendFailed %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send failed: %@ · tap to retry"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送失败：%@ · 点按重试"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

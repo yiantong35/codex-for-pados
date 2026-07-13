@@ -262,6 +262,37 @@ final class ThreadReducerTests: XCTestCase {
         XCTAssertEqual(state.turnDiff, "")
     }
 
+    // D4：非发起端收不到 turn/started，但 item/started 应驱动运行态为真
+    func testRunningDrivenByItemStartedWithoutTurnStarted() {
+        var state = ConversationState(threadId: "t")
+        let reducer = ThreadReducer()
+        // 未发 turn/started（模拟非发起端）
+        reducer.apply(notif("item/started", ["item": ["id": "A1", "type": "agentMessage"]]), to: &state)
+        XCTAssertTrue(state.isTurnRunning, "有进行中 item 应为运行态，即使没收到 turn/started")
+    }
+
+    // D4：全部 item completed 后归闲置
+    func testRunningClearsWhenAllItemsCompleted() {
+        var state = ConversationState(threadId: "t")
+        let reducer = ThreadReducer()
+        reducer.apply(notif("item/started", ["item": ["id": "A1", "type": "agentMessage"]]), to: &state)
+        reducer.apply(notif("item/started", ["item": ["id": "C1", "type": "commandExecution", "command": "ls"]]), to: &state)
+        XCTAssertTrue(state.isTurnRunning)
+        reducer.apply(notif("item/completed", ["item": ["id": "A1", "type": "agentMessage"]]), to: &state)
+        XCTAssertTrue(state.isTurnRunning, "还有一个 item 进行中")
+        reducer.apply(notif("item/completed", ["item": ["id": "C1", "type": "commandExecution", "command": "ls", "status": "completed"]]), to: &state)
+        XCTAssertFalse(state.isTurnRunning, "全部 item completed 后应归闲置")
+    }
+
+    // D4：turn/completed 兜底清空（防残留 item 计数）
+    func testTurnCompletedClearsInFlight() {
+        var state = ConversationState(threadId: "t")
+        let reducer = ThreadReducer()
+        reducer.apply(notif("item/started", ["item": ["id": "A1", "type": "agentMessage"]]), to: &state)
+        reducer.apply(notif("turn/completed", ["turn": ["id": "T1", "status": "completed"]]), to: &state)
+        XCTAssertFalse(state.isTurnRunning, "turn/completed 应兜底清空进行中 item")
+    }
+
     // helpers
     private func notif(_ m: String, _ p: [String: Any]) -> JSONRPCNotification {
         JSONRPCNotification(method: m, params: AnyCodable(p))

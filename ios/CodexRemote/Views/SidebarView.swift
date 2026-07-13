@@ -7,6 +7,8 @@ import SwiftUI
 struct SidebarView: View {
     @Environment(ProjectsStore.self) private var projects
     @Environment(ConnectionStore.self) private var connection
+    @Environment(EnvironmentStore.self) private var env
+    @Environment(\.scenePhase) private var scenePhase
     @Binding var selectedThreadId: String?
     @State private var collapse = SidebarCollapseStore()
 
@@ -32,26 +34,6 @@ struct SidebarView: View {
             }
         }
         .navigationTitle("sidebar.title")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    guard let rpc = connection.rpc else { return }
-                    Task {
-                        let any = try? await rpc.send(method: RPCMethod.threadStart,
-                                                      params: AnyCodable(["cwd": nil, "model": nil] as [String: String?]))
-                        if let dict = any?.value as? [String: Any],
-                           let id = (dict["thread"] as? [String: Any])?["id"] as? String {
-                            await MainActor.run {
-                                selectedThreadId = id
-                                // 新建即视为已读（标到当前时刻），避免切走再回误亮未读点。
-                                projects.markViewed(threadId: id, updatedAt: Date().timeIntervalSince1970)
-                            }
-                        }
-                    }
-                } label: { Image(systemName: "square.and.pencil") }
-                .accessibilityLabel(Text("sidebar.newThread"))
-            }
-        }
         .overlay {
             if projects.projects.isEmpty && projects.looseConversations.isEmpty {
                 ContentUnavailableView("sidebar.empty.title", systemImage: "tray",
@@ -59,9 +41,24 @@ struct SidebarView: View {
             }
         }
         .task(id: connection.phase) {
-            // ready 后拉取 thread/list 填充 ProjectsStore；失败静默（store 内部处理）。
+            // ready 后接线：attach（启动官方广播监听，D5-a）+ 首拉 thread/list 填充。
             guard connection.phase == .ready, let rpc = connection.rpc else { return }
+            await projects.attach(rpc: rpc)
+            await env.attach(rpc: rpc)   // 拉 config/model-list，供 composer 服务器驱动选模型
             await projects.loadFromServer(rpc: rpc)
+            projects.startPolling()   // D5-b：列表可见即准实时轮询
+        }
+        .onDisappear { projects.stopPolling() }
+        .onChange(of: scenePhase) { _, phase in
+            // D5-b：前台/获焦立即刷新并轮询；退后台暂停轮询省电。
+            switch phase {
+            case .active:
+                projects.startPolling()
+                Task { await projects.refreshNow() }
+            case .background, .inactive:
+                projects.stopPolling()
+            @unknown default: break
+            }
         }
     }
 
