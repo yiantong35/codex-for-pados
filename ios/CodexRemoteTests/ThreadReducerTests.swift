@@ -345,6 +345,46 @@ final class ThreadReducerTests: XCTestCase {
         XCTAssertEqual(liveItems(item).items, historyItems(item).items)
     }
 
+    // MARK: - Task 2: 命令/文件历史补齐
+
+    // history commandExecution 解析出 command/status/exitCode/durationMs，与 live 一致。
+    func testHistoryCommandExecutionMatchesLive() {
+        let item: [String: Any] = [
+            "id": "C9", "type": "commandExecution", "command": "/bin/zsh -lc 'echo hi'",
+            "aggregatedOutput": "hi\n", "status": "completed", "exitCode": 0, "durationMs": 12
+        ]
+        let h = historyItems(item)
+        guard case .commandExecution(_, let cmd, let out, let st, let ec, let dm)? = h.items.first else {
+            return XCTFail("history 应有命令项")
+        }
+        XCTAssertEqual(cmd, "/bin/zsh -lc 'echo hi'")
+        XCTAssertEqual(out, "hi\n")
+        XCTAssertEqual(st, .completed)
+        XCTAssertEqual(ec, 0)
+        XCTAssertEqual(dm, 12)
+        XCTAssertEqual(liveItems(item).items, h.items)   // 两路一致
+    }
+
+    // fileChange 多文件：合并 diff、增删行数求和。
+    func testHistoryFileChangeMultiFile() {
+        let diffA = "diff --git a/a.swift b/a.swift\n--- a/a.swift\n+++ b/a.swift\n@@ -0,0 +1 @@\n+x"
+        let diffB = "diff --git a/b.swift b/b.swift\n--- a/b.swift\n+++ b/b.swift\n@@ -0,0 +2 @@\n+y\n+z"
+        let item: [String: Any] = [
+            "id": "F1", "type": "fileChange",
+            "changes": [
+                ["path": "a.swift", "kind": ["type": "update"], "diff": diffA],
+                ["path": "b.swift", "kind": ["type": "add"], "diff": diffB],
+            ] as [[String: Any]]
+        ]
+        let s = historyItems(item)
+        guard case .fileChange(_, let file, let added, _, let diff)? = s.items.first else {
+            return XCTFail("应有 fileChange")
+        }
+        XCTAssertEqual(file, "a.swift")            // 首文件名
+        XCTAssertEqual(added, 3)                   // +x(1) + y,z(2) = 3
+        XCTAssertTrue(diff.contains("a.swift") && diff.contains("b.swift"))  // 合并含两文件
+    }
+
     // helpers
     private func notif(_ m: String, _ p: [String: Any]) -> JSONRPCNotification {
         JSONRPCNotification(method: m, params: AnyCodable(p))

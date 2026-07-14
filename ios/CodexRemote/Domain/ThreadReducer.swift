@@ -111,7 +111,8 @@ struct ThreadReducer {
                 let status = CommandStatus(rawValue: item["status"] as? String ?? "") ?? .completed
                 finishCommand(id: id, status: status,
                               exitCode: optionalInt(item["exitCode"]),
-                              durationMs: optionalInt(item["durationMs"]), &state)
+                              durationMs: optionalInt(item["durationMs"]),
+                              fallbackOutput: item["aggregatedOutput"] as? String ?? "", &state)
             case "userMessage", "agentMessage", "fileChange":
                 break   // started 已建项；完成态无额外最终字段（fileChange 走 patchUpdated）。
             default:
@@ -394,11 +395,14 @@ struct ThreadReducer {
     }
 
     private func finishCommand(id: String, status: CommandStatus,
-                               exitCode: Int?, durationMs: Int?, _ s: inout ConversationState) {
+                               exitCode: Int?, durationMs: Int?,
+                               fallbackOutput: String = "", _ s: inout ConversationState) {
         guard let i = s.items.firstIndex(where: { $0.id == id }),
               case .commandExecution(_, let c, let o, _, _, _) = s.items[i] else { return }
         // completed/failed/declined 都视为命令已结束，落终态字段。
-        s.items[i] = .commandExecution(id: id, command: c, output: o,
+        // output 优先保留 delta 累加值；若 delta 未到（如纯 aggregatedOutput 完成事件），用兜底补落。
+        let output = o.isEmpty ? fallbackOutput : o
+        s.items[i] = .commandExecution(id: id, command: c, output: output,
                                        status: status, exitCode: exitCode, durationMs: durationMs)
     }
 
