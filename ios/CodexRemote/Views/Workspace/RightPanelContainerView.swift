@@ -15,6 +15,8 @@ enum RightPanelTab: CaseIterable, Identifiable {
 
 /// 右边栏 tab 容器（D1）：顶部自绘 tab 条 + 按枚举 switch 渲染，不用 SwiftUI TabView
 /// （避免其在 NavigationSplitView 右栏内的额外手势区与尺寸重算）。
+/// 整列全屏（设计 D5）：tab 条右侧「⤢」入口 → .fullScreenCover 覆盖层铺满屏渲染同一容器，
+/// 三 tab 通用、退出恢复原 inspector 列宽。
 struct RightPanelContainerView: View {
     /// 当前选中 thread 的 cwd：审查「全量」拉取 + 文件浏览根均需要。
     var cwd: String?
@@ -22,12 +24,25 @@ struct RightPanelContainerView: View {
     var mainThreadId: String?
 
     @Environment(ConnectionStore.self) private var connection
+    @Environment(ActiveConversationHolder.self) private var activeConversation
 
     @State private var selectedTab: RightPanelTab = .review
     @State private var fileBrowser = FileBrowserStore()
     @State private var sideChat = SideChatStore()
+    @State private var isFullscreen = false
 
     var body: some View {
+        tabContainer
+            .fullScreenCover(isPresented: $isFullscreen) {
+                tabContainer
+                    // 覆盖层脱离 inspector 独立列，不继承父链环境，显式注入所需依赖（设计 D5 + 风险 3）。
+                    .environment(activeConversation)
+                    .environment(connection)
+            }
+    }
+
+    /// tab 条 + 内容 switch + 数据绑定 task，常规态与全屏覆盖层共用（保证三 tab 通用、状态一致）。
+    private var tabContainer: some View {
         VStack(spacing: 0) {
             tabBar
             Divider()
@@ -56,7 +71,7 @@ struct RightPanelContainerView: View {
         "\(connection.phase == .ready)-\(cwd ?? "")"
     }
 
-    // 自绘分段 tab 条（非 Picker/TabView）。
+    // 自绘分段 tab 条（非 Picker/TabView）+ 右侧全屏/收起入口。
     private var tabBar: some View {
         HStack(spacing: 0) {
             ForEach(RightPanelTab.allCases) { tab in
@@ -73,6 +88,18 @@ struct RightPanelContainerView: View {
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(selectedTab == tab ? [.isSelected] : [])
             }
+            // 全屏 / 收起入口（容器级，三 tab 通用，设计 D5）。
+            Button {
+                isFullscreen.toggle()
+            } label: {
+                Image(systemName: isFullscreen
+                      ? "arrow.down.right.and.arrow.up.left"
+                      : "arrow.up.left.and.arrow.down.right")
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(isFullscreen ? "rightPanel.fullscreen.exit" : "rightPanel.fullscreen.enter"))
         }
         .background(.bar)
     }
