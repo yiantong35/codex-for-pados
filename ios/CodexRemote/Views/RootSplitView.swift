@@ -12,6 +12,9 @@ final class ActiveConversationHolder {
     /// 拉取远端全量 diff 的回调（由持有 ConversationStore 的 ConversationView 注入）。
     /// 审查面板切到「全量」时调用；未接线（nil）时返回 nil，面板降级空态。
     var fetchFullDiff: ((_ cwd: String) async -> String?)?
+    /// 发起 AI 审查的回调（由持有 ConversationStore 的 ConversationView 注入，设计 D4）。
+    /// 审查 tab 的「本轮/全量」发起入口调用；未接线（nil）→ 入口禁用。返回是否成功发出。
+    var startReview: ((_ mode: ReviewSourceMode) async -> Bool)?
 }
 
 /// 主界面（复刻 Codex desktop 五窗口工作区骨架，三列系统列重构 workspace-3col-layout）：
