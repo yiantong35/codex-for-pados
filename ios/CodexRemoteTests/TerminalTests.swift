@@ -125,4 +125,27 @@ struct TerminalTests {
         s.startIfNeeded(cwd: "/b")          // cwd 变 → 重起
         #expect(s.processId != pidA)
     }
+
+    // MARK: - Task 4: SwiftTermView 桥接
+
+    @MainActor @Test func bridgeSendForwardsUTF8ToSession() {
+        let s = TerminalSession()
+        s.start(cwd: "/repo")
+        let bridge = TerminalBridge(session: s)
+        var sent: String?
+        s.onInputForTest = { sent = $0 }
+        bridge.handleSend(bytes: ArraySlice(Array("ls\n".utf8)))
+        #expect(sent == "ls\n")
+    }
+
+    @MainActor @Test func bridgeSizeChangedForwardsResize() {
+        let s = TerminalSession()
+        s.start(cwd: "/repo")
+        let bridge = TerminalBridge(session: s)
+        var got: CommandExecTerminalSize?
+        s.onResizeForTest = { got = $0 }
+        bridge.handleSizeChanged(newCols: 100, newRows: 30)
+        #expect(got?.cols == 100)
+        #expect(got?.rows == 30)
+    }
 }

@@ -9,6 +9,10 @@ final class TerminalSession {
     /// @ObservationIgnored 避免赋值触发视图刷新。
     @ObservationIgnored var onBytes: (([UInt8]) -> Void)?
 
+    /// 测试观察点：sendInput/resize 的入参镜像（生产为 nil，无副作用）。
+    @ObservationIgnored var onInputForTest: ((String) -> Void)?
+    @ObservationIgnored var onResizeForTest: ((CommandExecTerminalSize) -> Void)?
+
     private(set) var processId: String?
     private(set) var running = false
     private var startedCwd: String?     // 当前 shell 绑定的 cwd（用于跟随判定）
@@ -50,10 +54,12 @@ final class TerminalSession {
         return CommandExecWriteParams(processId: pid, deltaBase64: Data(input.utf8).base64EncodedString(), closeStdin: nil)
     }
     func sendInput(_ input: String) {
+        onInputForTest?(input)
         guard let p = makeWriteParams(input: input) else { return }
         Task { await send(RPCMethod.commandExecWrite, p) }
     }
     func resize(_ size: CommandExecTerminalSize) {
+        onResizeForTest?(size)
         guard let pid = processId else { return }
         Task { await send(RPCMethod.commandExecResize, CommandExecResizeParams(processId: pid, size: size)) }
     }
