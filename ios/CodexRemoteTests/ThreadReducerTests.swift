@@ -293,9 +293,269 @@ final class ThreadReducerTests: XCTestCase {
         XCTAssertFalse(state.isTurnRunning, "turn/completed 应兜底清空进行中 item")
     }
 
+    // MARK: - Task 1: 统一解析 + reasoning 修复 + unknown 降级
+
+    // D3：reasoning content 为 v2 Array<string> 形态时应解析出文字（非空）。
+    func testReasoningArrayOfStringsParses() {
+        var s = ConversationState(threadId: "t")
+        ThreadReducer().apply(notif("item/completed", ["item": [
+            "id": "R1", "type": "reasoning",
+            "content": ["先看代码", "再改"] as [String]
+        ]]), to: &s)
+        guard case .reasoning(_, let text)? = s.items.first(where: { $0.id == "R1" }) else {
+            return XCTFail("应有 reasoning")
+        }
+        XCTAssertEqual(text, "先看代码\n再改")
+    }
+
+    // D3：遗留 [{type,text}] 形态仍可解析（兼容不回归）。
+    func testReasoningLegacyDictArrayStillParses() {
+        var s = ConversationState(threadId: "t")
+        ThreadReducer().apply(notif("item/completed", ["item": [
+            "id": "R2", "type": "reasoning",
+            "content": [["type": "text", "text": "旧格式"]] as [[String: Any]]
+        ]]), to: &s)
+        guard case .reasoning(_, let text)? = s.items.first(where: { $0.id == "R2" }) else {
+            return XCTFail("应有 reasoning")
+        }
+        XCTAssertEqual(text, "旧格式")
+    }
+
+    // D4：未识别 type → .unknown(id,type)，绝不丢弃。
+    func testUnknownTypeBecomesUnknownItem() {
+        let item: [String: Any] = ["id": "U1", "type": "someFutureType"]
+        guard case .unknown(let id, let type)? = ThreadReducer().parseItem(item) else {
+            return XCTFail("未知 type 应产出 .unknown")
+        }
+        XCTAssertEqual(id, "U1")
+        XCTAssertEqual(type, "someFutureType")
+    }
+
+    // D4：unknown 也真正进入 history items（不 default:break 丢弃）。
+    func testUnknownTypeIngestedInHistory() {
+        let s = historyItems(["id": "U1", "type": "someFutureType"])
+        guard case .unknown? = s.items.first else { return XCTFail("unknown 应被摄入") }
+    }
+
+    // D2 核心回归：同一 item dict 经 live 与 history 两路，产出一致的 items。
+    func testLiveAndHistoryProduceSameItemForStaticType() {
+        let item: [String: Any] = [
+            "id": "W1", "type": "webSearch", "query": "swift enum", "action": "search"
+        ]
+        XCTAssertEqual(liveItems(item).items, historyItems(item).items)
+    }
+
+    // MARK: - Task 2: 命令/文件历史补齐
+
+    // history commandExecution 解析出 command/status/exitCode/durationMs，与 live 一致。
+    func testHistoryCommandExecutionMatchesLive() {
+        let item: [String: Any] = [
+            "id": "C9", "type": "commandExecution", "command": "/bin/zsh -lc 'echo hi'",
+            "aggregatedOutput": "hi\n", "status": "completed", "exitCode": 0, "durationMs": 12
+        ]
+        let h = historyItems(item)
+        guard case .commandExecution(_, let cmd, let out, let st, let ec, let dm)? = h.items.first else {
+            return XCTFail("history 应有命令项")
+        }
+        XCTAssertEqual(cmd, "/bin/zsh -lc 'echo hi'")
+        XCTAssertEqual(out, "hi\n")
+        XCTAssertEqual(st, .completed)
+        XCTAssertEqual(ec, 0)
+        XCTAssertEqual(dm, 12)
+        XCTAssertEqual(liveItems(item).items, h.items)   // 两路一致
+    }
+
+    // fileChange 多文件：合并 diff、增删行数求和。
+    func testHistoryFileChangeMultiFile() {
+        let diffA = "diff --git a/a.swift b/a.swift\n--- a/a.swift\n+++ b/a.swift\n@@ -0,0 +1 @@\n+x"
+        let diffB = "diff --git a/b.swift b/b.swift\n--- a/b.swift\n+++ b/b.swift\n@@ -0,0 +2 @@\n+y\n+z"
+        let item: [String: Any] = [
+            "id": "F1", "type": "fileChange",
+            "changes": [
+                ["path": "a.swift", "kind": ["type": "update"], "diff": diffA],
+                ["path": "b.swift", "kind": ["type": "add"], "diff": diffB],
+            ] as [[String: Any]]
+        ]
+        let s = historyItems(item)
+        guard case .fileChange(_, let file, let added, _, let diff)? = s.items.first else {
+            return XCTFail("应有 fileChange")
+        }
+        XCTAssertEqual(file, "a.swift")            // 首文件名
+        XCTAssertEqual(added, 3)                   // +x(1) + y,z(2) = 3
+        XCTAssertTrue(diff.contains("a.swift") && diff.contains("b.swift"))  // 合并含两文件
+    }
+
+    // MARK: - Task 3: 工具调用类解析
+
+    func testMcpToolCallParses() {
+        guard case .mcpToolCall(let id, let server, let tool, let status, let result, let dm)? =
+            ThreadReducer().parseItem([
+                "id": "M1", "type": "mcpToolCall", "server": "fs", "tool": "read",
+                "status": "completed", "result": "ok", "durationMs": 8
+            ]) else { return XCTFail("应解析 mcpToolCall") }
+        XCTAssertEqual([id, server, tool, status, result], ["M1", "fs", "read", "completed", "ok"])
+        XCTAssertEqual(dm, 8)
+    }
+
+    func testDynamicToolCallParses() {
+        guard case .dynamicToolCall(_, let ns, let tool, let status, let success)? =
+            ThreadReducer().parseItem([
+                "id": "D1", "type": "dynamicToolCall", "namespace": "shell",
+                "tool": "exec", "status": "completed", "success": true
+            ]) else { return XCTFail("应解析 dynamicToolCall") }
+        XCTAssertEqual([ns, tool, status], ["shell", "exec", "completed"])
+        XCTAssertEqual(success, true)
+    }
+
+    func testWebSearchParses() {
+        guard case .webSearch(_, let query, let action)? =
+            ThreadReducer().parseItem([
+                "id": "W1", "type": "webSearch", "query": "swift", "action": "search"
+            ]) else { return XCTFail("应解析 webSearch") }
+        XCTAssertEqual([query, action], ["swift", "search"])
+    }
+
+    // 缺省容错：单字段缺失不丢整条。
+    func testMcpToolCallMissingFieldsDefaults() {
+        guard case .mcpToolCall(_, let server, _, _, let result, let dm)? =
+            ThreadReducer().parseItem(["id": "M2", "type": "mcpToolCall", "tool": "x"]) else {
+            return XCTFail("缺字段也应产出 mcpToolCall")
+        }
+        XCTAssertEqual(server, "")
+        XCTAssertEqual(result, "")
+        XCTAssertNil(dm)
+    }
+
+    // mcp result 为 content 片段数组时应拼出文本（常见 MCP 结果形态）。
+    func testMcpToolCallArrayResultSummary() {
+        guard case .mcpToolCall(_, _, _, _, let result, _)? = ThreadReducer().parseItem([
+            "id": "M3", "type": "mcpToolCall", "server": "fs", "tool": "read",
+            "result": [["type": "text", "text": "文件内容"]] as [[String: Any]]
+        ]) else { return XCTFail("应解析 mcpToolCall") }
+        XCTAssertEqual(result, "文件内容")
+    }
+
+    // MARK: - Task 4: 会话事件类解析
+
+    func testContextCompactionParses() {
+        guard case .contextCompaction(let id)? =
+            ThreadReducer().parseItem(["id": "K1", "type": "contextCompaction"]) else {
+            return XCTFail("应解析 contextCompaction")
+        }
+        XCTAssertEqual(id, "K1")
+    }
+
+    func testReviewModeParses() {
+        guard case .enteredReviewMode? =
+            ThreadReducer().parseItem(["id": "E1", "type": "enteredReviewMode"]) else {
+            return XCTFail("应解析 enteredReviewMode")
+        }
+        guard case .exitedReviewMode? =
+            ThreadReducer().parseItem(["id": "E2", "type": "exitedReviewMode"]) else {
+            return XCTFail("应解析 exitedReviewMode")
+        }
+    }
+
+    func testHookPromptParsesFragments() {
+        // fragments 兼容 Array<string> 与 [{text}]
+        guard case .hookPrompt(_, let f1)? = ThreadReducer().parseItem([
+            "id": "H1", "type": "hookPrompt", "fragments": ["a", "b"] as [String]
+        ]) else { return XCTFail("应解析 hookPrompt") }
+        XCTAssertEqual(f1, "a\nb")
+        guard case .hookPrompt(_, let f2)? = ThreadReducer().parseItem([
+            "id": "H2", "type": "hookPrompt",
+            "fragments": [["type": "text", "text": "c"]] as [[String: Any]]
+        ]) else { return XCTFail("应解析 hookPrompt") }
+        XCTAssertEqual(f2, "c")
+    }
+
+    // MARK: - Task 5: 图像 / 子智能体 / plan
+
+    func testImageGenerationParses() {
+        guard case .imageGeneration(_, let status, let prompt, let path)? =
+            ThreadReducer().parseItem([
+                "id": "IG1", "type": "imageGeneration", "status": "completed",
+                "revisedPrompt": "a cat", "savedPath": "/tmp/cat.png"
+            ]) else { return XCTFail("应解析 imageGeneration") }
+        XCTAssertEqual([status, prompt, path], ["completed", "a cat", "/tmp/cat.png"])
+    }
+
+    func testImageViewParses() {
+        guard case .imageView(_, let path)? =
+            ThreadReducer().parseItem(["id": "IV1", "type": "imageView", "path": "/tmp/x.png"]) else {
+            return XCTFail("应解析 imageView")
+        }
+        XCTAssertEqual(path, "/tmp/x.png")
+    }
+
+    func testPlanItemParses() {
+        guard case .plan(_, let text)? = ThreadReducer().parseItem([
+            "id": "P1", "type": "plan",
+            "steps": [["step": "读", "status": "completed"], ["step": "写", "status": "pending"]] as [[String: Any]]
+        ]) else { return XCTFail("应解析 plan") }
+        XCTAssertEqual(text, "读\n写")
+    }
+
+    // 子智能体：history 聚合进 state.subAgents，与 live 一致；且不作可见卡片。
+    func testSubAgentHistoryAggregationMatchesLive() {
+        let collab: [String: Any] = [
+            "id": "S1", "type": "collabAgentToolCall",
+            "agentsStates": ["tid-1": ["status": "running", "message": "working"]]
+        ]
+        let activity: [String: Any] = [
+            "id": "S2", "type": "subAgentActivity",
+            "agentThreadId": "tid-1", "agentPath": "/repo/agent"
+        ]
+        // history
+        var hs = ConversationState(threadId: "t")
+        ThreadReducer().ingest(resumeResult: ["thread": ["turns": [["items": [collab, activity]]]]], to: &hs)
+        // live
+        var ls = ConversationState(threadId: "t")
+        let r = ThreadReducer()
+        r.apply(notif("item/started", ["item": collab]), to: &ls)
+        r.apply(notif("item/started", ["item": activity]), to: &ls)
+        // 聚合一致
+        XCTAssertEqual(hs.subAgents, ls.subAgents)
+        XCTAssertNotNil(hs.subAgents["tid-1"])
+        XCTAssertEqual(hs.subAgents["tid-1"]?.path, "/repo/agent")
+        // 都不作可见卡片
+        XCTAssertTrue(hs.items.isEmpty, "collab/subAgent 不应进入可见 items")
+        XCTAssertTrue(ls.items.isEmpty)
+    }
+
+    // fileChange live 与 history 一致：completed 携带 changes/diff 时 live 也应落完整 diff。
+    func testLiveFileChangeCompletedMatchesHistory() {
+        let diff = "diff --git a/a.swift b/a.swift\n--- a/a.swift\n+++ b/a.swift\n@@ -0,0 +1 @@\n+x"
+        let item: [String: Any] = [
+            "id": "FC1", "type": "fileChange",
+            "changes": [["path": "a.swift", "kind": ["type": "update"], "diff": diff]] as [[String: Any]]
+        ]
+        XCTAssertEqual(liveItems(item).items, historyItems(item).items)
+        guard case .fileChange(_, let file, let added, _, let d)? = liveItems(item).items.first else {
+            return XCTFail("live 应有 fileChange")
+        }
+        XCTAssertEqual(file, "a.swift")
+        XCTAssertEqual(added, 1)
+        XCTAssertTrue(d.contains("a.swift"))
+    }
+
     // helpers
     private func notif(_ m: String, _ p: [String: Any]) -> JSONRPCNotification {
         JSONRPCNotification(method: m, params: AnyCodable(p))
+    }
+    // 走 live 两拍（started+completed）摄入单个 item dict。
+    private func liveItems(_ item: [String: Any]) -> ConversationState {
+        var s = ConversationState(threadId: "t")
+        let r = ThreadReducer()
+        r.apply(notif("item/started", ["item": item]), to: &s)
+        r.apply(notif("item/completed", ["item": item]), to: &s)
+        return s
+    }
+    // 走 history 摄入单个 item dict。
+    private func historyItems(_ item: [String: Any]) -> ConversationState {
+        var s = ConversationState(threadId: "t")
+        ThreadReducer().ingest(resumeResult: ["thread": ["turns": [["items": [item]]]]], to: &s)
+        return s
     }
     private func loadNotifs(_ name: String) throws -> [JSONRPCNotification] {
         let url = Bundle(for: type(of: self)).url(forResource: name, withExtension: "json")!

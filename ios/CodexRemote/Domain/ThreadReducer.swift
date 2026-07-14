@@ -59,7 +59,9 @@ struct ThreadReducer {
                 // 思考/推理项：item.summary/content 可能已带文本（[{type, text}]），否则空串占位（UI 显「正在思考…」）。
                 upsert(.reasoning(id: id, text: reasoningText(from: item)), &state)
             default:
-                break
+                // 非流式静态类型（mcpToolCall/webSearch/未来类型…）统一走 parseItem，
+                // 与 history 一致；collab/subAgent 已在上方 applySubAgentItem 聚合，absorb 会跳过。
+                if let ci = parseItem(item) { absorb(ci, replace: true, &state) }
             }
 
         case ServerNotificationMethod.agentMessageDelta:
@@ -101,18 +103,139 @@ struct ThreadReducer {
                   let id = item["id"] as? String else { return }
             state.inFlightItemIds.remove(id)   // D4：item 完成 → 移出进行中集合
             applySubAgentItem(item, &state)   // 批次⑤：子智能体状态迁移
-            // reasoning 收尾：若完成事件带了最终 summary/content，且本地为空则补落（不覆盖已累加的 delta）。
-            if item["type"] as? String == "reasoning" {
+            switch item["type"] as? String {
+            case "reasoning":
+                // 收尾：完成事件带最终文本且本地为空时补落（不覆盖已累加 delta）。
                 finishReasoning(id: id, fallbackText: reasoningText(from: item), &state)
-                return
+            case "commandExecution":
+                let status = CommandStatus(rawValue: item["status"] as? String ?? "") ?? .completed
+                finishCommand(id: id, status: status,
+                              exitCode: optionalInt(item["exitCode"]),
+                              durationMs: optionalInt(item["durationMs"]),
+                              fallbackOutput: item["aggregatedOutput"] as? String ?? "", &state)
+            case "userMessage", "agentMessage":
+                break   // started 已建项；完成态无额外最终字段。
+            case "fileChange":
+                // 完成事件若带 changes（含 diff），落最终态；无 changes 则保留 started/patchUpdated 结果。
+                if item["changes"] != nil, let ci = parseItem(item) {
+                    absorb(ci, replace: true, &state)
+                }
+            default:
+                // 静态类型：完成态字段最全，整体替换落地。
+                if let ci = parseItem(item) { absorb(ci, replace: true, &state) }
             }
-            let status = CommandStatus(rawValue: item["status"] as? String ?? "") ?? .completed
-            finishCommand(id: id, status: status,
-                          exitCode: optionalInt(item["exitCode"]),
-                          durationMs: optionalInt(item["durationMs"]), &state)
 
         default:
             break
+        }
+    }
+
+    // MARK: - 统一解析入口（D2：live 与 history 共用最终态解析）
+
+    /// 一个完整 item dict → ConversationItem。
+    /// 已识别 type 一律返回具体 case；未识别 type → .unknown（D4，绝不静默丢弃）；仅 id 缺失返回 nil。
+    /// 每种解析对缺失字段给默认值，单字段缺失不丢整条。
+    func parseItem(_ item: [String: Any]) -> ConversationItem? {
+        guard let id = item["id"] as? String else { return nil }
+        switch item["type"] as? String {
+        case "userMessage":
+            return .userMessage(id: id, text: textFromContent(item["content"]))
+        case "agentMessage":
+            return .agentMessage(id: id, text: item["text"] as? String ?? "")
+        case "reasoning":
+            return .reasoning(id: id, text: reasoningText(from: item))
+        case "commandExecution":
+            let status = CommandStatus(rawValue: item["status"] as? String ?? "") ?? .inProgress
+            return .commandExecution(id: id,
+                                     command: item["command"] as? String ?? "",
+                                     output: item["aggregatedOutput"] as? String ?? "",
+                                     status: status,
+                                     exitCode: optionalInt(item["exitCode"]),
+                                     durationMs: optionalInt(item["durationMs"]))
+        case "fileChange":
+            let changes = item["changes"] as? [[String: Any]] ?? []
+            let combined = changes.compactMap { $0["diff"] as? String }.joined(separator: "\n")
+            let stat = TurnDiffStats.parse(combined)
+            return .fileChange(id: id,
+                               file: changes.first?["path"] as? String ?? "",
+                               added: stat.added, removed: stat.removed, diff: combined)
+        case "mcpToolCall":
+            return .mcpToolCall(id: id,
+                                server: item["server"] as? String ?? "",
+                                tool: item["tool"] as? String ?? "",
+                                status: item["status"] as? String ?? "",
+                                result: mcpResultSummary(item["result"]),
+                                durationMs: optionalInt(item["durationMs"]))
+        case "dynamicToolCall":
+            return .dynamicToolCall(id: id,
+                                    namespace: item["namespace"] as? String ?? "",
+                                    tool: item["tool"] as? String ?? "",
+                                    status: item["status"] as? String ?? "",
+                                    success: item["success"] as? Bool)
+        case "webSearch":
+            return .webSearch(id: id,
+                              query: item["query"] as? String ?? "",
+                              action: item["action"] as? String ?? "")
+        case "contextCompaction":
+            return .contextCompaction(id: id)
+        case "imageGeneration":
+            return .imageGeneration(id: id,
+                                    status: item["status"] as? String ?? "",
+                                    revisedPrompt: item["revisedPrompt"] as? String ?? "",
+                                    savedPath: item["savedPath"] as? String ?? "")
+        case "imageView":
+            return .imageView(id: id, path: item["path"] as? String ?? "")
+        case "enteredReviewMode":
+            return .enteredReviewMode(id: id)
+        case "exitedReviewMode":
+            return .exitedReviewMode(id: id)
+        case "hookPrompt":
+            return .hookPrompt(id: id, fragments: textFromContent(item["fragments"]))
+        case "plan":
+            return .plan(id: id, text: planText(from: item))
+        case "collabAgentToolCall":
+            return .collabAgentToolCall(id: id)
+        case "subAgentActivity":
+            return .subAgentActivity(id: id)
+        case let other?:
+            return .unknown(id: id, type: other)
+        case nil:
+            return .unknown(id: id, type: "")
+        }
+    }
+
+    /// mcpToolCall.result 摘要：字符串直用；数组（content 片段）拼接；结构体取 content；否则空串。
+    private func mcpResultSummary(_ any: Any?) -> String {
+        if let s = any as? String { return s }
+        if let arr = any as? [[String: Any]] { return textFromContent(arr) }
+        if let d = any as? [String: Any] { return textFromContent(d["content"]) }
+        return ""
+    }
+
+    /// plan item 文本：优先 text 字段，否则拼接步骤 step。
+    private func planText(from item: [String: Any]) -> String {
+        if let t = item["text"] as? String { return t }
+        let steps = (item["plan"] as? [[String: Any]]) ?? (item["steps"] as? [[String: Any]]) ?? []
+        return steps.compactMap { $0["step"] as? String }.joined(separator: "\n")
+    }
+
+    /// 把 parseItem 结果并入可见 items。
+    /// collab/subAgent 已由 applySubAgentItem 聚合进 state.subAgents，不作可见卡片（与 live 一致）。
+    private func absorb(_ ci: ConversationItem, replace: Bool, _ s: inout ConversationState) {
+        switch ci {
+        case .collabAgentToolCall, .subAgentActivity:
+            return
+        default:
+            if replace { upsertOrReplace(ci, &s) } else { upsert(ci, &s) }
+        }
+    }
+
+    /// 按 id 存在则整体替换（落最终态字段），否则追加。用于非流式静态类型。
+    private func upsertOrReplace(_ item: ConversationItem, _ s: inout ConversationState) {
+        if let i = s.items.firstIndex(where: { $0.id == item.id }) {
+            s.items[i] = item
+        } else {
+            s.items.append(item)
         }
     }
 
@@ -141,30 +264,21 @@ struct ThreadReducer {
     }
 
     private func ingestHistoryItem(_ item: [String: Any], _ s: inout ConversationState) {
-        guard let id = item["id"] as? String else { return }
-        switch item["type"] as? String {
-        case "userMessage":
-            upsert(.userMessage(id: id, text: textFromContent(item["content"])), &s)
-        case "agentMessage":
-            upsert(.agentMessage(id: id, text: item["text"] as? String ?? ""), &s)
-        case "reasoning":
-            upsert(.reasoning(id: id, text: reasoningText(from: item)), &s)
-        case "fileChange":
-            let changes = item["changes"] as? [[String: Any]] ?? []
-            let first = changes.first
-            upsert(.fileChange(id: id,
-                               file: first?["path"] as? String ?? "",
-                               added: 0, removed: 0,
-                               diff: first?["diff"] as? String ?? ""), &s)
-        default:
-            break   // 暂不渲染的历史 item 类型
-        }
+        guard item["id"] is String else { return }
+        applySubAgentItem(item, &s)          // 子智能体聚合，与 live 一致（Task 5.2）
+        guard let ci = parseItem(item) else { return }
+        absorb(ci, replace: false, &s)       // history 单次摄入，first-write-wins
     }
 
-    /// 从 userMessage.content（[{type:"text", text}]）拼接出纯文本。
+    /// 从 content 拼纯文本。兼容两种形态：
+    ///   - v2:   ["文本1", "文本2"]（Array<string>）
+    ///   - 遗留: [{"type":"...","text":"..."}]
     private func textFromContent(_ content: Any?) -> String {
-        guard let parts = content as? [[String: Any]] else { return "" }
-        return parts.compactMap { $0["text"] as? String }.joined()
+        if let strs = content as? [String] { return strs.joined(separator: "\n") }
+        if let parts = content as? [[String: Any]] {
+            return parts.compactMap { $0["text"] as? String }.joined()
+        }
+        return ""
     }
 
     // MARK: - mutators
@@ -287,11 +401,14 @@ struct ThreadReducer {
     }
 
     private func finishCommand(id: String, status: CommandStatus,
-                               exitCode: Int?, durationMs: Int?, _ s: inout ConversationState) {
+                               exitCode: Int?, durationMs: Int?,
+                               fallbackOutput: String = "", _ s: inout ConversationState) {
         guard let i = s.items.firstIndex(where: { $0.id == id }),
               case .commandExecution(_, let c, let o, _, _, _) = s.items[i] else { return }
         // completed/failed/declined 都视为命令已结束，落终态字段。
-        s.items[i] = .commandExecution(id: id, command: c, output: o,
+        // output 优先保留 delta 累加值；若 delta 未到（如纯 aggregatedOutput 完成事件），用兜底补落。
+        let output = o.isEmpty ? fallbackOutput : o
+        s.items[i] = .commandExecution(id: id, command: c, output: output,
                                        status: status, exitCode: exitCode, durationMs: durationMs)
     }
 

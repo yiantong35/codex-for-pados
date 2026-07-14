@@ -74,6 +74,94 @@ struct ItemCard: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+
+        case .unknown(_, let type):
+            HStack(spacing: 6) {
+                Image(systemName: "questionmark.diamond").foregroundStyle(.secondary)
+                Text("conv.item.unknown").font(.caption).foregroundStyle(.secondary)
+                if !type.isEmpty {
+                    Text(type).font(.caption.monospaced()).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(8)
+            .background(Color.secondary.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+        case .mcpToolCall(_, let server, let tool, let status, let result, let durationMs):
+            toolCard(icon: "wrench.and.screwdriver",
+                     prefixKey: "conv.item.mcp",
+                     title: server.isEmpty ? tool : "\(server) / \(tool)",
+                     status: status, detail: result, durationMs: durationMs)
+
+        case .dynamicToolCall(_, let namespace, let tool, let status, let success):
+            let effStatus = status.isEmpty
+                ? (success == true ? "success" : (success == false ? "failed" : ""))
+                : status
+            toolCard(icon: "hammer",
+                     prefixKey: "conv.item.dynamicTool",
+                     title: namespace.isEmpty ? tool : "\(namespace):\(tool)",
+                     status: effStatus, detail: "", durationMs: nil)
+
+        case .webSearch(_, let query, let action):
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                Text("conv.item.webSearch").font(.caption).foregroundStyle(.secondary)
+                Text(query).font(.callout).lineLimit(2)
+                if !action.isEmpty {
+                    Text("· \(action)").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+        case .contextCompaction:
+            eventBar(icon: "arrow.down.right.and.arrow.up.left", textKey: "conv.item.compaction")
+
+        case .enteredReviewMode:
+            eventBar(icon: "eye", textKey: "conv.item.reviewEntered")
+
+        case .exitedReviewMode:
+            eventBar(icon: "eye.slash", textKey: "conv.item.reviewExited")
+
+        case .hookPrompt(_, let fragments):
+            eventBar(icon: "link", textKey: "conv.item.hook", detail: fragments)
+
+        case .imageGeneration(_, let status, let revisedPrompt, let savedPath):
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "photo").foregroundStyle(.secondary)
+                    Text("conv.item.imageGen").font(.caption).foregroundStyle(.secondary)
+                    if !status.isEmpty { Text(status).font(.caption).foregroundStyle(.secondary) }
+                    Spacer(minLength: 0)
+                }
+                if !revisedPrompt.isEmpty {
+                    Text(revisedPrompt).font(.footnote).foregroundStyle(.secondary).lineLimit(3)
+                }
+                if !savedPath.isEmpty {
+                    Text(savedPath).font(.caption.monospaced()).foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.middle)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+        case .imageView(_, let path):
+            HStack(spacing: 6) {
+                Image(systemName: "photo.on.rectangle").foregroundStyle(.secondary)
+                Text("conv.item.imageView").font(.caption).foregroundStyle(.secondary)
+                Text(path).font(.caption.monospaced()).foregroundStyle(.secondary)
+                    .lineLimit(1).truncationMode(.middle)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+        case .plan(_, let text):
+            eventBar(icon: "list.bullet.clipboard", textKey: "conv.item.plan", detail: text)
+
+        // 子智能体项聚合进右栏子智能体面板（state.subAgents），主对话流不重复渲染。
+        case .collabAgentToolCall, .subAgentActivity:
+            EmptyView()
         }
     }
 
@@ -128,6 +216,48 @@ struct ItemCard: View {
         case .failed:     return .red
         case .declined:   return .secondary
         }
+    }
+
+    // MARK: - 通用卡片帮助函数
+
+    /// 工具类卡片：[icon] 前缀 · 标题 · 状态 · 结果摘要 · 耗时。
+    @ViewBuilder
+    private func toolCard(icon: String, prefixKey: LocalizedStringKey, title: String,
+                          status: String, detail: String, durationMs: Int?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: icon).foregroundStyle(.secondary)
+                Text(prefixKey).font(.caption).foregroundStyle(.secondary)
+                Text(title).font(.callout.monospaced()).lineLimit(1).truncationMode(.middle)
+                Spacer(minLength: 8)
+                if !status.isEmpty {
+                    Text(status).font(.caption).foregroundStyle(.secondary)
+                }
+                if let durationMs {
+                    Text("conv.cmd.duration \(durationMs)")
+                        .font(.caption.monospaced()).foregroundStyle(.secondary)
+                }
+            }
+            if !detail.isEmpty {
+                Text(detail).font(.footnote).foregroundStyle(.secondary).lineLimit(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 事件类单行提示条：[icon] 文案 · 可选详情，次要色。
+    @ViewBuilder
+    private func eventBar(icon: String, textKey: LocalizedStringKey, detail: String = "") -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon).font(.caption).foregroundStyle(.secondary)
+            Text(textKey).font(.caption).foregroundStyle(.secondary)
+            if !detail.isEmpty {
+                Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
