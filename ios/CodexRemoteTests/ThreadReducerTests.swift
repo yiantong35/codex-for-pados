@@ -426,6 +426,15 @@ final class ThreadReducerTests: XCTestCase {
         XCTAssertNil(dm)
     }
 
+    // mcp result 为 content 片段数组时应拼出文本（常见 MCP 结果形态）。
+    func testMcpToolCallArrayResultSummary() {
+        guard case .mcpToolCall(_, _, _, _, let result, _)? = ThreadReducer().parseItem([
+            "id": "M3", "type": "mcpToolCall", "server": "fs", "tool": "read",
+            "result": [["type": "text", "text": "文件内容"]] as [[String: Any]]
+        ]) else { return XCTFail("应解析 mcpToolCall") }
+        XCTAssertEqual(result, "文件内容")
+    }
+
     // MARK: - Task 4: 会话事件类解析
 
     func testContextCompactionParses() {
@@ -512,6 +521,22 @@ final class ThreadReducerTests: XCTestCase {
         // 都不作可见卡片
         XCTAssertTrue(hs.items.isEmpty, "collab/subAgent 不应进入可见 items")
         XCTAssertTrue(ls.items.isEmpty)
+    }
+
+    // fileChange live 与 history 一致：completed 携带 changes/diff 时 live 也应落完整 diff。
+    func testLiveFileChangeCompletedMatchesHistory() {
+        let diff = "diff --git a/a.swift b/a.swift\n--- a/a.swift\n+++ b/a.swift\n@@ -0,0 +1 @@\n+x"
+        let item: [String: Any] = [
+            "id": "FC1", "type": "fileChange",
+            "changes": [["path": "a.swift", "kind": ["type": "update"], "diff": diff]] as [[String: Any]]
+        ]
+        XCTAssertEqual(liveItems(item).items, historyItems(item).items)
+        guard case .fileChange(_, let file, let added, _, let d)? = liveItems(item).items.first else {
+            return XCTFail("live 应有 fileChange")
+        }
+        XCTAssertEqual(file, "a.swift")
+        XCTAssertEqual(added, 1)
+        XCTAssertTrue(d.contains("a.swift"))
     }
 
     // helpers

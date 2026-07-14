@@ -113,8 +113,13 @@ struct ThreadReducer {
                               exitCode: optionalInt(item["exitCode"]),
                               durationMs: optionalInt(item["durationMs"]),
                               fallbackOutput: item["aggregatedOutput"] as? String ?? "", &state)
-            case "userMessage", "agentMessage", "fileChange":
-                break   // started 已建项；完成态无额外最终字段（fileChange 走 patchUpdated）。
+            case "userMessage", "agentMessage":
+                break   // started 已建项；完成态无额外最终字段。
+            case "fileChange":
+                // 完成事件若带 changes（含 diff），落最终态；无 changes 则保留 started/patchUpdated 结果。
+                if item["changes"] != nil, let ci = parseItem(item) {
+                    absorb(ci, replace: true, &state)
+                }
             default:
                 // 静态类型：完成态字段最全，整体替换落地。
                 if let ci = parseItem(item) { absorb(ci, replace: true, &state) }
@@ -199,9 +204,10 @@ struct ThreadReducer {
         }
     }
 
-    /// mcpToolCall.result 摘要：字符串直用；结构体尝试取 content 文本；否则空串。
+    /// mcpToolCall.result 摘要：字符串直用；数组（content 片段）拼接；结构体取 content；否则空串。
     private func mcpResultSummary(_ any: Any?) -> String {
         if let s = any as? String { return s }
+        if let arr = any as? [[String: Any]] { return textFromContent(arr) }
         if let d = any as? [String: Any] { return textFromContent(d["content"]) }
         return ""
     }
