@@ -128,9 +128,39 @@ struct ItemCard: View {
         case .hookPrompt(_, let fragments):
             eventBar(icon: "link", textKey: "conv.item.hook", detail: fragments)
 
-        // Task 5 补齐正式卡片；先占位过编译。
-        case .imageGeneration, .imageView, .plan,
-             .collabAgentToolCall, .subAgentActivity:
+        case .imageGeneration(_, let status, let revisedPrompt, let savedPath):
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "photo").foregroundStyle(.secondary)
+                    Text("conv.item.imageGen").font(.caption).foregroundStyle(.secondary)
+                    if !status.isEmpty { Text(status).font(.caption).foregroundStyle(.secondary) }
+                    Spacer(minLength: 0)
+                }
+                if !revisedPrompt.isEmpty {
+                    Text(revisedPrompt).font(.footnote).foregroundStyle(.secondary).lineLimit(3)
+                }
+                if !savedPath.isEmpty {
+                    Text(savedPath).font(.caption.monospaced()).foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.middle)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+        case .imageView(_, let path):
+            HStack(spacing: 6) {
+                Image(systemName: "photo.on.rectangle").foregroundStyle(.secondary)
+                Text("conv.item.imageView").font(.caption).foregroundStyle(.secondary)
+                Text(path).font(.caption.monospaced()).foregroundStyle(.secondary)
+                    .lineLimit(1).truncationMode(.middle)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+        case .plan(_, let text):
+            eventBar(icon: "list.bullet.clipboard", textKey: "conv.item.plan", detail: text)
+
+        // 子智能体项聚合进右栏子智能体面板（state.subAgents），主对话流不重复渲染。
+        case .collabAgentToolCall, .subAgentActivity:
             EmptyView()
         }
     }

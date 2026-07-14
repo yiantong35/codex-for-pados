@@ -460,6 +460,60 @@ final class ThreadReducerTests: XCTestCase {
         XCTAssertEqual(f2, "c")
     }
 
+    // MARK: - Task 5: 图像 / 子智能体 / plan
+
+    func testImageGenerationParses() {
+        guard case .imageGeneration(_, let status, let prompt, let path)? =
+            ThreadReducer().parseItem([
+                "id": "IG1", "type": "imageGeneration", "status": "completed",
+                "revisedPrompt": "a cat", "savedPath": "/tmp/cat.png"
+            ]) else { return XCTFail("应解析 imageGeneration") }
+        XCTAssertEqual([status, prompt, path], ["completed", "a cat", "/tmp/cat.png"])
+    }
+
+    func testImageViewParses() {
+        guard case .imageView(_, let path)? =
+            ThreadReducer().parseItem(["id": "IV1", "type": "imageView", "path": "/tmp/x.png"]) else {
+            return XCTFail("应解析 imageView")
+        }
+        XCTAssertEqual(path, "/tmp/x.png")
+    }
+
+    func testPlanItemParses() {
+        guard case .plan(_, let text)? = ThreadReducer().parseItem([
+            "id": "P1", "type": "plan",
+            "steps": [["step": "读", "status": "completed"], ["step": "写", "status": "pending"]] as [[String: Any]]
+        ]) else { return XCTFail("应解析 plan") }
+        XCTAssertEqual(text, "读\n写")
+    }
+
+    // 子智能体：history 聚合进 state.subAgents，与 live 一致；且不作可见卡片。
+    func testSubAgentHistoryAggregationMatchesLive() {
+        let collab: [String: Any] = [
+            "id": "S1", "type": "collabAgentToolCall",
+            "agentsStates": ["tid-1": ["status": "running", "message": "working"]]
+        ]
+        let activity: [String: Any] = [
+            "id": "S2", "type": "subAgentActivity",
+            "agentThreadId": "tid-1", "agentPath": "/repo/agent"
+        ]
+        // history
+        var hs = ConversationState(threadId: "t")
+        ThreadReducer().ingest(resumeResult: ["thread": ["turns": [["items": [collab, activity]]]]], to: &hs)
+        // live
+        var ls = ConversationState(threadId: "t")
+        let r = ThreadReducer()
+        r.apply(notif("item/started", ["item": collab]), to: &ls)
+        r.apply(notif("item/started", ["item": activity]), to: &ls)
+        // 聚合一致
+        XCTAssertEqual(hs.subAgents, ls.subAgents)
+        XCTAssertNotNil(hs.subAgents["tid-1"])
+        XCTAssertEqual(hs.subAgents["tid-1"]?.path, "/repo/agent")
+        // 都不作可见卡片
+        XCTAssertTrue(hs.items.isEmpty, "collab/subAgent 不应进入可见 items")
+        XCTAssertTrue(ls.items.isEmpty)
+    }
+
     // helpers
     private func notif(_ m: String, _ p: [String: Any]) -> JSONRPCNotification {
         JSONRPCNotification(method: m, params: AnyCodable(p))

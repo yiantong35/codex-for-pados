@@ -25,4 +25,13 @@ final class ItemCardRenderTests: XCTestCase {
         _ = ItemCard(item: .exitedReviewMode(id: "3")).body
         _ = ItemCard(item: .hookPrompt(id: "4", fragments: "hook body")).body
     }
+
+    func testImageAndPlanCardsBodyDoNotCrash() {
+        _ = ItemCard(item: .imageGeneration(id: "1", status: "completed",
+                                            revisedPrompt: "a cat", savedPath: "/tmp/c.png")).body
+        _ = ItemCard(item: .imageView(id: "2", path: "/tmp/x.png")).body
+        _ = ItemCard(item: .plan(id: "3", text: "读\n写")).body
+        _ = ItemCard(item: .collabAgentToolCall(id: "4")).body
+        _ = ItemCard(item: .subAgentActivity(id: "5")).body
+    }
 }
