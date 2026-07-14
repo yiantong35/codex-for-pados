@@ -194,6 +194,34 @@ extension ConversationStore {
     }
 }
 
+// MARK: - 审查发起（review/start，设计 D2/D3/D4）
+
+extension ConversationStore {
+    /// 发起一轮 AI 审查（review/start，inline 投递，结果经通知流回主对话回显）。
+    /// - `.full` → target: uncommittedChanges（服务端算工作区改动，不传 diff 文本）
+    /// - `.turn` → target: custom{instructions: turnDiff}（协议无「某一轮」原生 target）
+    /// 无 threadId 或 `.turn` 且 turnDiff 为空时不发请求。返回是否发出（供入口禁用/测试断言）。
+    @discardableResult
+    func startReview(mode: ReviewSourceMode) async -> Bool {
+        let threadId = state.threadId
+        guard !threadId.isEmpty else { return false }
+
+        let target: ReviewTarget
+        switch mode {
+        case .full:
+            target = .uncommittedChanges
+        case .turn:
+            let diff = state.turnDiff.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !diff.isEmpty else { return false }
+            target = .custom(instructions: "请审查以下改动：\n\(state.turnDiff)")
+        }
+
+        let params = ReviewStartParams(threadId: threadId, target: target, delivery: .inline)
+        Task { [weak self] in _ = try? await self?.call(RPCMethod.reviewStart, params) }
+        return true
+    }
+}
+
 // MARK: - Task 17：中途控制（steer / 排队 / interrupt）
 
 extension ConversationStore {
