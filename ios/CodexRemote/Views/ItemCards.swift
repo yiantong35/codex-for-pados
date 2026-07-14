@@ -89,8 +89,35 @@ struct ItemCard: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .frame(maxWidth: .infinity, alignment: .leading)
 
-        // Task 3–5 补齐正式卡片；先占位过编译。
-        case .mcpToolCall, .dynamicToolCall, .webSearch, .contextCompaction,
+        case .mcpToolCall(_, let server, let tool, let status, let result, let durationMs):
+            toolCard(icon: "wrench.and.screwdriver",
+                     prefixKey: "conv.item.mcp",
+                     title: server.isEmpty ? tool : "\(server) / \(tool)",
+                     status: status, detail: result, durationMs: durationMs)
+
+        case .dynamicToolCall(_, let namespace, let tool, let status, let success):
+            let effStatus = status.isEmpty
+                ? (success == true ? "success" : (success == false ? "failed" : ""))
+                : status
+            toolCard(icon: "hammer",
+                     prefixKey: "conv.item.dynamicTool",
+                     title: namespace.isEmpty ? tool : "\(namespace):\(tool)",
+                     status: effStatus, detail: "", durationMs: nil)
+
+        case .webSearch(_, let query, let action):
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                Text("conv.item.webSearch").font(.caption).foregroundStyle(.secondary)
+                Text(query).font(.callout).lineLimit(2)
+                if !action.isEmpty {
+                    Text("· \(action)").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+        // Task 4–5 补齐正式卡片；先占位过编译。
+        case .contextCompaction,
              .imageGeneration, .imageView, .enteredReviewMode, .exitedReviewMode,
              .hookPrompt, .plan, .collabAgentToolCall, .subAgentActivity:
             EmptyView()
@@ -148,6 +175,34 @@ struct ItemCard: View {
         case .failed:     return .red
         case .declined:   return .secondary
         }
+    }
+
+    // MARK: - 通用卡片帮助函数
+
+    /// 工具类卡片：[icon] 前缀 · 标题 · 状态 · 结果摘要 · 耗时。
+    @ViewBuilder
+    private func toolCard(icon: String, prefixKey: LocalizedStringKey, title: String,
+                          status: String, detail: String, durationMs: Int?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: icon).foregroundStyle(.secondary)
+                Text(prefixKey).font(.caption).foregroundStyle(.secondary)
+                Text(title).font(.callout.monospaced()).lineLimit(1).truncationMode(.middle)
+                Spacer(minLength: 8)
+                if !status.isEmpty {
+                    Text(status).font(.caption).foregroundStyle(.secondary)
+                }
+                if let durationMs {
+                    Text("conv.cmd.duration \(durationMs)")
+                        .font(.caption.monospaced()).foregroundStyle(.secondary)
+                }
+            }
+            if !detail.isEmpty {
+                Text(detail).font(.footnote).foregroundStyle(.secondary).lineLimit(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

@@ -385,6 +385,47 @@ final class ThreadReducerTests: XCTestCase {
         XCTAssertTrue(diff.contains("a.swift") && diff.contains("b.swift"))  // 合并含两文件
     }
 
+    // MARK: - Task 3: 工具调用类解析
+
+    func testMcpToolCallParses() {
+        guard case .mcpToolCall(let id, let server, let tool, let status, let result, let dm)? =
+            ThreadReducer().parseItem([
+                "id": "M1", "type": "mcpToolCall", "server": "fs", "tool": "read",
+                "status": "completed", "result": "ok", "durationMs": 8
+            ]) else { return XCTFail("应解析 mcpToolCall") }
+        XCTAssertEqual([id, server, tool, status, result], ["M1", "fs", "read", "completed", "ok"])
+        XCTAssertEqual(dm, 8)
+    }
+
+    func testDynamicToolCallParses() {
+        guard case .dynamicToolCall(_, let ns, let tool, let status, let success)? =
+            ThreadReducer().parseItem([
+                "id": "D1", "type": "dynamicToolCall", "namespace": "shell",
+                "tool": "exec", "status": "completed", "success": true
+            ]) else { return XCTFail("应解析 dynamicToolCall") }
+        XCTAssertEqual([ns, tool, status], ["shell", "exec", "completed"])
+        XCTAssertEqual(success, true)
+    }
+
+    func testWebSearchParses() {
+        guard case .webSearch(_, let query, let action)? =
+            ThreadReducer().parseItem([
+                "id": "W1", "type": "webSearch", "query": "swift", "action": "search"
+            ]) else { return XCTFail("应解析 webSearch") }
+        XCTAssertEqual([query, action], ["swift", "search"])
+    }
+
+    // 缺省容错：单字段缺失不丢整条。
+    func testMcpToolCallMissingFieldsDefaults() {
+        guard case .mcpToolCall(_, let server, _, _, let result, let dm)? =
+            ThreadReducer().parseItem(["id": "M2", "type": "mcpToolCall", "tool": "x"]) else {
+            return XCTFail("缺字段也应产出 mcpToolCall")
+        }
+        XCTAssertEqual(server, "")
+        XCTAssertEqual(result, "")
+        XCTAssertNil(dm)
+    }
+
     // helpers
     private func notif(_ m: String, _ p: [String: Any]) -> JSONRPCNotification {
         JSONRPCNotification(method: m, params: AnyCodable(p))

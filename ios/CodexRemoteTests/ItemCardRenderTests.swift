@@ -10,4 +10,12 @@ final class ItemCardRenderTests: XCTestCase {
     func testUnknownCardBodyDoesNotCrash() {
         _ = ItemCard(item: .unknown(id: "x", type: "futureType")).body
     }
+
+    func testToolCardsBodyDoNotCrash() {
+        _ = ItemCard(item: .mcpToolCall(id: "1", server: "fs", tool: "read",
+                                        status: "completed", result: "ok", durationMs: 8)).body
+        _ = ItemCard(item: .dynamicToolCall(id: "2", namespace: "shell", tool: "exec",
+                                            status: "completed", success: true)).body
+        _ = ItemCard(item: .webSearch(id: "3", query: "swift", action: "search")).body
+    }
 }
