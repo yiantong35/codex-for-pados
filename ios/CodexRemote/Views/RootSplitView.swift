@@ -68,55 +68,58 @@ struct RootSplitView: View {
     private var summaryEnvKey: String { "\(showSummary)-\(selectedThreadId ?? "")-\(connection.phase == .ready)" }
 
     var body: some View {
-        split
-            // 摘要：常驻悬浮浮层（design D2 改）。用 overlay 而非 .popover，故点击别处不收回，
-            // 仅由顶栏摘要按钮显隐。overlay 放在 safeAreaInset 之前 → 浮层落在顶栏「下方」内容区，
-            // 不会遮挡顶栏按钮（否则会盖住摘要按钮本身导致收不回）。
-            .overlay(alignment: .topTrailing) {
-                if showSummary {
-                    SummaryPopoverView(state: activeConversation.state, thread: selectedThread, env: envInspector)
-                        .frame(width: 340)
-                        .task(id: summaryEnvKey) {
-                            if connection.phase == .ready, let rpc = connection.rpc {
-                                envInspector.attach(rpc: rpc)
-                                await envInspector.refresh(cwd: selectedThread?.cwd)
+        // 下栏改为 VStack 兄弟槽（不再用 split 的 .safeAreaInset(.bottom)）：
+        // 根因——safeAreaInset(.bottom) 挂在 NavigationSplitView 上时，其系统列(sidebar/detail)
+        // 以 maxHeight:.infinity 填满、不吃底部 inset，导致下栏覆盖而非上推挤压（Task 6 诊断实测：
+        // 展开前后 detail 全局 frame 完全一致 maxY=1190）。放进 VStack 让下栏占真实布局槽 → split 被挤压。
+        // 顶栏仍用 split 自身的 safeAreaInset(.top)（该方向系统列正常响应），摘要 overlay 也仍挂 split。
+        VStack(spacing: 0) {
+            split
+                // 摘要：常驻悬浮浮层（design D2 改）。用 overlay 而非 .popover，故点击别处不收回，
+                // 仅由顶栏摘要按钮显隐。overlay 放在 safeAreaInset 之前 → 浮层落在顶栏「下方」内容区，
+                // 不会遮挡顶栏按钮（否则会盖住摘要按钮本身导致收不回）。
+                .overlay(alignment: .topTrailing) {
+                    if showSummary {
+                        SummaryPopoverView(state: activeConversation.state, thread: selectedThread, env: envInspector)
+                            .frame(width: 340)
+                            .task(id: summaryEnvKey) {
+                                if connection.phase == .ready, let rpc = connection.rpc {
+                                    envInspector.attach(rpc: rpc)
+                                    await envInspector.refresh(cwd: selectedThread?.cwd)
+                                }
                             }
-                        }
-                        .frame(maxHeight: 480)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-                        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))
-                        .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
-                        .padding(.top, 8)
-                        .padding(.trailing, 12)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-            }
-            // 下栏：全宽外层 safeAreaInset，横跨左+中+右、把 split 整体上推（design D2，压所有）。
-            // 与顶栏 safeAreaInset 对称；不 VStack 包裹 split → 不破坏系统列/inspector 拖动。
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if showBottomPanel {
-                    VStack(spacing: 0) {
-                        Divider()
-                        BottomPanelView(height: $bottomHeight, cwd: selectedThread?.cwd)
+                            .frame(maxHeight: 480)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+                            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))
+                            .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
+                            .padding(.top, 8)
+                            .padding(.trailing, 12)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                     }
+                }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    VStack(spacing: 0) {
+                        topBar
+                        Divider()
+                    }
+                }
+
+            // 下栏：VStack 底部兄弟槽，横跨左+中+右、把 split 挤压上移（design D2 目标，改用 VStack 实现）。
+            if showBottomPanel {
+                Divider()
+                BottomPanelView(height: $bottomHeight, cwd: selectedThread?.cwd)
                     // 从底部滑入/滑出，配合顶栏按钮的 withAnimation，弹出不再僵硬（#1）。
                     .transition(.move(edge: .bottom))
-                }
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                VStack(spacing: 0) {
-                    topBar
-                    Divider()
-                }
+        }
+        .onChange(of: activeConversation.requestRightPanel) { _, req in
+            if req {
+                withAnimation { showRightPanel = true }
+                activeConversation.requestRightPanel = false
             }
-            .onChange(of: activeConversation.requestRightPanel) { _, req in
-                if req {
-                    withAnimation { showRightPanel = true }
-                    activeConversation.requestRightPanel = false
-                }
-            }
-            .environment(activeConversation)
-            .sheet(isPresented: $showSettings) { SettingsPageView(systemColorScheme: systemColorScheme) }
+        }
+        .environment(activeConversation)
+        .sheet(isPresented: $showSettings) { SettingsPageView(systemColorScheme: systemColorScheme) }
     }
 
     // MARK: - 顶部固定全局工具栏：左面板 · 下面板 · 右面板 · 摘要(:≡) · 设置
