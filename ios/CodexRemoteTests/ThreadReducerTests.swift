@@ -426,6 +426,40 @@ final class ThreadReducerTests: XCTestCase {
         XCTAssertNil(dm)
     }
 
+    // MARK: - Task 4: 会话事件类解析
+
+    func testContextCompactionParses() {
+        guard case .contextCompaction(let id)? =
+            ThreadReducer().parseItem(["id": "K1", "type": "contextCompaction"]) else {
+            return XCTFail("应解析 contextCompaction")
+        }
+        XCTAssertEqual(id, "K1")
+    }
+
+    func testReviewModeParses() {
+        guard case .enteredReviewMode? =
+            ThreadReducer().parseItem(["id": "E1", "type": "enteredReviewMode"]) else {
+            return XCTFail("应解析 enteredReviewMode")
+        }
+        guard case .exitedReviewMode? =
+            ThreadReducer().parseItem(["id": "E2", "type": "exitedReviewMode"]) else {
+            return XCTFail("应解析 exitedReviewMode")
+        }
+    }
+
+    func testHookPromptParsesFragments() {
+        // fragments 兼容 Array<string> 与 [{text}]
+        guard case .hookPrompt(_, let f1)? = ThreadReducer().parseItem([
+            "id": "H1", "type": "hookPrompt", "fragments": ["a", "b"] as [String]
+        ]) else { return XCTFail("应解析 hookPrompt") }
+        XCTAssertEqual(f1, "a\nb")
+        guard case .hookPrompt(_, let f2)? = ThreadReducer().parseItem([
+            "id": "H2", "type": "hookPrompt",
+            "fragments": [["type": "text", "text": "c"]] as [[String: Any]]
+        ]) else { return XCTFail("应解析 hookPrompt") }
+        XCTAssertEqual(f2, "c")
+    }
+
     // helpers
     private func notif(_ m: String, _ p: [String: Any]) -> JSONRPCNotification {
         JSONRPCNotification(method: m, params: AnyCodable(p))

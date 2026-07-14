@@ -116,10 +116,21 @@ struct ItemCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-        // Task 4–5 补齐正式卡片；先占位过编译。
-        case .contextCompaction,
-             .imageGeneration, .imageView, .enteredReviewMode, .exitedReviewMode,
-             .hookPrompt, .plan, .collabAgentToolCall, .subAgentActivity:
+        case .contextCompaction:
+            eventBar(icon: "arrow.down.right.and.arrow.up.left", textKey: "conv.item.compaction")
+
+        case .enteredReviewMode:
+            eventBar(icon: "eye", textKey: "conv.item.reviewEntered")
+
+        case .exitedReviewMode:
+            eventBar(icon: "eye.slash", textKey: "conv.item.reviewExited")
+
+        case .hookPrompt(_, let fragments):
+            eventBar(icon: "link", textKey: "conv.item.hook", detail: fragments)
+
+        // Task 5 补齐正式卡片；先占位过编译。
+        case .imageGeneration, .imageView, .plan,
+             .collabAgentToolCall, .subAgentActivity:
             EmptyView()
         }
     }
@@ -201,6 +212,20 @@ struct ItemCard: View {
                 Text(detail).font(.footnote).foregroundStyle(.secondary).lineLimit(3)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 事件类单行提示条：[icon] 文案 · 可选详情，次要色。
+    @ViewBuilder
+    private func eventBar(icon: String, textKey: LocalizedStringKey, detail: String = "") -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon).font(.caption).foregroundStyle(.secondary)
+            Text(textKey).font(.caption).foregroundStyle(.secondary)
+            if !detail.isEmpty {
+                Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            }
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

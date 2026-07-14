@@ -18,4 +18,11 @@ final class ItemCardRenderTests: XCTestCase {
                                             status: "completed", success: true)).body
         _ = ItemCard(item: .webSearch(id: "3", query: "swift", action: "search")).body
     }
+
+    func testEventCardsBodyDoNotCrash() {
+        _ = ItemCard(item: .contextCompaction(id: "1")).body
+        _ = ItemCard(item: .enteredReviewMode(id: "2")).body
+        _ = ItemCard(item: .exitedReviewMode(id: "3")).body
+        _ = ItemCard(item: .hookPrompt(id: "4", fragments: "hook body")).body
+    }
 }
