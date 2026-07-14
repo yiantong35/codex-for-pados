@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// 审查 tab（原 RightPanelView，纯剪切进 tab 容器）：数据源切换（本轮/全量）+ 逐行红绿 diff。
-/// 逻辑与容器化之前完全一致，靠 ReviewPanelTests 回归兜底。
+/// 审查 tab：数据源切换（本轮/全量）+ 逐行红绿 diff（ReviewPanelView）+ AI 审查发起入口。
+/// 发起入口跟随当前数据源（设计 D1）：本轮→custom{turnDiff}、全量→uncommittedChanges，
+/// 经注入的 activeConversation.startReview 回调调 review/start（inline，结果回主对话回显）。
 struct ReviewTabView: View {
     @Environment(ActiveConversationHolder.self) private var activeConversation
     /// 全量 diff 拉取所需的工作目录（取自选中 thread；缺失则「全量」不可用）。
@@ -10,18 +11,43 @@ struct ReviewTabView: View {
     @State private var mode: ReviewSourceMode = .turn
     @State private var fullDiff: String?
     @State private var loadingFull = false
+    @State private var isStarting = false
 
     private var turnDiff: String { activeConversation.state?.turnDiff ?? "" }
     private var source: ReviewDiffSource {
         ReviewDiffSource.resolve(mode: mode, turnDiff: turnDiff, fullDiff: fullDiff)
     }
 
+    /// 当前数据源能否发起审查：回调已接线 + 对应数据源有效。
+    private var canStartReview: Bool {
+        guard activeConversation.startReview != nil, !isStarting else { return false }
+        switch mode {
+        case .turn: return !turnDiff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .full: return cwd != nil
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            Picker("数据源", selection: $mode) {
-                ForEach(ReviewSourceMode.allCases) { m in Text(m.label).tag(m) }
+            HStack(spacing: 8) {
+                Picker("数据源", selection: $mode) {
+                    ForEach(ReviewSourceMode.allCases) { m in Text(m.label).tag(m) }
+                }
+                .pickerStyle(.segmented)
+
+                Button {
+                    Task {
+                        isStarting = true
+                        _ = await activeConversation.startReview?(mode)
+                        isStarting = false
+                    }
+                } label: {
+                    Image(systemName: "sparkle.magnifyingglass")
+                }
+                .buttonStyle(.plain)
+                .disabled(!canStartReview)
+                .accessibilityLabel(Text("review.start"))
             }
-            .pickerStyle(.segmented)
             .padding(8)
 
             if loadingFull {
