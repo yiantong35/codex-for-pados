@@ -74,6 +74,26 @@ struct ItemCard: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+
+        case .unknown(_, let type):
+            HStack(spacing: 6) {
+                Image(systemName: "questionmark.diamond").foregroundStyle(.secondary)
+                Text("conv.item.unknown").font(.caption).foregroundStyle(.secondary)
+                if !type.isEmpty {
+                    Text(type).font(.caption.monospaced()).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(8)
+            .background(Color.secondary.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+        // Task 3–5 补齐正式卡片；先占位过编译。
+        case .mcpToolCall, .dynamicToolCall, .webSearch, .contextCompaction,
+             .imageGeneration, .imageView, .enteredReviewMode, .exitedReviewMode,
+             .hookPrompt, .plan, .collabAgentToolCall, .subAgentActivity:
+            EmptyView()
         }
     }
 

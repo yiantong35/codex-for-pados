@@ -293,9 +293,75 @@ final class ThreadReducerTests: XCTestCase {
         XCTAssertFalse(state.isTurnRunning, "turn/completed 应兜底清空进行中 item")
     }
 
+    // MARK: - Task 1: 统一解析 + reasoning 修复 + unknown 降级
+
+    // D3：reasoning content 为 v2 Array<string> 形态时应解析出文字（非空）。
+    func testReasoningArrayOfStringsParses() {
+        var s = ConversationState(threadId: "t")
+        ThreadReducer().apply(notif("item/completed", ["item": [
+            "id": "R1", "type": "reasoning",
+            "content": ["先看代码", "再改"] as [String]
+        ]]), to: &s)
+        guard case .reasoning(_, let text)? = s.items.first(where: { $0.id == "R1" }) else {
+            return XCTFail("应有 reasoning")
+        }
+        XCTAssertEqual(text, "先看代码\n再改")
+    }
+
+    // D3：遗留 [{type,text}] 形态仍可解析（兼容不回归）。
+    func testReasoningLegacyDictArrayStillParses() {
+        var s = ConversationState(threadId: "t")
+        ThreadReducer().apply(notif("item/completed", ["item": [
+            "id": "R2", "type": "reasoning",
+            "content": [["type": "text", "text": "旧格式"]] as [[String: Any]]
+        ]]), to: &s)
+        guard case .reasoning(_, let text)? = s.items.first(where: { $0.id == "R2" }) else {
+            return XCTFail("应有 reasoning")
+        }
+        XCTAssertEqual(text, "旧格式")
+    }
+
+    // D4：未识别 type → .unknown(id,type)，绝不丢弃。
+    func testUnknownTypeBecomesUnknownItem() {
+        let item: [String: Any] = ["id": "U1", "type": "someFutureType"]
+        guard case .unknown(let id, let type)? = ThreadReducer().parseItem(item) else {
+            return XCTFail("未知 type 应产出 .unknown")
+        }
+        XCTAssertEqual(id, "U1")
+        XCTAssertEqual(type, "someFutureType")
+    }
+
+    // D4：unknown 也真正进入 history items（不 default:break 丢弃）。
+    func testUnknownTypeIngestedInHistory() {
+        let s = historyItems(["id": "U1", "type": "someFutureType"])
+        guard case .unknown? = s.items.first else { return XCTFail("unknown 应被摄入") }
+    }
+
+    // D2 核心回归：同一 item dict 经 live 与 history 两路，产出一致的 items。
+    func testLiveAndHistoryProduceSameItemForStaticType() {
+        let item: [String: Any] = [
+            "id": "W1", "type": "webSearch", "query": "swift enum", "action": "search"
+        ]
+        XCTAssertEqual(liveItems(item).items, historyItems(item).items)
+    }
+
     // helpers
     private func notif(_ m: String, _ p: [String: Any]) -> JSONRPCNotification {
         JSONRPCNotification(method: m, params: AnyCodable(p))
+    }
+    // 走 live 两拍（started+completed）摄入单个 item dict。
+    private func liveItems(_ item: [String: Any]) -> ConversationState {
+        var s = ConversationState(threadId: "t")
+        let r = ThreadReducer()
+        r.apply(notif("item/started", ["item": item]), to: &s)
+        r.apply(notif("item/completed", ["item": item]), to: &s)
+        return s
+    }
+    // 走 history 摄入单个 item dict。
+    private func historyItems(_ item: [String: Any]) -> ConversationState {
+        var s = ConversationState(threadId: "t")
+        ThreadReducer().ingest(resumeResult: ["thread": ["turns": [["items": [item]]]]], to: &s)
+        return s
     }
     private func loadNotifs(_ name: String) throws -> [JSONRPCNotification] {
         let url = Bundle(for: type(of: self)).url(forResource: name, withExtension: "json")!

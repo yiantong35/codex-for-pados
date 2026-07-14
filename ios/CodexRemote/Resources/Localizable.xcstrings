@@ -1984,6 +1984,22 @@
           }
         }
       }
+    },
+    "conv.item.unknown": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "帮紧你，帮紧你"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "帮紧你，帮紧你"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -12,18 +12,45 @@ enum CommandStatus: String, Equatable {
 }
 
 /// 会话内的一条可渲染项。随流式事件累加（agent 正文 / 命令输出）。
+/// 会话内的一条可渲染项。随流式事件累加（agent 正文 / 命令输出）。
+/// 平铺 18 case：17 种 v2 ThreadItem + unknown 兜底（方案1）。
 enum ConversationItem: Identifiable, Equatable {
     case userMessage(id: String, text: String)
     case agentMessage(id: String, text: String)              // 随 delta 累加
-    case reasoning(id: String, text: String)                 // 思考/推理：随 reasoning textDelta/summaryTextDelta 累加
+    case reasoning(id: String, text: String)                 // 思考/推理：随 delta 累加
     case commandExecution(id: String, command: String, output: String,
                           status: CommandStatus, exitCode: Int?, durationMs: Int?)
     case fileChange(id: String, file: String, added: Int, removed: Int, diff: String)
+    // 新增（v2 协议已探明字段）
+    case mcpToolCall(id: String, server: String, tool: String,
+                     status: String, result: String, durationMs: Int?)
+    case dynamicToolCall(id: String, namespace: String, tool: String,
+                         status: String, success: Bool?)
+    case webSearch(id: String, query: String, action: String)
+    case contextCompaction(id: String)
+    case imageGeneration(id: String, status: String, revisedPrompt: String, savedPath: String)
+    case imageView(id: String, path: String)
+    case enteredReviewMode(id: String)
+    case exitedReviewMode(id: String)
+    case hookPrompt(id: String, fragments: String)
+    case plan(id: String, text: String)
+    // 子智能体项：聚合进 ConversationState.subAgents，不作可见卡片（见 ThreadReducer.absorb）。
+    case collabAgentToolCall(id: String)
+    case subAgentActivity(id: String)
+    case unknown(id: String, type: String)                   // D4：未识别 type 兜底，保留 type 备查
 
     var id: String {
         switch self {
         case .userMessage(let i, _), .agentMessage(let i, _), .reasoning(let i, _),
-             .commandExecution(let i, _, _, _, _, _), .fileChange(let i, _, _, _, _): return i
+             .commandExecution(let i, _, _, _, _, _), .fileChange(let i, _, _, _, _),
+             .mcpToolCall(let i, _, _, _, _, _), .dynamicToolCall(let i, _, _, _, _),
+             .webSearch(let i, _, _), .contextCompaction(let i),
+             .imageGeneration(let i, _, _, _), .imageView(let i, _),
+             .enteredReviewMode(let i), .exitedReviewMode(let i),
+             .hookPrompt(let i, _), .plan(let i, _),
+             .collabAgentToolCall(let i), .subAgentActivity(let i),
+             .unknown(let i, _):
+            return i
         }
     }
 }
