@@ -75,6 +75,7 @@
 		84A18F4EE4591FB4E5B73085 /* TerminalTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A84EDBFE836AF7DBF4037EA /* TerminalTypes.swift */; };
 		857DA199BA47CB2FE34937FF /* SidebarStatusBadgesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B3C59E77F035114A636C87 /* SidebarStatusBadgesTests.swift */; };
 		86EDA4A60ECC1981BFBD9F47 /* KeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143B36880763EB0B23DF98E5 /* KeyManager.swift */; };
+		87B97AD99B7A4399F10C1A2E /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 87B02C1FFD1A919E48906D14 /* SwiftTerm */; };
 		887D5ED994C791F9488720D1 /* RightPanelContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0275E1295AF8C61CD1A4E5A8 /* RightPanelContainerView.swift */; };
 		8924E2361FB43E1B59B0C06C /* ApprovalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 299CE3AF94910F633856C075 /* ApprovalStore.swift */; };
 		8AFABE458B76F5E22A83EE28 /* ReviewPanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F685AC990DC66E88E516025 /* ReviewPanelTests.swift */; };
@@ -108,6 +109,7 @@
 		CF18EA1565EE17F448E78A4C /* PanelEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F08F54E99F6B68924A02EFF3 /* PanelEmptyState.swift */; };
 		CF88C268482EBEEC5C7B8BB5 /* LanguageSettingsSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8890A254F84D5DA497E13E21 /* LanguageSettingsSectionView.swift */; };
 		CF8F6B2441D5F2864FF029F2 /* ConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9267A14CDE31BC18019A9A4 /* ConversationView.swift */; };
+		D262898294D2D6C8FD4E3FDF /* SwiftTermImportProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 173721C68F1C3F9A208DE198 /* SwiftTermImportProbe.swift */; };
 		D2F9F55619E9A03045CA0574 /* threadResumeHistory.json in Resources */ = {isa = PBXBuildFile; fileRef = 465D0BE0B580B8C6A0E48941 /* threadResumeHistory.json */; };
 		D5B6DA068B60C12A08A999F2 /* KeychainStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 882D98A278D8B64C660B8A05 /* KeychainStoreTests.swift */; };
 		D70B6AACE385E2B532842EC5 /* TurnTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8F51BD06F0FA6F6B8896FEA /* TurnTypes.swift */; };
@@ -161,6 +163,7 @@
 		12C73D50DE0A51AB89EF6CC7 /* TransportControlEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportControlEvent.swift; sourceTree = "<group>"; };
 		143B36880763EB0B23DF98E5 /* KeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyManager.swift; sourceTree = "<group>"; };
 		164835E5F53DB4EC1BCAB13B /* JSONRPCClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONRPCClient.swift; sourceTree = "<group>"; };
+		173721C68F1C3F9A208DE198 /* SwiftTermImportProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftTermImportProbe.swift; sourceTree = "<group>"; };
 		1A4964274526D6507872954F /* DaemonBootstrapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaemonBootstrapTests.swift; sourceTree = "<group>"; };
 		1A8CF06540ED3E7C246131C8 /* SSHClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHClient.swift; sourceTree = "<group>"; };
 		1A8F629A7787DCC01BADA85F /* ProgressCardBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressCardBar.swift; sourceTree = "<group>"; };
@@ -286,6 +289,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				01BE5A03B6CE5A4875A7AD98 /* Citadel in Frameworks */,
+				87B97AD99B7A4399F10C1A2E /* SwiftTerm in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -429,6 +433,7 @@
 				0275E1295AF8C61CD1A4E5A8 /* RightPanelContainerView.swift */,
 				11F456029B5821529CABCBB7 /* SideChatView.swift */,
 				44181632C721FBFB09ED69C0 /* SummaryPopoverView.swift */,
+				173721C68F1C3F9A208DE198 /* SwiftTermImportProbe.swift */,
 				99616A4BE43A7944EC073310 /* WorkspaceMetrics.swift */,
 			);
 			path = Workspace;
@@ -569,6 +574,7 @@
 			name = CodexRemote;
 			packageProductDependencies = (
 				55AF6C40AC2043794D057E06 /* Citadel */,
+				87B02C1FFD1A919E48906D14 /* SwiftTerm */,
 			);
 			productName = CodexRemote;
 			productReference = FA7C5D102DC860D73AE1ADE9 /* CodexRemote.app */;
@@ -624,6 +630,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				935CA715DF2ED02C0C97E7BA /* XCRemoteSwiftPackageReference "Citadel" */,
+				D09A990FFBB1FCC3E1019587 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CA7B3B413DBEC4A5D2B2B3C3 /* Products */;
@@ -723,6 +730,7 @@
 				2ECEF967A2DCD5967A2D7F58 /* SidebarCollapseStore.swift in Sources */,
 				60B8027EA88C6844E4528DEE /* SidebarView.swift in Sources */,
 				76C0FDC0BD8FF14BBA01DE3A /* SummaryPopoverView.swift in Sources */,
+				D262898294D2D6C8FD4E3FDF /* SwiftTermImportProbe.swift in Sources */,
 				0C006D4A952E5F8E33928664 /* TerminalSession.swift in Sources */,
 				84A18F4EE4591FB4E5B73085 /* TerminalTypes.swift in Sources */,
 				F370141604AEBDF313F80D49 /* ThreadReducer.swift in Sources */,
@@ -1051,6 +1059,14 @@
 				minimumVersion = 0.12.1;
 			};
 		};
+		D09A990FFBB1FCC3E1019587 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.2.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1058,6 +1074,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 935CA715DF2ED02C0C97E7BA /* XCRemoteSwiftPackageReference "Citadel" */;
 			productName = Citadel;
+		};
+		87B02C1FFD1A919E48906D14 /* SwiftTerm */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D09A990FFBB1FCC3E1019587 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			productName = SwiftTerm;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
