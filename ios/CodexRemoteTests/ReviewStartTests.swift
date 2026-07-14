@@ -44,6 +44,51 @@ struct ReviewStartTests {
         #expect(resp.reviewThreadId == "t1")
     }
 
+    // .full → 发出 review/start，target=uncommittedChanges、delivery=inline、threadId 正确
+    @MainActor @Test func startReviewFullSendsUncommitted() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "thread-A")
+        let sent = await store.startReview(mode: .full)
+        #expect(sent == true)
+        // fire-and-forget：给内部 Task 一点时间把帧写进 mock.sent
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        let frames = await mock.sent
+        let frame = frames.first { $0.contains("review/start") }
+        #expect(frame != nil)
+        #expect(frame?.contains("thread-A") == true)
+        #expect(frame?.contains("uncommittedChanges") == true)
+        #expect(frame?.contains("inline") == true)
+    }
+
+    // 无 threadId → 不发请求，返回 false
+    @MainActor @Test func startReviewNoThreadDoesNotSend() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "")
+        let sent = await store.startReview(mode: .full)
+        #expect(sent == false)
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        let frames = await mock.sent
+        #expect(frames.contains { $0.contains("review/start") } == false)
+    }
+
+    // .turn 且 turnDiff 为空 → 不发请求，返回 false
+    @MainActor @Test func startReviewTurnEmptyDiffDoesNotSend() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "thread-B")
+        // 新建 store 的 state.turnDiff 默认 ""（见 ConversationModels.swift:68）
+        let sent = await store.startReview(mode: .turn)
+        #expect(sent == false)
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        let frames = await mock.sent
+        #expect(frames.contains { $0.contains("review/start") } == false)
+    }
+
     // 测试辅助：Encodable → [String: Any]（校验线格式字段名/判别字段）
     static func encodeToObject<T: Encodable>(_ value: T) throws -> [String: Any] {
         let data = try JSONEncoder().encode(value)
