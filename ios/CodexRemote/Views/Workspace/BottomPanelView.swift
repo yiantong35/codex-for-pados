@@ -37,25 +37,10 @@ struct BottomPanelView: View {
 
     // MARK: - 终端输出区（滚动 + 右侧固定 gutter 常驻滚动条）
 
+    // 临时占位（Task 5 用 SwiftTermView 替换）：TerminalSession 输出已改字节回调，
+    // 此处不再消费 runs；SwiftTermView 桥接就位前先渲染占位，保持模块可编译。
     private var terminalArea: some View {
-        HStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    Text(Self.attributed(terminal.runs))
-                        .font(.system(.caption, design: .monospaced))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
-                        .padding(.horizontal, 8).padding(.vertical, 4)
-                        .id("bottomAnchor")
-                }
-                .scrollIndicators(.hidden)   // 隐藏系统悬浮 indicator，右侧自绘常驻滚动条
-                .onChange(of: terminal.runs.count) { _, _ in
-                    withAnimation(.linear(duration: 0.1)) { proxy.scrollTo("bottomAnchor", anchor: .bottom) }
-                }
-            }
-            residentScrollbar   // 固定 gutter：宽度恒定，布局不跳、cols 稳定
-        }
-        .frame(maxHeight: .infinity)
+        Color.clear.frame(maxHeight: .infinity)
     }
 
     /// 固定宽度 gutter + 自绘常驻滚动指示器（始终占位，不挤内容宽度）。

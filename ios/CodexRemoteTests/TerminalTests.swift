@@ -65,30 +65,56 @@ struct TerminalTests {
 
     // MARK: - Task 3: TerminalSession
 
-    @MainActor @Test func sessionConsumesOutputDelta() {
+    @MainActor @Test func outputDeltaForwardsRawBytesToCallback() {
         let s = TerminalSession()
+        var received: [UInt8] = []
+        s.onBytes = { received.append(contentsOf: $0) }
         s.start(cwd: "/repo")
         let pid = s.processId!
-        s.handleOutputDelta(processId: pid, base64: Data("hi".utf8).base64EncodedString())
-        #expect(s.runs.map(\.text).joined().contains("hi"))
+        // 多字节 UTF-8（中文）验证字节路径不经 String 破坏
+        let payload = Array("你好hi".utf8)
+        s.handleOutputDelta(processId: pid, base64: Data(payload).base64EncodedString())
+        #expect(received == payload)
+        // 非当前 processId 的 delta 被忽略
+        received.removeAll()
         s.handleOutputDelta(processId: "other", base64: Data("x".utf8).base64EncodedString())
-        #expect(!s.runs.map(\.text).joined().contains("x"))
+        #expect(received.isEmpty)
     }
+
+    @MainActor @Test func capReachedForwardsTruncationBytes() {
+        let s = TerminalSession()
+        var text = ""
+        s.onBytes = { text += String(decoding: $0, as: UTF8.self) }
+        s.start(cwd: "/repo")
+        s.handleOutputDelta(processId: s.processId!, base64: Data("x".utf8).base64EncodedString(), capReached: true)
+        #expect(text.contains("截断"))
+    }
+
+    @MainActor @Test func disconnectForwardsBreakBytes() {
+        let s = TerminalSession()
+        var text = ""
+        s.onBytes = { text += String(decoding: $0, as: UTF8.self) }
+        s.start(cwd: "/repo")
+        s.handleDisconnect()
+        #expect(text.contains("──"))
+        #expect(s.processId == nil)
+    }
+
+    @MainActor @Test func reconnectRestartsWithNewProcessId() {
+        let s = TerminalSession()
+        s.start(cwd: "/repo")
+        let old = s.processId
+        s.handleDisconnect()
+        s.start(cwd: "/repo")
+        #expect(s.processId != old)
+    }
+
     @MainActor @Test func sessionWriteParams() {
         let s = TerminalSession()
         s.start(cwd: "/repo")
         let p = s.makeWriteParams(input: "ls\n")
         #expect(p?.processId == s.processId)
         #expect(p?.deltaBase64 == Data("ls\n".utf8).base64EncodedString())
-    }
-    @MainActor @Test func sessionReconnectMarksBreak() {
-        let s = TerminalSession()
-        s.start(cwd: "/repo")
-        let old = s.processId
-        s.handleDisconnect()
-        #expect(s.runs.map(\.text).joined().contains("──"))
-        s.start(cwd: "/repo")
-        #expect(s.processId != old)
     }
     @MainActor @Test func startIfNeededFollowsCwd() {
         let s = TerminalSession()
@@ -98,11 +124,5 @@ struct TerminalTests {
         #expect(s.processId == pidA)
         s.startIfNeeded(cwd: "/b")          // cwd 变 → 重起
         #expect(s.processId != pidA)
-    }
-    @MainActor @Test func capReachedAppendsTruncationLine() {
-        let s = TerminalSession()
-        s.start(cwd: "/repo")
-        s.handleOutputDelta(processId: s.processId!, base64: Data("x".utf8).base64EncodedString(), capReached: true)
-        #expect(s.runs.map(\.text).joined().contains("截断"))
     }
 }

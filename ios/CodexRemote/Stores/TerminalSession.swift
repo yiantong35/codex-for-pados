@@ -5,12 +5,14 @@ import Observation
 @Observable
 @MainActor
 final class TerminalSession {
-    private(set) var runs: [ANSIParser.Run] = []
+    /// 原始输出字节发布点：SwiftTermView 的 Coordinator 注入，在主线程 feed(byteArray:)。
+    /// @ObservationIgnored 避免赋值触发视图刷新。
+    @ObservationIgnored var onBytes: (([UInt8]) -> Void)?
+
     private(set) var processId: String?
     private(set) var running = false
     private var startedCwd: String?     // 当前 shell 绑定的 cwd（用于跟随判定）
 
-    private var parser = ANSIParser()
     private var rpc: JSONRPCClient?
     private var observer: Task<Void, Never>?
 
@@ -36,7 +38,6 @@ final class TerminalSession {
         let pid = UUID().uuidString
         processId = pid
         startedCwd = cwd
-        parser = ANSIParser()
         running = true
         guard let rpc else { return }
         let params = CommandExecParams(command: ["/bin/zsh", "-i"], processId: pid, tty: true,
@@ -62,20 +63,19 @@ final class TerminalSession {
         running = false
     }
 
-    /// internal 供单测：消费 outputDelta（仅匹配当前 processId）。
+    /// internal 供单测：消费 outputDelta（仅匹配当前 processId）。字节直发给 SwiftTerm。
     func handleOutputDelta(processId pid: String, base64: String, capReached: Bool = false) {
         guard pid == processId, let data = Data(base64Encoded: base64) else { return }
-        let text = String(decoding: data, as: UTF8.self)
-        runs.append(contentsOf: parser.feed(text))
+        onBytes?([UInt8](data))
         if capReached {
-            runs.append(ANSIParser.Run(text: "\n── 输出已截断（超出上限）──\n", color: .gray, bold: false))
+            onBytes?([UInt8]("\r\n── 输出已截断（超出上限）──\r\n".utf8))
         }
     }
-    /// 断线：标失效 + 插断点行（保留历史）。
+    /// 断线：标失效 + 插断点行（终端语义换行 \r\n）。
     func handleDisconnect() {
         running = false
         processId = nil
-        runs.append(ANSIParser.Run(text: "\n── 连接断开，已重连 ──\n", color: .gray, bold: false))
+        onBytes?([UInt8]("\r\n── 连接断开，已重连 ──\r\n".utf8))
     }
 
     private func applyBroadcast(_ n: JSONRPCNotification) {
