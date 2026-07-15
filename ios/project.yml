@@ -28,6 +28,9 @@ packages:
   Citadel:
     url: https://github.com/orlandos-nl/Citadel
     from: "0.12.1"
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm
+    from: "1.2.0"
 
 targets:
   CodexRemote:
@@ -52,6 +55,7 @@ targets:
         SWIFT_VERSION: "6.0"
     dependencies:
       - package: Citadel
+      - package: SwiftTerm
 
   CodexRemoteTests:
     type: bundle.unit-test
