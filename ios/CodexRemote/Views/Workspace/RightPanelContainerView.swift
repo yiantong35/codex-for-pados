@@ -25,6 +25,11 @@ struct RightPanelContainerView: View {
 
     @Environment(ConnectionStore.self) private var connection
     @Environment(ActiveConversationHolder.self) private var activeConversation
+    // 全屏覆盖层脱离 inspector 列，侧聊 tab 会渲染 ConversationView→ComposerView 子树，
+    // 后者读 ApprovalStore / EnvironmentStore；不补注入则侧聊全屏必崩（设计 D5 + 风险 3）。
+    @Environment(ApprovalStore.self) private var approvals
+    @Environment(EnvironmentStore.self) private var environmentStore
+    @Environment(\.locale) private var locale
 
     @State private var selectedTab: RightPanelTab = .review
     @State private var fileBrowser = FileBrowserStore()
@@ -36,8 +41,13 @@ struct RightPanelContainerView: View {
             .fullScreenCover(isPresented: $isFullscreen) {
                 tabContainer
                     // 覆盖层脱离 inspector 独立列，不继承父链环境，显式注入所需依赖（设计 D5 + 风险 3）。
+                    // 三 tab 子树的全部环境依赖：activeConversation/connection（审查·文件）、
+                    // approvals/environmentStore（侧聊 ConversationView→ComposerView）、locale（i18n）。
                     .environment(activeConversation)
                     .environment(connection)
+                    .environment(approvals)
+                    .environment(environmentStore)
+                    .environment(\.locale, locale)
             }
     }
 
