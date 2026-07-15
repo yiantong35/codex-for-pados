@@ -29,6 +29,7 @@ enum RPCMethod {
     static let commandExecResize = "command/exec/resize"
     static let commandExecTerminate = "command/exec/terminate"
     static let gitDiffToRemote = "gitDiffToRemote"
+    static let reviewStart = "review/start"
     static let fsReadDirectory = "fs/readDirectory"
     static let fsReadFile = "fs/readFile"
     static let fsGetMetadata = "fs/getMetadata"

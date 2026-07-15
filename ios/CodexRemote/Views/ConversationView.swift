@@ -48,7 +48,7 @@ struct ConversationView: View {
         .onChange(of: store?.state) { _, newValue in
             activeConversation.state = newValue
         }
-        .onDisappear { activeConversation.state = nil; activeConversation.fetchFullDiff = nil }
+        .onDisappear { activeConversation.state = nil; activeConversation.fetchFullDiff = nil; activeConversation.startReview = nil }
         .safeAreaInset(edge: .bottom) {
             if let store {
                 VStack(spacing: 0) {
@@ -82,6 +82,8 @@ struct ConversationView: View {
             store = s
             // 审查面板「全量」数据源：注入拉取回调（gitDiffToRemote），供右栏按 cwd 拉全量 diff。
             activeConversation.fetchFullDiff = { [weak s] cwd in await s?.fetchFullDiff(cwd: cwd) }
+            // 审查 tab AI 审查发起：注入 review/start 回调（设计 D4，对齐 fetchFullDiff 注入）。
+            activeConversation.startReview = { [weak s] mode in await s?.startReview(mode: mode) ?? false }
             // 首连/重连成功（.ready）→ 经官方 thread/loaded/list +
             // thread/resume(rejoin) 重建并重新订阅全部活跃 thread（§5），不依赖本地 seq/threadId。
             // 注：SSH 通道物理重连属 Phase 5，当前 ProxyChannel 的 control() 为空流。
