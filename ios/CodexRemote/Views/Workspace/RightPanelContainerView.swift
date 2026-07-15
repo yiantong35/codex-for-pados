@@ -37,7 +37,7 @@ struct RightPanelContainerView: View {
     @State private var isFullscreen = false
 
     var body: some View {
-        tabContainer
+        baseContent
             .fullScreenCover(isPresented: $isFullscreen) {
                 tabContainer
                     // 覆盖层脱离 inspector 独立列，不继承父链环境，显式注入所需依赖（设计 D5 + 风险 3）。
@@ -49,6 +49,20 @@ struct RightPanelContainerView: View {
                     .environment(environmentStore)
                     .environment(\.locale, locale)
             }
+    }
+
+    /// base 层内容：全屏态让位给 cover，避免同一 `tabContainer` 在 base 与 cover 同时挂载。
+    /// 关键：侧聊 tab 会挂 `ConversationView(threadId:)`，其 `.task` 会 startObserving+resume 并写
+    /// 共享的 `activeConversation.{state,fetchFullDiff,startReview}`。若 base 与 cover 双挂载，会重复
+    /// thread/resume + 双订阅，且退出全屏时 cover 的 `onDisappear` 会把 `startReview` 等清成 nil，
+    /// clobber base 的注入（审查按钮失效）。全屏态下 base 只留占位背景，保住 inspector 列位（设计 D5 + 风险 3）。
+    @ViewBuilder
+    private var baseContent: some View {
+        if isFullscreen {
+            Color(.systemBackground)
+        } else {
+            tabContainer
+        }
     }
 
     /// tab 条 + 内容 switch + 数据绑定 task，常规态与全屏覆盖层共用（保证三 tab 通用、状态一致）。

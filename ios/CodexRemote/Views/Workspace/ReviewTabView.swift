@@ -11,7 +11,6 @@ struct ReviewTabView: View {
     @State private var mode: ReviewSourceMode = .turn
     @State private var fullDiff: String?
     @State private var loadingFull = false
-    @State private var isStarting = false
 
     private var turnDiff: String { activeConversation.state?.turnDiff ?? "" }
     private var source: ReviewDiffSource {
@@ -20,7 +19,7 @@ struct ReviewTabView: View {
 
     /// 当前数据源能否发起审查：回调已接线 + 对应数据源有效。
     private var canStartReview: Bool {
-        guard activeConversation.startReview != nil, !isStarting else { return false }
+        guard activeConversation.startReview != nil else { return false }
         switch mode {
         case .turn: return !turnDiff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .full: return cwd != nil
@@ -35,12 +34,11 @@ struct ReviewTabView: View {
                 }
                 .pickerStyle(.segmented)
 
+                // startReview 是 fire-and-forget（设计 D4）：内部 Task 发出 review/start 后立即返回，
+                // 不 await 网络往返。因此不设 isStarting 防抖态——它无法覆盖请求生命周期（await 微秒即返回），
+                // 只会是形同虚设的假防抖。快速连点最多触发多次 review/start，属 D4 已接受的低危行为。
                 Button {
-                    Task {
-                        isStarting = true
-                        _ = await activeConversation.startReview?(mode)
-                        isStarting = false
-                    }
+                    Task { _ = await activeConversation.startReview?(mode) }
                 } label: {
                     Image(systemName: "sparkle.magnifyingglass")
                 }
