@@ -1169,6 +1169,22 @@
         }
       }
     },
+    "settings.mcp": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP"
+          }
+        }
+      }
+    },
     "settings.language": {
       "localizations": {
         "en": {
