@@ -35,6 +35,32 @@ struct McpStoreTests {
         #expect(store.servers.isEmpty)
     }
 
+    // 完整重连（rpc 实例更换）后，应对 newRpc 重新订阅通知：
+    // attach(rpcA) → attach(rpcB) → 经 rpcB 真实通知流投递 mcpServer/startupStatus/updated
+    // → 断言在 rpcB(mockB) 上再次发出 mcpServerStatus/list（重订阅生效）。
+    @MainActor @Test func reSubscribesOnRpcChange() async throws {
+        let mockA = MockTransport()
+        await mockA.setAutoRespond(true)
+        let rpcA = JSONRPCClient(transport: mockA)
+        await rpcA.start()
+
+        let mockB = MockTransport()
+        await mockB.setAutoRespond(true)
+        let rpcB = JSONRPCClient(transport: mockB)
+        await rpcB.start()
+
+        let store = McpStore()
+        await store.attach(rpc: rpcA)
+        await store.attach(rpc: rpcB)   // 模拟完整重连：新 rpc 实例
+
+        // attach(rpcB) 的 refresh 已在 mockB 发一次 list；清点后经 rpcB 真实流喂通知，应再发一次
+        let before = await mockB.sent.filter { $0.contains("mcpServerStatus/list") }.count
+        await mockB.feed(#"{"method":"mcpServer/startupStatus/updated"}"#)
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        let after = await mockB.sent.filter { $0.contains("mcpServerStatus/list") }.count
+        #expect(after > before)
+    }
+
     // 收到 McpServerStatusUpdated 通知 → 触发 refresh（再次发出 list 帧）
     @MainActor @Test func broadcastTriggersRefresh() async throws {
         let mock = MockTransport()

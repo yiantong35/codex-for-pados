@@ -13,10 +13,14 @@ final class McpStore {
     private var rpc: JSONRPCClient?
     private var observer: Task<Void, Never>?
 
-    /// 注入 rpc：拉初值 + 订阅通知。幂等（guard observer == nil）。
+    /// 注入 rpc：拉初值 + 订阅通知。
+    /// 同一 rpc 重复 attach 幂等；完整重连换新 rpc 实例时取消旧订阅并对新 rpc 重新订阅
+    /// （否则新连接的 mcpServer/startupStatus/updated 推送刷新永久失效）。
     func attach(rpc: JSONRPCClient) async {
+        let rpcChanged = self.rpc !== rpc
         self.rpc = rpc
         await refresh()
+        if rpcChanged { observer?.cancel(); observer = nil }
         guard observer == nil else { return }
         let stream = await rpc.notifications()
         observer = Task { [weak self] in
