@@ -3,8 +3,8 @@ import SwiftUI
 @testable import CodexRemote
 
 struct SettingsSectionTests {
-    @Test func allCasesOrderIsAccountAppearanceLanguage() {
-        #expect(SettingsSection.allCases == [.account, .appearance, .language])
+    @Test func allCasesOrderIsAccountAppearanceLanguageMcp() {
+        #expect(SettingsSection.allCases == [.account, .appearance, .language, .mcp])
     }
 
     @Test func defaultSelectionIsAccount() {
@@ -15,6 +15,7 @@ struct SettingsSectionTests {
         #expect(SettingsSection.account.icon == "person.crop.circle")
         #expect(SettingsSection.appearance.icon == "paintbrush")
         #expect(SettingsSection.language.icon == "globe")
+        #expect(SettingsSection.mcp.icon == "puzzlepiece.extension")
     }
 
     @Test func idEqualsSelfForNavigationSelection() {

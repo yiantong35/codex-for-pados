@@ -8,6 +8,7 @@ struct CodexRemoteApp: App {
     @State private var projects = ProjectsStore()
     @State private var approvals = ApprovalStore()
     @State private var environment = EnvironmentStore()
+    @State private var mcp = McpStore()
     @State private var envInspector = EnvironmentInspectorModel()
     @State private var terminal = TerminalSession()
     // appearance-locale：语言/主题 manager 在根持有并注入；驱动运行时切换。
@@ -21,6 +22,7 @@ struct CodexRemoteApp: App {
                 .environment(projects)
                 .environment(approvals)
                 .environment(environment)
+                .environment(mcp)
                 .environment(envInspector)
                 .environment(terminal)
                 .environment(localeManager)

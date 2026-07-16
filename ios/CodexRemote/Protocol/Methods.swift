@@ -34,6 +34,8 @@ enum RPCMethod {
     static let fsReadFile = "fs/readFile"
     static let fsGetMetadata = "fs/getMetadata"
     static let getAuthStatus = "getAuthStatus"
+    static let mcpServerStatusList = "mcpServerStatus/list"
+    static let mcpServerReload = "config/mcpServer/reload"
 }
 
 enum ServerRequestMethod {
@@ -72,4 +74,7 @@ enum ServerNotificationMethod {
     static let serverRequestResolved = "serverRequest/resolved"
     static let error = "error"
     static let warning = "warning"
+    // 线格式 method 为小写斜杠式（对齐现有 account/updated）；schema 定义名 McpServerStatusUpdatedNotification
+    // 只是类型名，真实 wire method = "mcpServer/startupStatus/updated"（核实自 ServerNotification.json）。
+    static let mcpServerStatusUpdated = "mcpServer/startupStatus/updated"
 }
