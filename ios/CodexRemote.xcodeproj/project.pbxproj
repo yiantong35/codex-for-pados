@@ -52,6 +52,7 @@
 		5B5FFF4958C99A8E41E1078E /* ReviewTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67F2FA50F4C7BE3D89B0C538 /* ReviewTabView.swift */; };
 		5E93E0F7D340F4F305F918D3 /* EnvironmentTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10687C2DD85C10B97C266DFD /* EnvironmentTypes.swift */; };
 		5E98EA83344E9775CD6E274F /* SideChatStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 687CC26F5A8127A90E3F39F7 /* SideChatStore.swift */; };
+		5F1338A71D737A4854811B24 /* McpTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE21884B4E8B57212467CE89 /* McpTypes.swift */; };
 		60B8027EA88C6844E4528DEE /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE6EE6E276995AE35699CCF /* SidebarView.swift */; };
 		6166961C795F332ADF8397E9 /* ProjectsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29E4DEA2725E8A3517A77141 /* ProjectsStoreTests.swift */; };
 		621495768AAB9EBBF750AC79 /* ThreadReducerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 665E5D286E79DF598F867D8E /* ThreadReducerTests.swift */; };
@@ -72,6 +73,7 @@
 		778221A116B554E3EA194D10 /* JSONRPCEnvelopeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A46B0F715AC99CD902533D4 /* JSONRPCEnvelopeTests.swift */; };
 		7C1E8B9263F5008571A38230 /* InspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F739862A665E7A7C169F4704 /* InspectorView.swift */; };
 		80A078D69E0B0892A56C6F62 /* DaemonBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA4DB06658E521B03C847E5B /* DaemonBootstrap.swift */; };
+		810B0C1685571513D56A66AE /* McpTypesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2E1D38998AB8CA71192B3D6 /* McpTypesTests.swift */; };
 		84A18F4EE4591FB4E5B73085 /* TerminalTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A84EDBFE836AF7DBF4037EA /* TerminalTypes.swift */; };
 		857DA199BA47CB2FE34937FF /* SidebarStatusBadgesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B3C59E77F035114A636C87 /* SidebarStatusBadgesTests.swift */; };
 		86EDA4A60ECC1981BFBD9F47 /* KeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143B36880763EB0B23DF98E5 /* KeyManager.swift */; };
@@ -238,10 +240,12 @@
 		A814FA7149708A1316C3679A /* SettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSection.swift; sourceTree = "<group>"; };
 		AAA0FE80258221769494D174 /* ComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposerView.swift; sourceTree = "<group>"; };
 		AC6C6C5BA4E33943DED8B45A /* ThreadReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadReducer.swift; sourceTree = "<group>"; };
+		AE21884B4E8B57212467CE89 /* McpTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = McpTypes.swift; sourceTree = "<group>"; };
 		AFD990BEF80BA894D65E3CC8 /* ProtocolTypesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolTypesTests.swift; sourceTree = "<group>"; };
 		B1B3BB5CFDF04256F1AAAF5F /* SettingsSectionViewLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSectionViewLogicTests.swift; sourceTree = "<group>"; };
 		B26181D87CDAC2BD3CDE3CF1 /* SidebarCollapseStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarCollapseStoreTests.swift; sourceTree = "<group>"; };
 		B28B55394161516599E51420 /* EnvironmentPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentPanelView.swift; sourceTree = "<group>"; };
+		B2E1D38998AB8CA71192B3D6 /* McpTypesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = McpTypesTests.swift; sourceTree = "<group>"; };
 		B42F263C5E94D350518B7536 /* EnvironmentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentStore.swift; sourceTree = "<group>"; };
 		B500C47E4C5F7BD67CBD9017 /* ThreadCreationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadCreationTests.swift; sourceTree = "<group>"; };
 		B66560143A3317ECD701C4DD /* FileBrowserStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileBrowserStore.swift; sourceTree = "<group>"; };
@@ -393,6 +397,7 @@
 				1FCC19E5275E4A7752ADB4C8 /* FileBrowserTypes.swift */,
 				76CCCCB25128A6A92F45ECA0 /* FileContent.swift */,
 				E215C9203892AFED56C0141C /* InitializeTypes.swift */,
+				AE21884B4E8B57212467CE89 /* McpTypes.swift */,
 				F1ED1C6167187E761CB4F080 /* Methods.swift */,
 				A4CE46A03AECF43136EA63C8 /* ReviewPanelTypes.swift */,
 				7C912B22FBF04936493AE6B3 /* ReviewStartTypes.swift */,
@@ -529,6 +534,7 @@
 				5FF7AFB1095E4D55F8F9B48E /* JSONRPCClientTests.swift */,
 				3A46B0F715AC99CD902533D4 /* JSONRPCEnvelopeTests.swift */,
 				882D98A278D8B64C660B8A05 /* KeychainStoreTests.swift */,
+				B2E1D38998AB8CA71192B3D6 /* McpTypesTests.swift */,
 				114A352157315BC15F79C989 /* MidTurnControlTests.swift */,
 				FB0BD4E81945814B56FD25C0 /* MockTransport.swift */,
 				DB8C2CF55896D1C1B5AD6E94 /* ModelSelectionTests.swift */,
@@ -714,6 +720,7 @@
 				51A6B737CEFC17965BF8AAE5 /* KeychainStore.swift in Sources */,
 				CF88C268482EBEEC5C7B8BB5 /* LanguageSettingsSectionView.swift in Sources */,
 				4384F6C49B4DF94DB99FF2B3 /* LiveTransport.swift in Sources */,
+				5F1338A71D737A4854811B24 /* McpTypes.swift in Sources */,
 				72FE542A0B5F413DFD6BF3A5 /* MessageTransport.swift in Sources */,
 				768F24B3698500CD6C53C0DA /* Methods.swift in Sources */,
 				23EBABFFB0324F326F96C0F7 /* ModelSelection.swift in Sources */,
@@ -777,6 +784,7 @@
 				46E575375B31BBDD1B4241BB /* JSONRPCClientTests.swift in Sources */,
 				778221A116B554E3EA194D10 /* JSONRPCEnvelopeTests.swift in Sources */,
 				D5B6DA068B60C12A08A999F2 /* KeychainStoreTests.swift in Sources */,
+				810B0C1685571513D56A66AE /* McpTypesTests.swift in Sources */,
 				09EBBCF3632D7D40FE2228CE /* MidTurnControlTests.swift in Sources */,
 				13472DEE88E768A9DEF5651A /* MockTransport.swift in Sources */,
 				7473BD4374617C4315D65A1D /* ModelSelectionTests.swift in Sources */,
