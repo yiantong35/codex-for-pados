@@ -21,7 +21,7 @@ struct PluginsGroupContent: View {
                 ForEach(plugins.marketplaces) { entry in
                     if !entry.plugins.isEmpty {
                         Text(entry.name).font(.caption).foregroundStyle(.secondary)
-                        ForEach(entry.plugins) { plugin in
+                        ForEach(dedup(entry.plugins)) { plugin in
                             pluginRow(plugin, marketplace: entry.name)
                         }
                     }
@@ -34,8 +34,7 @@ struct PluginsGroupContent: View {
     }
 
     @ViewBuilder
-    private func pluginRow(_ plugin: PluginSummary, marketplace: String) -> some View {
-        Button {
+    private func pluginRow(_ plugin: PluginSummary, marketplace: String) -> some View {        Button {
             selectedMarketplace = marketplace
             selected = plugin
         } label: {
@@ -57,5 +56,11 @@ struct PluginsGroupContent: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    // 按 id 去重，防 SwiftUI ForEach 重复 id 崩溃（与 SkillMetadata 侧对称兜底）。
+    private func dedup(_ plugins: [PluginSummary]) -> [PluginSummary] {
+        var seen = Set<String>()
+        return plugins.filter { seen.insert($0.id).inserted }
     }
 }

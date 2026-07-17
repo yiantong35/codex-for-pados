@@ -30,7 +30,7 @@ struct SkillsGroupContent: View {
                 Toggle("", isOn: Binding(
                     get: { skill.enabled },
                     set: { newValue in
-                        Task { await skills.setEnabled(name: skill.name, path: skill.path, newValue) }
+                        Task { await skills.setEnabled(name: nil, path: skill.path, newValue) }
                     }
                 ))
                 .labelsHidden()

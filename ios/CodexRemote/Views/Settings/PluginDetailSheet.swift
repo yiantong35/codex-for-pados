@@ -25,7 +25,7 @@ struct PluginDetailSheet: View {
                         } header: { Text("settings.plugins.skills") }
                     } else {
                         Section("settings.plugins.skills") {
-                            ForEach(detail.skills) { skill in
+                            ForEach(dedup(detail.skills)) { skill in
                                 NavigationLink {
                                     PluginSkillContentView(
                                         marketplace: marketplace,
@@ -63,6 +63,12 @@ struct PluginDetailSheet: View {
                 loading = false
             }
         }
+    }
+
+    // 按 id（=name）去重，防 SwiftUI ForEach 重复 id 崩溃（与 SkillMetadata 侧对称兜底）。
+    private func dedup(_ skills: [SkillSummary]) -> [SkillSummary] {
+        var seen = Set<String>()
+        return skills.filter { seen.insert($0.id).inserted }
     }
 }
 
