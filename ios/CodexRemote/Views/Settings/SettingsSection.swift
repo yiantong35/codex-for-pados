@@ -1,12 +1,12 @@
 import SwiftUI
 
-/// 设置页分区（ipad-settings-page 设计 D2）：纯数据枚举，驱动左导航 List 与右 detail switch。
-/// 后续 MCP/插件/skills = 加 case + switch 分支，零架构改动。默认选中 .account。
+/// 设置页分区（ipad-settings-page 设计 D2 / ipad-extensions-panel D1）：纯数据枚举，驱动左导航 List 与右 detail switch。
+/// `extensions` 分区以分组长列表承载 MCP / Skills / Plugins 三组。默认选中 .account。
 enum SettingsSection: String, CaseIterable, Identifiable {
     case account
     case appearance
     case language
-    case mcp
+    case extensions
 
     /// NavigationSplitView 的 List(selection:) 需要 Identifiable。
     var id: SettingsSection { self }
@@ -20,7 +20,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .account:    return "settings.account"
         case .appearance: return "settings.appearance"
         case .language:   return "settings.language"
-        case .mcp:        return "settings.mcp"
+        case .extensions: return "settings.extensions"
         }
     }
 
@@ -30,7 +30,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .account:    return "person.crop.circle"
         case .appearance: return "paintbrush"
         case .language:   return "globe"
-        case .mcp:        return "puzzlepiece.extension"
+        case .extensions: return "puzzlepiece.extension.fill"
         }
     }
 }
