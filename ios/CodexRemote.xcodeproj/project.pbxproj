@@ -46,6 +46,7 @@
 		453B3D27BB12F60A8A83059D /* WorkspaceMetricsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CFD4C14CF04C7D4A529079 /* WorkspaceMetricsTests.swift */; };
 		456A61D0BE4FF03A2281ADEC /* ApprovalStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C30F4E2DC9A8957D15E03DA /* ApprovalStoreTests.swift */; };
 		46E575375B31BBDD1B4241BB /* JSONRPCClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FF7AFB1095E4D55F8F9B48E /* JSONRPCClientTests.swift */; };
+		50F379FF8F37C9B3DDC91BA7 /* SkillsTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D020FDAAED6EC3052A4AF63B /* SkillsTypes.swift */; };
 		51A6B737CEFC17965BF8AAE5 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF050AC90C38320E8F8E0D52 /* KeychainStore.swift */; };
 		520CB33800798B994A6E9AFF /* ResumeHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3287E9ACB5ABFCFCB31D247E /* ResumeHistoryTests.swift */; };
 		52B94E3C1B886D9A83F2ADFF /* WorkspaceSummaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAE2C5B99FC08141E9BA12DE /* WorkspaceSummaryTests.swift */; };
@@ -263,6 +264,7 @@
 		CA4DB06658E521B03C847E5B /* DaemonBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaemonBootstrap.swift; sourceTree = "<group>"; };
 		CADC1D5FAC4F625511CDF599 /* TransportControlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportControlTests.swift; sourceTree = "<group>"; };
 		CC4B92A18365176499E0BFAD /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		D020FDAAED6EC3052A4AF63B /* SkillsTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillsTypes.swift; sourceTree = "<group>"; };
 		D357AD1CF6AF4E964407917D /* realTurnSequence.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = realTurnSequence.json; sourceTree = "<group>"; };
 		D4783F7EE72021D94A790C18 /* ReviewStartTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewStartTests.swift; sourceTree = "<group>"; };
 		D557E6EB42557F68BCE04CEA /* McpSettingsSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = McpSettingsSectionView.swift; sourceTree = "<group>"; };
@@ -410,6 +412,7 @@
 				F1ED1C6167187E761CB4F080 /* Methods.swift */,
 				A4CE46A03AECF43136EA63C8 /* ReviewPanelTypes.swift */,
 				7C912B22FBF04936493AE6B3 /* ReviewStartTypes.swift */,
+				D020FDAAED6EC3052A4AF63B /* SkillsTypes.swift */,
 				0A84EDBFE836AF7DBF4037EA /* TerminalTypes.swift */,
 				A2FC01F7E01FE2DD6E33085E /* ThreadTypes.swift */,
 				C8F51BD06F0FA6F6B8896FEA /* TurnTypes.swift */,
@@ -757,6 +760,7 @@
 				2FC58813634E24A07756F5D4 /* SideChatView.swift in Sources */,
 				2ECEF967A2DCD5967A2D7F58 /* SidebarCollapseStore.swift in Sources */,
 				60B8027EA88C6844E4528DEE /* SidebarView.swift in Sources */,
+				50F379FF8F37C9B3DDC91BA7 /* SkillsTypes.swift in Sources */,
 				76C0FDC0BD8FF14BBA01DE3A /* SummaryPopoverView.swift in Sources */,
 				897710C4CBD687C745DE9F54 /* SwiftTermView.swift in Sources */,
 				0C006D4A952E5F8E33928664 /* TerminalSession.swift in Sources */,
