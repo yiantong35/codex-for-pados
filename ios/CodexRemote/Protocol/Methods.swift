@@ -36,6 +36,11 @@ enum RPCMethod {
     static let getAuthStatus = "getAuthStatus"
     static let mcpServerStatusList = "mcpServerStatus/list"
     static let mcpServerReload = "config/mcpServer/reload"
+    static let skillsList = "skills/list"
+    static let skillsConfigWrite = "skills/config/write"
+    static let pluginList = "plugin/list"
+    static let pluginRead = "plugin/read"
+    static let pluginSkillRead = "plugin/skill/read"
 }
 
 enum ServerRequestMethod {
@@ -77,4 +82,7 @@ enum ServerNotificationMethod {
     // 线格式 method 为小写斜杠式（对齐现有 account/updated）；schema 定义名 McpServerStatusUpdatedNotification
     // 只是类型名，真实 wire method = "mcpServer/startupStatus/updated"（核实自 ServerNotification.json）。
     static let mcpServerStatusUpdated = "mcpServer/startupStatus/updated"
+    // 本地 skill 文件变更失效信号（无 payload，收到即重拉 skills/list）。
+    // 真实 wire method = "skills/changed"（核实自 ServerNotification.json；非 schema 定义名 SkillsChangedNotification）。
+    static let skillsChanged = "skills/changed"
 }
