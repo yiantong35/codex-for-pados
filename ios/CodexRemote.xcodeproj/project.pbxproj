@@ -69,6 +69,7 @@
 		6FFAD733B154404C0C3584E6 /* SessionControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C2C186A13348CD2DD924AD /* SessionControlTests.swift */; };
 		703DC8AAA12908B766D5FB25 /* UnifiedDiffParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B08DA2C012E624D2FE28E3D /* UnifiedDiffParser.swift */; };
 		72FE542A0B5F413DFD6BF3A5 /* MessageTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F31A93FB90F22CE40924C1E9 /* MessageTransport.swift */; };
+		732C1CEDDF3F269B4163F140 /* SkillsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D43A10289067905AAB533575 /* SkillsStore.swift */; };
 		7473BD4374617C4315D65A1D /* ModelSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB8C2CF55896D1C1B5AD6E94 /* ModelSelectionTests.swift */; };
 		74A5B7B7957A63E4631730A0 /* realTurnSequence.json in Resources */ = {isa = PBXBuildFile; fileRef = D357AD1CF6AF4E964407917D /* realTurnSequence.json */; };
 		7564BF0AF552143A02DD9568 /* RequestIdGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 653E5C8A33FD7F7568474BB5 /* RequestIdGeneratorTests.swift */; };
@@ -90,6 +91,7 @@
 		9021D5D2F1C98802B1E5B9D9 /* ReviewStartTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C912B22FBF04936493AE6B3 /* ReviewStartTypes.swift */; };
 		909285AAA2F161956D6E21BA /* PlanStepList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2748B1BAA038016681DA082B /* PlanStepList.swift */; };
 		9AF88CCBB1F76AF181B8D8EB /* AccountInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85E2EA3F7330511B42B6EC85 /* AccountInfoView.swift */; };
+		9DEEBF191026931C6C8ABE24 /* SkillsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 859FE9D4B2FD0EE4704763E6 /* SkillsStoreTests.swift */; };
 		9E265052FF22A341C5FCADDA /* JSONRPCClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 164835E5F53DB4EC1BCAB13B /* JSONRPCClient.swift */; };
 		9EE939BBE6DC57C306FEE425 /* TurnDiffStatsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DABB3808D7F992E8E64B2D8B /* TurnDiffStatsTests.swift */; };
 		9F2EB90F10A15CE1CE83FDB9 /* SidebarCollapseStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B26181D87CDAC2BD3CDE3CF1 /* SidebarCollapseStoreTests.swift */; };
@@ -223,6 +225,7 @@
 		7C02EF49EE36452DFABE5657 /* AppearanceLocaleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceLocaleTests.swift; sourceTree = "<group>"; };
 		7C912B22FBF04936493AE6B3 /* ReviewStartTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewStartTypes.swift; sourceTree = "<group>"; };
 		804232638CA36F919CAFD837 /* EnvironmentInspectorTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentInspectorTypes.swift; sourceTree = "<group>"; };
+		859FE9D4B2FD0EE4704763E6 /* SkillsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillsStoreTests.swift; sourceTree = "<group>"; };
 		85E2EA3F7330511B42B6EC85 /* AccountInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountInfoView.swift; sourceTree = "<group>"; };
 		882D98A278D8B64C660B8A05 /* KeychainStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStoreTests.swift; sourceTree = "<group>"; };
 		8890A254F84D5DA497E13E21 /* LanguageSettingsSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageSettingsSectionView.swift; sourceTree = "<group>"; };
@@ -268,6 +271,7 @@
 		CC4B92A18365176499E0BFAD /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		D020FDAAED6EC3052A4AF63B /* SkillsTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillsTypes.swift; sourceTree = "<group>"; };
 		D357AD1CF6AF4E964407917D /* realTurnSequence.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = realTurnSequence.json; sourceTree = "<group>"; };
+		D43A10289067905AAB533575 /* SkillsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillsStore.swift; sourceTree = "<group>"; };
 		D4783F7EE72021D94A790C18 /* ReviewStartTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewStartTests.swift; sourceTree = "<group>"; };
 		D557E6EB42557F68BCE04CEA /* McpSettingsSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = McpSettingsSectionView.swift; sourceTree = "<group>"; };
 		D67F35A7AAAD88F7A92D19B0 /* OptimisticEchoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimisticEchoTests.swift; sourceTree = "<group>"; };
@@ -366,6 +370,7 @@
 				2F3DFDE3E35F47099089A687 /* ProjectsStore.swift */,
 				2E2FC2BAB94125D5C1A15DCC /* SidebarCollapseStore.swift */,
 				687CC26F5A8127A90E3F39F7 /* SideChatStore.swift */,
+				D43A10289067905AAB533575 /* SkillsStore.swift */,
 				49A88324E7CBEF99D9121B8C /* TerminalSession.swift */,
 			);
 			path = Stores;
@@ -572,6 +577,7 @@
 				B26181D87CDAC2BD3CDE3CF1 /* SidebarCollapseStoreTests.swift */,
 				05B3C59E77F035114A636C87 /* SidebarStatusBadgesTests.swift */,
 				3BFF9CE4300293DA4312C52A /* SideChatStoreTests.swift */,
+				859FE9D4B2FD0EE4704763E6 /* SkillsStoreTests.swift */,
 				22853390C30B93D3F03BAA27 /* TerminalTests.swift */,
 				EB0423A12391FFC9C188F1C0 /* ThreadCreationAvailableTests.swift */,
 				B500C47E4C5F7BD67CBD9017 /* ThreadCreationTests.swift */,
@@ -764,6 +770,7 @@
 				2FC58813634E24A07756F5D4 /* SideChatView.swift in Sources */,
 				2ECEF967A2DCD5967A2D7F58 /* SidebarCollapseStore.swift in Sources */,
 				60B8027EA88C6844E4528DEE /* SidebarView.swift in Sources */,
+				732C1CEDDF3F269B4163F140 /* SkillsStore.swift in Sources */,
 				50F379FF8F37C9B3DDC91BA7 /* SkillsTypes.swift in Sources */,
 				76C0FDC0BD8FF14BBA01DE3A /* SummaryPopoverView.swift in Sources */,
 				897710C4CBD687C745DE9F54 /* SwiftTermView.swift in Sources */,
@@ -828,6 +835,7 @@
 				CC844E214D540A7EFB3AF8FB /* SideChatStoreTests.swift in Sources */,
 				9F2EB90F10A15CE1CE83FDB9 /* SidebarCollapseStoreTests.swift in Sources */,
 				857DA199BA47CB2FE34937FF /* SidebarStatusBadgesTests.swift in Sources */,
+				9DEEBF191026931C6C8ABE24 /* SkillsStoreTests.swift in Sources */,
 				3611506BBC545B590512320C /* TerminalTests.swift in Sources */,
 				EE07E50E5331775B7C2244C2 /* ThreadCreationAvailableTests.swift in Sources */,
 				DAE6A0A01219753101114582 /* ThreadCreationTests.swift in Sources */,
