@@ -20,6 +20,7 @@
 		11231A3D1912AE0AFB4B1764 /* ProxyChannelHandshakeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EA28631762E53EE736EF206 /* ProxyChannelHandshakeTests.swift */; };
 		123F9BDEDD1CADB7A435CB82 /* ConnectionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5B0B06C966AB8B15879FD39 /* ConnectionStoreTests.swift */; };
 		13472DEE88E768A9DEF5651A /* MockTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0BD4E81945814B56FD25C0 /* MockTransport.swift */; };
+		14AF9BCDB0E50DC54222ECA0 /* PluginTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF7974B5EA9E972DEFA8BFB1 /* PluginTypes.swift */; };
 		1716314F9A8F435F6D8701A6 /* SettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A814FA7149708A1316C3679A /* SettingsSection.swift */; };
 		1981A6B89E98BA1871511153 /* FileBrowserStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66560143A3317ECD701C4DD /* FileBrowserStore.swift */; };
 		19D62A239106D552D1C812A9 /* JSONRPCEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B8A2809870EB2C408134910 /* JSONRPCEnvelope.swift */; };
@@ -258,6 +259,7 @@
 		B66560143A3317ECD701C4DD /* FileBrowserStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileBrowserStore.swift; sourceTree = "<group>"; };
 		B92B50BB8B2F09085A2EA5E5 /* McpStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = McpStoreTests.swift; sourceTree = "<group>"; };
 		BED69C1A4C21EDC189C91549 /* ConversationSendTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationSendTests.swift; sourceTree = "<group>"; };
+		BF7974B5EA9E972DEFA8BFB1 /* PluginTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginTypes.swift; sourceTree = "<group>"; };
 		C014E7B56BEB8CB1609A460D /* ApprovalBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalBoundaryTests.swift; sourceTree = "<group>"; };
 		C3F2D64D4DBE754E71DE9785 /* ItemCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemCards.swift; sourceTree = "<group>"; };
 		C8F51BD06F0FA6F6B8896FEA /* TurnTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnTypes.swift; sourceTree = "<group>"; };
@@ -410,6 +412,7 @@
 				E215C9203892AFED56C0141C /* InitializeTypes.swift */,
 				AE21884B4E8B57212467CE89 /* McpTypes.swift */,
 				F1ED1C6167187E761CB4F080 /* Methods.swift */,
+				BF7974B5EA9E972DEFA8BFB1 /* PluginTypes.swift */,
 				A4CE46A03AECF43136EA63C8 /* ReviewPanelTypes.swift */,
 				7C912B22FBF04936493AE6B3 /* ReviewStartTypes.swift */,
 				D020FDAAED6EC3052A4AF63B /* SkillsTypes.swift */,
@@ -743,6 +746,7 @@
 				23EBABFFB0324F326F96C0F7 /* ModelSelection.swift in Sources */,
 				CF18EA1565EE17F448E78A4C /* PanelEmptyState.swift in Sources */,
 				909285AAA2F161956D6E21BA /* PlanStepList.swift in Sources */,
+				14AF9BCDB0E50DC54222ECA0 /* PluginTypes.swift in Sources */,
 				F3ABCCA0D4D4D5F95EC6D43E /* ProgressCardBar.swift in Sources */,
 				046D60CECEF36F595B491834 /* ProjectsStore.swift in Sources */,
 				FF3225FE3ECC3EFFECDD3484 /* ProxyChannel.swift in Sources */,
