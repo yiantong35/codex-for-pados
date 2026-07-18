@@ -117,6 +117,7 @@
 		BE8038DC1A529C8C141A2CE1 /* EnvironmentInspectorTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 804232638CA36F919CAFD837 /* EnvironmentInspectorTypes.swift */; };
 		BEAA956A0743B18240709DE1 /* agentDeltaSequence.json in Resources */ = {isa = PBXBuildFile; fileRef = 063B0130DD0BA4DB96BC3109 /* agentDeltaSequence.json */; };
 		C1738C9D7BA9E2EB822A9097 /* ExtensionsSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6268C11AF28070F3C350B69 /* ExtensionsSectionView.swift */; };
+		C265301AC5406F53456A0FB4 /* HookTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D25848DEEC9BB5B48C3516B /* HookTypes.swift */; };
 		C2F8DADF2BC6D387BDF605C0 /* CodexRemoteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D2197F6A2B7E899050437AB /* CodexRemoteTests.swift */; };
 		C402D25A2C0B7B316CA86213 /* ANSIParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26938A28543CDD6C0D3663A6 /* ANSIParser.swift */; };
 		C607BB80DF3FA59A10F019D2 /* FileContentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 060BA5A0CD9729656B0B38D0 /* FileContentTests.swift */; };
@@ -253,6 +254,7 @@
 		99F655DD85E105FE65CF9AE9 /* OrientationSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrientationSnapshotTests.swift; sourceTree = "<group>"; };
 		9B894142E63413C7F50ACF58 /* ConnectionConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionConfigView.swift; sourceTree = "<group>"; };
 		9CEC01713BD0BCEF1B4FC566 /* WSFrame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WSFrame.swift; sourceTree = "<group>"; };
+		9D25848DEEC9BB5B48C3516B /* HookTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookTypes.swift; sourceTree = "<group>"; };
 		9DC1E8FE94E8A15D040ECBA7 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		A2B7118F0B58B642B06CCB4C /* FileBrowserTypesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileBrowserTypesTests.swift; sourceTree = "<group>"; };
 		A2FC01F7E01FE2DD6E33085E /* ThreadTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadTypes.swift; sourceTree = "<group>"; };
@@ -427,6 +429,7 @@
 				10687C2DD85C10B97C266DFD /* EnvironmentTypes.swift */,
 				1FCC19E5275E4A7752ADB4C8 /* FileBrowserTypes.swift */,
 				76CCCCB25128A6A92F45ECA0 /* FileContent.swift */,
+				9D25848DEEC9BB5B48C3516B /* HookTypes.swift */,
 				E215C9203892AFED56C0141C /* InitializeTypes.swift */,
 				AE21884B4E8B57212467CE89 /* McpTypes.swift */,
 				F1ED1C6167187E761CB4F080 /* Methods.swift */,
@@ -754,6 +757,7 @@
 				AB424AE27534DFFD13F5E2A2 /* FileBrowserTypes.swift in Sources */,
 				5385B71F751E895B85B77B1C /* FileBrowserView.swift in Sources */,
 				0CECD2284CA5919671590D15 /* FileContent.swift in Sources */,
+				C265301AC5406F53456A0FB4 /* HookTypes.swift in Sources */,
 				27868CE1EA50E45AA73B6C43 /* InitializeTypes.swift in Sources */,
 				7C1E8B9263F5008571A38230 /* InspectorView.swift in Sources */,
 				F598655776CA55B9B356105C /* ItemCards.swift in Sources */,

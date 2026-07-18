@@ -41,6 +41,7 @@ enum RPCMethod {
     static let pluginList = "plugin/list"
     static let pluginRead = "plugin/read"
     static let pluginSkillRead = "plugin/skill/read"
+    static let hooksList = "hooks/list"
 }
 
 enum ServerRequestMethod {
