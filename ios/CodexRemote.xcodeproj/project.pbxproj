@@ -112,6 +112,7 @@
 		AE409793C410F73918FB4566 /* EnvironmentInspectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC9F320A35BB19E1F9376F5 /* EnvironmentInspectorTests.swift */; };
 		B30B30AE737320498073AD1A /* ItemCardRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DFB7A58D57B8BBE700849D6 /* ItemCardRenderTests.swift */; };
 		BB4D3A2B39ACF6522A3E1580 /* WorkspaceMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99616A4BE43A7944EC073310 /* WorkspaceMetrics.swift */; };
+		BC7143FA3DC50D51E6950FE1 /* HooksGroupContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF65DEF190906F9CF6F1E815 /* HooksGroupContent.swift */; };
 		BC80BF4355D7BC31B80A49D8 /* ConversationStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89C550C754DB48091C44F7E5 /* ConversationStoreTests.swift */; };
 		BCE49716A17C493E13D16EF1 /* AppearanceLocaleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C02EF49EE36452DFABE5657 /* AppearanceLocaleTests.swift */; };
 		BD82DF70B20C4BE37F4F459E /* EnvironmentPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28B55394161516599E51420 /* EnvironmentPanelView.swift */; };
@@ -324,6 +325,7 @@
 		FB0BD4E81945814B56FD25C0 /* MockTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockTransport.swift; sourceTree = "<group>"; };
 		FCE6EE6E276995AE35699CCF /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		FED3F0DE30E4B891F51D1B1A /* AccountSettingsSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsSectionView.swift; sourceTree = "<group>"; };
+		FF65DEF190906F9CF6F1E815 /* HooksGroupContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HooksGroupContent.swift; sourceTree = "<group>"; };
 		FFBA120F4EEB38BFB307D900 /* CodexRemoteTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CodexRemoteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -467,6 +469,7 @@
 				FED3F0DE30E4B891F51D1B1A /* AccountSettingsSectionView.swift */,
 				96AFEE8DA0D42430297E2021 /* AppearanceSettingsSectionView.swift */,
 				B6268C11AF28070F3C350B69 /* ExtensionsSectionView.swift */,
+				FF65DEF190906F9CF6F1E815 /* HooksGroupContent.swift */,
 				8890A254F84D5DA497E13E21 /* LanguageSettingsSectionView.swift */,
 				A63C8434195E3365F48FD2EC /* McpGroupContent.swift */,
 				3911DF6868B43795B95D5431 /* PluginDetailSheet.swift */,
@@ -767,6 +770,7 @@
 				5385B71F751E895B85B77B1C /* FileBrowserView.swift in Sources */,
 				0CECD2284CA5919671590D15 /* FileContent.swift in Sources */,
 				C265301AC5406F53456A0FB4 /* HookTypes.swift in Sources */,
+				BC7143FA3DC50D51E6950FE1 /* HooksGroupContent.swift in Sources */,
 				DAEB9ABDA909264456C010C7 /* HooksStore.swift in Sources */,
 				27868CE1EA50E45AA73B6C43 /* InitializeTypes.swift in Sources */,
 				7C1E8B9263F5008571A38230 /* InspectorView.swift in Sources */,
