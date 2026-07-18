@@ -11,6 +11,7 @@ struct CodexRemoteApp: App {
     @State private var mcp = McpStore()
     @State private var skills = SkillsStore()
     @State private var plugins = PluginsStore()
+    @State private var hooks = HooksStore()
     @State private var envInspector = EnvironmentInspectorModel()
     @State private var terminal = TerminalSession()
     // appearance-locale：语言/主题 manager 在根持有并注入；驱动运行时切换。
@@ -27,6 +28,7 @@ struct CodexRemoteApp: App {
                 .environment(mcp)
                 .environment(skills)
                 .environment(plugins)
+                .environment(hooks)
                 .environment(envInspector)
                 .environment(terminal)
                 .environment(localeManager)
