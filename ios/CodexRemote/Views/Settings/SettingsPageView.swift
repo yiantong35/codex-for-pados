@@ -40,7 +40,7 @@ struct SettingsPageView: View {
             case .account:    AccountSettingsSectionView()
             case .appearance: AppearanceSettingsSectionView()
             case .language:   LanguageSettingsSectionView()
-            case .mcp:        McpSettingsSectionView()
+            case .extensions: ExtensionsSectionView()
             }
         }
         .task(id: connection.phase) {
