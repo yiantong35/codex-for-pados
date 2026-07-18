@@ -9,6 +9,9 @@ import Observation
 final class SkillsStore {
     private(set) var skills: [SkillMetadata] = []
 
+    /// 折叠头计数徽章用（skill 数）。
+    var count: Int { skills.count }
+
     private var rpc: JSONRPCClient?
     private var observer: Task<Void, Never>?
 
