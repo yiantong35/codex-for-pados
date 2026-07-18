@@ -26,6 +26,7 @@ struct HooksGroupContent: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Text(eventLabel(hook.eventName)).font(.headline)
+                    .lineLimit(1)   // 长事件名先截断，保住同行徽章不被挤没（D8 窄屏）
                 handlerBadge(hook.handlerType)
                 trustBadge(hook.trustStatus)
                 Spacer(minLength: 0)
@@ -37,12 +38,14 @@ struct HooksGroupContent: View {
                 HStack(alignment: .top, spacing: 4) {
                     Text("settings.hooks.matcher").font(.caption2).foregroundStyle(.secondary)
                     Text(matcher).font(.caption2).foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.middle)   // glob/正则单行，中部省略（D8 窄屏）
                 }
             }
             if let command = hook.command, !command.isEmpty {
                 HStack(alignment: .top, spacing: 4) {
                     Text("settings.hooks.command").font(.caption2).foregroundStyle(.secondary)
                     Text(command).font(.caption2).monospaced().foregroundStyle(.secondary)
+                        .lineLimit(2).truncationMode(.middle)   // 长命令最多 2 行，中部省略防撑高（D8 窄屏）
                 }
             }
             HStack(spacing: 4) {
