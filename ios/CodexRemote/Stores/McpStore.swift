@@ -10,6 +10,9 @@ import Observation
 final class McpStore {
     private(set) var servers: [McpServerStatus] = []
 
+    /// 折叠头计数徽章用（server 数）。
+    var count: Int { servers.count }
+
     private var rpc: JSONRPCClient?
     private var observer: Task<Void, Never>?
 

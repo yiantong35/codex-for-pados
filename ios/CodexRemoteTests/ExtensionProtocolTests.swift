@@ -151,4 +151,86 @@ struct ExtensionProtocolTests {
         #expect(skill["remotePluginId"] as? String == "p1")
         #expect(skill["skillName"] as? String == "forecast")
     }
+
+    // MARK: Hooks 方法常量 wire 字符串（核实自 ClientRequest.json）
+    @Test func hooksListMethodMatchesWire() {
+        #expect(RPCMethod.hooksList == "hooks/list")
+    }
+
+    // HooksListResponse 全字段解码：跨 cwd、事件/类型/来源/信任/启用、matcher/command
+    @Test func decodeHooksListFull() throws {
+        let json = """
+        {"data":[
+          {"cwd":"/repo","warnings":[],"errors":[],"hooks":[
+            {"key":"h1","eventName":"preToolUse","handlerType":"command","matcher":"Bash",
+             "command":"echo hi","timeoutSec":30,"sourcePath":"/cfg/hooks.toml","source":"user",
+             "displayOrder":0,"enabled":true,"isManaged":false,"currentHash":"abc","trustStatus":"trusted"},
+            {"key":"h2","eventName":"stop","handlerType":"prompt","matcher":null,"command":null,
+             "timeoutSec":10,"sourcePath":"/cfg/hooks.toml","source":"project",
+             "displayOrder":1,"enabled":false,"isManaged":true,"currentHash":"def","trustStatus":"managed"}
+          ]}
+        ]}
+        """
+        let r = try JSONDecoder().decode(HooksListResponse.self, from: Data(json.utf8))
+        #expect(r.data.count == 1)
+        let hooks = r.data[0].hooks
+        #expect(hooks.count == 2)
+        #expect(hooks[0].key == "h1")
+        #expect(hooks[0].eventName == .preToolUse)
+        #expect(hooks[0].handlerType == .command)
+        #expect(hooks[0].matcher == "Bash")
+        #expect(hooks[0].command == "echo hi")
+        #expect(hooks[0].source == .user)
+        #expect(hooks[0].trustStatus == .trusted)
+        #expect(hooks[0].enabled == true)
+        #expect(hooks[0].id == "h1")            // Identifiable = key
+        #expect(hooks[1].eventName == .stop)
+        #expect(hooks[1].handlerType == .prompt)
+        #expect(hooks[1].matcher == nil)        // null → nil
+        #expect(hooks[1].command == nil)
+        #expect(hooks[1].trustStatus == .managed)
+        #expect(hooks[1].enabled == false)
+    }
+
+    // 未知枚举兜底 .unknown（eventName/handlerType/source/trustStatus 全落 unknown），不崩
+    @Test func decodeHookUnknownEnums() throws {
+        let json = """
+        {"data":[{"cwd":"/x","warnings":[],"errors":[],"hooks":[
+          {"key":"h","eventName":"warpDrive","handlerType":"telepathy","matcher":null,"command":null,
+           "timeoutSec":1,"sourcePath":"/p","source":"galaxy","displayOrder":0,
+           "enabled":true,"isManaged":false,"currentHash":"x","trustStatus":"quantum"}]}]}
+        """
+        let r = try JSONDecoder().decode(HooksListResponse.self, from: Data(json.utf8))
+        let h = r.data[0].hooks[0]
+        #expect(h.eventName == .unknown)
+        #expect(h.handlerType == .unknown)
+        #expect(h.source == .unknown)
+        #expect(h.trustStatus == .unknown)
+    }
+
+    // 缺省宽松：缺 data / 缺集合字段 / 单字段缺失都不整条失败
+    @Test func decodeHooksLoose() throws {
+        let empty = try JSONDecoder().decode(HooksListResponse.self, from: Data("{}".utf8))
+        #expect(empty.data.isEmpty)
+        let entry = try JSONDecoder().decode(HooksListEntry.self, from: Data(#"{"cwd":"/a"}"#.utf8))
+        #expect(entry.hooks.isEmpty)
+        #expect(entry.errors.isEmpty)
+        #expect(entry.warnings.isEmpty)
+        // 单个 hook 缺大量字段：key 保留，枚举/布尔落默认，不抛
+        let hook = try JSONDecoder().decode(HookMetadata.self, from: Data(#"{"key":"only"}"#.utf8))
+        #expect(hook.key == "only")
+        #expect(hook.eventName == .unknown)
+        #expect(hook.handlerType == .unknown)
+        #expect(hook.source == .unknown)
+        #expect(hook.trustStatus == .unknown)
+        #expect(hook.enabled == false)
+    }
+
+    // HookErrorInfo（path/message）解码
+    @Test func decodeHookErrorInfo() throws {
+        let e = try JSONDecoder().decode(HookErrorInfo.self,
+            from: Data(#"{"path":"/cfg/bad.toml","message":"parse error"}"#.utf8))
+        #expect(e.path == "/cfg/bad.toml")
+        #expect(e.message == "parse error")
+    }
 }

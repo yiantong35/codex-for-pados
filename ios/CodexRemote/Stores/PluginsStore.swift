@@ -8,6 +8,14 @@ import Observation
 final class PluginsStore {
     private(set) var marketplaces: [PluginMarketplaceEntry] = []
 
+    /// 折叠头计数徽章用（跨 marketplace 打平后的插件总数）。
+    var count: Int { Self.count(of: marketplaces) }
+
+    /// 跨 marketplace 求插件总数（纯函数供单测；nonisolated 便于同步调用）。
+    nonisolated static func count(of marketplaces: [PluginMarketplaceEntry]) -> Int {
+        marketplaces.reduce(0) { $0 + $1.plugins.count }
+    }
+
     private var rpc: JSONRPCClient?
 
     /// 注入 rpc + 拉初值（幂等：同一/新 rpc 都只是覆盖引用后重拉）。
