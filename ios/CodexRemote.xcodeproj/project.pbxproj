@@ -71,6 +71,8 @@
 		60B8027EA88C6844E4528DEE /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE6EE6E276995AE35699CCF /* SidebarView.swift */; };
 		6166961C795F332ADF8397E9 /* ProjectsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29E4DEA2725E8A3517A77141 /* ProjectsStoreTests.swift */; };
 		621495768AAB9EBBF750AC79 /* ThreadReducerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 665E5D286E79DF598F867D8E /* ThreadReducerTests.swift */; };
+		B2C3D4E5F6071829A3B4C5D6 /* TabIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B3C4D5E6F70819A2B3C4D5E /* TabIndicator.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* TabIndicatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F70819A2B3C4D /* TabIndicatorTests.swift */; };
 		62753040920C67B96CE44594 /* ApprovalTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 402523179862EC8236FEA0CA /* ApprovalTypes.swift */; };
 		63920F05BE49A3245FE7CAA3 /* SSHClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A8CF06540ED3E7C246131C8 /* SSHClient.swift */; };
 		68F41951B0D29141EC887051 /* TransportError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02F9A9AAD9F7FFA810F6D770 /* TransportError.swift */; };
@@ -240,6 +242,8 @@
 		629C4BF64FE053EFFD673A46 /* WSFrameTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WSFrameTests.swift; sourceTree = "<group>"; };
 		653E5C8A33FD7F7568474BB5 /* RequestIdGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestIdGeneratorTests.swift; sourceTree = "<group>"; };
 		665E5D286E79DF598F867D8E /* ThreadReducerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadReducerTests.swift; sourceTree = "<group>"; };
+		2B3C4D5E6F70819A2B3C4D5E /* TabIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabIndicator.swift; sourceTree = "<group>"; };
+		1A2B3C4D5E6F70819A2B3C4D /* TabIndicatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabIndicatorTests.swift; sourceTree = "<group>"; };
 		67F2FA50F4C7BE3D89B0C538 /* ReviewTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewTabView.swift; sourceTree = "<group>"; };
 		687CC26F5A8127A90E3F39F7 /* SideChatStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SideChatStore.swift; sourceTree = "<group>"; };
 		69DDF69B6BB91F0396041F28 /* EnvironmentPanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentPanelTests.swift; sourceTree = "<group>"; };
@@ -375,6 +379,7 @@
 				896AF6065B1D4F09402CBEA2 /* ConversationModels.swift */,
 				DF8BC7FFDF8148D48F179A67 /* ModelSelection.swift */,
 				AC6C6C5BA4E33943DED8B45A /* ThreadReducer.swift */,
+				2B3C4D5E6F70819A2B3C4D5E /* TabIndicator.swift */,
 				9164D6EECFD1ED77AC8C6411 /* TurnDiffStats.swift */,
 				3C9E74C49AE6B73A702C04E1 /* TurnPlan.swift */,
 				747B0E1123DA485CBA079616 /* MachineConfig.swift */,
@@ -637,6 +642,7 @@
 				EB0423A12391FFC9C188F1C0 /* ThreadCreationAvailableTests.swift */,
 				B500C47E4C5F7BD67CBD9017 /* ThreadCreationTests.swift */,
 				665E5D286E79DF598F867D8E /* ThreadReducerTests.swift */,
+				1A2B3C4D5E6F70819A2B3C4D /* TabIndicatorTests.swift */,
 				CADC1D5FAC4F625511CDF599 /* TransportControlTests.swift */,
 				DABB3808D7F992E8E64B2D8B /* TurnDiffStatsTests.swift */,
 				72CFD4C14CF04C7D4A529079 /* WorkspaceMetricsTests.swift */,
@@ -845,6 +851,7 @@
 				0C006D4A952E5F8E33928664 /* TerminalSession.swift in Sources */,
 				84A18F4EE4591FB4E5B73085 /* TerminalTypes.swift in Sources */,
 				F370141604AEBDF313F80D49 /* ThreadReducer.swift in Sources */,
+				B2C3D4E5F6071829A3B4C5D6 /* TabIndicator.swift in Sources */,
 				33AC004C9A4D4DBB4DD0E93E /* ThreadTypes.swift in Sources */,
 				0D779937FAD9F552AAECEFF9 /* TransportControlEvent.swift in Sources */,
 				68F41951B0D29141EC887051 /* TransportError.swift in Sources */,
@@ -914,6 +921,7 @@
 				EE07E50E5331775B7C2244C2 /* ThreadCreationAvailableTests.swift in Sources */,
 				DAE6A0A01219753101114582 /* ThreadCreationTests.swift in Sources */,
 				621495768AAB9EBBF750AC79 /* ThreadReducerTests.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* TabIndicatorTests.swift in Sources */,
 				D7CEB04CD635A9C85D8EE084 /* TransportControlTests.swift in Sources */,
 				9EE939BBE6DC57C306FEE425 /* TurnDiffStatsTests.swift in Sources */,
 				06B05F7B8EDDC80C8B347B7C /* WSFrameTests.swift in Sources */,
