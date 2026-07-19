@@ -2,7 +2,9 @@ import Foundation
 import Observation
 
 /// 多机器根容器：持有机器列表（MachineStore）、Session 缓存（保活）、活跃切换。
-/// 后台策略在 Task 11 接入（setActive 时收放订阅）；本任务先跑通单 tab。
+/// 后台策略（D6=B）：setActive 切换时把旧活跃 Session 转后台、新活跃转前台；
+/// 前后台切换收放的是**列表轮询**（Session.setForeground → projects.startPolling/stopPolling），
+/// A 类广播订阅（thread/status/changed）前后台恒常驻，故后台 tab 徽标仍 live。
 @Observable
 @MainActor
 final class SessionsManager {
