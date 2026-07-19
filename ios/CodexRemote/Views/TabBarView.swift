@@ -37,6 +37,9 @@ struct TabBarView: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
+            if sessions.canConnect(id: m.id) {
+                Button("tab.connect", systemImage: "bolt.horizontal") { sessions.connectMachine(id: m.id) }
+            }
             Button("tab.disconnect", systemImage: "wifi.slash") { sessions.disconnect(id: m.id) }
             Button("tab.remove", systemImage: "trash", role: .destructive) { sessions.removeMachine(id: m.id) }
         }

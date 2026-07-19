@@ -45,7 +45,22 @@ final class SessionsManager {
             cache[oldId]?.setForeground(false)   // 旧前台转后台
         }
         machineStore.setActive(id)
-        session(for: id)?.setForeground(true)    // 新前台
+        guard let s = session(for: id) else { return }
+        s.setForeground(true)                    // 新前台
+        // 懒连（D7）：切到尚未连接/已断开/失败的 tab 时发起连接；连接中/已就绪不重复触发。
+        if s.shouldAutoConnect { s.connect() }
+    }
+
+    /// 手动（重）连某机器（TabBarView contextMenu「连接」项用）。
+    /// 用 session(for:)：若懒连从未切过去、Session 未建，会按需建实例再连。
+    func connectMachine(id: UUID) {
+        session(for: id)?.connect()
+    }
+
+    /// 是否可（重）连某机器：未在连接中且未就绪才显示「连接」入口。
+    /// 未建 Session（懒连从未切过去）→ true（表示可连），避免为判断而提前建实例。
+    func canConnect(id: UUID) -> Bool {
+        cache[id]?.shouldAutoConnect ?? true
     }
 
     /// 添加机器后自动切过去并连接（D13）。

@@ -169,6 +169,78 @@ final class SessionsManagerTests: XCTestCase {
         XCTAssertTrue(sb.isForeground, "新活跃 b 应转前台")
     }
 
+    // MARK: - final C1 懒连/重连入口
+
+    /// C1 核心：切到未连接（.disconnected）的 tab 应触发 connect（D7 懒连兑现）。
+    /// 旧 setActive 只 setForeground、不发起 connect → 切过去停在 .disconnected（空工作区，无入口）。
+    /// 修复后 setActive 对未连接 Session 调 connect() → phase 离开 .disconnected
+    ///（有密钥走握手→.connecting；无密钥同步落 .failed；两者都证明 connect 确被调用）。
+    func test_setActiveTriggersConnectForDisconnectedSession() async {
+        await MainActor.run { KeyManager().generateIfNeeded() }   // 越过 connect 的密钥前置校验，稳定走 .connecting
+        let m = mgr()
+        let a = MachineConfig(host: "a", user: "u"); m.machineStore.add(a)
+        let b = MachineConfig(host: "b", user: "u"); m.machineStore.add(b)
+        let sa = m.session(for: a.id)!                            // 建实例，phase == .disconnected
+        XCTAssertEqual(sa.connection.phase, .disconnected, "前置：新建 Session 应为 .disconnected")
+
+        m.setActive(a.id)
+        let connected = await waitUntil { sa.connection.phase != .disconnected }
+        XCTAssertTrue(connected, "切到未连接 tab 应触发 connect（phase 离开 .disconnected）")
+    }
+
+    /// C1：shouldAutoConnect 各 phase 语义——未连接/失败可（重）连，其余不重复触发。
+    /// phase 为 private(set) 无法直接注入，故只覆盖初始可达的 .disconnected（true）；
+    /// 连接中/就绪态的「不重复」由 test_setActiveDoesNotReconnect 覆盖行为。
+    func test_shouldAutoConnect_trueWhenDisconnected() {
+        let m = mgr()
+        let mc = MachineConfig(host: "a", user: "u"); m.machineStore.add(mc)
+        let s = m.session(for: mc.id)!
+        XCTAssertEqual(s.connection.phase, .disconnected)
+        XCTAssertTrue(s.shouldAutoConnect, "未连接 Session 应可（重）连")
+    }
+
+    /// C1：已连接（.ready）的 tab 再 setActive 不应重复 connect（shouldAutoConnect=false）。
+    /// 先驱动握手到 .ready，再 setActive，验证不发生新连接（phase 仍稳定 .ready）。
+    func test_setActiveDoesNotReconnectReadySession() async {
+        await MainActor.run { KeyManager().generateIfNeeded() }
+        let mock = MockTransport()
+        let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
+        let m = SessionsManager(machineStore: store, transportFactory: { _ in mock })
+        let mc = MachineConfig(host: "a", user: "u"); store.add(mc)
+        let s = m.session(for: mc.id)!
+
+        // 后台模拟服务端：收到 initialize 后回响应使握手到 .ready。
+        Task {
+            var initId: String?
+            for _ in 0..<200 {
+                try? await Task.sleep(nanoseconds: 5_000_000)
+                if let sent = await mock.sent.first(where: { $0.contains(#""method":"initialize""#) }),
+                   let obj = try? JSONSerialization.jsonObject(with: Data(sent.utf8)) as? [String: Any],
+                   let id = obj["id"] as? String { initId = id; break }
+            }
+            if let initId {
+                await mock.feed(#"{"jsonrpc":"2.0","id":"\#(initId)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
+            }
+        }
+        s.connect()
+        let ready = await waitUntil { s.connection.phase == .ready }
+        XCTAssertTrue(ready, "前置：握手应到达 .ready")
+
+        XCTAssertFalse(s.shouldAutoConnect, "已就绪不应再触发连接")
+        m.setActive(mc.id)   // 再次切入不应重连
+        // 短暂等待后 phase 仍应稳定为 .ready（未被重新拉回 .connecting）。
+        let stayedReady = await waitUntil { s.connection.phase == .ready }
+        XCTAssertTrue(stayedReady, "已就绪 tab 再 setActive 不应重复 connect（phase 稳定 .ready）")
+    }
+
+    /// C1：未 session(for:) 的机器 canConnect(id) == true（可从 tab 菜单发起首连）。
+    func test_canConnect_trueForUnbuiltSession() {
+        let m = mgr()
+        let mc = MachineConfig(host: "a", user: "u"); m.machineStore.add(mc)
+        // 刻意不建 Session：cache 无该 Session → canConnect 应回退 true。
+        XCTAssertTrue(m.canConnect(id: mc.id), "未建 Session 的机器应可连（canConnect=true）")
+    }
+
     /// D7 冷启动只连上次活跃：被连的那台就是启动前台 tab，应置前台。
     func test_bootstrapSetsActiveSessionForeground() {
         let m = mgr()

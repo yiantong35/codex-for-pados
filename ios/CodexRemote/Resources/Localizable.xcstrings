@@ -2913,6 +2913,22 @@
         }
       }
     },
+    "tab.connect": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接"
+          }
+        }
+      }
+    },
     "tab.disconnect": {
       "localizations": {
         "en": {

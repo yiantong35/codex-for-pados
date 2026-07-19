@@ -43,6 +43,15 @@ final class Session: Identifiable {
     /// 前后台标记（D6=B）。默认后台；活跃 tab 由 SessionsManager 置前台。
     private(set) var isForeground = false
 
+    /// 是否应发起（重）连：未在连接中且未就绪。用于切 tab 懒连（D7）与 tab 菜单重连入口。
+    /// `.failed`/`.disconnected` → 可（重）连；`.connecting`/`.initializing`/`.reconnecting`/`.ready` → 不重复触发。
+    var shouldAutoConnect: Bool {
+        switch connection.phase {
+        case .ready, .connecting, .initializing, .reconnecting: return false
+        case .disconnected, .failed: return true
+        }
+    }
+
     func updateMachine(_ m: MachineConfig) { machine = m }
     func connect() { connection.connect(config: machine.connectionConfig) }
     func disconnect() async { await connection.disconnect() }

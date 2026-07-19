@@ -29,7 +29,7 @@ struct CodexRemoteApp: App {
 }
 
 /// 正式根视图：按机器列表 + 活跃 Session gating。
-/// - 无机器 → 引导占位（Task 8 换 OnboardingView）。
+/// - 无机器 → OnboardingView 引导页（点「添加第一台机器」弹 MachineFormView）。
 /// - 有活跃 Session → workspace（方案②注入该 Session 的散 store + `.id` 强制切 tab 重建子树）。
 struct RootView: View {
     @Environment(SessionsManager.self) private var sessions
