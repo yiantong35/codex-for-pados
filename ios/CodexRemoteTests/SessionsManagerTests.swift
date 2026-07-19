@@ -228,6 +228,30 @@ final class SessionsManagerTests: XCTestCase {
                       name: nil, gitInfo: nil)
     }
 
+    /// Task 12 验收回归：切 tab 不串台（session 隔离 + 缓存保活 + store 隔离）。
+    /// - a、b 两台机器的 Session 是不同实例；
+    /// - setActive(a) 后 activeSession === session(a)；切到 b 后 activeSession === session(b)
+    ///   且 a 的 Session 仍是原实例（缓存保活，未被 b 覆盖/污染）；
+    /// - a.session.projects !== b.session.projects（各机器 store 隔离，切 tab 数据不互串）。
+    func test_switchTabDoesNotBleedState() {
+        let m = mgr()
+        let a = MachineConfig(host: "a", user: "u"); m.machineStore.add(a)
+        let b = MachineConfig(host: "b", user: "u"); m.machineStore.add(b)
+
+        let sa = m.session(for: a.id)!
+        let sb = m.session(for: b.id)!
+        XCTAssertFalse(sa === sb, "两台机器的 Session 应为不同实例")
+
+        m.setActive(a.id)
+        XCTAssertTrue(m.activeSession === sa, "setActive(a) 后 activeSession 应为 a 的 Session")
+
+        m.setActive(b.id)
+        XCTAssertTrue(m.activeSession === sb, "setActive(b) 后 activeSession 应为 b 的 Session")
+        XCTAssertTrue(m.session(for: a.id) === sa, "缓存保活：切到 b 后 a 的 Session 仍是原实例")
+
+        XCTAssertFalse(sa.projects === sb.projects, "各机器 projects store 应隔离，切 tab 不串台")
+    }
+
     /// 由本测试文件路径（#filePath）推导源码 Views 目录，避免硬编码绝对路径。
     /// 结构：<repo>/ios/CodexRemoteTests/SessionsManagerTests.swift →
     ///       <repo>/ios/CodexRemote/Views/

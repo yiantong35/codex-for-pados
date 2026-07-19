@@ -437,4 +437,58 @@ final class OrientationSnapshotTests: XCTestCase {
             XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
         }
     }
+
+    // MARK: - 场景 8：多机器 tab 容器视图横竖屏快照（Task 12）
+
+    /// 构造带 N 台机器的 SessionsManager（可选高亮某台），供 tab 容器新视图快照注入。
+    private func makeSessions(machineCount: Int, activeIndex: Int? = nil) -> SessionsManager {
+        let d = UserDefaults(suiteName: "snap.\(UUID().uuidString)")!
+        let store = MachineStore(defaults: d)
+        for i in 0..<machineCount {
+            store.add(MachineConfig(displayName: "机器\(i + 1)", host: "h\(i)", user: "u\(i)"))
+        }
+        let mgr = SessionsManager(machineStore: store,
+                                  transportFactory: { _ in MockTransport() })
+        if let idx = activeIndex, idx < store.machines.count {
+            mgr.setActive(store.machines[idx].id)
+        }
+        return mgr
+    }
+
+    private let mcDir = "/tmp/multiconn"
+
+    /// 零机器引导页：图标 + 标题 + 主按钮居中卡片，横竖屏均不崩、PNG 非空。
+    func test_onboarding_portrait_snapshot() {
+        let view = OnboardingView().environment(makeSessions(machineCount: 0))
+        snapshot(view, size: portrait, name: "onboarding-portrait", dir: mcDir)
+    }
+
+    func test_onboarding_landscape_snapshot() {
+        let view = OnboardingView().environment(makeSessions(machineCount: 0))
+        snapshot(view, size: landscape, name: "onboarding-landscape", dir: mcDir)
+    }
+
+    /// tab 栏多 tab（3 台，高亮第 2 台）：横向 tab 条整体布局横竖屏均不崩、PNG 非空。
+    /// 圆点各色不在此覆盖（依赖 Session 内部 status 难在快照构造）——TabIndicator 各态由
+    /// TabIndicatorTests 单测覆盖、DotView 渲染由 TabBarViewTests 覆盖，此处只验 tab 栏整体布局。
+    func test_tabBar_portrait_snapshot() {
+        let view = TabBarView().environment(makeSessions(machineCount: 3, activeIndex: 1))
+        snapshot(view, size: portrait, name: "tabbar-portrait", dir: mcDir)
+    }
+
+    func test_tabBar_landscape_snapshot() {
+        let view = TabBarView().environment(makeSessions(machineCount: 3, activeIndex: 1))
+        snapshot(view, size: landscape, name: "tabbar-landscape", dir: mcDir)
+    }
+
+    /// 加机器表单：字段 + 公钥块居中卡片（内含 NavigationStack + toolbar），横竖屏均不崩、PNG 非空。
+    func test_machineForm_portrait_snapshot() {
+        let view = MachineFormView().environment(makeSessions(machineCount: 0))
+        snapshot(view, size: portrait, name: "machineform-portrait", dir: mcDir)
+    }
+
+    func test_machineForm_landscape_snapshot() {
+        let view = MachineFormView().environment(makeSessions(machineCount: 0))
+        snapshot(view, size: landscape, name: "machineform-landscape", dir: mcDir)
+    }
 }
