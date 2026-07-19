@@ -50,9 +50,12 @@ final class SessionsManager {
     }
 
     func removeMachine(id: UUID) {
-        Task { await cache[id]?.disconnect() }
+        // 先捕获 session 再清缓存：`Task{}` 体在 @MainActor 稍后调度，若先同步置 nil，
+        // 闭包届时读到的 cache[id] 已为 nil → disconnect 短路、断连从不发生（连接泄漏）。
+        let s = cache[id]
         cache[id] = nil
         machineStore.remove(id: id)
+        Task { await s?.disconnect() }
     }
 
     func disconnect(id: UUID) {

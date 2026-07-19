@@ -60,6 +60,9 @@ struct RootView: View {
             .environment(s.plugins)
             .environment(s.hooks)
             .environment(s.terminal)
+            // fileBrowser/sideChat：当前读取者用自建 @State（RightPanelContainerView.swift:35-36），
+            // 暂无 @Environment 消费者；此注入为多 tab 落地预留（前瞻）。切 tab 不串台由消费方
+            // @State 随 .id(s.id) 重建保证，故保留注入不删。
             .environment(s.fileBrowser)
             .environment(s.sideChat)
             .environment(s.envInspector)
@@ -80,11 +83,15 @@ private struct WorkspaceHost: View {
         RootSplitView()
             .overlay(alignment: .top) { reconnectBanner }
             // 连接就绪/重连成功后把审批层接到当前 rpc；断线（reconnecting）时标记待恢复（绝不自动批准）。
-            .onChange(of: rpcIdentity) { _, _ in
+            // 用 `.task(id:)` 而非 `.onChange`：`.id(s.id)` 重建 WorkspaceHost 时 @State coordinator 归 nil，
+            // 若切到已连接的缓存 Session，rpcIdentity 初值即为该 rpc id（无变化）→ onChange 不触发 →
+            // 该 tab 审批层不再绑定。`.task(id:)` 在 `.id` 重建即重跑（bind 幂等：内部先 cancel 旧订阅 Task），
+            // 与兄弟 store（SidebarView.swift:43 `.task(id: connection.phase)`）一致。
+            .task(id: rpcIdentity) {
                 let coord = coordinator ?? ApprovalCoordinator(store: approvals, projects: projects)
                 coordinator = coord
                 if connection.phase == .ready, let rpc = connection.rpc {
-                    Task { await coord.bind(rpc: rpc) }
+                    await coord.bind(rpc: rpc)
                 }
             }
             .onChange(of: connection.phase) { _, phase in
