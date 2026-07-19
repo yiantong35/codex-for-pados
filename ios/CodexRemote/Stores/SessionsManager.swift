@@ -68,4 +68,15 @@ final class SessionsManager {
         machineStore.setActive(m.id)
         session(for: m.id)?.connect()
     }
+
+    // MARK: - T7 UI 依赖桩（数据源/表单接线在 T11/T8 补）
+
+    /// tab 圆点聚合状态。T11 换成从 Session.projects 聚合 statuses + 未读的真实实现。
+    func indicator(for id: UUID) -> TabIndicator { .none }   // T11
+
+    /// 添加机器表单呈现标志。T8 接表单 sheet（@Observable 类里普通存储属性自动可观察）。
+    var addMachinePresented: Bool = false   // T8
+
+    /// 触发添加机器表单。T8 接真实表单流程。
+    func presentAddMachine() { addMachinePresented = true }   // T8
 }
