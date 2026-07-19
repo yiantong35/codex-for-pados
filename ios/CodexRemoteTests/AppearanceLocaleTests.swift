@@ -94,4 +94,37 @@ final class AppearanceLocaleTests: XCTestCase {
         XCTAssertEqual(reloaded.theme, .dark)
         XCTAssertEqual(reloaded.colorScheme, .dark)
     }
+
+    // MARK: - Task 10 / OpenSpec 4.4：首次安装外观/语言默认跟随系统（回归护栏）
+
+    /// 全新 UserDefaults suite（模拟首次安装、无任何已存偏好），与 setUp 的实例无关，
+    /// 每个 case 独立构造 → 断言首启即 .system，且已选值在“重启”后不被 .system 覆盖。
+    private func freshInstallDefaults() -> UserDefaults {
+        let name = "AppearanceDefaults.\(UUID().uuidString)"
+        let d = UserDefaults(suiteName: name)!
+        d.removePersistentDomain(forName: name)
+        return d
+    }
+
+    func test_freshInstallLanguageDefaultsToSystem() {
+        XCTAssertEqual(LocaleManager(store: freshInstallDefaults()).language, .system)
+    }
+
+    func test_freshInstallThemeDefaultsToSystem() {
+        XCTAssertEqual(ThemeManager(store: freshInstallDefaults()).theme, .system)
+    }
+
+    func test_storedLanguageValueIsRestored() {
+        let d = freshInstallDefaults()
+        LocaleManager(store: d).language = .en          // 存一个非默认值
+        let reopened = LocaleManager(store: d)          // 重启模拟
+        XCTAssertEqual(reopened.language, .en)          // 已选值应保留，不被 .system 覆盖
+    }
+
+    func test_storedThemeValueIsRestored() {
+        let d = freshInstallDefaults()
+        ThemeManager(store: d).theme = .dark
+        let reopened = ThemeManager(store: d)
+        XCTAssertEqual(reopened.theme, .dark)
+    }
 }
