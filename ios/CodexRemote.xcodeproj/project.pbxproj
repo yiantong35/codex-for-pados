@@ -70,6 +70,9 @@
 		5F1338A71D737A4854811B24 /* McpTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE21884B4E8B57212467CE89 /* McpTypes.swift */; };
 		60B8027EA88C6844E4528DEE /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE6EE6E276995AE35699CCF /* SidebarView.swift */; };
 		23029D6FEFF185909B62E0E0 /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7290FB177504717D5838CB36 /* TabBarView.swift */; };
+		F4E33B63309DE24D08CC3E1C /* MachineFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 938C3A15CDE271A8A695BF1B /* MachineFormView.swift */; };
+		3F75E6D282E4C5EE22CF68C9 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A3527D98ECDEEFC0666E81C /* OnboardingView.swift */; };
+		0C5E3EB4315935FA2C88940B /* MachineFormViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D73A2CD08EA60B9F9261DCA9 /* MachineFormViewTests.swift */; };
 		06C0529D340748FC16D64F17 /* TabBarViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07973B2148006AE477F0D0E9 /* TabBarViewTests.swift */; };
 		6166961C795F332ADF8397E9 /* ProjectsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29E4DEA2725E8A3517A77141 /* ProjectsStoreTests.swift */; };
 		621495768AAB9EBBF750AC79 /* ThreadReducerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 665E5D286E79DF598F867D8E /* ThreadReducerTests.swift */; };
@@ -347,6 +350,9 @@
 		FB0BD4E81945814B56FD25C0 /* MockTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockTransport.swift; sourceTree = "<group>"; };
 		FCE6EE6E276995AE35699CCF /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		7290FB177504717D5838CB36 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
+		938C3A15CDE271A8A695BF1B /* MachineFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineFormView.swift; sourceTree = "<group>"; };
+		0A3527D98ECDEEFC0666E81C /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		D73A2CD08EA60B9F9261DCA9 /* MachineFormViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineFormViewTests.swift; sourceTree = "<group>"; };
 		07973B2148006AE477F0D0E9 /* TabBarViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarViewTests.swift; sourceTree = "<group>"; };
 		FED3F0DE30E4B891F51D1B1A /* AccountSettingsSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsSectionView.swift; sourceTree = "<group>"; };
 		FF65DEF190906F9CF6F1E815 /* HooksGroupContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HooksGroupContent.swift; sourceTree = "<group>"; };
@@ -443,6 +449,8 @@
 				5213B70EFC0F91FF7C6EAF29 /* RootSplitView.swift */,
 				FCE6EE6E276995AE35699CCF /* SidebarView.swift */,
 				7290FB177504717D5838CB36 /* TabBarView.swift */,
+				938C3A15CDE271A8A695BF1B /* MachineFormView.swift */,
+				0A3527D98ECDEEFC0666E81C /* OnboardingView.swift */,
 				71B1F39CB986D0924C5E9675 /* Settings */,
 				800EA382914F32F102EBFBDA /* Workspace */,
 			);
@@ -604,6 +612,7 @@
 				F5B0B06C966AB8B15879FD39 /* ConnectionStoreTests.swift */,
 				1B2C3D4E5F60718293A4B5C6 /* SessionsManagerTests.swift */,
 				07973B2148006AE477F0D0E9 /* TabBarViewTests.swift */,
+				D73A2CD08EA60B9F9261DCA9 /* MachineFormViewTests.swift */,
 				BED69C1A4C21EDC189C91549 /* ConversationSendTests.swift */,
 				89C550C754DB48091C44F7E5 /* ConversationStoreTests.swift */,
 				1A4964274526D6507872954F /* DaemonBootstrapTests.swift */,
@@ -850,6 +859,8 @@
 				2ECEF967A2DCD5967A2D7F58 /* SidebarCollapseStore.swift in Sources */,
 				60B8027EA88C6844E4528DEE /* SidebarView.swift in Sources */,
 				23029D6FEFF185909B62E0E0 /* TabBarView.swift in Sources */,
+				F4E33B63309DE24D08CC3E1C /* MachineFormView.swift in Sources */,
+				3F75E6D282E4C5EE22CF68C9 /* OnboardingView.swift in Sources */,
 				576C8B4A2FD9652A3DD7AF42 /* SkillsGroupContent.swift in Sources */,
 				732C1CEDDF3F269B4163F140 /* SkillsStore.swift in Sources */,
 				50F379FF8F37C9B3DDC91BA7 /* SkillsTypes.swift in Sources */,
@@ -885,6 +896,7 @@
 				123F9BDEDD1CADB7A435CB82 /* ConnectionStoreTests.swift in Sources */,
 				F1E2D3C4B5A6978869504132 /* SessionsManagerTests.swift in Sources */,
 				06C0529D340748FC16D64F17 /* TabBarViewTests.swift in Sources */,
+				0C5E3EB4315935FA2C88940B /* MachineFormViewTests.swift in Sources */,
 				FE6A974BE19F86D1C57CB9AB /* ConversationSendTests.swift in Sources */,
 				BC80BF4355D7BC31B80A49D8 /* ConversationStoreTests.swift in Sources */,
 				FC179BE384945934273B1E8C /* DaemonBootstrapTests.swift in Sources */,

@@ -35,15 +35,20 @@ struct RootView: View {
     @Environment(SessionsManager.self) private var sessions
 
     var body: some View {
+        // @Bindable 桥接 addMachinePresented，供 sheet 双向绑定（引导态/主界面共用一个稳定挂载层）。
+        @Bindable var sessions = sessions
         Group {
             if sessions.machineStore.machines.isEmpty {
-                Text("onboarding placeholder")   // Task 8 换 OnboardingView()
+                OnboardingView()
             } else if let s = sessions.activeSession {
                 workspace(for: s)
             } else {
-                Text("onboarding placeholder")
+                // machines 非空但无 activeSession（近乎不可达）：回落引导页，仍可加/切机器。
+                OnboardingView()
             }
         }
+        // sheet 挂在 RootView（稳定层）：无论引导态还是主界面点 [+]/「添加第一台机器」都能弹出。
+        .sheet(isPresented: $sessions.addMachinePresented) { MachineFormView() }
     }
 
     /// 方案②：注入当前 Session 的散 store，读取点（Sidebar/Conversation/… 的
@@ -80,8 +85,12 @@ private struct WorkspaceHost: View {
     @State private var coordinator: ApprovalCoordinator?
 
     var body: some View {
-        RootSplitView()
-            .overlay(alignment: .top) { reconnectBanner }
+        // TabBarView 横贯挂在顶部（VStack 兄弟槽，高度小）；RootSplitView 内部自管 safeAreaInset，
+        // 故用 VStack 包裹不破坏其顶栏/inspector。切 tab 由外层 .id(s.id) 重建整棵子树。
+        VStack(spacing: 0) {
+            TabBarView()
+            RootSplitView()
+                .overlay(alignment: .top) { reconnectBanner }
             // 连接就绪/重连成功后把审批层接到当前 rpc；断线（reconnecting）时标记待恢复（绝不自动批准）。
             // 用 `.task(id:)` 而非 `.onChange`：`.id(s.id)` 重建 WorkspaceHost 时 @State coordinator 归 nil，
             // 若切到已连接的缓存 Session，rpcIdentity 初值即为该 rpc id（无变化）→ onChange 不触发 →
@@ -97,6 +106,7 @@ private struct WorkspaceHost: View {
             .onChange(of: connection.phase) { _, phase in
                 if phase == .reconnecting { coordinator?.connectionLost() }
             }
+        }
     }
 
     /// rpc 实例变化的探测键（ObjectIdentifier 字符串），用于在(重)连后重新 bind。
