@@ -1,5 +1,11 @@
 import SwiftUI
 
+/// ⚠️ 已退出 gating 路径（Task 9）：多机器 tab 容器重构后（T5 根接线 + T8 引导页），
+/// 正式入口已改为 `RootView`（machines 空 → `OnboardingView` 无齿轮；有活跃会话 → workspace）
+/// + 加机器走 `MachineFormView`。本视图**不再挂到任何 gating 分支**，仅作遗留保留：
+/// 目前还被两处测试引用（`OrientationSnapshotTests` 场景1 快照、`ConnectionConfigLogicTests`
+/// 测 `sockPath(forUser:)`），故本任务不删除；文件清理留 T12（快照重构）统一处理。
+///
 /// 连接配置界面：共享 daemon 接入参数（SSH host/user/port + 远端 control socket 路径）。
 /// 非敏感项（host/user/sshPort/sockPath）存 `UserDefaults`；鉴权私钥在 Keychain（由 `KeyManager` 管）。
 /// 展示本机 OpenSSH 公钥供复制——用户需把它加进 macmini 的 `~/.ssh/authorized_keys`。

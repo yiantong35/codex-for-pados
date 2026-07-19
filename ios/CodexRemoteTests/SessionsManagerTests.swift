@@ -110,6 +110,55 @@ final class SessionsManagerTests: XCTestCase {
         XCTAssertEqual(Set(stores).count, 12, "12 个功能 store 应全部装配且互为独立实例")
     }
 
+    /// Task 9 gating 回归（行为）：首次/未连接态（machines 空）根据 gating 不应有活跃会话，
+    /// 即不进入 workspace（RootSplitView topBar 的齿轮所在），而落到 OnboardingView。
+    /// 与 `test_rootView_dependsOnlyOnSessionsManager_emptyMachines` 呼应；这里聚焦「无 workspace 入口」。
+    func test_emptyMachines_gatingKeepsUserOutOfWorkspace() {
+        let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
+        XCTAssertTrue(store.machines.isEmpty)
+        let sessions = SessionsManager(machineStore: store, transportFactory: { _ in MockTransport() })
+        // gating 契约：空机器 → activeSession 为 nil → RootView 不渲染含齿轮的 workspace 分支。
+        XCTAssertNil(sessions.activeSession,
+                     "空机器时不得有活跃会话（否则会进入含设置齿轮的 workspace）")
+    }
+
+    /// Task 9 gating 回归（结构）：设置齿轮入口只允许存在于主界面 topBar（RootSplitView），
+    /// 首次/未连接态的两个视图（OnboardingView 引导页、MachineFormView 加机器表单）不得含齿轮。
+    ///
+    /// 说明：SwiftUI 的无障碍/视图树在 XCTest 无障碍技术未激活的无头环境下不会同步落地
+    /// （实测 UIHostingController 采集 a11y label 恒空），故不用运行时快照，改用**源码级结构断言**：
+    /// 齿轮以 `Image(systemName: "gearshape")` 呈现，`gearshape` 字面量是稳定标记。
+    /// - 正向对照：RootSplitView 源码**必含** `gearshape`（证明扫描器确实能识别齿轮标记，
+    ///   否则「引导页无齿轮」可能只是扫描器失效的假阳性）；
+    /// - 负向断言：OnboardingView / MachineFormView 源码**不得含** `gearshape`。
+    /// RED 证据：给 OnboardingView 源码加回 `Image(systemName: "gearshape")` → 负向断言失败。
+    func test_settingsGear_onlyInMainTopBar_notInOnboardingOrForm() throws {
+        let viewsDir = Self.viewsDirectory()
+        let gearToken = "gearshape"
+
+        // 正向对照：主界面 topBar 视图必含齿轮标记（扫描器有效性自证）。
+        let rootSplit = try String(contentsOf: viewsDir.appendingPathComponent("RootSplitView.swift"), encoding: .utf8)
+        XCTAssertTrue(rootSplit.contains(gearToken),
+                      "RootSplitView 应含设置齿轮标记 \(gearToken)（正向对照：证明扫描器能识别齿轮）")
+
+        // 负向断言：首次/未连接态视图不得含齿轮入口。
+        for name in ["OnboardingView.swift", "MachineFormView.swift"] {
+            let src = try String(contentsOf: viewsDir.appendingPathComponent(name), encoding: .utf8)
+            XCTAssertFalse(src.contains(gearToken),
+                           "\(name) 不得含设置齿轮入口（首次/未连接态无设置入口 gating）")
+        }
+    }
+
+    /// 由本测试文件路径（#filePath）推导源码 Views 目录，避免硬编码绝对路径。
+    /// 结构：<repo>/ios/CodexRemoteTests/SessionsManagerTests.swift →
+    ///       <repo>/ios/CodexRemote/Views/
+    private static func viewsDirectory() -> URL {
+        URL(fileURLWithPath: #filePath)            // .../ios/CodexRemoteTests/SessionsManagerTests.swift
+            .deletingLastPathComponent()           // .../ios/CodexRemoteTests
+            .deletingLastPathComponent()           // .../ios
+            .appendingPathComponent("CodexRemote/Views")
+    }
+
     /// 轮询等待条件成立（默认最多 ~2s），用于等 removeMachine 内的断连 Task 跑完。
     private func waitUntil(timeout: TimeInterval = 2.0,
                            _ condition: @MainActor () -> Bool) async -> Bool {
