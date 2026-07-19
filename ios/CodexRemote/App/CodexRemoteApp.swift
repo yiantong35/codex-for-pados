@@ -41,7 +41,13 @@ struct RootView: View {
             if sessions.machineStore.machines.isEmpty {
                 OnboardingView()
             } else if let s = sessions.activeSession {
-                workspace(for: s)
+                // TabBarView 上提到本层（`.id(s.id)` 重建边界之外）：它只读全局 SessionsManager，
+                // 不依赖单 Session，应常驻不随切 tab 重建（否则横滚偏移复位、DotView 闪烁重启、tab 栏本身重建）。
+                // 仅 workspace(for:) 内的 WorkspaceHost 挂 `.id(s.id)` → 切 tab 只重建 workspace 子树。
+                VStack(spacing: 0) {
+                    TabBarView()
+                    workspace(for: s)
+                }
             } else {
                 // machines 非空但无 activeSession（近乎不可达）：回落引导页，仍可加/切机器。
                 OnboardingView()
@@ -85,12 +91,10 @@ private struct WorkspaceHost: View {
     @State private var coordinator: ApprovalCoordinator?
 
     var body: some View {
-        // TabBarView 横贯挂在顶部（VStack 兄弟槽，高度小）；RootSplitView 内部自管 safeAreaInset，
-        // 故用 VStack 包裹不破坏其顶栏/inspector。切 tab 由外层 .id(s.id) 重建整棵子树。
-        VStack(spacing: 0) {
-            TabBarView()
-            RootSplitView()
-                .overlay(alignment: .top) { reconnectBanner }
+        // TabBarView 已上提到 RootView（`.id(s.id)` 外层，常驻不重建）；本视图只承接
+        // RootSplitView + 重连横幅 + coordinator 接线。切 tab 由外层 `.id(s.id)` 重建本子树。
+        RootSplitView()
+            .overlay(alignment: .top) { reconnectBanner }
             // 连接就绪/重连成功后把审批层接到当前 rpc；断线（reconnecting）时标记待恢复（绝不自动批准）。
             // 用 `.task(id:)` 而非 `.onChange`：`.id(s.id)` 重建 WorkspaceHost 时 @State coordinator 归 nil，
             // 若切到已连接的缓存 Session，rpcIdentity 初值即为该 rpc id（无变化）→ onChange 不触发 →
@@ -106,7 +110,6 @@ private struct WorkspaceHost: View {
             .onChange(of: connection.phase) { _, phase in
                 if phase == .reconnecting { coordinator?.connectionLost() }
             }
-        }
     }
 
     /// rpc 实例变化的探测键（ObjectIdentifier 字符串），用于在(重)连后重新 bind。

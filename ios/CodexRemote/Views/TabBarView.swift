@@ -73,7 +73,10 @@ struct DotView: View {
         .opacity(indicator.isBlinking && dim ? 0.25 : 1)
         .animation(indicator.isBlinking ? .easeInOut(duration: 0.6).repeatForever(autoreverses: true) : .default,
                    value: dim)
-        .onAppear { if indicator.isBlinking { dim = true } }
+        // 由 indicator 变化驱动闪烁，而非仅靠 onAppear：视图未重建但 indicator 从非闪烁跃迁到
+        // .attention/.error（T11 接真实数据后同一 tab 内状态跃迁）时也能正确启停。
+        .onChange(of: indicator.isBlinking) { _, blinking in dim = blinking }
+        .onAppear { dim = indicator.isBlinking }
     }
 
     private func dot(_ c: Color) -> some View { Circle().fill(c).frame(width: 8, height: 8) }
