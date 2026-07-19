@@ -35,9 +35,15 @@ final class SessionsManager {
         return s
     }
 
-    /// 切活跃 tab（后台策略钩子在 Task 11 补）。
+    /// 切活跃 tab（D6=B 后台策略）：旧活跃转后台（停轮询降频），新活跃转前台（开轮询 + 补最终态）。
+    /// A 类广播订阅前后台都保留，后台机器状态变化仍实时更新 tab 圆点。
     func setActive(_ id: UUID) {
+        // machineStore.activeMachineId 此刻仍是「旧」active（下一行才切）。
+        if let oldId = machineStore.activeMachineId, oldId != id {
+            cache[oldId]?.setForeground(false)   // 旧前台转后台
+        }
         machineStore.setActive(id)
+        session(for: id)?.setForeground(true)    // 新前台
     }
 
     /// 添加机器后自动切过去并连接（D13）。
@@ -62,17 +68,27 @@ final class SessionsManager {
         Task { await cache[id]?.disconnect() }
     }
 
-    /// 冷启动只连上次活跃（D7）；其余懒连。
+    /// 冷启动只连上次活跃（D7）；其余懒连。被连的即启动前台 tab，置前台开轮询。
     func bootstrapAutoConnect() {
         guard let m = machineStore.lastActiveMachine else { return }
         machineStore.setActive(m.id)
-        session(for: m.id)?.connect()
+        let s = session(for: m.id)
+        s?.connect()
+        s?.setForeground(true)
     }
 
     // MARK: - T7 UI 依赖桩（数据源/表单接线在 T11/T8 补）
 
-    /// tab 圆点聚合状态。T11 换成从 Session.projects 聚合 statuses + 未读的真实实现。
-    func indicator(for id: UUID) -> TabIndicator { .none }   // T11
+    /// tab 圆点聚合状态（T11 真实实现）：从该 Session 的 projects 聚合会话状态 + 未读。
+    /// 未建 Session（懒连未连）→ .none（符合「未连接无点」）。
+    /// isSelected 传 false：tab 级聚合不针对单个选中会话。
+    func indicator(for id: UUID) -> TabIndicator {
+        guard let s = cache[id] else { return .none }   // 未建 Session（未连）→ 无点
+        let connected = s.connection.phase == .ready
+        let statuses = s.projects.allThreadsSorted.compactMap { s.projects.status(of: $0.id) }
+        let hasUnread = s.projects.allThreadsSorted.contains { s.projects.hasUnread($0, isSelected: false) }
+        return TabIndicator.resolve(isConnected: connected, statuses: statuses, hasUnread: hasUnread)
+    }
 
     /// 添加机器表单呈现标志。T8 接表单 sheet（@Observable 类里普通存储属性自动可观察）。
     var addMachinePresented: Bool = false   // T8

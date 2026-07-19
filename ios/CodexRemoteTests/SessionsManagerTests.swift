@@ -149,6 +149,85 @@ final class SessionsManagerTests: XCTestCase {
         }
     }
 
+    // MARK: - Task 11 前后台策略（D6=B 保连降频）+ tab 圆点数据源
+
+    /// D6：切活跃 tab 时旧前台转后台、新前台转前台。
+    /// 后台 = stopPolling 降频；前台 = startPolling + refreshNow 补最终态（rpc 未注入时均为幂等 no-op）。
+    func test_setActiveMovesOldToBackgroundNewToForeground() {
+        let m = mgr()
+        let a = MachineConfig(host: "a", user: "u"); m.machineStore.add(a)
+        let b = MachineConfig(host: "b", user: "u"); m.machineStore.add(b)
+        let sa = m.session(for: a.id)!
+        let sb = m.session(for: b.id)!
+
+        m.setActive(a.id)
+        XCTAssertTrue(sa.isForeground, "新活跃 a 应转前台")
+        XCTAssertFalse(sb.isForeground, "b 从未活跃，仍在后台")
+
+        m.setActive(b.id)
+        XCTAssertFalse(sa.isForeground, "旧前台 a 切走后应转后台")
+        XCTAssertTrue(sb.isForeground, "新活跃 b 应转前台")
+    }
+
+    /// D7 冷启动只连上次活跃：被连的那台就是启动前台 tab，应置前台。
+    func test_bootstrapSetsActiveSessionForeground() {
+        let m = mgr()
+        let mc = MachineConfig(host: "a", user: "u"); m.machineStore.add(mc)
+        m.bootstrapAutoConnect()
+        let s = m.session(for: mc.id)!
+        XCTAssertTrue(s.isForeground, "冷启动被连的活跃 tab 应为前台")
+    }
+
+    /// 圆点数据源：未建 Session（懒连未连）→ 无点（indicator 不应假连接）。
+    func test_indicatorNoneForUnconnectedSession() {
+        let m = mgr()
+        let mc = MachineConfig(host: "a", user: "u"); m.machineStore.add(mc)
+        // 刻意不调用 session(for:)：cache 无该 Session。
+        XCTAssertEqual(m.indicator(for: mc.id), .none, "未建 Session 的 tab 应无圆点")
+    }
+
+    /// 圆点数据源（真实聚合）：已连接 Session 内有「待批准」活跃会话 → indicator 反映 .attention。
+    /// 需驱动握手到 .ready（TabIndicator.resolve 未连接一律 .none），再经 ingest + handleStatusChanged
+    /// 注入一个活跃会话状态，验证 indicator 从 projects 真实聚合而非桩恒 .none。
+    func test_indicatorReflectsStatus() async throws {
+        await MainActor.run { KeyManager().generateIfNeeded() }   // 越过 connect 的密钥前置校验
+        let mock = MockTransport()
+        let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
+        let m = SessionsManager(machineStore: store, transportFactory: { _ in mock })
+        let mc = MachineConfig(host: "a", user: "u"); store.add(mc)
+        let s = m.session(for: mc.id)!
+
+        // 后台模拟服务端：收到 initialize 后按其唯一 id 回响应，使握手到达 .ready。
+        Task {
+            var initId: String?
+            for _ in 0..<200 {
+                try? await Task.sleep(nanoseconds: 5_000_000)
+                if let sent = await mock.sent.first(where: { $0.contains(#""method":"initialize""#) }),
+                   let obj = try? JSONSerialization.jsonObject(with: Data(sent.utf8)) as? [String: Any],
+                   let id = obj["id"] as? String { initId = id; break }
+            }
+            if let initId {
+                await mock.feed(#"{"jsonrpc":"2.0","id":"\#(initId)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
+            }
+        }
+        s.connect()
+        let ready = await waitUntil { s.connection.phase == .ready }
+        XCTAssertTrue(ready, "前置：握手应到达 .ready")
+
+        // 注入一个活跃会话 + 待批准状态。
+        s.projects.ingest([threadSummary(id: "t1", cwd: "/repo", updatedAt: 100)])
+        s.projects.handleStatusChanged(threadId: "t1", status: .active(activeFlags: [.waitingOnApproval]))
+        XCTAssertEqual(m.indicator(for: mc.id), .attention,
+                       "已连接 + 待批准活跃会话 → indicator 应聚合为 .attention")
+    }
+
+    /// 构造 loose 会话摘要（无 gitInfo）供圆点聚合测试注入。
+    private func threadSummary(id: String, cwd: String, updatedAt: Double) -> ThreadSummary {
+        ThreadSummary(id: id, sessionId: id, preview: "", modelProvider: "openai",
+                      createdAt: 0, updatedAt: updatedAt, cwd: cwd, cliVersion: "0.133.0",
+                      name: nil, gitInfo: nil)
+    }
+
     /// 由本测试文件路径（#filePath）推导源码 Views 目录，避免硬编码绝对路径。
     /// 结构：<repo>/ios/CodexRemoteTests/SessionsManagerTests.swift →
     ///       <repo>/ios/CodexRemote/Views/
