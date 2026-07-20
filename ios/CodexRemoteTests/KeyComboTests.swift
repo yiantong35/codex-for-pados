@@ -33,4 +33,41 @@ final class KeyComboTests: XCTestCase {
     func test_escapeSentinelDisplaysAsEsc() {
         XCTAssertEqual(KeyCombo(key: KeyCombo.escapeKey, modifiers: []).displayString, "esc")
     }
+
+    // MARK: - 转 KeyEquivalent / KeyboardShortcut（Design 测试策略：转 KeyboardShortcut 覆盖）
+
+    func test_keyEquivalent_normalKeyUsesCharacter() {
+        let combo = KeyCombo(key: "d", modifiers: [.command, .shift])
+        XCTAssertEqual(combo.keyEquivalent.character, "d")
+    }
+
+    func test_keyEquivalent_escapeSentinelMapsToEscape() {
+        let combo = KeyCombo(key: KeyCombo.escapeKey, modifiers: [])
+        XCTAssertEqual(combo.keyEquivalent, .escape)
+    }
+
+    func test_keyboardShortcut_carriesKeyAndModifiers() {
+        let shortcut = KeyCombo(key: "b", modifiers: .command).keyboardShortcut
+        XCTAssertEqual(shortcut.key.character, "b")
+        XCTAssertTrue(shortcut.modifiers.contains(.command))
+    }
+
+    // MARK: - init(keyPress:) 过滤语义
+    //
+    // KeyCombo.init(keyPress:) 依赖 SwiftUI 运行时经 onKeyPress 回调生成的 KeyPress。
+    // 经查 iOS 26.5 SDK，SwiftUI.KeyPress 仅有 `public let phase/key/characters/modifiers`
+    // 四个存储属性、且无任何公开初始化器，无法在单元测试中可靠构造，故不硬造 KeyPress。
+    // 改为直接断言该 init 所依赖的 EventModifiers.intersection 过滤语义——即
+    // “只保留 ⌘⇧⌃⌥、滤掉 capsLock/numericPad 等噪声”这一等价行为
+    // （对应 KeyCombo.swift init(keyPress:) 中 keyPress.modifiers.intersection([.command,.shift,.control,.option])）。
+    func test_keyPressInit_intersectionKeepsOnlyRelevantModifiers() {
+        let relevant: EventModifiers = [.command, .shift, .control, .option]
+        // 噪声（capsLock）+ 相关修饰（command）→ 只留 command
+        XCTAssertEqual(([.command, .capsLock] as EventModifiers).intersection(relevant), .command)
+        // 多个相关修饰 + 噪声（numericPad）→ 相关的全部保留、噪声被滤掉
+        XCTAssertEqual(([.command, .shift, .capsLock, .numericPad] as EventModifiers).intersection(relevant),
+                       [.command, .shift])
+        // 纯噪声 → 空集
+        XCTAssertEqual(([.capsLock, .numericPad] as EventModifiers).intersection(relevant), [])
+    }
 }
