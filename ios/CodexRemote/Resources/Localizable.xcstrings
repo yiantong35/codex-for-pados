@@ -3766,13 +3766,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Key already in use"
+            "value": "Already used by \"%@\""
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "该键位已被占用"
+            "value": "已被「%@」占用"
           }
         }
       }

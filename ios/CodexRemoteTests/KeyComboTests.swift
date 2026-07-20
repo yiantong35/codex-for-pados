@@ -43,6 +43,14 @@ final class KeyComboTests: XCTestCase {
         XCTAssertEqual(KeyCombo(key: KeyCombo.escapeKey, modifiers: []).displayString, "esc")
     }
 
+    /// 特性锁：Esc 归约出的键位（escapeKey + 空修饰）等于 cancelForm 的默认键位。
+    /// 这正是录入态必须在构造/校验前拦截 Esc 的原因——否则一次 Esc 会被 init(keyPress:)
+    /// 归约成 cancelForm 的组合键、被占用检测判 .occupied，用户无法退出录入态（死胡同）。
+    func test_escapeKeyPressWouldCollideWithCancelForm() {
+        XCTAssertEqual(KeyCombo(key: KeyCombo.escapeKey, modifiers: []),
+                       ShortcutAction.cancelForm.defaultCombo)
+    }
+
     // MARK: - 转 KeyEquivalent / KeyboardShortcut（Design 测试策略：转 KeyboardShortcut 覆盖）
 
     func test_keyEquivalent_normalKeyUsesCharacter() {

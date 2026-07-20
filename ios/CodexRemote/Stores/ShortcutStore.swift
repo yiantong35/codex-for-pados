@@ -15,6 +15,14 @@ enum RebindRejection: Equatable {
     case notCustomizable               // 固定动作（如 Esc 取消）不可改键
 }
 
+/// 录入态捕获一次按键后的决策（设计 D3 + Esc 取消语义）。
+/// 独立于 View @State，可单测（见 ShortcutStoreTests）。
+enum RecordingOutcome: Equatable {
+    case cancelled                     // Esc：取消录入、保留原绑定（绝不当作组合键捕获）
+    case accepted                      // 合法改键、已持久化
+    case rejected(RebindRejection)     // 命中校验拒绝，保持录入态回显原因
+}
+
 /// 快捷键注册中心（设计 D1/D3）：动作 → 键位单一数据源。
 /// 覆盖优先否则默认；覆盖持久化到 UserDefaults（仿 SidebarCollapseStore 模式）。
 @Observable
@@ -80,6 +88,18 @@ final class ShortcutStore {
     func resetAll() {
         overrides.removeAll()
         persist()
+    }
+
+    /// 录入态捕获一次按键后的决策（Task 13 状态机）。
+    /// Esc 优先拦截为「取消」——否则 Esc 会经 `KeyCombo(keyPress:)` 归约成 cancelForm 的
+    /// 默认键位、被占用检测判 `.occupied` 而死胡同（见 KeyComboTests 特性锁）。
+    /// 非 Esc 则走标准 rebind 校验管线。View 仅把结果映射到 @State。
+    func recordingOutcome(for action: ShortcutAction, isEscape: Bool, combo: KeyCombo) -> RecordingOutcome {
+        if isEscape { return .cancelled }
+        switch rebind(action, to: combo) {
+        case .accepted:               return .accepted
+        case .rejected(let reason):   return .rejected(reason)
+        }
     }
 
     private func persist() {

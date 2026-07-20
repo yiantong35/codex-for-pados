@@ -125,4 +125,44 @@ final class ShortcutStoreTests: XCTestCase {
         XCTAssertFalse(s.isOverridden(.toggleBottomPanel))
         UserDefaults().removePersistentDomain(forName: suite)
     }
+
+    // MARK: - 录入态决策（recordingOutcome，Task 13 状态机）
+    //
+    // 录入态捕获一次按键后的纯决策，独立于 View @State，故可单测。
+    // View 只把结果映射为 exitRecording()/rejection 回显。
+
+    /// Esc 必须判「取消录入」——绝不当作组合键走 rebind、原绑定保持不变。
+    /// （否则 Esc 经 init(keyPress:) 归约成 cancelForm 默认键位、被占用检测判 .occupied 而死循环。）
+    func test_recordingOutcome_escapeCancels_withoutMutating() {
+        let (s, _, suite) = store()
+        let original = s.combo(for: .openSettings)
+        let outcome = s.recordingOutcome(for: .openSettings,
+                                         isEscape: true,
+                                         combo: KeyCombo(key: KeyCombo.escapeKey, modifiers: []))
+        XCTAssertEqual(outcome, .cancelled)
+        XCTAssertEqual(s.combo(for: .openSettings), original, "取消不得改动绑定")
+        XCTAssertFalse(s.isOverridden(.openSettings))
+        UserDefaults().removePersistentDomain(forName: suite)
+    }
+
+    /// 占用键回显：结果必须携带占用动作（FIX 1 冲突提示插值的数据来源）。
+    func test_recordingOutcome_occupiedKey_carriesOccupantAction() {
+        let (s, _, suite) = store()
+        let outcome = s.recordingOutcome(for: .toggleSummary,
+                                         isEscape: false,
+                                         combo: KeyCombo(key: "j", modifiers: .command)) // ⌘J = toggleBottomPanel
+        XCTAssertEqual(outcome, .rejected(.occupied(by: .toggleBottomPanel)))
+        XCTAssertEqual(s.combo(for: .toggleSummary), ShortcutAction.toggleSummary.defaultCombo, "拒绝时原绑定保持")
+        UserDefaults().removePersistentDomain(forName: suite)
+    }
+
+    /// 自由键：接受并持久化。
+    func test_recordingOutcome_freeKey_acceptsAndPersists() {
+        let (s, _, suite) = store()
+        let free = KeyCombo(key: "k", modifiers: [.command, .shift])
+        let outcome = s.recordingOutcome(for: .toggleSummary, isEscape: false, combo: free)
+        XCTAssertEqual(outcome, .accepted)
+        XCTAssertEqual(s.combo(for: .toggleSummary), free)
+        UserDefaults().removePersistentDomain(forName: suite)
+    }
 }

@@ -503,7 +503,7 @@ final class OrientationSnapshotTests: XCTestCase {
         snapshot(view, size: landscape, name: "machineform-landscape", dir: mcDir)
     }
 
-    // MARK: - 场景 9：快捷键设置分区（T10）
+    // MARK: - 场景 9：快捷键设置分区（T10/Task 13）
 
     /// 快捷键分区新增本地化键必须可解析（解析失败回落为键名本身）。
     func test_shortcut_localization_keys_present() {

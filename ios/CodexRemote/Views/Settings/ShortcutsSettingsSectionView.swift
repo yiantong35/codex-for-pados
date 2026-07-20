@@ -10,7 +10,8 @@ struct ShortcutsSettingsSectionView: View {
     @State private var recordingAction: ShortcutAction?
     /// 最近一次改键被拒原因（inline 回显）。
     @State private var rejection: RebindRejection?
-    @FocusState private var recordingFocused: Bool
+    /// 值型焦点：绑定到「当前录入行」的动作，支持多行录入互斥、退出即释放（FIX 3）。
+    @FocusState private var focusedAction: ShortcutAction?
 
     var body: some View {
         List {
@@ -74,31 +75,36 @@ struct ShortcutsSettingsSectionView: View {
         // 录入态回显被拒原因。
         .overlay(alignment: .bottomLeading) {
             if isRecording, let rejection {
-                Text(rejectionMessage(rejection))
+                Text(rejectionMessage(rejection))   // 已解析 String（含占用动作名），verbatim 渲染避免二次本地化
                     .font(.caption2).foregroundStyle(.red)
             }
         }
         // onKeyPress 只在录入行挂载（功耗约束 1）：捕获实键 → 校验管线。
         .focusable(isRecording)
-        .focused($recordingFocused)
+        .focused($focusedAction, equals: action)
         .keyCapture(active: isRecording) { press in handleKeyPress(press, for: action) }
     }
 
     private func enterRecording(_ action: ShortcutAction) {
         rejection = nil
         recordingAction = action
-        recordingFocused = true
+        focusedAction = action
     }
 
     private func exitRecording() {
         recordingAction = nil
         rejection = nil
+        focusedAction = nil
     }
 
     private func handleKeyPress(_ press: KeyPress, for action: ShortcutAction) -> KeyPress.Result {
-        let combo = KeyCombo(keyPress: press)
-        switch shortcuts.rebind(action, to: combo) {
-        case .accepted:
+        // Esc 拦截由 recordingOutcome 完成：判 .cancelled 而非当作组合键校验，
+        // 否则 Esc 归约成 cancelForm 键位、被占用检测判 .occupied 而无法退出（FIX 2）。
+        let outcome = shortcuts.recordingOutcome(for: action,
+                                                 isEscape: press.key == .escape,
+                                                 combo: KeyCombo(keyPress: press))
+        switch outcome {
+        case .cancelled, .accepted:
             exitRecording()
         case .rejected(let reason):
             rejection = reason   // 保持录入态显示原因，原绑定不变
@@ -106,18 +112,20 @@ struct ShortcutsSettingsSectionView: View {
         return .handled
     }
 
-    private func rejectionMessage(_ reason: RebindRejection) -> LocalizedStringKey {
+    /// 被拒提示（已解析为最终 String）。占用冲突插入占用动作的本地化名（FIX 1，spec §冲突检测）。
+    private func rejectionMessage(_ reason: RebindRejection) -> String {
         switch reason {
         case .systemReserved:
-            return "shortcut.conflict.systemReserved"
+            return String(localized: "shortcut.conflict.systemReserved")
         case .occupied(let occupant):
-            // 简化：统一提示「已被占用」（含占用动作可在 Task 13 用 %@ 插值细化）。
-            _ = occupant
-            return "shortcut.conflict.occupied"
+            let name = String(localized: String.LocalizationValue(occupant.titleStringKey))
+            // key「shortcut.conflict.occupied」的本地化值为 "已被「%@」占用" / "Already used by \"%@\""；
+            // defaultValue 既是开发语言源串、又携带插值实参（name）填入该格式串的 %@。
+            return String(localized: "shortcut.conflict.occupied", defaultValue: "Already used by \"\(name)\"")
         case .notCustomizable:
-            // 固定动作不可改键：正常 UI 不会触发（固定行无改键入口），
-            // 兜底复用系统保留提示（本地化 key 由 Task 13 统一收口，此处不新增 key）。
-            return "shortcut.conflict.systemReserved"
+            // unreachable via UI（固定行不暴露改键入口）；仅防御性兜底，release 不崩。
+            assertionFailure("notCustomizable rejection should be unreachable from the shortcuts UI")
+            return String(localized: "shortcut.conflict.systemReserved")
         }
     }
 }
