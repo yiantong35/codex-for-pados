@@ -30,13 +30,9 @@ struct RootSplitView: View {
     // 以正确解析 .system（规避 sheet .preferredColorScheme(nil) 无法重置强制值）。
     @Environment(\.colorScheme) private var systemColorScheme
     @State private var selectedThreadId: String?
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
-    // 五窗口 toggle 状态（design D5：每个面板一个 @State Bool）。
-    @State private var showRightPanel: Bool
-    @State private var showBottomPanel: Bool
-    @State private var showSummary = false
-    @State private var showSettings = false
+    /// 面板布局状态（设计 D4，方案 A）：从私有 @State 抬升，顶栏按钮 + 面板快捷键共享同一份。
+    @State private var layout: WorkspaceLayoutStore
     // 下栏高度（自绘纵向拖 + clamp）。下栏挂在 split 外层全宽 safeAreaInset（design D2）。
     @State private var bottomHeight: CGFloat = WorkspaceMetrics.bottomPanelIdealHeight
     // 左栏把手拖动高亮：系统列钩不到拖动事件，改为监听真实分隔线坐标变化——拖系统分隔线时坐标持续变，
@@ -58,8 +54,8 @@ struct RootSplitView: View {
 
     /// 便利初始化：允许注入面板初始展开态（供快照测试覆盖全开布局）。
     init(initialRightOpen: Bool = false, initialBottomOpen: Bool = false) {
-        _showRightPanel = State(initialValue: initialRightOpen)
-        _showBottomPanel = State(initialValue: initialBottomOpen)
+        _layout = State(initialValue: WorkspaceLayoutStore(showRight: initialRightOpen,
+                                                           showBottom: initialBottomOpen))
     }
 
     private var selectedThread: ThreadSummary? {
@@ -68,9 +64,10 @@ struct RootSplitView: View {
     }
 
     // 批次⑤：摘要打开/切换会话/连接就绪时触发环境信息刷新的 key（含连接态避免冷启动漏刷 I2）。
-    private var summaryEnvKey: String { "\(showSummary)-\(selectedThreadId ?? "")-\(connection.phase == .ready)" }
+    private var summaryEnvKey: String { "\(layout.showSummary)-\(selectedThreadId ?? "")-\(connection.phase == .ready)" }
 
     var body: some View {
+        @Bindable var layout = layout
         // 下栏改为 VStack 兄弟槽（不再用 split 的 .safeAreaInset(.bottom)）：
         // 根因——safeAreaInset(.bottom) 挂在 NavigationSplitView 上时，其系统列(sidebar/detail)
         // 以 maxHeight:.infinity 填满、不吃底部 inset，导致下栏覆盖而非上推挤压（Task 6 诊断实测：
@@ -82,7 +79,7 @@ struct RootSplitView: View {
                 // 仅由顶栏摘要按钮显隐。overlay 放在 safeAreaInset 之前 → 浮层落在顶栏「下方」内容区，
                 // 不会遮挡顶栏按钮（否则会盖住摘要按钮本身导致收不回）。
                 .overlay(alignment: .topTrailing) {
-                    if showSummary {
+                    if layout.showSummary {
                         SummaryPopoverView(state: activeConversation.state, thread: selectedThread, env: envInspector)
                             .frame(width: 340)
                             .task(id: summaryEnvKey) {
@@ -108,7 +105,7 @@ struct RootSplitView: View {
                 }
 
             // 下栏：VStack 底部兄弟槽，横跨左+中+右、把 split 挤压上移（design D2 目标，改用 VStack 实现）。
-            if showBottomPanel {
+            if layout.showBottom {
                 Divider()
                 BottomPanelView(height: $bottomHeight, cwd: selectedThread?.cwd)
                     // 从底部滑入/滑出，配合顶栏按钮的 withAnimation，弹出不再僵硬（#1）。
@@ -117,12 +114,12 @@ struct RootSplitView: View {
         }
         .onChange(of: activeConversation.requestRightPanel) { _, req in
             if req {
-                withAnimation { showRightPanel = true }
+                withAnimation { layout.showRight = true }
                 activeConversation.requestRightPanel = false
             }
         }
         .environment(activeConversation)
-        .sheet(isPresented: $showSettings) { SettingsPageView(systemColorScheme: systemColorScheme) }
+        .sheet(isPresented: $layout.showSettings) { SettingsPageView(systemColorScheme: systemColorScheme) }
     }
 
     // MARK: - 顶部固定全局工具栏：左面板 · 下面板 · 右面板 · 摘要(:≡) · 设置
@@ -150,32 +147,30 @@ struct RootSplitView: View {
 
             // 左面板：显式控制 columnVisibility（不叠加系统 sidebarToggle）。
             Button {
-                withAnimation {
-                    columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
-                }
+                withAnimation { layout.leftVisible.toggle() }
             } label: { Image(systemName: "rectangle.leadinghalf.inset.filled") }
             .accessibilityLabel(Text("workspace.leftPanel.toggle"))
 
             // 下面板。
-            Button { withAnimation { showBottomPanel.toggle() } } label: {
+            Button { withAnimation { layout.showBottom.toggle() } } label: {
                 Image(systemName: "rectangle.bottomthird.inset.filled")
             }
             .accessibilityLabel(Text("workspace.bottomPanel.toggle"))
 
             // 摘要(:≡ = list.bullet)：常驻悬浮浮层由 body 的 overlay 渲染。
-            Button { withAnimation { showSummary.toggle() } } label: {
+            Button { withAnimation { layout.showSummary.toggle() } } label: {
                 Image(systemName: "list.bullet")
             }
             .accessibilityLabel(Text("workspace.summary.toggle"))
 
             // 右面板。
-            Button { withAnimation { showRightPanel.toggle() } } label: {
+            Button { withAnimation { layout.showRight.toggle() } } label: {
                 Image(systemName: "rectangle.trailinghalf.inset.filled")
             }
             .accessibilityLabel(Text("workspace.rightPanel.toggle"))
 
             // 设置：gear 直接打开设置页 .sheet（移除旧 popover，设计 D3）。
-            Button { showSettings.toggle() } label: {
+            Button { layout.showSettings = true } label: {
                 Image(systemName: "gearshape")
                     .accessibilityLabel(Text("settings.accessibility"))
             }
@@ -190,8 +185,17 @@ struct RootSplitView: View {
 
     // MARK: - split：左栏 | detail + inspector
 
+    /// columnVisibility ↔ layout.leftVisible 双向派生（设计 D4：columnVisibility 由 leftVisible 派生，
+    /// 同时把系统拖动收起列同步回 store）。
+    private var columnVisibilityBinding: Binding<NavigationSplitViewVisibility> {
+        Binding(
+            get: { layout.leftVisible ? .all : .detailOnly },
+            set: { layout.leftVisible = ($0 != .detailOnly) }
+        )
+    }
+
     private var split: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
+        NavigationSplitView(columnVisibility: columnVisibilityBinding) {
             SidebarView(selectedThreadId: $selectedThreadId)
                 .background {
                     GeometryReader { proxy in
@@ -225,11 +229,12 @@ struct RootSplitView: View {
     private var detail: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .inspector(isPresented: $showRightPanel) {
+            .inspector(isPresented: $layout.showRight) {
                 RightPanelContainerView(cwd: selectedThread?.cwd, mainThreadId: selectedThreadId)
                     // inspector 内容在独立系统列，不保证继承 body 链上的 .environment，
                     // 故在此显式注入 ActiveConversationHolder（否则 RightPanelContainerView 读环境时运行时崩溃）。
                     .environment(activeConversation)
+                    .environment(layout)   // 设计 D6：右栏跳转信号载体（此处先注入，Task 10 才消费）
                     // 监听 inspector 分隔线坐标变化 → 拖动中点亮统一 overlay 中的右把手。
                     .background {
                         GeometryReader { proxy in
@@ -263,14 +268,14 @@ struct RootSplitView: View {
             let currentRightDividerX = rightDividerX ?? proxy.size.width - WorkspaceMetrics.rightPanelIdealWidth
 
             ZStack(alignment: .topLeading) {
-                if columnVisibility != .detailOnly {
+                if layout.leftVisible {
                     resizeHandle(active: leftHandleActive, width: leftWidth)
                         .position(x: WorkspaceMetrics.leftColumnResizeHandleCenterX(dividerX: leftDividerX,
                                                                                      handleWidth: leftWidth),
                                   y: centerY)
                 }
 
-                if showRightPanel {
+                if layout.showRight {
                     resizeHandle(active: rightHandleActive, width: rightWidth)
                         .position(x: WorkspaceMetrics.rightColumnResizeHandleCenterX(dividerX: currentRightDividerX,
                                                                                       handleWidth: rightWidth),
