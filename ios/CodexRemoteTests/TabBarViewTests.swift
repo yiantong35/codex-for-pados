@@ -1,0 +1,63 @@
+import XCTest
+import SwiftUI
+@testable import CodexRemote
+
+@MainActor
+final class TabBarViewTests: XCTestCase {
+    private func mgr(machines: Int = 0) -> SessionsManager {
+        let d = UserDefaults(suiteName: "test.\(UUID().uuidString)")!
+        let store = MachineStore(defaults: d)
+        for i in 0..<machines { store.add(MachineConfig(displayName: "m\(i)", host: "h\(i)", user: "u")) }
+        return SessionsManager(machineStore: store, transportFactory: { _ in MockTransport() })
+    }
+
+    /// TabBarView 应能在有机器时挂载渲染而不崩溃（横向 tab 栏 + 圆点 + [+]）。
+    func test_tabBarView_rendersWithMachines() {
+        let sessions = mgr(machines: 3)
+        let view = TabBarView().environment(sessions)
+        let hc = UIHostingController(rootView: view)
+        hc.view.frame = CGRect(x: 0, y: 0, width: 320, height: 60)
+        let window = UIWindow(frame: hc.view.frame)
+        window.rootViewController = hc
+        window.makeKeyAndVisible()
+        hc.view.setNeedsLayout()
+        hc.view.layoutIfNeeded()
+        XCTAssertEqual(sessions.machineStore.machines.count, 3)
+    }
+
+    /// 空机器时也应渲染（只有 [+] 按钮），不崩溃。
+    func test_tabBarView_rendersEmpty() {
+        let sessions = mgr(machines: 0)
+        let hc = UIHostingController(rootView: TabBarView().environment(sessions))
+        hc.view.frame = CGRect(x: 0, y: 0, width: 320, height: 60)
+        hc.view.setNeedsLayout()
+        hc.view.layoutIfNeeded()
+        XCTAssertTrue(sessions.machineStore.machines.isEmpty)
+    }
+
+    /// DotView 覆盖 5 种指示态均可实例化渲染不崩溃（含闪烁态 attention/error）。
+    func test_dotView_allIndicatorsRender() {
+        for ind in [TabIndicator.none, .unread, .running, .attention, .error] {
+            let hc = UIHostingController(rootView: DotView(indicator: ind))
+            hc.view.frame = CGRect(x: 0, y: 0, width: 20, height: 20)
+            hc.view.setNeedsLayout()
+            hc.view.layoutIfNeeded()
+            XCTAssertNotNil(hc.view)
+        }
+    }
+
+    /// 桩：indicator(for:) 默认 .none（T11 换真实聚合）。
+    func test_indicatorStub_defaultsToNone() {
+        let sessions = mgr(machines: 1)
+        let id = sessions.machineStore.machines[0].id
+        XCTAssertEqual(sessions.indicator(for: id), .none)
+    }
+
+    /// 桩：presentAddMachine 置 addMachinePresented（T8 接表单 sheet）。
+    func test_presentAddMachineStub_setsFlag() {
+        let sessions = mgr(machines: 0)
+        XCTAssertFalse(sessions.addMachinePresented)
+        sessions.presentAddMachine()
+        XCTAssertTrue(sessions.addMachinePresented)
+    }
+}
