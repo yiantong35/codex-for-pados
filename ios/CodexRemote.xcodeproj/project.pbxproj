@@ -63,6 +63,7 @@
 		539157488520E1A777AED010 /* HooksStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1781A8DC8A08861EBAF33547 /* HooksStoreTests.swift */; };
 		53B6E751515EC618B355A196 /* TabBarViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB40D1CAC48434DA0A09E635 /* TabBarViewTests.swift */; };
 		576C8B4A2FD9652A3DD7AF42 /* SkillsGroupContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 241FD1D7C1D00CA927C21312 /* SkillsGroupContent.swift */; };
+		58C652C508F530A78083C8B5 /* ShortcutAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = E78D1B3E7C5447B20FC9214E /* ShortcutAction.swift */; };
 		5B5FFF4958C99A8E41E1078E /* ReviewTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67F2FA50F4C7BE3D89B0C538 /* ReviewTabView.swift */; };
 		5C5995554F25E2EA5E6AA361 /* MachineFormViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7257E52BDEA31445E6BBCAC2 /* MachineFormViewTests.swift */; };
 		5E93E0F7D340F4F305F918D3 /* EnvironmentTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10687C2DD85C10B97C266DFD /* EnvironmentTypes.swift */; };
@@ -123,6 +124,7 @@
 		AE36BA993EB1C60C751C416A /* ReviewPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 239D1247A5B1E3511AE98C8D /* ReviewPanelView.swift */; };
 		AE409793C410F73918FB4566 /* EnvironmentInspectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC9F320A35BB19E1F9376F5 /* EnvironmentInspectorTests.swift */; };
 		B30B30AE737320498073AD1A /* ItemCardRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DFB7A58D57B8BBE700849D6 /* ItemCardRenderTests.swift */; };
+		B81D3E8CED5A075202D7A579 /* ShortcutActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47160F3294A06F995D6B9CD2 /* ShortcutActionTests.swift */; };
 		BB4D3A2B39ACF6522A3E1580 /* WorkspaceMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99616A4BE43A7944EC073310 /* WorkspaceMetrics.swift */; };
 		BC7143FA3DC50D51E6950FE1 /* HooksGroupContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF65DEF190906F9CF6F1E815 /* HooksGroupContent.swift */; };
 		BC80BF4355D7BC31B80A49D8 /* ConversationStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89C550C754DB48091C44F7E5 /* ConversationStoreTests.swift */; };
@@ -234,6 +236,7 @@
 		402523179862EC8236FEA0CA /* ApprovalTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalTypes.swift; sourceTree = "<group>"; };
 		44181632C721FBFB09ED69C0 /* SummaryPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummaryPopoverView.swift; sourceTree = "<group>"; };
 		465D0BE0B580B8C6A0E48941 /* threadResumeHistory.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = threadResumeHistory.json; sourceTree = "<group>"; };
+		47160F3294A06F995D6B9CD2 /* ShortcutActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutActionTests.swift; sourceTree = "<group>"; };
 		49A88324E7CBEF99D9121B8C /* TerminalSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSession.swift; sourceTree = "<group>"; };
 		4D2197F6A2B7E899050437AB /* CodexRemoteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexRemoteTests.swift; sourceTree = "<group>"; };
 		4F754E4C6FFCD98511A018C7 /* ConnectionConfigLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionConfigLogicTests.swift; sourceTree = "<group>"; };
@@ -335,6 +338,7 @@
 		E042E2FED70EC1F79BCB177A /* SettingsSectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSectionTests.swift; sourceTree = "<group>"; };
 		E215C9203892AFED56C0141C /* InitializeTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InitializeTypes.swift; sourceTree = "<group>"; };
 		E75ED9B66740234D880F0F80 /* SessionIsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionIsolationTests.swift; sourceTree = "<group>"; };
+		E78D1B3E7C5447B20FC9214E /* ShortcutAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutAction.swift; sourceTree = "<group>"; };
 		E91C5E879B32CEE9BD9553E2 /* ForkEphemeralTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForkEphemeralTests.swift; sourceTree = "<group>"; };
 		E93C5E4B246D204767BD7274 /* ProjectsPollingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectsPollingTests.swift; sourceTree = "<group>"; };
 		EAC9F320A35BB19E1F9376F5 /* EnvironmentInspectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentInspectorTests.swift; sourceTree = "<group>"; };
@@ -432,6 +436,7 @@
 				2F3DFDE3E35F47099089A687 /* ProjectsStore.swift */,
 				2F7E260FE1079678A05AA275 /* Session.swift */,
 				D0B6248029DE2E52BE98CE5B /* SessionsManager.swift */,
+				E78D1B3E7C5447B20FC9214E /* ShortcutAction.swift */,
 				2E2FC2BAB94125D5C1A15DCC /* SidebarCollapseStore.swift */,
 				687CC26F5A8127A90E3F39F7 /* SideChatStore.swift */,
 				D43A10289067905AAB533575 /* SkillsStore.swift */,
@@ -656,6 +661,7 @@
 				4FF61393064B1C493E29C2C1 /* SessionsManagerTests.swift */,
 				E042E2FED70EC1F79BCB177A /* SettingsSectionTests.swift */,
 				B1B3BB5CFDF04256F1AAAF5F /* SettingsSectionViewLogicTests.swift */,
+				47160F3294A06F995D6B9CD2 /* ShortcutActionTests.swift */,
 				B26181D87CDAC2BD3CDE3CF1 /* SidebarCollapseStoreTests.swift */,
 				05B3C59E77F035114A636C87 /* SidebarStatusBadgesTests.swift */,
 				3BFF9CE4300293DA4312C52A /* SideChatStoreTests.swift */,
@@ -864,6 +870,7 @@
 				63ACC143BB719E484D0EBCC8 /* SessionsManager.swift in Sources */,
 				A189C6DCC3A1441225146DFA /* SettingsPageView.swift in Sources */,
 				1716314F9A8F435F6D8701A6 /* SettingsSection.swift in Sources */,
+				58C652C508F530A78083C8B5 /* ShortcutAction.swift in Sources */,
 				5E98EA83344E9775CD6E274F /* SideChatStore.swift in Sources */,
 				2FC58813634E24A07756F5D4 /* SideChatView.swift in Sources */,
 				2ECEF967A2DCD5967A2D7F58 /* SidebarCollapseStore.swift in Sources */,
@@ -942,6 +949,7 @@
 				124FCC4A0263929DB468A220 /* SessionsManagerTests.swift in Sources */,
 				E48062C1B9A3F053CA33492A /* SettingsSectionTests.swift in Sources */,
 				69B7FAEA3251969A32E9C2FD /* SettingsSectionViewLogicTests.swift in Sources */,
+				B81D3E8CED5A075202D7A579 /* ShortcutActionTests.swift in Sources */,
 				CC844E214D540A7EFB3AF8FB /* SideChatStoreTests.swift in Sources */,
 				9F2EB90F10A15CE1CE83FDB9 /* SidebarCollapseStoreTests.swift in Sources */,
 				857DA199BA47CB2FE34937FF /* SidebarStatusBadgesTests.swift in Sources */,
