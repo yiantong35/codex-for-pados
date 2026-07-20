@@ -45,12 +45,39 @@ final class ShortcutStore {
         overrides[action.rawValue] != nil
     }
 
-    /// 改键校验管线（设计 D3）：Task 5 补全冲突检测，本任务先直写以让持久化测试通过。
+    /// 改键校验管线（设计 D3，硬阻）：先查系统黑名单，再查 app 内部占用；
+    /// 命中任一即拒绝、不写入、原绑定不变；通过才持久化。
     @discardableResult
     func rebind(_ action: ShortcutAction, to target: KeyCombo) -> RebindResult {
+        guard action.isCustomizable else { return .rejected(.systemReserved) } // 固定动作防御性拒绝
+        if SystemReservedShortcuts.all.contains(target) {
+            return .rejected(.systemReserved)
+        }
+        if let occupant = occupant(of: target, excluding: action) {
+            return .rejected(.occupied(by: occupant))
+        }
         overrides[action.rawValue] = target
         persist()
         return .accepted
+    }
+
+    /// 找出当前占用 target 的其它可绑定动作（对比覆盖后的实际键位）。
+    private func occupant(of target: KeyCombo, excluding action: ShortcutAction) -> ShortcutAction? {
+        ShortcutAction.allCases.first { other in
+            other != action && other.isCustomizable && combo(for: other) == target
+        }
+    }
+
+    /// 单动作恢复默认。
+    func resetToDefault(_ action: ShortcutAction) {
+        overrides[action.rawValue] = nil
+        persist()
+    }
+
+    /// 全部恢复默认。
+    func resetAll() {
+        overrides.removeAll()
+        persist()
     }
 
     private func persist() {
