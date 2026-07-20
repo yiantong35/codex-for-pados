@@ -152,6 +152,7 @@
 		CF8F6B2441D5F2864FF029F2 /* ConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9267A14CDE31BC18019A9A4 /* ConversationView.swift */; };
 		D2F9F55619E9A03045CA0574 /* threadResumeHistory.json in Resources */ = {isa = PBXBuildFile; fileRef = 465D0BE0B580B8C6A0E48941 /* threadResumeHistory.json */; };
 		D5B6DA068B60C12A08A999F2 /* KeychainStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 882D98A278D8B64C660B8A05 /* KeychainStoreTests.swift */; };
+		D6AD179DD482B06BC1A1C2F1 /* ShortcutsSettingsSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6822184C675D492F65C2B25E /* ShortcutsSettingsSectionView.swift */; };
 		D70B6AACE385E2B532842EC5 /* TurnTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8F51BD06F0FA6F6B8896FEA /* TurnTypes.swift */; };
 		D7CEB04CD635A9C85D8EE084 /* TransportControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CADC1D5FAC4F625511CDF599 /* TransportControlTests.swift */; };
 		D7DB285A0CE365DE4A94F642 /* ApprovalCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB846AD2F27716658BCDC96E /* ApprovalCardView.swift */; };
@@ -264,6 +265,7 @@
 		653E5C8A33FD7F7568474BB5 /* RequestIdGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestIdGeneratorTests.swift; sourceTree = "<group>"; };
 		665E5D286E79DF598F867D8E /* ThreadReducerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadReducerTests.swift; sourceTree = "<group>"; };
 		67F2FA50F4C7BE3D89B0C538 /* ReviewTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewTabView.swift; sourceTree = "<group>"; };
+		6822184C675D492F65C2B25E /* ShortcutsSettingsSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsSettingsSectionView.swift; sourceTree = "<group>"; };
 		687CC26F5A8127A90E3F39F7 /* SideChatStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SideChatStore.swift; sourceTree = "<group>"; };
 		69DDF69B6BB91F0396041F28 /* EnvironmentPanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentPanelTests.swift; sourceTree = "<group>"; };
 		6E1B589A0B17E66691E1440E /* PluginsGroupContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginsGroupContent.swift; sourceTree = "<group>"; };
@@ -541,6 +543,7 @@
 				6E1B589A0B17E66691E1440E /* PluginsGroupContent.swift */,
 				395048E33FFFB3DEB6A2193A /* SettingsPageView.swift */,
 				A814FA7149708A1316C3679A /* SettingsSection.swift */,
+				6822184C675D492F65C2B25E /* ShortcutsSettingsSectionView.swift */,
 				241FD1D7C1D00CA927C21312 /* SkillsGroupContent.swift */,
 			);
 			path = Settings;
@@ -893,6 +896,7 @@
 				1716314F9A8F435F6D8701A6 /* SettingsSection.swift in Sources */,
 				58C652C508F530A78083C8B5 /* ShortcutAction.swift in Sources */,
 				16241C6FAD213B8B271C01E5 /* ShortcutStore.swift in Sources */,
+				D6AD179DD482B06BC1A1C2F1 /* ShortcutsSettingsSectionView.swift in Sources */,
 				5E98EA83344E9775CD6E274F /* SideChatStore.swift in Sources */,
 				2FC58813634E24A07756F5D4 /* SideChatView.swift in Sources */,
 				2ECEF967A2DCD5967A2D7F58 /* SidebarCollapseStore.swift in Sources */,

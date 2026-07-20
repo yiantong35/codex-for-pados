@@ -42,6 +42,7 @@ struct SettingsPageView: View {
             case .appearance: AppearanceSettingsSectionView()
             case .language:   LanguageSettingsSectionView()
             case .extensions: ExtensionsSectionView()
+            case .shortcuts:  ShortcutsSettingsSectionView()
             }
         }
         .task(id: connection.phase) {
