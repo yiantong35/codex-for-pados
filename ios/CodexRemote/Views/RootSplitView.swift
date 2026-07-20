@@ -26,6 +26,8 @@ struct RootSplitView: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(ProjectsStore.self) private var projects
     @Environment(EnvironmentInspectorModel.self) private var envInspector
+    @Environment(SessionsManager.self) private var sessions
+    @Environment(ShortcutStore.self) private var shortcuts
     // 真实系统深浅值：theme=.system 时本视图跟随系统，此值即真实系统外观，传给设置 sheet
     // 以正确解析 .system（规避 sheet .preferredColorScheme(nil) 无法重置强制值）。
     @Environment(\.colorScheme) private var systemColorScheme
@@ -112,6 +114,7 @@ struct RootSplitView: View {
                     .transition(.move(edge: .bottom))
             }
         }
+        .background { shortcutLayer(layout) }   // T10：隐藏快捷键层挂稳定视图
         .onChange(of: activeConversation.requestRightPanel) { _, req in
             if req {
                 withAnimation { layout.showRight = true }
@@ -336,6 +339,62 @@ struct RootSplitView: View {
             ConversationView(threadId: id).id(id)
         } else {
             Color(.systemBackground)
+        }
+    }
+
+    // MARK: - 隐藏快捷键层（T10）
+
+    /// ⌘1..⌘9 对应的动作（下标 i → 机器数组第 i 项）。
+    private static let tabActions: [ShortcutAction] =
+        [.tab1, .tab2, .tab3, .tab4, .tab5, .tab6, .tab7, .tab8, .tab9]
+
+    /// 隐藏快捷键层（设计 D5 + 功耗 1-3）：挂稳定视图，每动作一个隐藏 Button +
+    /// `.keyboardShortcut(shortcuts.combo(for:).keyboardShortcut)`。隐藏按钮仍注册进
+    /// 响应链 → 外接键盘可触发；`shortcuts` 变化 → body 重算 → 快捷键动态刷新（无需 UIKeyCommand）。
+    @ViewBuilder
+    private func shortcutLayer(_ layout: WorkspaceLayoutStore) -> some View {
+        Group {
+            // 面板（workspace）
+            Button("") { withAnimation { layout.leftVisible.toggle() } }
+                .keyboardShortcut(shortcuts.combo(for: .toggleLeftPanel).keyboardShortcut)
+            Button("") { withAnimation { layout.showRight.toggle() } }
+                .keyboardShortcut(shortcuts.combo(for: .toggleRightPanel).keyboardShortcut)
+            Button("") { withAnimation { layout.showBottom.toggle() } }
+                .keyboardShortcut(shortcuts.combo(for: .toggleBottomPanel).keyboardShortcut)
+            Button("") { withAnimation { layout.showSummary.toggle() } }
+                .keyboardShortcut(shortcuts.combo(for: .toggleSummary).keyboardShortcut)
+            Button("") { layout.showSettings = true }
+                .keyboardShortcut(shortcuts.combo(for: .openSettings).keyboardShortcut)
+
+            // 右栏跳转 / 全屏（workspace）——requestRightPanel 先开右栏再发信号
+            Button("") { layout.requestRightPanel(.review) }
+                .keyboardShortcut(shortcuts.combo(for: .rightPanelReview).keyboardShortcut)
+            Button("") { layout.requestRightPanel(.files) }
+                .keyboardShortcut(shortcuts.combo(for: .rightPanelFiles).keyboardShortcut)
+            Button("") { layout.requestRightPanel(.sideChat) }
+                .keyboardShortcut(shortcuts.combo(for: .rightPanelSideChat).keyboardShortcut)
+            Button("") { layout.requestRightPanel(.toggleFullscreen) }
+                .keyboardShortcut(shortcuts.combo(for: .rightPanelFullscreen).keyboardShortcut)
+
+            // Tab（global）——拆子 Group，规避 ViewBuilder 单层 10 子视图上限
+            tabShortcutButtons
+        }
+        .hidden()
+    }
+
+    @ViewBuilder
+    private var tabShortcutButtons: some View {
+        Group {
+            ForEach(Array(Self.tabActions.enumerated()), id: \.offset) { idx, action in
+                Button("") { sessions.activateTab(atIndex: idx) }
+                    .keyboardShortcut(shortcuts.combo(for: action).keyboardShortcut)
+            }
+            Button("") { sessions.activateAdjacentTab(delta: 1) }
+                .keyboardShortcut(shortcuts.combo(for: .nextTab).keyboardShortcut)
+            Button("") { sessions.activateAdjacentTab(delta: -1) }
+                .keyboardShortcut(shortcuts.combo(for: .prevTab).keyboardShortcut)
+            Button("") { sessions.presentAddMachine() }
+                .keyboardShortcut(shortcuts.combo(for: .addMachine).keyboardShortcut)
         }
     }
 }
