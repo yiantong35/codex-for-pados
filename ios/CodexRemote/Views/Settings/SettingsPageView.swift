@@ -33,6 +33,7 @@ struct SettingsPageView: View {
                         Image(systemName: "xmark")
                             .accessibilityLabel(Text("settings.close"))
                     }
+                    .keyboardShortcut(.cancelAction)   // T11：Esc 关闭设置
                 }
             }
         } detail: {

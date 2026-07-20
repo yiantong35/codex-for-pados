@@ -47,6 +47,7 @@ struct MachineFormView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("common.cancel") { dismiss() }
+                        .keyboardShortcut(.cancelAction)   // T11：Esc 取消（固定，spec）
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("machineForm.save") { save() }
