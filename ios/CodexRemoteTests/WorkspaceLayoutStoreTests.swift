@@ -38,4 +38,25 @@ final class WorkspaceLayoutStoreTests: XCTestCase {
         XCTAssertEqual(RightPanelIntent.sideChat.targetTab, .sideChat)
         XCTAssertNil(RightPanelIntent.toggleFullscreen.targetTab)
     }
+
+    func test_requestRightPanel_whenAlreadyOpen_staysOpenAndSetsIntent() {
+        let s = WorkspaceLayoutStore(showRight: true)
+        s.requestRightPanel(.review)
+        XCTAssertTrue(s.showRight)
+        XCTAssertEqual(s.pendingRightPanelIntent, .review)
+    }
+
+    func test_requestRightPanel_intentOverwrite_latestWins() {
+        let s = WorkspaceLayoutStore()
+        s.requestRightPanel(.files)
+        s.requestRightPanel(.review)
+        XCTAssertEqual(s.pendingRightPanelIntent, .review)   // one-shot latest-wins
+    }
+
+    func test_requestRightPanel_fullscreen_stillOpensRight() {
+        let s = WorkspaceLayoutStore()
+        s.requestRightPanel(.toggleFullscreen)
+        XCTAssertTrue(s.showRight)
+        XCTAssertEqual(s.pendingRightPanelIntent, .toggleFullscreen)
+    }
 }
