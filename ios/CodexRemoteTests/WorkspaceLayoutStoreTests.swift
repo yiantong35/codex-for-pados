@@ -59,4 +59,13 @@ final class WorkspaceLayoutStoreTests: XCTestCase {
         XCTAssertTrue(s.showRight)
         XCTAssertEqual(s.pendingRightPanelIntent, .toggleFullscreen)
     }
+
+    func test_pendingIntent_resetsToNilAfterConsume() {
+        let s = WorkspaceLayoutStore()
+        s.requestRightPanel(.files)
+        XCTAssertNotNil(s.pendingRightPanelIntent)
+        // 模拟 RightPanelContainerView 消费即复位（设计 D6）。
+        s.pendingRightPanelIntent = nil
+        XCTAssertNil(s.pendingRightPanelIntent)
+    }
 }

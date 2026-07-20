@@ -30,6 +30,8 @@ struct RightPanelContainerView: View {
     @Environment(ApprovalStore.self) private var approvals
     @Environment(EnvironmentStore.self) private var environmentStore
     @Environment(\.locale) private var locale
+    // 快捷键经布局 store 发一次性右栏意图；本容器消费即复位（设计 D6）。
+    @Environment(WorkspaceLayoutStore.self) private var layout
 
     @State private var selectedTab: RightPanelTab = .review
     @State private var fileBrowser = FileBrowserStore()
@@ -49,6 +51,21 @@ struct RightPanelContainerView: View {
                     .environment(environmentStore)
                     .environment(\.locale, locale)
             }
+            .onChange(of: layout.pendingRightPanelIntent) { _, intent in
+                consumeRightPanelIntent(intent)
+            }
+            .onAppear { consumeRightPanelIntent(layout.pendingRightPanelIntent) }
+    }
+
+    /// 消费一次性右栏意图（设计 D6）：tab 跳转 → 选中该 tab；全屏 → 切 isFullscreen；消费即复位。
+    private func consumeRightPanelIntent(_ intent: RightPanelIntent?) {
+        guard let intent else { return }
+        if let tab = intent.targetTab {
+            selectedTab = tab
+        } else {   // toggleFullscreen（targetTab == nil）
+            isFullscreen.toggle()
+        }
+        layout.pendingRightPanelIntent = nil   // 消费即复位，防回环（功耗约束 4）
     }
 
     /// base 层内容：全屏态让位给 cover，避免同一 `tabContainer` 在 base 与 cover 同时挂载。
