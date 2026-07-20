@@ -67,6 +67,45 @@ final class ShortcutStoreTests: XCTestCase {
         UserDefaults().removePersistentDomain(forName: suite)
     }
 
+    func test_rebind_rejectsCollisionWithFixedAction_cancelForm() {
+        let (s, _, suite) = store()
+        // cancelForm（固定）默认 Esc。把 openSettings 绑到 Esc 必须判占用（含固定动作）。
+        let esc = KeyCombo(key: KeyCombo.escapeKey, modifiers: [])
+        let result = s.rebind(.openSettings, to: esc)
+        XCTAssertEqual(result, .rejected(.occupied(by: .cancelForm)))
+        XCTAssertEqual(s.combo(for: .openSettings), ShortcutAction.openSettings.defaultCombo)
+        UserDefaults().removePersistentDomain(forName: suite)
+    }
+
+    func test_occupancy_comparesOverrideAppliedCombos() {
+        let (s, _, suite) = store()
+        let cmdM = KeyCombo(key: "m", modifiers: .command) // ⌘M 未被任何默认占用
+        XCTAssertEqual(s.rebind(.toggleBottomPanel, to: cmdM), .accepted)
+        // ⌘M 现被 toggleBottomPanel 的覆盖占用 → toggleSummary 绑 ⌘M 应判占用。
+        XCTAssertEqual(s.rebind(.toggleSummary, to: cmdM),
+                       .rejected(.occupied(by: .toggleBottomPanel)))
+        UserDefaults().removePersistentDomain(forName: suite)
+    }
+
+    func test_occupancy_freedDefaultKeyBecomesReusable() {
+        let (s, _, suite) = store()
+        let cmdM = KeyCombo(key: "m", modifiers: .command)
+        let cmdJ = KeyCombo(key: "j", modifiers: .command) // toggleBottomPanel 默认键
+        XCTAssertEqual(s.rebind(.toggleBottomPanel, to: cmdM), .accepted)
+        // toggleBottomPanel 已改到 ⌘M，其默认 ⌘J 应重新可用。
+        XCTAssertEqual(s.rebind(.toggleSummary, to: cmdJ), .accepted)
+        UserDefaults().removePersistentDomain(forName: suite)
+    }
+
+    func test_rebind_fixedAction_rejectedAsNotCustomizable() {
+        let (s, _, suite) = store()
+        let free = KeyCombo(key: "y", modifiers: [.command, .shift]) // 未被占用
+        let result = s.rebind(.cancelForm, to: free)
+        XCTAssertEqual(result, .rejected(.notCustomizable))
+        XCTAssertEqual(s.combo(for: .cancelForm), ShortcutAction.cancelForm.defaultCombo)
+        UserDefaults().removePersistentDomain(forName: suite)
+    }
+
     func test_resetToDefault() {
         let (s, _, suite) = store()
         _ = s.rebind(.toggleSummary, to: KeyCombo(key: "k", modifiers: [.command, .shift]))

@@ -17,6 +17,15 @@ final class KeyComboTests: XCTestCase {
                           KeyCombo(key: "b", modifiers: [.command, .shift]))
     }
 
+    func test_equality_isCaseInsensitiveOnKey() {
+        // 捕获的 shifted 字母到达时为大写（⌘⇧D → key "D"），默认用小写 "d"。
+        // 两者必须相等且 hash 一致，否则占用检测/系统保留匹配/运行时派发全部失效。
+        XCTAssertEqual(KeyCombo(key: "D", modifiers: [.command, .shift]),
+                       KeyCombo(key: "d", modifiers: [.command, .shift]))
+        XCTAssertEqual(KeyCombo(key: "D", modifiers: [.command, .shift]).hashValue,
+                       KeyCombo(key: "d", modifiers: [.command, .shift]).hashValue)
+    }
+
     func test_modifiersRoundTripThroughRawValue() {
         let combo = KeyCombo(key: "f", modifiers: [.command, .control])
         XCTAssertTrue(combo.modifiers.contains(.command))

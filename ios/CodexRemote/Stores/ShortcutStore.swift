@@ -12,6 +12,7 @@ enum RebindResult: Equatable {
 enum RebindRejection: Equatable {
     case occupied(by: ShortcutAction)  // 已被另一 app 内动作占用
     case systemReserved                // 命中系统保留键黑名单
+    case notCustomizable               // 固定动作（如 Esc 取消）不可改键
 }
 
 /// 快捷键注册中心（设计 D1/D3）：动作 → 键位单一数据源。
@@ -27,7 +28,7 @@ final class ShortcutStore {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        if let data = defaults.data(forKey: "shortcuts.overrides"),
+        if let data = defaults.data(forKey: storageKey),
            let map = try? JSONDecoder().decode([String: KeyCombo].self, from: data) {
             overrides = map
         } else {
@@ -49,7 +50,7 @@ final class ShortcutStore {
     /// 命中任一即拒绝、不写入、原绑定不变；通过才持久化。
     @discardableResult
     func rebind(_ action: ShortcutAction, to target: KeyCombo) -> RebindResult {
-        guard action.isCustomizable else { return .rejected(.systemReserved) } // 固定动作防御性拒绝
+        guard action.isCustomizable else { return .rejected(.notCustomizable) } // 固定动作不可改键
         if SystemReservedShortcuts.all.contains(target) {
             return .rejected(.systemReserved)
         }
@@ -61,10 +62,11 @@ final class ShortcutStore {
         return .accepted
     }
 
-    /// 找出当前占用 target 的其它可绑定动作（对比覆盖后的实际键位）。
+    /// 找出当前占用 target 的其它动作（对比覆盖后的实际键位）。
+    /// 含固定动作（如 cancelForm/Esc）：spec 要求阻止与任何 app 内部动作冲突。
     private func occupant(of target: KeyCombo, excluding action: ShortcutAction) -> ShortcutAction? {
         ShortcutAction.allCases.first { other in
-            other != action && other.isCustomizable && combo(for: other) == target
+            other != action && combo(for: other) == target
         }
     }
 

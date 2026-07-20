@@ -13,14 +13,14 @@ struct KeyCombo: Codable, Equatable, Hashable {
     static let escapeKey = "\u{1B}"
 
     init(key: String, modifiers: EventModifiers) {
-        self.key = key
+        self.key = key.lowercased()
         self.rawModifiers = modifiers.rawValue
     }
 
     /// 从 onKeyPress 捕获构造（设计 D7）：只保留 ⌘⇧⌃⌥，滤掉 capsLock/numericPad 等噪声。
     init(keyPress: KeyPress) {
         let relevant: EventModifiers = [.command, .shift, .control, .option]
-        self.key = String(keyPress.key.character)
+        self.key = String(keyPress.key.character).lowercased()
         self.rawModifiers = keyPress.modifiers.intersection(relevant).rawValue
     }
 
