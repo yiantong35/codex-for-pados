@@ -281,6 +281,7 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(EnvironmentStore())
             .environment(makeConnection())
             .environment(WorkspaceLayoutStore())   // T10：右栏读布局 store 消费意图
+            .environment(ShortcutStore())          // M1：右栏读快捷键 store 承载全屏退出键
             .frame(width: 320, height: 600)
         snapshot(view, size: CGSize(width: 320, height: 600),
                  name: "right-panel", dir: "/tmp/workspace")

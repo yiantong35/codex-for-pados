@@ -35,6 +35,12 @@ final class ShortcutActionTests: XCTestCase {
         XCTAssertEqual(ShortcutAction.cancelForm.defaultCombo, KeyCombo(key: KeyCombo.escapeKey, modifiers: []))
     }
 
+    /// 回归锁：任意两个内置动作不得共用同一默认组合键，防未来新增内置键位撞车。
+    func test_defaultCombos_pairwiseUnique() {
+        let combos = ShortcutAction.allCases.map(\.defaultCombo)
+        XCTAssertEqual(Set(combos).count, combos.count, "存在默认组合键冲突：两个动作共用同一 KeyCombo")
+    }
+
     func test_scopes() {
         XCTAssertEqual(ShortcutAction.tab1.scope, .global)
         XCTAssertEqual(ShortcutAction.toggleLeftPanel.scope, .workspace)
