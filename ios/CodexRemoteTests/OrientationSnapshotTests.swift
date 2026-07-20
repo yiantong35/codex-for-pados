@@ -502,4 +502,29 @@ final class OrientationSnapshotTests: XCTestCase {
         let view = MachineFormView().environment(makeSessions(machineCount: 0))
         snapshot(view, size: landscape, name: "machineform-landscape", dir: mcDir)
     }
+
+    // MARK: - 场景 9：快捷键设置分区（T10）
+
+    /// 快捷键分区新增本地化键必须可解析（解析失败回落为键名本身）。
+    func test_shortcut_localization_keys_present() {
+        var keys = ["settings.shortcuts",
+                    "shortcut.scope.global", "shortcut.scope.workspace", "shortcut.scope.form",
+                    "shortcut.rebind", "shortcut.resetDefault", "shortcut.resetAll",
+                    "shortcut.recording", "shortcut.fixed",
+                    "shortcut.conflict.occupied", "shortcut.conflict.systemReserved"]
+        keys += ShortcutAction.allCases.map { "shortcut.action.\($0.rawValue)" }
+        for key in keys {
+            let value = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
+        }
+    }
+
+    /// 快捷键分区渲染不崩、PNG 非空。
+    func test_shortcuts_section_snapshot() {
+        let view = NavigationStack { ShortcutsSettingsSectionView() }
+            .environment(ShortcutStore(defaults: UserDefaults(suiteName: "snap.sc.\(UUID().uuidString)")!))
+            .environment(LocaleManager())
+            .environment(ThemeManager())
+        snapshot(view, size: portrait, name: "shortcuts-section", dir: "/tmp/settings")
+    }
 }
