@@ -51,8 +51,8 @@ struct RightPanelContainerView: View {
                     .environment(environmentStore)
                     .environment(\.locale, locale)
             }
-            .onChange(of: layout.pendingRightPanelIntent) { _, intent in
-                consumeRightPanelIntent(intent)
+            .onChange(of: layout.pendingRightPanelIntent) { _, _ in
+                consumeRightPanelIntent(layout.pendingRightPanelIntent)
             }
             .onAppear { consumeRightPanelIntent(layout.pendingRightPanelIntent) }
     }

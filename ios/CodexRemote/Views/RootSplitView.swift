@@ -26,8 +26,6 @@ struct RootSplitView: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(ProjectsStore.self) private var projects
     @Environment(EnvironmentInspectorModel.self) private var envInspector
-    @Environment(SessionsManager.self) private var sessions
-    @Environment(ShortcutStore.self) private var shortcuts
     // 真实系统深浅值：theme=.system 时本视图跟随系统，此值即真实系统外观，传给设置 sheet
     // 以正确解析 .system（规避 sheet .preferredColorScheme(nil) 无法重置强制值）。
     @Environment(\.colorScheme) private var systemColorScheme
@@ -114,7 +112,7 @@ struct RootSplitView: View {
                     .transition(.move(edge: .bottom))
             }
         }
-        .background { shortcutLayer(layout) }   // T10：隐藏快捷键层挂稳定视图
+        .background { ShortcutLayer(layout: layout) }   // T10：隐藏快捷键层挂稳定独立视图（不随 body 重算重建）
         .onChange(of: activeConversation.requestRightPanel) { _, req in
             if req {
                 withAnimation { layout.showRight = true }
@@ -341,18 +339,30 @@ struct RootSplitView: View {
             Color(.systemBackground)
         }
     }
+}
 
-    // MARK: - 隐藏快捷键层（T10）
+// MARK: - 隐藏快捷键层（T10 / 设计 D5）
+
+/// 隐藏快捷键宿主，抽成独立 View（批次 D 修复）：
+/// 1. 稳定性——挂在 RootSplitView `.background` 里的独立视图，仅依赖 layout/sessions/shortcuts，
+///    不随 RootSplitView.body 每次重算（分隔线拖动等）而重建，快捷键注册不抖动。
+/// 2. 投递安全——不再用 `.hidden()`（会把子树移出无障碍**与**交互树，可能连带丢掉
+///    `.keyboardShortcut`/UIKeyCommand 注册）。改用 `.opacity(0)` + 零尺寸 frame：按钮仍留在
+///    响应链里（外接键盘可触发），再叠 `.accessibilityHidden(true)` 把 21 个空标签按钮挡在
+///    VoiceOver 之外（`.hidden()` 不再代劳后必须显式补）。
+///
+/// 每动作一个隐藏 Button + `.keyboardShortcut(shortcuts.combo(for:).keyboardShortcut)`；
+/// `shortcuts` 变化 → 本视图重算 → 快捷键动态刷新（无需手写 UIKeyCommand）。
+struct ShortcutLayer: View {
+    let layout: WorkspaceLayoutStore
+    @Environment(SessionsManager.self) private var sessions
+    @Environment(ShortcutStore.self) private var shortcuts
 
     /// ⌘1..⌘9 对应的动作（下标 i → 机器数组第 i 项）。
     private static let tabActions: [ShortcutAction] =
         [.tab1, .tab2, .tab3, .tab4, .tab5, .tab6, .tab7, .tab8, .tab9]
 
-    /// 隐藏快捷键层（设计 D5 + 功耗 1-3）：挂稳定视图，每动作一个隐藏 Button +
-    /// `.keyboardShortcut(shortcuts.combo(for:).keyboardShortcut)`。隐藏按钮仍注册进
-    /// 响应链 → 外接键盘可触发；`shortcuts` 变化 → body 重算 → 快捷键动态刷新（无需 UIKeyCommand）。
-    @ViewBuilder
-    private func shortcutLayer(_ layout: WorkspaceLayoutStore) -> some View {
+    var body: some View {
         Group {
             // 面板（workspace）
             Button("") { withAnimation { layout.leftVisible.toggle() } }
@@ -379,7 +389,10 @@ struct RootSplitView: View {
             // Tab（global）——拆子 Group，规避 ViewBuilder 单层 10 子视图上限
             tabShortcutButtons
         }
-        .hidden()
+        // 投递安全的「隐形但仍注册」组合（替代 .hidden()）：
+        .opacity(0)
+        .frame(width: 0, height: 0)
+        .accessibilityHidden(true)
     }
 
     @ViewBuilder

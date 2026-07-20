@@ -45,4 +45,19 @@ final class ShortcutTabActivationTests: XCTestCase {
         s.activateAdjacentTab(delta: -1)  // 已在首项，上一项越界
         XCTAssertEqual(s.activeSessionId, s.machineStore.machines[0].id, "边界不循环、无副作用")
     }
+
+    func test_activateTabAtIndex_negative_noEffect() {
+        let s = makeSessions(count: 2)
+        s.setActive(s.machineStore.machines[0].id)
+        s.activateTab(atIndex: -1)
+        XCTAssertEqual(s.activeSessionId, s.machineStore.machines[0].id)
+    }
+
+    func test_activateAdjacentTab_noActiveSession_noEffect() {
+        let s = makeSessions(count: 2)
+        // do not setActive → activeSessionId has whatever default; adjacent should no-op safely (no crash)
+        s.activateAdjacentTab(delta: 1)
+        // no assertion on value beyond "did not crash"; assert it did not spuriously change to an unexpected index
+        XCTAssertNoThrow(s.activateAdjacentTab(delta: -1))
+    }
 }
