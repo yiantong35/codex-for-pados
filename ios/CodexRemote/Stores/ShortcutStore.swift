@@ -10,6 +10,7 @@ enum RebindResult: Equatable {
 
 /// 改键被拒原因（设计 D3）。
 enum RebindRejection: Equatable {
+    case missingRequiredModifier       // 缺少必需修饰键（须含 ⌘ 或 ⌃；⇧/⌥ 单独不满足）
     case occupied(by: ShortcutAction)  // 已被另一 app 内动作占用
     case systemReserved                // 命中系统保留键黑名单
     case notCustomizable               // 固定动作（如 Esc 取消）不可改键
@@ -54,8 +55,10 @@ final class ShortcutStore {
         overrides[action.rawValue] != nil
     }
 
-    /// 改键校验管线（设计 D3，硬阻）：先查系统黑名单，再查 app 内部占用；
-    /// 命中任一即拒绝、不写入、原绑定不变；通过才持久化。
+    /// 改键校验管线（设计 D3，硬阻）：先查系统黑名单，再查 app 内部占用，
+    /// 最后查最小修饰键（须含 ⌘ 或 ⌃）；命中任一即拒绝、不写入、原绑定不变；通过才持久化。
+    /// 修饰键守卫排在占用检测之后：绑到已有功能键（如 Esc=cancelForm）时优先报更具体的“已被占用”，
+    /// 只有既不占用又缺修饰键的裸键 / 仅 ⇧⌥ 组合才归为 .missingRequiredModifier。
     @discardableResult
     func rebind(_ action: ShortcutAction, to target: KeyCombo) -> RebindResult {
         guard action.isCustomizable else { return .rejected(.notCustomizable) } // 固定动作不可改键
@@ -64,6 +67,11 @@ final class ShortcutStore {
         }
         if let occupant = occupant(of: target, excluding: action) {
             return .rejected(.occupied(by: occupant))
+        }
+        // M2 守卫：裸键或仅 ⇧/⌥ 的组合在外接键盘下会跟正常打字冲突（放在占用检测之后，
+        // 使“绑到已占用功能键”报更具体的占用原因）。
+        if !target.modifiers.contains(.command) && !target.modifiers.contains(.control) {
+            return .rejected(.missingRequiredModifier)
         }
         overrides[action.rawValue] = target
         persist()

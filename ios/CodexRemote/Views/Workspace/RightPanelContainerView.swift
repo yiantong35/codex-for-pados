@@ -6,9 +6,9 @@ enum RightPanelTab: CaseIterable, Identifiable {
     var id: Self { self }
     var label: String {
         switch self {
-        case .review:   return "审查"
-        case .files:    return "文件"
-        case .sideChat: return "侧聊"
+        case .review:   return String(localized: "rightPanel.tab.review")
+        case .files:    return String(localized: "rightPanel.tab.files")
+        case .sideChat: return String(localized: "rightPanel.tab.sideChat")
         }
     }
 }

@@ -59,6 +59,45 @@ final class ShortcutStoreTests: XCTestCase {
         UserDefaults().removePersistentDomain(forName: suite)
     }
 
+    // MARK: - M2 最小修饰键守卫（需含 ⌘ 或 ⌃；⇧/⌥ 单独不满足）
+
+    func test_rebind_rejectsBareKey_missingRequiredModifier() {
+        let (s, _, suite) = store()
+        let original = s.combo(for: .toggleSummary)
+        let result = s.rebind(.toggleSummary, to: KeyCombo(key: "f", modifiers: [])) // 裸键 f
+        XCTAssertEqual(result, .rejected(.missingRequiredModifier))
+        XCTAssertEqual(s.combo(for: .toggleSummary), original, "拒绝时原绑定必须保持")
+        UserDefaults().removePersistentDomain(forName: suite)
+    }
+
+    func test_rebind_rejectsShiftOnly_missingRequiredModifier() {
+        let (s, _, suite) = store()
+        let result = s.rebind(.toggleSummary, to: KeyCombo(key: "f", modifiers: .shift)) // 仅 ⇧
+        XCTAssertEqual(result, .rejected(.missingRequiredModifier))
+        UserDefaults().removePersistentDomain(forName: suite)
+    }
+
+    func test_rebind_rejectsOptionOnly_missingRequiredModifier() {
+        let (s, _, suite) = store()
+        let result = s.rebind(.toggleSummary, to: KeyCombo(key: "f", modifiers: .option)) // 仅 ⌥
+        XCTAssertEqual(result, .rejected(.missingRequiredModifier))
+        UserDefaults().removePersistentDomain(forName: suite)
+    }
+
+    func test_rebind_acceptsCommandModifier_passesGuard() {
+        let (s, _, suite) = store()
+        let free = KeyCombo(key: "k", modifiers: [.command, .shift]) // 含 ⌘，未占用
+        XCTAssertEqual(s.rebind(.toggleSummary, to: free), .accepted)
+        UserDefaults().removePersistentDomain(forName: suite)
+    }
+
+    func test_rebind_acceptsControlModifier_passesGuard() {
+        let (s, _, suite) = store()
+        let free = KeyCombo(key: "k", modifiers: .control) // 仅 ⌃，未占用
+        XCTAssertEqual(s.rebind(.toggleSummary, to: free), .accepted)
+        UserDefaults().removePersistentDomain(forName: suite)
+    }
+
     func test_rebind_toSameActionOwnKey_isAccepted() {
         let (s, _, suite) = store()
         // 绑到自己当前的键不算冲突。
