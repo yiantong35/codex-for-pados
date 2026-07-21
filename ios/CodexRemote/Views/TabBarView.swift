@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// 横向滚动 tab 栏（多机器切换主入口）。窄屏放不下就横滑；每机器一个 tab（显示名 + 圆点），
-/// 长按弹管理菜单（断开/移除），末尾 [+] 添加机器。圆点数据源为 T6 的 TabIndicator。
+/// 横向滚动 tab 栏（多机器切换主入口）。窄屏放不下就横滑；每机器一个 tab（显示名 + 圆点 + ⋯ 菜单），
+/// ⋯ 菜单弹管理项（连接/断开/移除，可见入口、不依赖长按），末尾 [+] 添加机器。圆点数据源为 T6 的 TabIndicator。
 struct TabBarView: View {
     @Environment(SessionsManager.self) private var sessions
     @State private var showCapAlert = false
@@ -26,23 +26,32 @@ struct TabBarView: View {
     @ViewBuilder private func tab(_ m: MachineConfig) -> some View {
         let active = sessions.activeSessionId == m.id
         let indicator = sessions.indicator(for: m.id)
-        Button { sessions.setActive(m.id) } label: {
-            HStack(spacing: 6) {
-                Text(m.displayName).lineLimit(1)
-                    .foregroundStyle(active ? Color.accentColor : Color.primary)
-                DotView(indicator: indicator)
+        HStack(spacing: 6) {
+            // tab 切换主体：仅此 Button 触发切换，命中区不含 ⋯ 菜单。
+            Button { sessions.setActive(m.id) } label: {
+                HStack(spacing: 6) {
+                    Text(m.displayName).lineLimit(1)
+                        .foregroundStyle(active ? Color.accentColor : Color.primary)
+                    DotView(indicator: indicator)
+                }
             }
-            .padding(.horizontal, 12).padding(.vertical, 8)
-            .background(active ? Color.accentColor.opacity(0.12) : Color.clear, in: Capsule())
-        }
-        .buttonStyle(.plain)
-        .contextMenu {
-            if sessions.canConnect(id: m.id) {
-                Button("tab.connect", systemImage: "bolt.horizontal") { sessions.connectMachine(id: m.id) }
+            .buttonStyle(.plain)
+
+            // 可见管理入口（⋯）：触控/指针点击、外接键盘聚焦后回车/空格均可激活；不依赖长按。
+            Menu {
+                if sessions.canConnect(id: m.id) {
+                    Button("tab.connect", systemImage: "bolt.horizontal") { sessions.connectMachine(id: m.id) }
+                }
+                Button("tab.disconnect", systemImage: "wifi.slash") { sessions.disconnect(id: m.id) }
+                Button("tab.remove", systemImage: "trash", role: .destructive) { sessions.removeMachine(id: m.id) }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .padding(.horizontal, 4)
             }
-            Button("tab.disconnect", systemImage: "wifi.slash") { sessions.disconnect(id: m.id) }
-            Button("tab.remove", systemImage: "trash", role: .destructive) { sessions.removeMachine(id: m.id) }
+            .buttonStyle(.plain)
         }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(active ? Color.accentColor.opacity(0.12) : Color.clear, in: Capsule())
     }
 
     @ViewBuilder private var addButton: some View {
