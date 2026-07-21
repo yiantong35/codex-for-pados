@@ -46,7 +46,7 @@ struct ShortcutsSettingsSectionView: View {
     private func row(_ action: ShortcutAction) -> some View {
         let isRecording = recordingAction == action
         HStack {
-            Text(action.titleKey).foregroundStyle(.primary)
+            Text(String(localized: String.LocalizationValue(action.titleStringKey))).foregroundStyle(.primary)
             Spacer()
             if isRecording {
                 Text("shortcut.recording")
