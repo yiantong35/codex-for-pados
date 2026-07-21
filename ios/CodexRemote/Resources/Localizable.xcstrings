@@ -4144,6 +4144,70 @@
           }
         }
       }
+    },
+    "rightPanel.tab.files": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Files"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件"
+          }
+        }
+      }
+    },
+    "rightPanel.tab.review": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "审查"
+          }
+        }
+      }
+    },
+    "rightPanel.tab.sideChat": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Side Chat"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "侧聊"
+          }
+        }
+      }
+    },
+    "shortcut.conflict.missingModifier": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Must include ⌘ or ⌃"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需含 ⌘ 或 ⌃"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -115,6 +115,8 @@ struct ShortcutsSettingsSectionView: View {
     /// 被拒提示（已解析为最终 String）。占用冲突插入占用动作的本地化名（FIX 1，spec §冲突检测）。
     private func rejectionMessage(_ reason: RebindRejection) -> String {
         switch reason {
+        case .missingRequiredModifier:
+            return String(localized: "shortcut.conflict.missingModifier")
         case .systemReserved:
             return String(localized: "shortcut.conflict.systemReserved")
         case .occupied(let occupant):
