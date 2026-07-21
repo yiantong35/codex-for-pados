@@ -7,6 +7,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case appearance
     case language
     case extensions
+    case shortcuts
 
     /// NavigationSplitView 的 List(selection:) 需要 Identifiable。
     var id: SettingsSection { self }
@@ -21,6 +22,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .appearance: return "settings.appearance"
         case .language:   return "settings.language"
         case .extensions: return "settings.extensions"
+        case .shortcuts:  return "settings.shortcuts"
         }
     }
 
@@ -31,6 +33,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .appearance: return "paintbrush"
         case .language:   return "globe"
         case .extensions: return "puzzlepiece.extension.fill"
+        case .shortcuts:  return "keyboard"
         }
     }
 }

@@ -30,6 +30,11 @@ struct RightPanelContainerView: View {
     @Environment(ApprovalStore.self) private var approvals
     @Environment(EnvironmentStore.self) private var environmentStore
     @Environment(\.locale) private var locale
+    // 快捷键经布局 store 发一次性右栏意图；本容器消费即复位（设计 D6）。
+    @Environment(WorkspaceLayoutStore.self) private var layout
+    // 全屏切换快捷键：进入路径由 base 层 ShortcutLayer 承载，但覆盖层为 .fullScreenCover 模态，
+    // 会脱离 presenter 的响应链——退出路径必须在 cover 自身内部再挂一枚隐藏快捷键按钮才能双向切换（M1）。
+    @Environment(ShortcutStore.self) private var shortcuts
 
     @State private var selectedTab: RightPanelTab = .review
     @State private var fileBrowser = FileBrowserStore()
@@ -48,7 +53,33 @@ struct RightPanelContainerView: View {
                     .environment(approvals)
                     .environment(environmentStore)
                     .environment(\.locale, locale)
+                    // 退出全屏快捷键宿主（M1）：⌘⌃F 只挂在 base 层 ShortcutLayer 时，覆盖层一旦present
+                    // 就把 presenter 的 key command 挤出响应链，导致只进不出。故在 cover 内部再挂一枚
+                    // 隐藏切换按钮（mirror ShortcutLayer 的 opacity-0 + 零尺寸 + 无障碍隐藏），使全屏态下
+                    // ⌘⌃F 仍能切回常规列宽（可见的「⤢/收起」按钮保持不变，一并保留）。
+                    .background {
+                        Button("") { isFullscreen.toggle() }
+                            .keyboardShortcut(shortcuts.combo(for: .rightPanelFullscreen).keyboardShortcut)
+                            .opacity(0)
+                            .frame(width: 0, height: 0)
+                            .accessibilityHidden(true)
+                    }
             }
+            .onChange(of: layout.pendingRightPanelIntent) { _, _ in
+                consumeRightPanelIntent(layout.pendingRightPanelIntent)
+            }
+            .onAppear { consumeRightPanelIntent(layout.pendingRightPanelIntent) }
+    }
+
+    /// 消费一次性右栏意图（设计 D6）：tab 跳转 → 选中该 tab；全屏 → 切 isFullscreen；消费即复位。
+    private func consumeRightPanelIntent(_ intent: RightPanelIntent?) {
+        guard let intent else { return }
+        if let tab = intent.targetTab {
+            selectedTab = tab
+        } else {   // toggleFullscreen（targetTab == nil）
+            isFullscreen.toggle()
+        }
+        layout.pendingRightPanelIntent = nil   // 消费即复位，防回环（功耗约束 4）
     }
 
     /// base 层内容：全屏态让位给 cover，避免同一 `tabContainer` 在 base 与 cover 同时挂载。

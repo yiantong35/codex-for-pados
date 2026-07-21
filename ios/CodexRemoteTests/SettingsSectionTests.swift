@@ -3,8 +3,12 @@ import SwiftUI
 @testable import CodexRemote
 
 struct SettingsSectionTests {
-    @Test func allCasesOrderIsAccountAppearanceLanguageExtensions() {
-        #expect(SettingsSection.allCases == [.account, .appearance, .language, .extensions])
+    @Test func allCasesOrderIsAccountAppearanceLanguageExtensionsShortcuts() {
+        #expect(SettingsSection.allCases == [.account, .appearance, .language, .extensions, .shortcuts])
+    }
+
+    @Test func shortcutsSectionHasIcon() {
+        #expect(SettingsSection.shortcuts.icon == "keyboard")
     }
 
     @Test func defaultSelectionIsAccount() {
@@ -16,6 +20,7 @@ struct SettingsSectionTests {
         #expect(SettingsSection.appearance.icon == "paintbrush")
         #expect(SettingsSection.language.icon == "globe")
         #expect(SettingsSection.extensions.icon == "puzzlepiece.extension.fill")
+        #expect(SettingsSection.shortcuts.icon == "keyboard")
     }
 
     @Test func idEqualsSelfForNavigationSelection() {

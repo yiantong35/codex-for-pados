@@ -144,6 +144,8 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(makeProjects())
             .environment(LocaleManager())
             .environment(ThemeManager())
+            .environment(ShortcutStore())                 // T10
+            .environment(makeSessions(machineCount: 2))   // T10：快捷键层读 SessionsManager
         snapshot(view, size: portrait, name: "split-portrait")
     }
 
@@ -157,6 +159,8 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(makeProjects())
             .environment(LocaleManager())
             .environment(ThemeManager())
+            .environment(ShortcutStore())                 // T10
+            .environment(makeSessions(machineCount: 2))   // T10：快捷键层读 SessionsManager
         snapshot(view, size: landscape, name: "split-landscape")
     }
 
@@ -177,6 +181,8 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(makeProjects())
             .environment(LocaleManager())
             .environment(ThemeManager())
+            .environment(ShortcutStore())                 // T10
+            .environment(makeSessions(machineCount: 2))   // T10：快捷键层读 SessionsManager
         snapshot(view, size: landscape, name: "split-default-layout")
     }
 
@@ -274,6 +280,8 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(ApprovalStore())
             .environment(EnvironmentStore())
             .environment(makeConnection())
+            .environment(WorkspaceLayoutStore())   // T10：右栏读布局 store 消费意图
+            .environment(ShortcutStore())          // M1：右栏读快捷键 store 承载全屏退出键
             .frame(width: 320, height: 600)
         snapshot(view, size: CGSize(width: 320, height: 600),
                  name: "right-panel", dir: "/tmp/workspace")
@@ -406,6 +414,8 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(makeProjects())
             .environment(LocaleManager())
             .environment(ThemeManager())
+            .environment(ShortcutStore())                 // T10
+            .environment(makeSessions(machineCount: 2))   // T10：快捷键层读 SessionsManager
         snapshot(view, size: landscape, name: "workspace-default", dir: "/tmp/workspace")
     }
 
@@ -422,6 +432,8 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(LocaleManager())
             .environment(ThemeManager())
             .environment(TerminalSession())
+            .environment(ShortcutStore())                 // T10
+            .environment(makeSessions(machineCount: 2))   // T10：快捷键层读 SessionsManager
         snapshot(view, size: landscape, name: "workspace-all-open", dir: "/tmp/workspace")
     }
 
@@ -490,5 +502,30 @@ final class OrientationSnapshotTests: XCTestCase {
     func test_machineForm_landscape_snapshot() {
         let view = MachineFormView().environment(makeSessions(machineCount: 0))
         snapshot(view, size: landscape, name: "machineform-landscape", dir: mcDir)
+    }
+
+    // MARK: - 场景 9：快捷键设置分区（T10/Task 13）
+
+    /// 快捷键分区新增本地化键必须可解析（解析失败回落为键名本身）。
+    func test_shortcut_localization_keys_present() {
+        var keys = ["settings.shortcuts",
+                    "shortcut.scope.global", "shortcut.scope.workspace", "shortcut.scope.form",
+                    "shortcut.rebind", "shortcut.resetDefault", "shortcut.resetAll",
+                    "shortcut.recording", "shortcut.fixed",
+                    "shortcut.conflict.occupied", "shortcut.conflict.systemReserved"]
+        keys += ShortcutAction.allCases.map { "shortcut.action.\($0.rawValue)" }
+        for key in keys {
+            let value = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
+        }
+    }
+
+    /// 快捷键分区渲染不崩、PNG 非空。
+    func test_shortcuts_section_snapshot() {
+        let view = NavigationStack { ShortcutsSettingsSectionView() }
+            .environment(ShortcutStore(defaults: UserDefaults(suiteName: "snap.sc.\(UUID().uuidString)")!))
+            .environment(LocaleManager())
+            .environment(ThemeManager())
+        snapshot(view, size: portrait, name: "shortcuts-section", dir: "/tmp/settings")
     }
 }

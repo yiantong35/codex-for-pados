@@ -112,4 +112,20 @@ final class SessionsManager {
 
     /// 触发添加机器表单。T8 接真实表单流程。
     func presentAddMachine() { addMachinePresented = true }   // T8
+
+    // MARK: - T10 快捷键 tab 切换助手
+
+    /// ⌘1..⌘9：切到机器数组第 index+1 项（0-based）。超界无副作用（spec）。
+    func activateTab(atIndex index: Int) {
+        guard index >= 0, index < machineStore.machines.count else { return }
+        setActive(machineStore.machines[index].id)
+    }
+
+    /// ⌘] / ⌘[：相对当前活跃项移动 delta（+1 下一 / -1 上一）。越界无副作用、不循环（spec）。
+    func activateAdjacentTab(delta: Int) {
+        guard let cur = machineStore.machines.firstIndex(where: { $0.id == activeSessionId }) else { return }
+        let next = cur + delta
+        guard next >= 0, next < machineStore.machines.count else { return }
+        setActive(machineStore.machines[next].id)
+    }
 }

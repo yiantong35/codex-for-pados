@@ -11,6 +11,8 @@ struct CodexRemoteApp: App {
     // appearance-locale：语言/主题 manager 在根持有并注入；驱动运行时切换。
     @State private var localeManager = LocaleManager()
     @State private var themeManager = ThemeManager()
+    // T10：全局快捷键注册中心（设置页与主界面共享同一实例）。
+    @State private var shortcuts = ShortcutStore()
 
     var body: some Scene {
         WindowGroup {
@@ -18,6 +20,7 @@ struct CodexRemoteApp: App {
                 .environment(sessions)
                 .environment(localeManager)
                 .environment(themeManager)
+                .environment(shortcuts)
                 // 运行时换语言：注入选定 locale，所有 Text(LocalizedStringKey) 跟随刷新。
                 .environment(\.locale, localeManager.locale)
                 // 运行时换主题：nil = 跟随系统。
