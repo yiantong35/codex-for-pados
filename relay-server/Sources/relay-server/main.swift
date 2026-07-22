@@ -19,18 +19,6 @@ let port = Int(ProcessInfo.processInfo.environment["RELAY_PORT"] ?? "") ?? 9000
 let host = "0.0.0.0"
 let rooms = RelayRooms()
 
-/// 从请求解析 (sessionId, role)。缺 sessionId 或 role 非法 → nil(拒绝 upgrade)。
-func parseUpgrade(uri: String, headers: HTTPHeaders) -> (sessionId: String, role: RelayPeer)? {
-    // uri 形如 /relay/{sessionId}(可能带 query),取 path 段。
-    let path = uri.split(separator: "?", maxSplits: 1).first.map(String.init) ?? uri
-    let segments = path.split(separator: "/").map(String.init)
-    guard segments.count == 2, segments[0] == "relay", !segments[1].isEmpty else { return nil }
-    let sessionId = segments[1]
-    guard let roleRaw = headers.first(name: "x-role"),
-          let role = RelayPeer(rawValue: roleRaw) else { return nil }
-    return (sessionId, role)
-}
-
 let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
 
 let bootstrap = ServerBootstrap(group: group)
@@ -39,14 +27,16 @@ let bootstrap = ServerBootstrap(group: group)
     .childChannelInitializer { channel in
         let upgrader = NIOWebSocketServerUpgrader(
             shouldUpgrade: { (channel, head) -> EventLoopFuture<HTTPHeaders?> in
-                if parseUpgrade(uri: head.uri, headers: head.headers) != nil {
+                let role = head.headers.first(name: "x-role")
+                if UpgradeRequest.parseUpgrade(uri: head.uri, role: role) != nil {
                     return channel.eventLoop.makeSucceededFuture(HTTPHeaders())
                 } else {
                     return channel.eventLoop.makeSucceededFuture(nil)
                 }
             },
             upgradePipelineHandler: { (channel, head) -> EventLoopFuture<Void> in
-                guard let parsed = parseUpgrade(uri: head.uri, headers: head.headers) else {
+                let role = head.headers.first(name: "x-role")
+                guard let parsed = UpgradeRequest.parseUpgrade(uri: head.uri, role: role) else {
                     return channel.eventLoop.makeFailedFuture(RelayError.badUpgrade)
                 }
                 return channel.pipeline.addHandler(
