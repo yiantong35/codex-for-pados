@@ -5,8 +5,9 @@ import SwiftUI
 /// 与「恢复默认」；固定动作（Esc 取消）只读、无改键入口。
 struct ShortcutsSettingsSectionView: View {
     @Environment(ShortcutStore.self) private var shortcuts
-    /// 应用内语言经根 `.environment(\.locale, ...)` 注入（LocaleManager 驱动）。动态 key 必须显式
-    /// 按此 locale 解析：`String(localized:)` 默认读系统 locale，会忽略应用内语言设置（bug）。
+    /// 应用内语言经根 `.environment(\.locale, ...)` 注入（LocaleManager 驱动，identifier 为 "en"/"zh-Hans"）。
+    /// 动态 key 必须显式按此 locale 对应的 .lproj bundle 查表：`String(localized:)`（含 locale: 参数）
+    /// 的 locale 只影响插值格式化、不切换 strings 表，会读系统语言而忽略应用内语言设置（bug）。
     @Environment(\.locale) private var locale
 
     /// 当前处于录入态的动作（onKeyPress 仅在此动作行挂载，退出即卸载——功耗约束 1）。
@@ -49,7 +50,7 @@ struct ShortcutsSettingsSectionView: View {
     private func row(_ action: ShortcutAction) -> some View {
         let isRecording = recordingAction == action
         HStack {
-            Text(String(localized: String.LocalizationValue(action.titleStringKey), locale: locale)).foregroundStyle(.primary)
+            Text(verbatim: localized(action.titleStringKey)).foregroundStyle(.primary)
             Spacer()
             if isRecording {
                 Text("shortcut.recording")
@@ -115,22 +116,41 @@ struct ShortcutsSettingsSectionView: View {
         return .handled
     }
 
+    /// 按应用内语言（`locale`）对应的 .lproj bundle 查表解析 key → 可读文案。
+    /// 关键：不能用 `String(localized:)`——它按系统语言选表、忽略应用内语言（LocaleManager）。
+    /// 显式取 `locale.identifier`（"en"/"zh-Hans"）对应的 bundle 查表，命不中回退主 bundle。
+    private func localized(_ key: String) -> String {
+        if let path = Bundle.main.path(forResource: locale.identifier, ofType: "lproj"),
+           let bundle = Bundle(path: path) {
+            return bundle.localizedString(forKey: key, value: key, table: nil)
+        }
+        // 回退：语言 code（如 identifier 带地区）再试一次，仍无则主 bundle。
+        if let code = locale.language.languageCode?.identifier,
+           let path = Bundle.main.path(forResource: code, ofType: "lproj"),
+           let bundle = Bundle(path: path) {
+            return bundle.localizedString(forKey: key, value: key, table: nil)
+        }
+        return Bundle.main.localizedString(forKey: key, value: key, table: nil)
+    }
+
     /// 被拒提示（已解析为最终 String）。占用冲突插入占用动作的本地化名（FIX 1，spec §冲突检测）。
+    /// 全部按应用内语言 `localized(_:)` 解析，与动作行标题一致。
     private func rejectionMessage(_ reason: RebindRejection) -> String {
         switch reason {
         case .missingRequiredModifier:
-            return String(localized: "shortcut.conflict.missingModifier", locale: locale)
+            return localized("shortcut.conflict.missingModifier")
         case .systemReserved:
-            return String(localized: "shortcut.conflict.systemReserved", locale: locale)
+            return localized("shortcut.conflict.systemReserved")
         case .occupied(let occupant):
-            let name = String(localized: String.LocalizationValue(occupant.titleStringKey), locale: locale)
-            // key「shortcut.conflict.occupied」的本地化值为 "已被「%@」占用" / "Already used by \"%@\""；
-            // defaultValue 既是开发语言源串、又携带插值实参（name）填入该格式串的 %@。
-            return String(localized: "shortcut.conflict.occupied", defaultValue: "Already used by \"\(name)\"", locale: locale)
+            let name = localized(occupant.titleStringKey)
+            // key「shortcut.conflict.occupied」的值为 "已被「%@」占用" / "Already used by \"%@\""；
+            // 取本地化格式串后手动填入占用动作名（name 已按应用内语言解析）。
+            let format = localized("shortcut.conflict.occupied")
+            return String(format: format, name)
         case .notCustomizable:
             // unreachable via UI（固定行不暴露改键入口）；仅防御性兜底，release 不崩。
             assertionFailure("notCustomizable rejection should be unreachable from the shortcuts UI")
-            return String(localized: "shortcut.conflict.systemReserved", locale: locale)
+            return localized("shortcut.conflict.systemReserved")
         }
     }
 }
