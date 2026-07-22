@@ -8,6 +8,13 @@ import Crypto
 ///
 /// ⚠️ 这两把密钥独立于 iPad SSH 密钥，是开发机侧 relay-e2e 专属身份/交换密钥。
 public final class DevKeyStore {
+    /// 密钥文件存在但无法读取/解析（权限损坏、IO 故障、内容损坏）。
+    /// 绝不静默用新密钥覆盖——否则开发机身份会静默丢失。
+    public enum DevKeyStoreError: Error, Equatable {
+        case unreadableKeyFile(String)
+        case corruptedKeyFile(String)
+    }
+
     /// Ed25519 身份私钥，用于握手 devSignature。
     public let identity: Curve25519.Signing.PrivateKey
     /// X25519 交换私钥，用于 KeySchedule 派生方向密钥。
@@ -30,8 +37,15 @@ public final class DevKeyStore {
     }
 
     private static func loadOrCreateIdentity(at url: URL) throws -> Curve25519.Signing.PrivateKey {
-        if let data = try? Data(contentsOf: url) {
-            return try Curve25519.Signing.PrivateKey(rawRepresentation: data)
+        // 显式两步：文件存在则**不吞错**地读，读/解析失败即 throw，绝不覆盖旧密钥。
+        if FileManager.default.fileExists(atPath: url.path) {
+            let data: Data
+            do { data = try Data(contentsOf: url) }
+            catch { throw DevKeyStoreError.unreadableKeyFile(url.path) }
+            guard let key = try? Curve25519.Signing.PrivateKey(rawRepresentation: data) else {
+                throw DevKeyStoreError.corruptedKeyFile(url.path)
+            }
+            return key
         }
         let key = Curve25519.Signing.PrivateKey()
         try writeSecret(key.rawRepresentation, to: url)
@@ -39,8 +53,14 @@ public final class DevKeyStore {
     }
 
     private static func loadOrCreateExchange(at url: URL) throws -> Curve25519.KeyAgreement.PrivateKey {
-        if let data = try? Data(contentsOf: url) {
-            return try Curve25519.KeyAgreement.PrivateKey(rawRepresentation: data)
+        if FileManager.default.fileExists(atPath: url.path) {
+            let data: Data
+            do { data = try Data(contentsOf: url) }
+            catch { throw DevKeyStoreError.unreadableKeyFile(url.path) }
+            guard let key = try? Curve25519.KeyAgreement.PrivateKey(rawRepresentation: data) else {
+                throw DevKeyStoreError.corruptedKeyFile(url.path)
+            }
+            return key
         }
         let key = Curve25519.KeyAgreement.PrivateKey()
         try writeSecret(key.rawRepresentation, to: url)
