@@ -59,27 +59,13 @@ final class RelayTransportTests: XCTestCase {
         let env = try dev.seal(Data("world".utf8))
         let frame = String(decoding: try env.encoded(), as: UTF8.self)
 
-        let iterator = transport.incoming().makeAsyncIterator()
-        var iter = iterator
+        var iter = transport.incoming().makeAsyncIterator()
         await ws.injectIncoming(frame)
 
-        let line = try await XCTUnwrapAsync(try await iter.next())
+        let line = try await iter.next()
         XCTAssertEqual(line, "world")
     }
 }
-
-/// async 版 XCTUnwrap 辅助（AsyncThrowingStream.next() 结果为可选）。
-private func XCTUnwrapAsync<T>(_ expression: @autoclosure () throws -> T?,
-                               file: StaticString = #filePath,
-                               line: UInt = #line) throws -> T {
-    guard let value = try expression() else {
-        XCTFail("期望非 nil", file: file, line: line)
-        throw XCTUnwrapError.nilValue
-    }
-    return value
-}
-
-private enum XCTUnwrapError: Error { case nilValue }
 
 /// 内存 mock ws 通道：记录发出的 text 帧，允许测试注入收到的帧。
 /// receive 用「队列 + 挂起 continuation」模式：有帧立即返回，无帧则挂起等待 injectIncoming。
