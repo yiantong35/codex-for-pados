@@ -118,3 +118,46 @@ private struct HandshakeHarness {
         _ = try h.run(ipadPresentsCode: "PAIR-OK")
     }
 }
+
+/// 安全不变量 2：pairingCode 不明文过线——序列化 ClientHello 的字节里不含 code 本身，
+/// 只带 HMAC proof。用有辨识度的 code 直接在 JSON 里搜。
+@Test func pairingCodeNotOnWire() throws {
+    let secret = "SECRET-PAIR-CODE-123"
+    let hello = Handshake.makeClientHello(
+        sessionId: "s",
+        ipadDeviceId: "i",
+        ipadIdentityPub: Data([1, 2, 3]),
+        ipadEphemeralPub: Data([4, 5, 6]),
+        clientNonce: Data((0..<32).map { _ in UInt8.random(in: 0...255) }),
+        pairingCode: secret
+    )
+    let encoded = try JSONEncoder().encode(hello)
+    let json = String(data: encoded, encoding: .utf8)!
+    #expect(!json.contains(secret))              // 明文 code 不上线
+    #expect(json.contains("pairingCodeProof"))   // 传的是 proof 字段
+}
+
+/// 安全不变量：协议版本不符时 dev 侧 makeServerHello 拒绝。
+/// 直接单测该步——构造 protocolVersion 错误的 ClientHello 传入。
+@Test func handshakeRejectsVersionMismatch() throws {
+    var hello = Handshake.makeClientHello(
+        sessionId: "s",
+        ipadDeviceId: "i",
+        ipadIdentityPub: Data([1, 2, 3]),
+        ipadEphemeralPub: Data([4, 5, 6]),
+        clientNonce: Data((0..<32).map { _ in UInt8.random(in: 0...255) }),
+        pairingCode: "PAIR-OK"
+    )
+    hello.protocolVersion = "codexrelay-e2ee-v0"   // 与 RelayProtocolVersion.tag 不符
+    #expect(throws: HandshakeError.versionMismatch) {
+        _ = try Handshake.makeServerHello(
+            clientHello: hello,
+            devDeviceId: "d",
+            devIdentity: Curve25519.Signing.PrivateKey(),
+            devEphemeralPub: Data([7, 8, 9]),
+            serverNonce: Data((0..<32).map { _ in UInt8.random(in: 0...255) }),
+            keyEpoch: 0,
+            pairingCode: "PAIR-OK"
+        )
+    }
+}
