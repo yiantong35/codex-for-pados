@@ -45,8 +45,9 @@ struct TabBarView: View {
     @ViewBuilder private func tab(_ m: MachineConfig) -> some View {
         let active = sessions.activeSessionId == m.id
         let indicator = sessions.indicator(for: m.id)
-        HStack(spacing: 6) {
+        HStack(spacing: 0) {
             // tab 切换主体：仅此 Button 触发切换，命中区不含 ⋯ 菜单。
+            // 内边距放进 label 并配 contentShape，使圆点/文字周围留白也可点切换（避免死区）。
             Button { sessions.setActive(m.id) } label: {
                 HStack(spacing: 6) {
                     DotView(indicator: indicator)
@@ -57,10 +58,13 @@ struct TabBarView: View {
                     Text(m.displayName).lineLimit(1)
                         .foregroundStyle(active ? Color.accentColor : Color.primary)
                 }
+                .padding(.leading, 12).padding(.trailing, 4).padding(.vertical, 8)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
             // 可见管理入口（⋯）：触控/指针点击、外接键盘聚焦后回车/空格均可激活；不依赖长按。
+            // 命中区 ≥44pt（UI 适配基线）：padding 撑起热区 + contentShape 让留白也可点。
             Menu {
                 if sessions.canConnect(id: m.id) {
                     Button("tab.connect", systemImage: "bolt.horizontal") { sessions.connectMachine(id: m.id) }
@@ -70,11 +74,12 @@ struct TabBarView: View {
                 Button("tab.remove", systemImage: "trash", role: .destructive) { sessions.removeMachine(id: m.id) }
             } label: {
                 Image(systemName: "ellipsis")
-                    .padding(.horizontal, 4)
+                    .padding(.leading, 4).padding(.trailing, 12).padding(.vertical, 8)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
         .background(active ? Color.accentColor.opacity(0.12) : Color.clear, in: Capsule())
     }
 
