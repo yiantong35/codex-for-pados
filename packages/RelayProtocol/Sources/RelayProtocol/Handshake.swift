@@ -64,6 +64,8 @@ public enum Handshake {
         Transcript.encode([
             Data(RelayProtocolVersion.tag.utf8),
             Data(h.sessionId.utf8),
+            Data(h.ipadDeviceId.utf8),   // deviceId 进签名 transcript，被双向签名覆盖（I2）
+            Data(s.devDeviceId.utf8),
             h.ipadIdentityPub,
             s.devIdentityPub,
             h.ipadEphemeralPub,

@@ -26,10 +26,18 @@ public struct KeySchedule {
                               context ctx: Context) throws -> DirectionalKeys {
         let shared = try myEphemeral.sharedSecretFromKeyAgreement(with: peerEphemeralPub)
         let salt = Data(SHA256.hash(data: transcript))
-        let baseInfo = [RelayProtocolVersion.tag, ctx.sessionId, ctx.devDeviceId,
-                        ctx.ipadDeviceId, String(ctx.keyEpoch)].joined(separator: "|")
+        // HKDF info 用长度前缀编码而非 `|`-join，杜绝字段内含分隔符导致的域分离歧义。
+        let epochBytes = withUnsafeBytes(of: ctx.keyEpoch.bigEndian) { Data($0) }
+        let baseFields: [Data] = [
+            Data(RelayProtocolVersion.tag.utf8),
+            Data(ctx.sessionId.utf8),
+            Data(ctx.devDeviceId.utf8),
+            Data(ctx.ipadDeviceId.utf8),
+            epochBytes
+        ]
         func key(_ dir: String) -> SymmetricKey {
-            let info = Data((baseInfo + "|" + dir).utf8)
+            // 方向标签同样作为独立的长度前缀字段追加，而非字符串拼接。
+            let info = Transcript.encode(baseFields + [Data(dir.utf8)])
             return shared.hkdfDerivedSymmetricKey(
                 using: SHA256.self, salt: salt, sharedInfo: info, outputByteCount: 32)
         }

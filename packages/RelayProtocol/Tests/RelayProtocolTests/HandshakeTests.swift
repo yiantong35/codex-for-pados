@@ -120,6 +120,35 @@ private struct HandshakeHarness {
     }
 }
 
+/// I2 回归：deviceId 必须进签名 transcript，被 devSignature 双向覆盖。
+/// 篡改已签名 ServerHello 的 devDeviceId 后，iPad 验签必须失败（MITM 篡改 deviceId 被检测）。
+@Test func tamperedDevDeviceIdRejected() throws {
+    let ipadIdentity = Curve25519.Signing.PrivateKey()
+    let devIdentity  = Curve25519.Signing.PrivateKey()
+    let ipadEphemeral = Curve25519.KeyAgreement.PrivateKey()
+    let devEphemeral  = Curve25519.KeyAgreement.PrivateKey()
+    let pairingCode = "PAIR-OK"
+
+    let clientNonce = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+    let hello = Handshake.makeClientHello(
+        sessionId: "sess-1", ipadDeviceId: "ipad-1",
+        ipadIdentityPub: ipadIdentity.publicKey.rawRepresentation,
+        ipadEphemeralPub: ipadEphemeral.publicKey.rawRepresentation,
+        clientNonce: clientNonce, pairingCode: pairingCode)
+    var serverHello = try Handshake.makeServerHello(
+        clientHello: hello, devDeviceId: "dev-1", devIdentity: devIdentity,
+        devEphemeralPub: devEphemeral.publicKey.rawRepresentation,
+        serverNonce: Data((0..<32).map { _ in UInt8.random(in: 0...255) }),
+        keyEpoch: 0, pairingCode: pairingCode)
+    serverHello.devDeviceId = "attacker-dev"   // MITM 篡改 deviceId（签名不变）
+    #expect(throws: HandshakeError.badServerSignature) {
+        _ = try Handshake.verifyServerHelloAndMakeClientAuth(
+            clientHello: hello, serverHello: serverHello,
+            devIdentityPub: devIdentity.publicKey.rawRepresentation,
+            ipadIdentity: ipadIdentity)
+    }
+}
+
 /// I1 回归：即便调用方漏了步骤 3 的验签，finishClient 也必须在建 session 前
 /// 自行验 devSignature。给它一个错误的 devIdentityPub（冒充开发机场景），期望抛 badServerSignature。
 /// 这条测试封死“漏调验签直接 finishClient 与任意冒充开发机建通道”的认证绕过路径。
