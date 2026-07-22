@@ -47,6 +47,8 @@ public struct KeySchedule {
 
 #if !canImport(CryptoKit)
 // Apple 平台的 CryptoKit 已让 SymmetricKey 遵循 Equatable；仅在非 Apple 平台补充。
+// ⚠️ M3：此 == 为逐字节比较，**非常量时间**，仅供测试中比对密钥是否一致用；
+// 禁止用于生产环境的密钥/tag 比对（有旁路时序泄漏风险，生产比对应走常量时间 API）。
 extension SymmetricKey: @retroactive Equatable {
     public static func == (l: SymmetricKey, r: SymmetricKey) -> Bool {
         l.withUnsafeBytes { a in r.withUnsafeBytes { b in a.count == b.count && a.elementsEqual(b) } }

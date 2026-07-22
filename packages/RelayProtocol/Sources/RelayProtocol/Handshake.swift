@@ -141,6 +141,10 @@ public enum Handshake {
         guard let devPub = try? Curve25519.Signing.PublicKey(rawRepresentation: devIdentityPub) else {
             throw HandshakeError.badServerSignature
         }
+        // M1：显式校验回显的 clientNonce，消除死字段（transcript 用的是 h.clientNonce）。
+        guard s.echoedClientNonce == h.clientNonce else {
+            throw HandshakeError.badServerSignature
+        }
         let tr = transcript(clientHello: h, serverHello: s)
         guard devPub.isValidSignature(s.devSignature, for: tr) else {
             throw HandshakeError.badServerSignature

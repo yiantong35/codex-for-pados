@@ -66,6 +66,13 @@ private func pairedSessions() throws -> (ipad: SecureSession, dev: SecureSession
     }
 }
 
+/// M4 边界：空明文 seal → open 应往返得回空 Data。
+@Test func emptyPlaintextRoundTrips() throws {
+    let (ipad, dev) = try pairedSessions()
+    let env = try ipad.seal(Data())
+    #expect(try dev.open(env) == Data())
+}
+
 @Test func tamperedTagRejected() throws {
     let (ipad, dev) = try pairedSessions()
     var env = try ipad.seal(Data("hello".utf8))

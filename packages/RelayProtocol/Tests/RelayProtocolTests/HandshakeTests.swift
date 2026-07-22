@@ -120,6 +120,35 @@ private struct HandshakeHarness {
     }
 }
 
+/// M1 回归：echoedClientNonce 必须被显式校验（此前设而不验）。
+/// 篡改 echoedClientNonce（≠ clientHello.clientNonce）时 iPad 应拒绝。
+@Test func mismatchedEchoedClientNonceRejected() throws {
+    let ipadIdentity = Curve25519.Signing.PrivateKey()
+    let devIdentity  = Curve25519.Signing.PrivateKey()
+    let ipadEphemeral = Curve25519.KeyAgreement.PrivateKey()
+    let devEphemeral  = Curve25519.KeyAgreement.PrivateKey()
+    let pairingCode = "PAIR-OK"
+
+    let clientNonce = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+    let hello = Handshake.makeClientHello(
+        sessionId: "sess-1", ipadDeviceId: "ipad-1",
+        ipadIdentityPub: ipadIdentity.publicKey.rawRepresentation,
+        ipadEphemeralPub: ipadEphemeral.publicKey.rawRepresentation,
+        clientNonce: clientNonce, pairingCode: pairingCode)
+    var serverHello = try Handshake.makeServerHello(
+        clientHello: hello, devDeviceId: "dev-1", devIdentity: devIdentity,
+        devEphemeralPub: devEphemeral.publicKey.rawRepresentation,
+        serverNonce: Data((0..<32).map { _ in UInt8.random(in: 0...255) }),
+        keyEpoch: 0, pairingCode: pairingCode)
+    serverHello.echoedClientNonce = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+    #expect(throws: HandshakeError.badServerSignature) {
+        _ = try Handshake.verifyServerHelloAndMakeClientAuth(
+            clientHello: hello, serverHello: serverHello,
+            devIdentityPub: devIdentity.publicKey.rawRepresentation,
+            ipadIdentity: ipadIdentity)
+    }
+}
+
 /// I2 回归：deviceId 必须进签名 transcript，被 devSignature 双向覆盖。
 /// 篡改已签名 ServerHello 的 devDeviceId 后，iPad 验签必须失败（MITM 篡改 deviceId 被检测）。
 @Test func tamperedDevDeviceIdRejected() throws {
