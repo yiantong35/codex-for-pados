@@ -16,6 +16,25 @@ struct ConnectionConfig: Sendable {
     var user: String              // SSH 用户名
     var sshPort: Int = 22
     var controlSockPath: String   // 远端 ~/.codex/app-server-control/app-server-control.sock
+    /// relay 连接载荷（`codexrelay://pair?…`）。非 nil 表示走 RelayTransport 而非 SSH+proxy；
+    /// 此时 host/user/controlSockPath 不适用（transportFactory 按此分派）。
+    var relayPairing: String? = nil
+
+    /// relay 连接构造：只带配对载荷，SSH 字段留空。
+    init(relayPairing: String) {
+        self.host = ""; self.user = ""; self.sshPort = 0; self.controlSockPath = ""
+        self.relayPairing = relayPairing
+    }
+
+    /// SSH 连接构造（保持既有调用点签名不变）。
+    init(host: String, user: String, sshPort: Int = 22, controlSockPath: String) {
+        self.host = host; self.user = user; self.sshPort = sshPort
+        self.controlSockPath = controlSockPath
+        self.relayPairing = nil
+    }
+
+    /// 是否 relay 连接。
+    var isRelay: Bool { relayPairing != nil }
 
     static var stub: ConnectionConfig {
         .init(host: "x", user: "u", sshPort: 22, controlSockPath: "/tmp/s.sock")
@@ -104,15 +123,25 @@ final class ConnectionStore {
     /// 新连接立即把 phase 置为 connecting → 自动清除上一次的 .failed 错误。
     /// 含 20s 硬超时：建连/握手卡住时强制转 .failed 并作废后台残留任务。
     func connect(config: ConnectionConfig) {
-        guard !config.host.isEmpty, !config.user.isEmpty, !config.controlSockPath.isEmpty else {
-            connLog.error("connect 拒绝：host/user/sock 路径不完整")
-            phase = .failed("请先填写主机、用户名与 control socket 路径")
-            return
-        }
-        guard KeyManager().hasKey else {
-            connLog.error("connect 拒绝：本机密钥缺失")
-            phase = .failed("缺少本机密钥，请在设置中生成并把公钥加入 authorized_keys")
-            return
+        if config.isRelay {
+            // relay：只需配对载荷非空；SSH host/user/sock 与本机 SSH 密钥前置不适用。
+            // 真握手（RelayTransport.connect）留 Task 13/真机，此处只驱动 transportFactory 分派构造。
+            guard !(config.relayPairing ?? "").isEmpty else {
+                connLog.error("connect 拒绝：relay 配对载荷为空")
+                phase = .failed("relay 配对信息缺失")
+                return
+            }
+        } else {
+            guard !config.host.isEmpty, !config.user.isEmpty, !config.controlSockPath.isEmpty else {
+                connLog.error("connect 拒绝：host/user/sock 路径不完整")
+                phase = .failed("请先填写主机、用户名与 control socket 路径")
+                return
+            }
+            guard KeyManager().hasKey else {
+                connLog.error("connect 拒绝：本机密钥缺失")
+                phase = .failed("缺少本机密钥，请在设置中生成并把公钥加入 authorized_keys")
+                return
+            }
         }
         self.config = config
         // 新连接作废上一次仍在途的 transport（若上次卡在握手未落地也未超时）：关闭之避免泄漏（#1）。
