@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0027F69F8B82B895613D4827 /* RelayPairingImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37B881303291B67F5B5A8DE6 /* RelayPairingImportView.swift */; };
 		00D035F4CCE176BD3E53D4F1 /* CodexRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C01C7EC77E19B927C5E72B /* CodexRemoteApp.swift */; };
 		01BE5A03B6CE5A4875A7AD98 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 55AF6C40AC2043794D057E06 /* Citadel */; };
 		02398E5893F4A912AE583724 /* EnvironmentPanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69DDF69B6BB91F0396041F28 /* EnvironmentPanelTests.swift */; };
@@ -29,6 +30,7 @@
 		1716314F9A8F435F6D8701A6 /* SettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A814FA7149708A1316C3679A /* SettingsSection.swift */; };
 		1981A6B89E98BA1871511153 /* FileBrowserStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66560143A3317ECD701C4DD /* FileBrowserStore.swift */; };
 		19D62A239106D552D1C812A9 /* JSONRPCEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B8A2809870EB2C408134910 /* JSONRPCEnvelope.swift */; };
+		1D40975AA254F394D41A7981 /* RelayTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10D7119D5E1E4D50ADEDB98 /* RelayTransport.swift */; };
 		225A829C18798A93B2B74704 /* WorkspaceSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F89DD3906AD6C1071DE129EA /* WorkspaceSummary.swift */; };
 		23EBABFFB0324F326F96C0F7 /* ModelSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF8BC7FFDF8148D48F179A67 /* ModelSelection.swift */; };
 		275C19E77BD43DA8BF99C5E3 /* AnyCodable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0497AFEB2BBEEB2BA956BB6B /* AnyCodable.swift */; };
@@ -48,6 +50,7 @@
 		33F7C0479B25BDFDAB8F7D2C /* McpStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 588C0D4E78D684CB1295BCF1 /* McpStore.swift */; };
 		35C4ADCC92F968B4703A89E8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 60EE28685182A0308440F059 /* Assets.xcassets */; };
 		3611506BBC545B590512320C /* TerminalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22853390C30B93D3F03BAA27 /* TerminalTests.swift */; };
+		387CAAD32D74648B8D238D1C /* RelayTransportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90D030E0B4B70E904DBE0252 /* RelayTransportTests.swift */; };
 		412BB8A71B0724935A0B3602 /* OrientationSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99F655DD85E105FE65CF9AE9 /* OrientationSnapshotTests.swift */; };
 		42AC3C3CB8856454BEB23521 /* PluginDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3911DF6868B43795B95D5431 /* PluginDetailSheet.swift */; };
 		4384F6C49B4DF94DB99FF2B3 /* LiveTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 114F7031E01A77E37A2A74F6 /* LiveTransport.swift */; };
@@ -126,6 +129,7 @@
 		AB424AE27534DFFD13F5E2A2 /* FileBrowserTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FCC19E5275E4A7752ADB4C8 /* FileBrowserTypes.swift */; };
 		AC3BD0F63FF3EF2385135E5A /* SessionIsolationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E75ED9B66740234D880F0F80 /* SessionIsolationTests.swift */; };
 		AD0E73CB3D07915A0E1748C9 /* ReviewStartTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4783F7EE72021D94A790C18 /* ReviewStartTests.swift */; };
+		AD7312A1E5821D8C6E2EF6AA /* RelayProtocol in Frameworks */ = {isa = PBXBuildFile; productRef = EA3E2E25A51F081D15DF24F9 /* RelayProtocol */; };
 		AE36BA993EB1C60C751C416A /* ReviewPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 239D1247A5B1E3511AE98C8D /* ReviewPanelView.swift */; };
 		AE409793C410F73918FB4566 /* EnvironmentInspectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC9F320A35BB19E1F9376F5 /* EnvironmentInspectorTests.swift */; };
 		B30B30AE737320498073AD1A /* ItemCardRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DFB7A58D57B8BBE700849D6 /* ItemCardRenderTests.swift */; };
@@ -179,6 +183,7 @@
 		F5F9A7DF65AACB67852B1BE4 /* ConnectionConfigLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F754E4C6FFCD98511A018C7 /* ConnectionConfigLogicTests.swift */; };
 		F60EBCE316A0EB4EE37CC7E7 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F7E260FE1079678A05AA275 /* Session.swift */; };
 		F698A3368DE28211030B8C69 /* KeyComboTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7535E25AC29C38E0DB4F0F9 /* KeyComboTests.swift */; };
+		FA459E8663663F5E214C3A7F /* RelayPairingImportViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F7B0AEDB9C3217976517020 /* RelayPairingImportViewModelTests.swift */; };
 		FA63CD3AF2152438C2C933A2 /* ExtensionProtocolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3358FCFE59340732BC17475 /* ExtensionProtocolTests.swift */; };
 		FC179BE384945934273B1E8C /* DaemonBootstrapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A4964274526D6507872954F /* DaemonBootstrapTests.swift */; };
 		FE6A974BE19F86D1C57CB9AB /* ConversationSendTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED69C1A4C21EDC189C91549 /* ConversationSendTests.swift */; };
@@ -234,6 +239,8 @@
 		2F3DFDE3E35F47099089A687 /* ProjectsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectsStore.swift; sourceTree = "<group>"; };
 		2F7E260FE1079678A05AA275 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
 		3287E9ACB5ABFCFCB31D247E /* ResumeHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResumeHistoryTests.swift; sourceTree = "<group>"; };
+		34D9C00D21A8D1CDE4EB2F01 /* RelayProtocol */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RelayProtocol; path = ../packages/RelayProtocol; sourceTree = SOURCE_ROOT; };
+		37B881303291B67F5B5A8DE6 /* RelayPairingImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayPairingImportView.swift; sourceTree = "<group>"; };
 		3911DF6868B43795B95D5431 /* PluginDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginDetailSheet.swift; sourceTree = "<group>"; };
 		395048E33FFFB3DEB6A2193A /* SettingsPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPageView.swift; sourceTree = "<group>"; };
 		397A41F9D200F56D5D93B94D /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
@@ -292,6 +299,7 @@
 		8EA28631762E53EE736EF206 /* ProxyChannelHandshakeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyChannelHandshakeTests.swift; sourceTree = "<group>"; };
 		8EB7B9AC104F15296013EB10 /* BottomPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomPanelView.swift; sourceTree = "<group>"; };
 		8F685AC990DC66E88E516025 /* ReviewPanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPanelTests.swift; sourceTree = "<group>"; };
+		90D030E0B4B70E904DBE0252 /* RelayTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayTransportTests.swift; sourceTree = "<group>"; };
 		9164D6EECFD1ED77AC8C6411 /* TurnDiffStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnDiffStats.swift; sourceTree = "<group>"; };
 		96AFEE8DA0D42430297E2021 /* AppearanceSettingsSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettingsSectionView.swift; sourceTree = "<group>"; };
 		99616A4BE43A7944EC073310 /* WorkspaceMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceMetrics.swift; sourceTree = "<group>"; };
@@ -302,6 +310,7 @@
 		9D25848DEEC9BB5B48C3516B /* HookTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookTypes.swift; sourceTree = "<group>"; };
 		9D26DCBD5544E3BF101581D9 /* ExtensionCountTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionCountTests.swift; sourceTree = "<group>"; };
 		9DC1E8FE94E8A15D040ECBA7 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		9F7B0AEDB9C3217976517020 /* RelayPairingImportViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayPairingImportViewModelTests.swift; sourceTree = "<group>"; };
 		A2B7118F0B58B642B06CCB4C /* FileBrowserTypesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileBrowserTypesTests.swift; sourceTree = "<group>"; };
 		A2FC01F7E01FE2DD6E33085E /* ThreadTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadTypes.swift; sourceTree = "<group>"; };
 		A4CE46A03AECF43136EA63C8 /* ReviewPanelTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPanelTypes.swift; sourceTree = "<group>"; };
@@ -363,6 +372,7 @@
 		EDF45B41996E136FC0ED72F4 /* EnvironmentInspectorModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentInspectorModel.swift; sourceTree = "<group>"; };
 		EE826C2EEEFE8229D048565F /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		F08F54E99F6B68924A02EFF3 /* PanelEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelEmptyState.swift; sourceTree = "<group>"; };
+		F10D7119D5E1E4D50ADEDB98 /* RelayTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayTransport.swift; sourceTree = "<group>"; };
 		F1ED1C6167187E761CB4F080 /* Methods.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Methods.swift; sourceTree = "<group>"; };
 		F31A93FB90F22CE40924C1E9 /* MessageTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageTransport.swift; sourceTree = "<group>"; };
 		F3DF563C4C5BA1D2DF864315 /* KeyCombo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCombo.swift; sourceTree = "<group>"; };
@@ -390,6 +400,7 @@
 			files = (
 				01BE5A03B6CE5A4875A7AD98 /* Citadel in Frameworks */,
 				87B97AD99B7A4399F10C1A2E /* SwiftTerm in Frameworks */,
+				AD7312A1E5821D8C6E2EF6AA /* RelayProtocol in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -477,6 +488,7 @@
 				C3F2D64D4DBE754E71DE9785 /* ItemCards.swift */,
 				F8015D65F9C7255AF964B53D /* MachineFormView.swift */,
 				C74C637F80CB9362ACF4AE46 /* OnboardingView.swift */,
+				37B881303291B67F5B5A8DE6 /* RelayPairingImportView.swift */,
 				5213B70EFC0F91FF7C6EAF29 /* RootSplitView.swift */,
 				FCE6EE6E276995AE35699CCF /* SidebarView.swift */,
 				613B5AA7B26A7DA3DA70D2BA /* TabBarView.swift */,
@@ -525,6 +537,7 @@
 			children = (
 				87E3E9BC06AA82C3710B1920 /* CodexRemote */,
 				FD5327EB046E26D0A91F32DE /* CodexRemoteTests */,
+				E515B714094B29C5538573B8 /* Packages */,
 				CA7B3B413DBEC4A5D2B2B3C3 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -602,6 +615,7 @@
 				CA4DB06658E521B03C847E5B /* DaemonBootstrap.swift */,
 				F31A93FB90F22CE40924C1E9 /* MessageTransport.swift */,
 				538E3EC9A90E5AA65ECEC7A1 /* ProxyChannel.swift */,
+				F10D7119D5E1E4D50ADEDB98 /* RelayTransport.swift */,
 				1A8CF06540ED3E7C246131C8 /* SSHClient.swift */,
 				12C73D50DE0A51AB89EF6CC7 /* TransportControlEvent.swift */,
 				02F9A9AAD9F7FFA810F6D770 /* TransportError.swift */,
@@ -629,6 +643,14 @@
 				FFBA120F4EEB38BFB307D900 /* CodexRemoteTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		E515B714094B29C5538573B8 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				34D9C00D21A8D1CDE4EB2F01 /* RelayProtocol */,
+			);
+			name = Packages;
 			sourceTree = "<group>";
 		};
 		FD5327EB046E26D0A91F32DE /* CodexRemoteTests */ = {
@@ -672,6 +694,8 @@
 				29E4DEA2725E8A3517A77141 /* ProjectsStoreTests.swift */,
 				AFD990BEF80BA894D65E3CC8 /* ProtocolTypesTests.swift */,
 				8EA28631762E53EE736EF206 /* ProxyChannelHandshakeTests.swift */,
+				9F7B0AEDB9C3217976517020 /* RelayPairingImportViewModelTests.swift */,
+				90D030E0B4B70E904DBE0252 /* RelayTransportTests.swift */,
 				653E5C8A33FD7F7568474BB5 /* RequestIdGeneratorTests.swift */,
 				3287E9ACB5ABFCFCB31D247E /* ResumeHistoryTests.swift */,
 				8F685AC990DC66E88E516025 /* ReviewPanelTests.swift */,
@@ -725,6 +749,7 @@
 			packageProductDependencies = (
 				55AF6C40AC2043794D057E06 /* Citadel */,
 				87B02C1FFD1A919E48906D14 /* SwiftTerm */,
+				EA3E2E25A51F081D15DF24F9 /* RelayProtocol */,
 			);
 			productName = CodexRemote;
 			productReference = FA7C5D102DC860D73AE1ADE9 /* CodexRemote.app */;
@@ -781,6 +806,7 @@
 			packageReferences = (
 				935CA715DF2ED02C0C97E7BA /* XCRemoteSwiftPackageReference "Citadel" */,
 				D09A990FFBB1FCC3E1019587 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+				1FF86BE153B52C049F9C1082 /* XCLocalSwiftPackageReference "../packages/RelayProtocol" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CA7B3B413DBEC4A5D2B2B3C3 /* Products */;
@@ -882,6 +908,8 @@
 				F3ABCCA0D4D4D5F95EC6D43E /* ProgressCardBar.swift in Sources */,
 				046D60CECEF36F595B491834 /* ProjectsStore.swift in Sources */,
 				FF3225FE3ECC3EFFECDD3484 /* ProxyChannel.swift in Sources */,
+				0027F69F8B82B895613D4827 /* RelayPairingImportView.swift in Sources */,
+				1D40975AA254F394D41A7981 /* RelayTransport.swift in Sources */,
 				8D149C418824DDC92C03C15A /* RequestIdGenerator.swift in Sources */,
 				EADECAF1E766FE76F7974EF7 /* ReviewPanelTypes.swift in Sources */,
 				AE36BA993EB1C60C751C416A /* ReviewPanelView.swift in Sources */,
@@ -968,6 +996,8 @@
 				6166961C795F332ADF8397E9 /* ProjectsStoreTests.swift in Sources */,
 				2E22F5B05273F39AC264E778 /* ProtocolTypesTests.swift in Sources */,
 				11231A3D1912AE0AFB4B1764 /* ProxyChannelHandshakeTests.swift in Sources */,
+				FA459E8663663F5E214C3A7F /* RelayPairingImportViewModelTests.swift in Sources */,
+				387CAAD32D74648B8D238D1C /* RelayTransportTests.swift in Sources */,
 				7564BF0AF552143A02DD9568 /* RequestIdGeneratorTests.swift in Sources */,
 				520CB33800798B994A6E9AFF /* ResumeHistoryTests.swift in Sources */,
 				8AFABE458B76F5E22A83EE28 /* ReviewPanelTests.swift in Sources */,
@@ -1250,6 +1280,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		1FF86BE153B52C049F9C1082 /* XCLocalSwiftPackageReference "../packages/RelayProtocol" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../packages/RelayProtocol;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		935CA715DF2ED02C0C97E7BA /* XCRemoteSwiftPackageReference "Citadel" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -1279,6 +1316,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D09A990FFBB1FCC3E1019587 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
 			productName = SwiftTerm;
+		};
+		EA3E2E25A51F081D15DF24F9 /* RelayProtocol */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = RelayProtocol;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

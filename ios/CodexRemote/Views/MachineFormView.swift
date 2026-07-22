@@ -14,9 +14,13 @@ struct MachineFormView: View {
     @State private var host = ""
     @State private var user = ""
     @State private var sshPort = "22"
+    /// 连接方式选择：SSH 直连表单 vs 经 relay 配对导入（D 末）。
+    @State private var mode: Mode = .ssh
     /// 本机 KeyManager：进入即生成（幂等），展示公钥供复制。
     @State private var keyManager = KeyManager()
     @State private var copied = false
+
+    private enum Mode: Hashable { case ssh, relay }
 
     /// 可保存判定（纯函数，便于单测）：host/user trim 后非空，且未达上限（双保险，TabBar 已拦一层）。
     static func canSave(host: String, user: String, canAddMore: Bool) -> Bool {
@@ -35,10 +39,24 @@ struct MachineFormView: View {
                 Color(.systemGroupedBackground).ignoresSafeArea()
 
                 ScrollView {
-                    card
+                    VStack(spacing: 20) {
+                        Picker("machineForm.mode", selection: $mode) {
+                            Text("machineForm.mode.ssh").tag(Mode.ssh)
+                            Text("machineForm.mode.relay").tag(Mode.relay)
+                        }
+                        .pickerStyle(.segmented)
                         .frame(maxWidth: 480)
-                        .frame(maxWidth: .infinity)
-                        .padding(24)
+
+                        if mode == .ssh {
+                            card
+                                .frame(maxWidth: 480)
+                        } else {
+                            relayEntry
+                                .frame(maxWidth: 480)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(24)
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
@@ -49,14 +67,44 @@ struct MachineFormView: View {
                     Button("common.cancel") { dismiss() }
                         .keyboardShortcut(.cancelAction)   // T11：Esc 取消（固定，spec）
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("machineForm.save") { save() }
-                        .disabled(!canSave)
+                if mode == .ssh {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("machineForm.save") { save() }
+                            .disabled(!canSave)
+                    }
                 }
             }
         }
         // 进入即确保本机密钥存在（幂等），保证公钥可展示、连接前置满足。
         .onAppear { keyManager.generateIfNeeded() }
+    }
+
+    /// relay 配对入口：卡片内说明 + NavigationLink 进粘贴导入界面（与 SSH 表单并存）。
+    private var relayEntry: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("relayImport.hint")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            NavigationLink {
+                RelayPairingImportView()
+            } label: {
+                Label("relayImport.title", systemImage: "qrcode.viewfinder")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color(.tertiarySystemGroupedBackground))
+            )
+        }
+        .padding(28)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 6)
     }
 
     /// 居中卡片：字段（显示名/host/user/端口）+ 公钥块。
