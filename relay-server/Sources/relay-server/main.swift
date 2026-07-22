@@ -1,2 +1,160 @@
-// relay-server 可执行入口(RED 阶段占位,Step 6 接线 NIO)
-print("relay-server placeholder")
+import Foundation
+import NIOCore
+import NIOPosix
+import NIOHTTP1
+import NIOWebSocket
+import RelayProtocol
+import RelayServerCore
+
+/// relay 中继服务端(SwiftNIO ws)。
+///
+/// 职责极简且**零知识**:按 `/relay/{sessionId}` + header `x-role`(devMachine/iPad)
+/// 撮合一对连接,握手后纯密文双向透传——iPad 发来的帧转给 dev,dev 发来的转给 iPad。
+/// relay **绝不解密、绝不解析帧内容**(端到端加密由 RelayProtocol 保证)。
+///
+/// - `GET /relay/{sessionId}` + ws upgrade + `x-role` header → 撮合房间。
+/// - `GET /health`(非 upgrade)→ `{"ok":true}` 200。
+
+let port = Int(ProcessInfo.processInfo.environment["RELAY_PORT"] ?? "") ?? 9000
+let host = "0.0.0.0"
+let rooms = RelayRooms()
+
+/// 从请求解析 (sessionId, role)。缺 sessionId 或 role 非法 → nil(拒绝 upgrade)。
+func parseUpgrade(uri: String, headers: HTTPHeaders) -> (sessionId: String, role: RelayPeer)? {
+    // uri 形如 /relay/{sessionId}(可能带 query),取 path 段。
+    let path = uri.split(separator: "?", maxSplits: 1).first.map(String.init) ?? uri
+    let segments = path.split(separator: "/").map(String.init)
+    guard segments.count == 2, segments[0] == "relay", !segments[1].isEmpty else { return nil }
+    let sessionId = segments[1]
+    guard let roleRaw = headers.first(name: "x-role"),
+          let role = RelayPeer(rawValue: roleRaw) else { return nil }
+    return (sessionId, role)
+}
+
+let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
+
+let bootstrap = ServerBootstrap(group: group)
+    .serverChannelOption(ChannelOptions.backlog, value: 256)
+    .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
+    .childChannelInitializer { channel in
+        let upgrader = NIOWebSocketServerUpgrader(
+            shouldUpgrade: { (channel, head) -> EventLoopFuture<HTTPHeaders?> in
+                if parseUpgrade(uri: head.uri, headers: head.headers) != nil {
+                    return channel.eventLoop.makeSucceededFuture(HTTPHeaders())
+                } else {
+                    return channel.eventLoop.makeSucceededFuture(nil)
+                }
+            },
+            upgradePipelineHandler: { (channel, head) -> EventLoopFuture<Void> in
+                guard let parsed = parseUpgrade(uri: head.uri, headers: head.headers) else {
+                    return channel.eventLoop.makeFailedFuture(RelayError.badUpgrade)
+                }
+                return channel.pipeline.addHandler(
+                    RelayConnectionHandler(rooms: rooms, sessionId: parsed.sessionId, role: parsed.role)
+                )
+            }
+        )
+        return channel.pipeline.configureHTTPServerPipeline(
+            withServerUpgrade: (upgraders: [upgrader], completionHandler: { _ in }),
+            withErrorHandling: true
+        ).flatMap {
+            // 非 upgrade 请求(如 GET /health)由 HealthHandler 处理。
+            channel.pipeline.addHandler(HealthHandler())
+        }
+    }
+
+enum RelayError: Error { case badUpgrade }
+
+let serverChannel = try bootstrap.bind(host: host, port: port).wait()
+print("relay-server listening on \(host):\(port)")
+try serverChannel.closeFuture.wait()
+try? group.syncShutdownGracefully()
+
+/// 单个 ws 连接:接入房间,双向桥接密文帧。
+final class RelayConnectionHandler: ChannelInboundHandler, @unchecked Sendable {
+    typealias InboundIn = WebSocketFrame
+    typealias OutboundOut = WebSocketFrame
+
+    private let rooms: RelayRooms
+    private let sessionId: String
+    private let role: RelayPeer
+    private var textBuffer = ByteBuffer()
+
+    init(rooms: RelayRooms, sessionId: String, role: RelayPeer) {
+        self.rooms = rooms
+        self.sessionId = sessionId
+        self.role = role
+    }
+
+    func handlerAdded(context: ChannelHandlerContext) {
+        // sink:把对端投来的密文字符串编成 ws text frame 写回本连接。
+        let channel = context.channel
+        rooms.join(sessionId: sessionId, role: role) { frame in
+            channel.eventLoop.execute {
+                var buf = channel.allocator.buffer(capacity: frame.utf8.count)
+                buf.writeString(frame)
+                let wsFrame = WebSocketFrame(fin: true, opcode: .text, data: buf)
+                channel.writeAndFlush(wsFrame, promise: nil)
+            }
+        }
+    }
+
+    func handlerRemoved(context: ChannelHandlerContext) {
+        rooms.leave(sessionId: sessionId, role: role)
+    }
+
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        let frame = self.unwrapInboundIn(data)
+        switch frame.opcode {
+        case .text, .continuation:
+            textBuffer.writeImmutableBuffer(frame.unmaskedData)
+            if frame.fin {
+                let payload = textBuffer.readString(length: textBuffer.readableBytes) ?? ""
+                textBuffer.clear()
+                // 零知识:不解析 payload,原样转给对端。
+                rooms.forward(sessionId: sessionId, from: role, frame: payload)
+            }
+        case .connectionClose:
+            context.close(promise: nil)
+        case .ping:
+            var frameData = frame.data
+            if let key = frame.maskKey { frameData.webSocketUnmask(key) }
+            let pong = WebSocketFrame(fin: true, opcode: .pong, data: frameData)
+            context.writeAndFlush(self.wrapOutboundOut(pong), promise: nil)
+        default:
+            break
+        }
+    }
+}
+
+/// 非 ws 请求处理:GET /health → {"ok":true}。其余 → 404。
+final class HealthHandler: ChannelInboundHandler, @unchecked Sendable {
+    typealias InboundIn = HTTPServerRequestPart
+    typealias OutboundOut = HTTPServerResponsePart
+
+    private var keepAlive = false
+
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        let part = self.unwrapInboundIn(data)
+        switch part {
+        case .head(let head):
+            keepAlive = head.isKeepAlive
+            let isHealth = head.uri.split(separator: "?", maxSplits: 1).first.map(String.init) == "/health"
+            let status: HTTPResponseStatus = isHealth ? .ok : .notFound
+            let bodyString = isHealth ? "{\"ok\":true}" : "not found"
+            var buffer = context.channel.allocator.buffer(capacity: bodyString.utf8.count)
+            buffer.writeString(bodyString)
+
+            var headers = HTTPHeaders()
+            headers.add(name: "Content-Type", value: "application/json")
+            headers.add(name: "Content-Length", value: "\(buffer.readableBytes)")
+            let responseHead = HTTPResponseHead(version: head.version, status: status, headers: headers)
+            context.write(self.wrapOutboundOut(.head(responseHead)), promise: nil)
+            context.write(self.wrapOutboundOut(.body(.byteBuffer(buffer))), promise: nil)
+            context.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: nil)
+            if !keepAlive { context.close(promise: nil) }
+        case .body, .end:
+            break
+        }
+    }
+}
