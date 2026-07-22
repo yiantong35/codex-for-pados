@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 横向滚动 tab 栏（多机器切换主入口）。窄屏放不下就横滑；每机器一个 tab（显示名 + 圆点 + ⋯ 菜单），
+/// 横向滚动 tab 栏（多机器切换主入口）。窄屏放不下就横滑；每机器一个 tab（圆点 + 显示名 + ⋯ 菜单），
 /// ⋯ 菜单弹管理项（连接/断开/重命名/移除，可见入口、不依赖长按），末尾 [+] 添加机器。圆点数据源为 T6 的 TabIndicator。
 struct TabBarView: View {
     @Environment(SessionsManager.self) private var sessions
@@ -49,9 +49,9 @@ struct TabBarView: View {
             // tab 切换主体：仅此 Button 触发切换，命中区不含 ⋯ 菜单。
             Button { sessions.setActive(m.id) } label: {
                 HStack(spacing: 6) {
+                    DotView(indicator: indicator)
                     Text(m.displayName).lineLimit(1)
                         .foregroundStyle(active ? Color.accentColor : Color.primary)
-                    DotView(indicator: indicator)
                 }
             }
             .buttonStyle(.plain)
