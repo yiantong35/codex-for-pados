@@ -5,6 +5,9 @@ import SwiftUI
 /// 与「恢复默认」；固定动作（Esc 取消）只读、无改键入口。
 struct ShortcutsSettingsSectionView: View {
     @Environment(ShortcutStore.self) private var shortcuts
+    /// 应用内语言经根 `.environment(\.locale, ...)` 注入（LocaleManager 驱动）。动态 key 必须显式
+    /// 按此 locale 解析：`String(localized:)` 默认读系统 locale，会忽略应用内语言设置（bug）。
+    @Environment(\.locale) private var locale
 
     /// 当前处于录入态的动作（onKeyPress 仅在此动作行挂载，退出即卸载——功耗约束 1）。
     @State private var recordingAction: ShortcutAction?
@@ -46,7 +49,7 @@ struct ShortcutsSettingsSectionView: View {
     private func row(_ action: ShortcutAction) -> some View {
         let isRecording = recordingAction == action
         HStack {
-            Text(String(localized: String.LocalizationValue(action.titleStringKey))).foregroundStyle(.primary)
+            Text(String(localized: String.LocalizationValue(action.titleStringKey), locale: locale)).foregroundStyle(.primary)
             Spacer()
             if isRecording {
                 Text("shortcut.recording")
@@ -116,18 +119,18 @@ struct ShortcutsSettingsSectionView: View {
     private func rejectionMessage(_ reason: RebindRejection) -> String {
         switch reason {
         case .missingRequiredModifier:
-            return String(localized: "shortcut.conflict.missingModifier")
+            return String(localized: "shortcut.conflict.missingModifier", locale: locale)
         case .systemReserved:
-            return String(localized: "shortcut.conflict.systemReserved")
+            return String(localized: "shortcut.conflict.systemReserved", locale: locale)
         case .occupied(let occupant):
-            let name = String(localized: String.LocalizationValue(occupant.titleStringKey))
+            let name = String(localized: String.LocalizationValue(occupant.titleStringKey), locale: locale)
             // key「shortcut.conflict.occupied」的本地化值为 "已被「%@」占用" / "Already used by \"%@\""；
             // defaultValue 既是开发语言源串、又携带插值实参（name）填入该格式串的 %@。
-            return String(localized: "shortcut.conflict.occupied", defaultValue: "Already used by \"\(name)\"")
+            return String(localized: "shortcut.conflict.occupied", defaultValue: "Already used by \"\(name)\"", locale: locale)
         case .notCustomizable:
             // unreachable via UI（固定行不暴露改键入口）；仅防御性兜底，release 不崩。
             assertionFailure("notCustomizable rejection should be unreachable from the shortcuts UI")
-            return String(localized: "shortcut.conflict.systemReserved")
+            return String(localized: "shortcut.conflict.systemReserved", locale: locale)
         }
     }
 }
