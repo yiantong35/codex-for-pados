@@ -173,11 +173,21 @@ public enum Handshake {
                              sessionId: h.sessionId, keyEpoch: s.keyEpoch)
     }
 
-    // iPad 侧收尾：devSignature 已在步骤 3 验过，此处 derive 建 SecureSession。
+    // iPad 侧收尾：即便调用方漏了步骤 3，此处仍在 derive 前重新验 devSignature，
+    // 使“建立加密通道”与“验证开发机身份”成为不可分割的原子操作（认证 by-construction）。
     public static func finishClient(clientHello h: ClientHello,
                                     serverHello s: ServerHello,
-                                    ipadEphemeral: Curve25519.KeyAgreement.PrivateKey) throws -> SecureSession {
+                                    ipadEphemeral: Curve25519.KeyAgreement.PrivateKey,
+                                    devIdentityPub: Data) throws -> SecureSession {
+        // derive 前重新验 devSignature：与 verifyServerHelloAndMakeClientAuth 同一段逻辑，
+        // 保证漏调步骤 3 时仍不会与冒充的开发机建通道。
+        guard let devPub = try? Curve25519.Signing.PublicKey(rawRepresentation: devIdentityPub) else {
+            throw HandshakeError.badServerSignature
+        }
         let tr = transcript(clientHello: h, serverHello: s)
+        guard devPub.isValidSignature(s.devSignature, for: tr) else {
+            throw HandshakeError.badServerSignature
+        }
         let peerEph = try Curve25519.KeyAgreement.PublicKey(rawRepresentation: s.devEphemeralPub)
         let keys = try KeySchedule.derive(myEphemeral: ipadEphemeral,
                                           peerEphemeralPub: peerEph,

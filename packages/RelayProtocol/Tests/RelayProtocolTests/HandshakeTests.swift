@@ -77,11 +77,12 @@ private struct HandshakeHarness {
             devEphemeral: devEphemeral
         )
 
-        // iPad 侧：验 devSignature 通过后已可 derive，建 SecureSession。
+        // iPad 侧：finishClient 内部会重新验 devSignature（认证 by-construction）。
         let ipadSession = try Handshake.finishClient(
             clientHello: hello,
             serverHello: serverHello,
-            ipadEphemeral: ipadEphemeral
+            ipadEphemeral: ipadEphemeral,
+            devIdentityPub: devIdentity.publicKey.rawRepresentation   // 带外得到的 dev 身份公钥
         )
 
         return (ipadSession, devSession)
@@ -116,6 +117,46 @@ private struct HandshakeHarness {
     h.tamperClientSignature = true
     #expect(throws: HandshakeError.badClientSignature) {
         _ = try h.run(ipadPresentsCode: "PAIR-OK")
+    }
+}
+
+/// I1 回归：即便调用方漏了步骤 3 的验签，finishClient 也必须在建 session 前
+/// 自行验 devSignature。给它一个错误的 devIdentityPub（冒充开发机场景），期望抛 badServerSignature。
+/// 这条测试封死“漏调验签直接 finishClient 与任意冒充开发机建通道”的认证绕过路径。
+@Test func finishClientRejectsForgedDevIdentity() throws {
+    let ipadIdentity = Curve25519.Signing.PrivateKey()
+    let devIdentity  = Curve25519.Signing.PrivateKey()
+    let ipadEphemeral = Curve25519.KeyAgreement.PrivateKey()
+    let devEphemeral  = Curve25519.KeyAgreement.PrivateKey()
+    let pairingCode = "PAIR-OK"
+
+    let clientNonce = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+    let hello = Handshake.makeClientHello(
+        sessionId: "sess-1",
+        ipadDeviceId: "ipad-1",
+        ipadIdentityPub: ipadIdentity.publicKey.rawRepresentation,
+        ipadEphemeralPub: ipadEphemeral.publicKey.rawRepresentation,
+        clientNonce: clientNonce,
+        pairingCode: pairingCode
+    )
+    let serverHello = try Handshake.makeServerHello(
+        clientHello: hello,
+        devDeviceId: "dev-1",
+        devIdentity: devIdentity,
+        devEphemeralPub: devEphemeral.publicKey.rawRepresentation,
+        serverNonce: Data((0..<32).map { _ in UInt8.random(in: 0...255) }),
+        keyEpoch: 0,
+        pairingCode: pairingCode
+    )
+    // 传入攻击者的公钥（≠ 真正签名的 devIdentity），模拟漏调步骤 3 直接收尾。
+    let attacker = Curve25519.Signing.PrivateKey()
+    #expect(throws: HandshakeError.badServerSignature) {
+        _ = try Handshake.finishClient(
+            clientHello: hello,
+            serverHello: serverHello,
+            ipadEphemeral: ipadEphemeral,
+            devIdentityPub: attacker.publicKey.rawRepresentation
+        )
     }
 }
 
