@@ -81,6 +81,16 @@ final class SessionsManager {
         Task { await s?.disconnect() }
     }
 
+    /// 重命名某机器 tab 的显示名（TabBarView ⋯ 菜单「重命名」项用）。
+    /// 空白名忽略（保持原名）；仅改持久化的 displayName，不动连接。
+    func rename(id: UUID, to newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              var m = machineStore.machines.first(where: { $0.id == id }) else { return }
+        m.displayName = trimmed
+        machineStore.update(m)
+    }
+
     func disconnect(id: UUID) {
         Task { await cache[id]?.disconnect() }
     }
