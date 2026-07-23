@@ -9,7 +9,7 @@ final class InMemoryTOFUStore: TOFUStoring, @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         return map[key]
     }
-    func remember(_ identityPub: Data, forMachineKey key: String) {
+    func remember(_ identityPub: Data, forMachineKey key: String) throws {
         lock.lock(); map[key] = identityPub; lock.unlock()
     }
 }

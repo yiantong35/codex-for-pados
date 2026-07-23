@@ -11,11 +11,13 @@ private final class FakeWSTask: WebSocketTaskProtocol, @unchecked Sendable {
     var sendShouldThrow = false
     private(set) var resumed = false
     private(set) var cancelled = false
+    let sendCount = OSAllocatedUnfairLock(initialState: 0)
 
     init(recv: [Recv] = []) { self.recvScript = recv }
 
     func resume() { resumed = true }
     func send(_ message: URLSessionWebSocketTask.Message) async throws {
+        sendCount.withLock { $0 += 1 }
         if sendShouldThrow { throw URLError(.notConnectedToInternet) }
     }
     func receive() async throws -> URLSessionWebSocketTask.Message {
@@ -70,5 +72,21 @@ final class URLSessionRelayWSChannelTests: XCTestCase {
                 return XCTFail("应为 TransportError.channelClosed，实为 \(error)")
             }
         }
+    }
+
+    /// 通道已关闭后 sendText 前置守卫：直接抛 channelClosed，不再调用底层 task.send。
+    func testSendAfterCloseThrowsWithoutCallingSend() async {
+        let task = FakeWSTask()
+        let ch = URLSessionRelayWSChannel(task: task)
+        await ch.close()
+        do {
+            try await ch.sendText("x")
+            XCTFail("关闭后应抛错")
+        } catch {
+            guard case TransportError.channelClosed = error else {
+                return XCTFail("应为 TransportError.channelClosed，实为 \(error)")
+            }
+        }
+        XCTAssertEqual(task.sendCount.withLock { $0 }, 0, "关闭后不得再触达底层 task.send")
     }
 }

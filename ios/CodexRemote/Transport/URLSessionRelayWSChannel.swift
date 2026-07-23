@@ -22,6 +22,7 @@ actor URLSessionRelayWSChannel: RelayWSChannel {
     }
 
     func sendText(_ text: String) async throws {
+        if closed { throw TransportError.channelClosed(reason: "通道已关闭") }
         do {
             try await task.send(.string(text))
         } catch {

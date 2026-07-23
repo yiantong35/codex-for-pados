@@ -7,17 +7,19 @@ enum TOFUError: Error, Equatable { case identityChanged }
 protocol TOFUStoring: Sendable {
     /// 取该机器键已记住的开发机身份公钥；无则 nil。
     func rememberedIdentity(forMachineKey key: String) -> Data?
-    /// 记住该机器键的开发机身份公钥（覆盖式）。
-    func remember(_ identityPub: Data, forMachineKey key: String)
+    /// 记住该机器键的开发机身份公钥（覆盖式）。持久化失败必须上抛（fail-closed）。
+    func remember(_ identityPub: Data, forMachineKey key: String) throws
 }
 
 extension TOFUStoring {
     /// 首次即信任存下；再连比对，不匹配抛 `identityChanged`。
+    /// 首信持久化失败会上抛底层错误（fail-closed）——信任锚未落盘绝不放行握手，
+    /// 否则下次又当"首信"会重新信任对端出示的任意公钥，MITM 检测静默失效。
     func verifyOrTrust(machineKey: String, presentedPub: Data) throws {
         if let known = rememberedIdentity(forMachineKey: machineKey) {
             guard known == presentedPub else { throw TOFUError.identityChanged }
         } else {
-            remember(presentedPub, forMachineKey: machineKey)
+            try remember(presentedPub, forMachineKey: machineKey)
         }
     }
 }
@@ -35,7 +37,7 @@ struct KeychainTOFUStore: TOFUStoring {
         guard let s = (try? keychain.load(account(key))) ?? nil else { return nil }
         return Data(base64Encoded: s)
     }
-    func remember(_ identityPub: Data, forMachineKey key: String) {
-        try? keychain.save(identityPub.base64EncodedString(), for: account(key))
+    func remember(_ identityPub: Data, forMachineKey key: String) throws {
+        try keychain.save(identityPub.base64EncodedString(), for: account(key))
     }
 }

@@ -34,4 +34,21 @@ final class TOFUStoreTests: XCTestCase {
         try store.verifyOrTrust(machineKey: "m1", presentedPub: Data([1]))
         XCTAssertNoThrow(try store.verifyOrTrust(machineKey: "m2", presentedPub: Data([2])))
     }
+
+    /// 首信持久化失败必须 fail-closed：写失败即上抛底层错误，不得静默当成功。
+    /// 否则下次连接又当"首信"，会重新信任对端出示的任意公钥，MITM 检测静默失效。
+    func testFirstUseFailsClosedWhenPersistFails() {
+        let store = FailingWriteTOFUStore()
+        XCTAssertThrowsError(try store.verifyOrTrust(machineKey: "m1", presentedPub: Data([1, 2, 3]))) { err in
+            XCTAssertFalse(err is TOFUError, "写入失败不应被误判为 identityChanged，而应上抛底层写错误")
+            XCTAssertTrue(err is FailingWriteTOFUStore.WriteError, "应上抛持久化层的原始写错误")
+        }
+    }
+}
+
+/// 写入必失败的替身，验证首信 fail-closed。
+private final class FailingWriteTOFUStore: TOFUStoring, @unchecked Sendable {
+    struct WriteError: Error {}
+    func rememberedIdentity(forMachineKey key: String) -> Data? { nil }
+    func remember(_ identityPub: Data, forMachineKey key: String) throws { throw WriteError() }
 }
