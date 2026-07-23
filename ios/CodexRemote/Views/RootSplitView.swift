@@ -36,6 +36,8 @@ struct RootSplitView: View {
     // 下栏高度（自绘纵向拖 + clamp）。下栏挂在 split 外层全宽 safeAreaInset（design D2）。
     @State private var bottomHeight: CGFloat = WorkspaceMetrics.bottomPanelIdealHeight
     private let splitCoordinateSpaceName = "RootSplitView.split"
+    // 分隔线坐标测量（保留但当前无消费者，见 plan Task B1）：装饰把手 overlay 删除后这些字段
+    // 由 update*DividerX / GeometryReader 监听持续写入却不再被读取；删除范围大、风险高，故按最小改动保留。
     @State private var leftDividerX: CGFloat = 300
     @State private var rightDividerX: CGFloat?
     @State private var hasMeasuredLeftDivider = false

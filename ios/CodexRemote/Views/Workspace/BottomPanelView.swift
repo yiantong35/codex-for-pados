@@ -46,6 +46,8 @@ struct BottomPanelView: View {
         .contentShape(Rectangle())
         .hoverEffect(.highlight)
         .onHover { hovering = $0 }
+        // 可见 Capsule 删除后 active/hovering/dragging 不再驱动任何可见样式（保留见 plan Task B2）；
+        // hoverEffect(.highlight) 仍给 iPad 触控板悬停一个系统命中反馈，其余为保守保留的惰性状态。
         .animation(.easeOut(duration: 0.12), value: active)
         .gesture(
             DragGesture()
