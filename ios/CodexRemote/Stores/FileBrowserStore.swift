@@ -26,6 +26,10 @@ final class FileBrowserStore {
     /// 当前选中的文件内容（只读预览）。
     private(set) var selectedFile: SelectedFile?
 
+    /// 文件打开中标志：openFile 进入置 true、返回置 false。
+    /// UI 据此在预览区渲染 loading，避免 await 期间停留在上一个文件（设计文档 D）。
+    private(set) var isOpeningFile: Bool = false
+
     private var rpc: JSONRPCClient?
 
     /// 无根路径（无 cwd）即空态。
@@ -65,7 +69,12 @@ final class FileBrowserStore {
     }
 
     /// 选中文件：拉 fs/readFile → 降级 → 存 selectedFile。
+    /// 进入时置 isOpeningFile 并清空旧 selectedFile（避免预览区停留在上一个文件）；
+    /// 返回（成功/失败降级）后复位（设计文档 D，与目录 loading 模式一致）。
     func openFile(_ path: String) async {
+        isOpeningFile = true
+        selectedFile = nil
+        defer { isOpeningFile = false }
         guard let resp: FsReadFileResponse = await send(
             RPCMethod.fsReadFile, FsReadFileParams(path: path), as: FsReadFileResponse.self) else {
             selectedFile = SelectedFile(path: path, content: .binary) // 拉取失败降级为不可预览

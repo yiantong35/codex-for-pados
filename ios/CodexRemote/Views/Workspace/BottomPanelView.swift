@@ -38,19 +38,16 @@ struct BottomPanelView: View {
     /// 拖动效果（手势）靠模拟器/UI 测试确认；clamp 逻辑已在 WorkspaceMetricsTests 单测。
     private var dragHandle: some View {
         ZStack(alignment: .top) {
-            Rectangle().fill(.bar)
-            Capsule()
-                .fill(active ? Color.accentColor : Color.secondary.opacity(0.55))
-                .frame(width: WorkspaceMetrics.bottomResizeHandleWidth,
-                       height: active
-                       ? WorkspaceMetrics.bottomResizeHandleActiveHeight
-                       : WorkspaceMetrics.bottomResizeHandleInactiveHeight)
-                .padding(.top, WorkspaceMetrics.bottomResizeHandleTopPadding)
+            // 隐藏可见把手横条（设计文档 B）：轨道整体透明，仅保留可拖命中区。
+            // 用透明 Color 撑满轨道，配合下方 .contentShape 保证透明区仍可命中 DragGesture。
+            Color.clear
         }
         .frame(height: WorkspaceMetrics.bottomResizeHandleTrackHeight)
         .contentShape(Rectangle())
         .hoverEffect(.highlight)
         .onHover { hovering = $0 }
+        // 可见 Capsule 删除后 active/hovering/dragging 不再驱动任何可见样式（保留见 plan Task B2）；
+        // hoverEffect(.highlight) 仍给 iPad 触控板悬停一个系统命中反馈，其余为保守保留的惰性状态。
         .animation(.easeOut(duration: 0.12), value: active)
         .gesture(
             DragGesture()

@@ -111,18 +111,25 @@ struct FileBrowserView: View {
 
     @ViewBuilder private var contentArea: some View {
         ScrollView {
-            switch store.selectedFile?.content {
-            case .text(let s):
-                Text(s)
-                    .font(.system(.caption2, design: .monospaced))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
-            case .tooLarge:
-                placeholder("文件过大，不支持预览")
-            case .binary:
-                placeholder("二进制文件，不支持预览")
-            case nil:
-                placeholder("选择文件查看")
+            if store.isOpeningFile {
+                // 文件打开中：预览区显示加载指示，避免停留在上一个文件或空白（设计文档 D）。
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.vertical, 24)
+            } else {
+                switch store.selectedFile?.content {
+                case .text(let s):
+                    Text(s)
+                        .font(.system(.caption2, design: .monospaced))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                case .tooLarge:
+                    placeholder("文件过大，不支持预览")
+                case .binary:
+                    placeholder("二进制文件，不支持预览")
+                case nil:
+                    placeholder("选择文件查看")
+                }
             }
         }
     }

@@ -35,19 +35,13 @@ struct RootSplitView: View {
     @State private var layout: WorkspaceLayoutStore
     // 下栏高度（自绘纵向拖 + clamp）。下栏挂在 split 外层全宽 safeAreaInset（design D2）。
     @State private var bottomHeight: CGFloat = WorkspaceMetrics.bottomPanelIdealHeight
-    // 左栏把手拖动高亮：系统列钩不到拖动事件，改为监听真实分隔线坐标变化——拖系统分隔线时坐标持续变，
-    // 据此把左把手点亮成橙，停止 250ms 后复原（不拦截手势、不换架构）。
-    @State private var leftHandleActive = false
-    @State private var leftResizeReset: Task<Void, Never>?
-    // 右栏(inspector)同理：系统检视列的拖动分隔线很隐蔽，叠装饰把手 + 监听真实分隔线坐标变化点亮。
-    @State private var rightHandleActive = false
-    @State private var rightResizeReset: Task<Void, Never>?
     private let splitCoordinateSpaceName = "RootSplitView.split"
+    // 分隔线坐标测量（保留但当前无消费者，见 plan Task B1）：装饰把手 overlay 删除后这些字段
+    // 由 update*DividerX / GeometryReader 监听持续写入却不再被读取；删除范围大、风险高，故按最小改动保留。
     @State private var leftDividerX: CGFloat = 300
     @State private var rightDividerX: CGFloat?
     @State private var hasMeasuredLeftDivider = false
     @State private var hasMeasuredRightDivider = false
-    @State private var columnResizeHandlePinnedCenterY: CGFloat?
 
     /// 当前活跃会话 state 的共享持有者：ConversationView 写入、摘要 popover 读出。
     @State private var activeConversation = ActiveConversationHolder()
@@ -217,12 +211,8 @@ struct RootSplitView: View {
             detail
                 .toolbar(removing: .sidebarToggle)
         }
-        .navigationSplitViewStyle(.balanced)
+        .navigationSplitViewStyle(.automatic)
         .coordinateSpace(name: splitCoordinateSpaceName)
-        .overlay {
-            columnResizeHandles
-                .allowsHitTesting(false)
-        }
     }
 
     // detail = 中栏对话 + 右栏 `.inspector`（右侧系统检视列，系统托管 resize 不闪，design D1）。
@@ -255,81 +245,16 @@ struct RootSplitView: View {
             }
     }
 
-    private var columnResizeHandles: some View {
-        GeometryReader { proxy in
-            let currentCenterY = WorkspaceMetrics.columnResizeHandleCenterY(in: proxy.size.height)
-            let centerY = WorkspaceMetrics.columnResizeHandleCenterY(in: proxy.size.height,
-                                                                      pinnedCenterY: columnResizeHandlePinnedCenterY)
-            let leftWidth = leftHandleActive
-                ? WorkspaceMetrics.columnResizeHandleActiveWidth
-                : WorkspaceMetrics.columnResizeHandleInactiveWidth
-            let rightWidth = rightHandleActive
-                ? WorkspaceMetrics.columnResizeHandleActiveWidth
-                : WorkspaceMetrics.columnResizeHandleInactiveWidth
-            let currentRightDividerX = rightDividerX ?? proxy.size.width - WorkspaceMetrics.rightPanelIdealWidth
-
-            ZStack(alignment: .topLeading) {
-                if layout.leftVisible {
-                    resizeHandle(active: leftHandleActive, width: leftWidth)
-                        .position(x: WorkspaceMetrics.leftColumnResizeHandleCenterX(dividerX: leftDividerX,
-                                                                                     handleWidth: leftWidth),
-                                  y: centerY)
-                }
-
-                if layout.showRight {
-                    resizeHandle(active: rightHandleActive, width: rightWidth)
-                        .position(x: WorkspaceMetrics.rightColumnResizeHandleCenterX(dividerX: currentRightDividerX,
-                                                                                      handleWidth: rightWidth),
-                                  y: centerY)
-                }
-            }
-            .animation(.easeOut(duration: 0.12), value: leftHandleActive)
-            .animation(.easeOut(duration: 0.12), value: rightHandleActive)
-            .onAppear {
-                if columnResizeHandlePinnedCenterY == nil {
-                    columnResizeHandlePinnedCenterY = currentCenterY
-                }
-            }
-        }
-    }
-
-    private func resizeHandle(active: Bool, width: CGFloat) -> some View {
-        Capsule()
-            .fill(active ? Color.accentColor : Color.secondary.opacity(0.55))
-            .frame(width: width, height: WorkspaceMetrics.columnResizeHandleHeight)
-    }
-
     private func updateLeftDividerX(_ newDividerX: CGFloat) {
         guard newDividerX > 0 else { return }
-        let changed = hasMeasuredLeftDivider && abs(leftDividerX - newDividerX) > 0.5
         leftDividerX = newDividerX
         hasMeasuredLeftDivider = true
-
-        if changed {
-            leftHandleActive = true
-            leftResizeReset?.cancel()
-            leftResizeReset = Task {
-                try? await Task.sleep(for: .milliseconds(250))
-                if !Task.isCancelled { leftHandleActive = false }
-            }
-        }
     }
 
     private func updateRightDividerX(_ newDividerX: CGFloat) {
         guard newDividerX > 0 else { return }
-        let previousDividerX = rightDividerX ?? newDividerX
-        let changed = hasMeasuredRightDivider && abs(previousDividerX - newDividerX) > 0.5
         rightDividerX = newDividerX
         hasMeasuredRightDivider = true
-
-        if changed {
-            rightHandleActive = true
-            rightResizeReset?.cancel()
-            rightResizeReset = Task {
-                try? await Task.sleep(for: .milliseconds(250))
-                if !Task.isCancelled { rightHandleActive = false }
-            }
-        }
     }
 
     @ViewBuilder private var content: some View {
