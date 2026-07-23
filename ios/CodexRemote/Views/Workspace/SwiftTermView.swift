@@ -23,12 +23,33 @@ final class TerminalBridge {
 /// Coordinator 实现 TerminalViewDelegate 桥接 TerminalSession，并订阅 session.onBytes feed 输出。
 struct SwiftTermView: UIViewRepresentable {
     let session: TerminalSession
+    @Environment(\.colorScheme) private var colorScheme
 
     func makeCoordinator() -> Coordinator { Coordinator(session: session) }
+
+    /// 按当前深浅色给 TerminalView 设高对比配色。
+    /// 深色：亮前景 + 暗背景；浅色：暗前景 + 亮背景。
+    /// nativeBackgroundColor 在库内会被复位为 clear（layer.backgroundColor 承载），
+    /// 故同时设视图 backgroundColor 保证背景实际生效（设计文档 A）。
+    private func applyColors(to view: TerminalView, scheme: ColorScheme) {
+        let foreground: UIColor
+        let background: UIColor
+        if scheme == .dark {
+            foreground = UIColor(white: 0.92, alpha: 1.0)   // 近白，暗背景高对比
+            background = UIColor(white: 0.11, alpha: 1.0)   // 深灰黑，与 app 深色主题协调
+        } else {
+            foreground = UIColor(white: 0.12, alpha: 1.0)   // 近黑，亮背景高对比
+            background = UIColor(white: 0.98, alpha: 1.0)   // 近白
+        }
+        view.nativeForegroundColor = foreground
+        view.nativeBackgroundColor = background
+        view.backgroundColor = background
+    }
 
     func makeUIView(context: Context) -> TerminalView {
         let view = TerminalView(frame: .zero)
         view.terminalDelegate = context.coordinator
+        applyColors(to: view, scheme: colorScheme)
         // 订阅输出字节：在主线程 feed 给 SwiftTerm（onBytes 已在 @MainActor 上触发）。
         session.onBytes = { [weak view] bytes in
             view?.feed(byteArray: ArraySlice(bytes))
@@ -38,8 +59,9 @@ struct SwiftTermView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: TerminalView, context: Context) {
-        // 尺寸/布局由父容器 frame 驱动；SwiftTerm 自身在 layoutSubviews 里重算 cols/rows
-        // 并回调 sizeChanged → resize。此处无需额外同步。
+        // 尺寸/布局由父容器 frame 驱动；SwiftTerm 自身在 layoutSubviews 里重算 cols/rows。
+        // colorScheme 变化时（深浅切换）同步终端配色（设计文档 A）。
+        applyColors(to: uiView, scheme: context.environment.colorScheme)
     }
 
     static func dismantleUIView(_ uiView: TerminalView, coordinator: Coordinator) {
