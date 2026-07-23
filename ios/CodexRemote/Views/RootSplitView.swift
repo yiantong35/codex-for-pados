@@ -217,7 +217,7 @@ struct RootSplitView: View {
             detail
                 .toolbar(removing: .sidebarToggle)
         }
-        .navigationSplitViewStyle(.balanced)
+        .navigationSplitViewStyle(.prominentDetail)
         .coordinateSpace(name: splitCoordinateSpaceName)
         .overlay {
             columnResizeHandles
