@@ -211,7 +211,7 @@ struct RootSplitView: View {
             detail
                 .toolbar(removing: .sidebarToggle)
         }
-        .navigationSplitViewStyle(.prominentDetail)
+        .navigationSplitViewStyle(.automatic)
         .coordinateSpace(name: splitCoordinateSpaceName)
     }
 
