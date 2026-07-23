@@ -126,7 +126,7 @@ final class DialoutContext: @unchecked Sendable {
 let context = DialoutContext(keyStore: keyStore, devDeviceId: devDeviceId,
                              pairingCode: pairingCode, expiresAt: expiresAt)
 
-// MARK: 2/3. NIO ws 客户端拨出 relay + 帧分发
+// MARK: 2/3. NIO ws 客户端拨出 relay + 帧分发（wss 前置 TLS，ws 明文保留本地测试）
 //
 // TODO(Task 13/集成): 下面为 ws 客户端拨出骨架。关键点：
 //   - ClientBootstrap 连到 relayURL 的 host:port，addHTTPClientHandlers，
@@ -233,24 +233,30 @@ let isTLS = url.scheme == "wss"
 let port = url.port ?? (isTLS ? 443 : 80)
 let uri = "/relay/\(sessionId)"
 
-// TODO(Task 13/集成): 补 TLS（wss）ClientTLSConfiguration；此骨架先落 ws 明文拨号编排。
+// MARK: ws 拨出骨架（wss：前置客户端 TLS；ws：明文，仅本地测试）
 let bootstrap = ClientBootstrap(group: group)
     .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
     .channelInitializer { channel in
         let httpHandler = HTTPInitialRequestHandler(host: host, uri: uri)
-        let upgrader = NIOWebSocketClientUpgrader(
-            upgradePipelineHandler: { (channel, _) in
-                channel.pipeline.addHandler(DialoutWSHandler(bridge: bridge, context: context))
-            }
-        )
-        let config = NIOHTTPClientUpgradeConfiguration(
-            upgraders: [upgrader],
-            completionHandler: { _ in
-                channel.pipeline.removeHandler(httpHandler, promise: nil)
-            }
-        )
-        return channel.pipeline.addHTTPClientHandlers(withClientUpgrade: config)
-            .flatMap { channel.pipeline.addHandler(httpHandler) }
+        // wss：先前置客户端 TLS handler（须最靠近 socket），再装 HTTP+ws 升级链；ws：明文（本地测试）。
+        let tlsFuture: EventLoopFuture<Void> = isTLS
+            ? DialoutTLS.addClientTLS(to: channel, serverHostname: host)
+            : channel.eventLoop.makeSucceededFuture(())
+        return tlsFuture.flatMap {
+            let upgrader = NIOWebSocketClientUpgrader(
+                upgradePipelineHandler: { (channel, _) in
+                    channel.pipeline.addHandler(DialoutWSHandler(bridge: bridge, context: context))
+                }
+            )
+            let config = NIOHTTPClientUpgradeConfiguration(
+                upgraders: [upgrader],
+                completionHandler: { _ in
+                    channel.pipeline.removeHandler(httpHandler, promise: nil)
+                }
+            )
+            return channel.pipeline.addHTTPClientHandlers(withClientUpgrade: config)
+                .flatMap { channel.pipeline.addHandler(httpHandler) }
+        }
     }
 
 /// 发起 upgrade 的初始 HTTP 请求处理器（带 x-role: devMachine header）。

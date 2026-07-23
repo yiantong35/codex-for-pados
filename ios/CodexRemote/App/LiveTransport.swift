@@ -15,23 +15,28 @@ func makeSharedDaemonTransport(_ config: ConnectionConfig,
     return channel   // ProxyChannel 已在 connect() 内 start()
 }
 
-/// relay transport 工厂：解析 `codexrelay://pair?…` 配对载荷 → 构造 RelayTransport。
-/// 本 task 只需构造出实例（真 ws 握手 `RelayTransport.connect` 是 Task 10 桩，真连接留 Task 13/真机）；
-/// 故此处用一个「尚未连线」的占位 ws 通道建出 `RelayTransport(ws:)`，不驱动 connect、不改 RelayTransport 桩。
-/// Task 13 把占位通道替换为真 `URLSessionWebSocketTask` 包装 + 编排 4 消息握手。
+/// relay transport 工厂：解析配对载荷 → 构造真 ws（URLSessionRelayWSChannel）+ 注入 E2E 密钥/TOFU 的 RelayTransport。
+/// `tofuMachineKey` 为该机器的稳定 TOFU 键（MachineConfig id）。
+/// 真握手（4 消息）由 RelayTransport 在 doEstablish 的 `awaitHandshake()` 内驱动，与 SSH 共用握手等待链。
 @MainActor
-func makeRelayTransport(pairing: String) async throws -> MessageTransport {
-    _ = try PairingPayload(parsing: pairing)   // 校验载荷格式；relayURL 等留 Task 13 连真 ws
-    return RelayTransport(ws: PendingRelayWSChannel())
-}
+func makeRelayTransport(pairing: String, tofuMachineKey: String) async throws -> MessageTransport {
+    let payload = try PairingPayload(parsing: pairing)
+    guard let base = URL(string: payload.relayURL) else {
+        throw TransportError.proxyFailed("relayURL 非法: \(payload.relayURL)")
+    }
+    // 与 dev 拨出对齐：路径 /relay/{sessionId}，header x-role: iPad。
+    let wsURL = base.appendingPathComponent("relay").appendingPathComponent(payload.sessionId)
+    var req = URLRequest(url: wsURL)
+    req.setValue(RelayPeer.iPad.rawValue, forHTTPHeaderField: "x-role")
+    let task = URLSession.shared.webSocketTask(with: req)
+    let channel = URLSessionRelayWSChannel(task: task)   // 内部 task.resume()
 
-/// 占位 ws 通道：真 ws 网络连接（用 pairing.relayURL）与 4 消息握手编排留 Task 13。
-/// 在此之前收发即抛「未连接」，与 `RelayTransport.connect` 桩一致——保证 relay 分支能构造实例、
-/// 不误报已连通。
-private struct PendingRelayWSChannel: RelayWSChannel {
-    func sendText(_ text: String) async throws { throw TransportError.notConnected }
-    func receiveText() async throws -> String? { throw TransportError.notConnected }
-    func close() async {}
+    let e2e = RelayE2EKeyManager()
+    let tofu = KeychainTOFUStore()
+    return RelayTransport(
+        ws: channel, pairing: payload,
+        ipadIdentity: e2e.identityKey(), ipadEphemeral: e2e.newEphemeralKey(),
+        tofu: tofu, tofuMachineKey: tofuMachineKey)
 }
 
 /// 生产工厂闭包（注入 ConnectionStore.transportFactory）：按连接类型分派——
@@ -40,7 +45,8 @@ private struct PendingRelayWSChannel: RelayWSChannel {
 @MainActor
 func liveTransportFactory(_ config: ConnectionConfig) async throws -> MessageTransport {
     if let pairing = config.relayPairing {
-        return try await makeRelayTransport(pairing: pairing)
+        return try await makeRelayTransport(pairing: pairing,
+                                            tofuMachineKey: config.relayTOFUKey ?? pairing)
     }
     guard let key = KeyManager().privateKey() else {
         throw TransportError.sshAuthFailed("缺少本机密钥")
