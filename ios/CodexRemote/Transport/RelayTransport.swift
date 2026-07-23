@@ -41,7 +41,7 @@ protocol RelayWSChannel: Sendable {
 ///   （旧 `init(ws:)` 占位仍保留，供尚未接手真 ws 连接的工厂 `LiveTransport.makeRelayTransport` 构造。）
 actor RelayTransport: MessageTransport {
 
-    /// 已建立的加密会话（iPad 角色）。注入构造路径直接给定；真握手路径由 `connect` 建立后回填。
+    /// 已建立的加密会话（iPad 角色）。注入构造路径直接给定；真握手路径由 `performHandshake` 建立后回填。
     private var session: SecureSession?
     /// 底层 ws 通道（可注入）。
     private let ws: RelayWSChannel
@@ -223,9 +223,10 @@ actor RelayTransport: MessageTransport {
                 devIdentityPub: devIdentityPub, ipadIdentity: inputs.ipadIdentity)
 
             // TOFU：验开发机签名通过后、发 ClientAuth 之前比对/首信（身份变更即拒，
-            // 绝不向被替换身份的机器出示一次性口令）。
+            // 绝不向被替换身份的机器出示一次性口令）。用配对载荷 pub 作信任锚——它才是带外
+            // 获得的锚（验签也用它、transcript 覆盖 serverHello.devIdentityPub，验签通过后二者必然相等）。
             try inputs.tofu.verifyOrTrust(machineKey: inputs.tofuMachineKey,
-                                          presentedPub: serverHello.devIdentityPub)
+                                          presentedPub: devIdentityPub)
 
             try await ws.sendText(String(decoding: try JSONEncoder().encode(clientAuth), as: UTF8.self))
 
@@ -238,7 +239,12 @@ actor RelayTransport: MessageTransport {
             startReadLoopIfNeeded()
         } catch {
             rtLog.error("握手失败: \(String(describing: error), privacy: .public)")
+            // 先落 .failed 保留真实握手错误类型给 awaitHandshake，再收束 incoming 流：
+            // 握手失败时 read loop 从未启动（被 startReadLoopIfNeeded 的 .done 守卫挡住），
+            // 故此处是唯一收束路径。不收束会让 JSONRPCClient pump（握手前就 for-await incoming）永久挂起。
             markHandshakeFailed(error)
+            incomingContinuation?.finish(throwing: TransportError.channelClosed(reason: "\(error)"))
+            incomingContinuation = nil
             await ws.close()
         }
     }

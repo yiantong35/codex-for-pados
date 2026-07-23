@@ -75,6 +75,32 @@ final class RelayHandshakeTests: XCTestCase {
         }
     }
 
+    /// 握手失败后 incoming 流必须终止（抛错），不得让 JSONRPCClient pump 永久挂起。
+    func testIncomingStreamFinishesOnHandshakeFailure() async throws {
+        let dev = DevResponder(pairingCode: "right")
+        let e2e = RelayE2EKeyManager(store: makeMemoryStore())
+        let bad = PairingPayload(relayURL: "wss://relay.test", sessionId: "s",
+                                 devIdentityPubB64: dev.devIdentityPubB64, pairingCode: "wrong",
+                                 expiresAt: 9_999_999_999)
+        let driver = LoopbackRelayWSChannel { frame in
+            do { return try dev.handle(frame) } catch { throw TransportError.channelClosed(reason: "dev 拒绝握手") }
+        }
+        let transport = RelayTransport(
+            ws: driver, pairing: bad, ipadIdentity: e2e.identityKey(),
+            ipadEphemeral: e2e.newEphemeralKey(), tofu: InMemoryTOFUStore(), tofuMachineKey: "m")
+
+        var iter = transport.incoming().makeAsyncIterator()
+        do { try await transport.awaitHandshake(); XCTFail("应握手失败") } catch { /* 预期 */ }
+
+        // 关键断言：incoming 流已终止（抛错），不挂起。
+        do {
+            _ = try await iter.next()
+            XCTFail("握手失败后 incoming 流应抛错终止，而非挂起或正常结束")
+        } catch {
+            // 预期：channelClosed
+        }
+    }
+
     // MARK: helpers
     private func makeMemoryStore() -> KeyStoring {
         final class Mem: KeyStoring {
