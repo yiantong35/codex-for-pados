@@ -29,12 +29,16 @@ protocol RelayWSChannel: Sendable {
 ///   `session.open(env)` → yield String(明文)。
 /// - `close()`：结束 read loop + 关 ws + 收束 incoming 流。
 ///
-/// ## 握手编排（本 task 范围界定）
-/// 本 task 聚焦「已建立 SecureSession 之上的加解密数据流」，故提供一个**注入 SecureSession**
-/// 的构造路径（`init(session:ws:)`）供测试与集成复用。真 ws 网络连接 + iPad 侧 4 消息握手编排
-/// （`Handshake.makeClientHello` / `verifyServerHelloAndMakeClientAuth` / `finishClient`，用配对
-/// 载荷的 devIdentityPub 验开发机、pairingCode 生成 proof）留到 Task 13/真机集成，见 `connect(...)`
-/// 的 TODO。
+/// ## 握手编排
+/// 两条构造路径：
+/// - `init(session:ws:)`：注入一个已建立的 SecureSession（测试/集成加解密数据流），握手视为 `.done`。
+/// - `init(ws:pairing:ipadIdentity:ipadEphemeral:tofu:tofuMachineKey:)`：真握手路径。`awaitHandshake()`
+///   驱动 `performHandshake()` 在 ws 上同步跑完 iPad 侧握手（`makeClientHello` → 收 ServerHello →
+///   `verifyServerHelloAndMakeClientAuth` → TOFU 比对/首信 → 发 ClientAuth → `finishClient` 建
+///   SecureSession），**先握手后启 read loop**（握手期用手动 sendText/receiveText，避免 read loop
+///   抢走 ServerHello）。TOFU 在验开发机签名后、发 ClientAuth 前比对，身份变更立即拒绝。
+///   任一步失败 → `markHandshakeFailed` + `ws.close()`，`awaitHandshake()` 抛错，绝不静默挂起。
+///   （旧 `init(ws:)` 占位仍保留，供尚未接手真 ws 连接的工厂 `LiveTransport.makeRelayTransport` 构造。）
 actor RelayTransport: MessageTransport {
 
     /// 已建立的加密会话（iPad 角色）。注入构造路径直接给定；真握手路径由 `connect` 建立后回填。
@@ -50,26 +54,61 @@ actor RelayTransport: MessageTransport {
     private var readTask: Task<Void, Never>?
     private var didStartRead = false
 
-    /// 握手状态机：注入 SecureSession 路径直接 `.done`；真握手路径由 connect 推进。
+    /// 握手状态机：注入 SecureSession 路径直接 `.done`；真握手路径由 performHandshake 推进。
     private enum HandshakeState { case pending, done, failed(Error) }
     private var handshakeState: HandshakeState
     private var handshakeContinuation: CheckedContinuation<Void, Error>?
+
+    /// 真握手所需注入项（仅真握手构造路径给定；注入 SecureSession 路径为 nil）。
+    private struct HandshakeInputs {
+        let pairing: PairingPayload
+        let ipadIdentity: Curve25519.Signing.PrivateKey
+        let ipadEphemeral: Curve25519.KeyAgreement.PrivateKey
+        let tofu: TOFUStoring
+        let tofuMachineKey: String
+    }
+    private let handshakeInputs: HandshakeInputs?
+    /// 握手编排幂等启动守卫。
+    private var didStartHandshake = false
 
     /// 注入构造路径：给定一个已建立的 SecureSession（测试/集成用）。握手视为已完成。
     init(session: SecureSession, ws: RelayWSChannel) {
         self.session = session
         self.ws = ws
         self.handshakeState = .done
+        self.handshakeInputs = nil
         var inCont: AsyncThrowingStream<String, Error>.Continuation!
         self.incomingStream = AsyncThrowingStream<String, Error>(bufferingPolicy: .unbounded) { inCont = $0 }
         self.incomingContinuation = inCont
     }
 
-    /// 真握手构造路径：仅给定 ws，SecureSession 由 `connect` 编排握手后建立。
+    /// 占位构造路径：仅给定 ws、无握手输入。真 ws 连接与握手编排尚未接入的工厂
+    /// （`LiveTransport.makeRelayTransport`）用它构造实例；`awaitHandshake` 会因缺输入落 `.failed`。
+    /// Task 5 接入真 ws 后由真握手构造取代此路径。
     init(ws: RelayWSChannel) {
         self.session = nil
         self.ws = ws
         self.handshakeState = .pending
+        self.handshakeInputs = nil
+        var inCont: AsyncThrowingStream<String, Error>.Continuation!
+        self.incomingStream = AsyncThrowingStream<String, Error>(bufferingPolicy: .unbounded) { inCont = $0 }
+        self.incomingContinuation = inCont
+    }
+
+    /// 真握手构造路径：注入配对载荷 + iPad E2E 密钥 + TOFU，`awaitHandshake()` 触发 `performHandshake()`
+    /// 编排 4 消息握手建 SecureSession。
+    init(ws: RelayWSChannel,
+         pairing: PairingPayload,
+         ipadIdentity: Curve25519.Signing.PrivateKey,
+         ipadEphemeral: Curve25519.KeyAgreement.PrivateKey,
+         tofu: TOFUStoring,
+         tofuMachineKey: String) {
+        self.session = nil
+        self.ws = ws
+        self.handshakeState = .pending
+        self.handshakeInputs = HandshakeInputs(
+            pairing: pairing, ipadIdentity: ipadIdentity, ipadEphemeral: ipadEphemeral,
+            tofu: tofu, tofuMachineKey: tofuMachineKey)
         var inCont: AsyncThrowingStream<String, Error>.Continuation!
         self.incomingStream = AsyncThrowingStream<String, Error>(bufferingPolicy: .unbounded) { inCont = $0 }
         self.incomingContinuation = inCont
@@ -78,8 +117,11 @@ actor RelayTransport: MessageTransport {
     // MARK: read loop
 
     /// 启动常驻 read loop：持续从 ws 收密文帧 → open → yield 明文。幂等。
+    /// **先握手后收 loop**：仅当握手 `.done` 才真正启动，避免 read loop 在握手期抢走 ServerHello
+    /// （`JSONRPCClient` 的 pump 会先于 `awaitHandshake` 调 `incoming()` 触发本方法）。
     private func startReadLoopIfNeeded() {
         guard !didStartRead else { return }
+        guard case .done = handshakeState else { return }
         didStartRead = true
         readTask = Task { [weak self] in
             await self?.runReadLoop()
@@ -139,21 +181,66 @@ actor RelayTransport: MessageTransport {
         handshakeContinuation = nil
     }
 
-    // MARK: 真握手编排（留集成/真机）
+    // MARK: 真握手编排
 
-    /// 真 ws 网络握手编排入口：连 ws + 跑 iPad 侧 4 消息握手建立 SecureSession，成功才 ready。
-    ///
-    /// TODO(Task 13/集成)：用 `pairing` 里的 relayURL 连真 ws；用 `devIdentityPubB64` 验开发机、
-    /// `pairingCode` 经 `Handshake.pairingCodeProof` 生成 proof；跑
-    /// `makeClientHello` → 发 ClientHello / 收 ServerHello →
-    /// `verifyServerHelloAndMakeClientAuth` → 发 ClientAuth / 收 SecureReady →
-    /// `finishClient` 得 SecureSession，回填 `self.session` 并 `markHandshakeDone()`。
-    /// 本 task 只交付加解密数据流 + seam；真网络握手编排在此标记留集成。
-    func connect(pairing: PairingPayload,
-                 ipadIdentity: Curve25519.Signing.PrivateKey,
-                 ipadEphemeral: Curve25519.KeyAgreement.PrivateKey) async throws {
-        // TODO(Task 13/集成)：实现真握手编排（见方法文档）。
-        throw TransportError.notConnected
+    /// 幂等启动握手编排：`awaitHandshake` 首次进入 `.pending` 时调用。
+    private func startHandshakeIfNeeded() {
+        guard !didStartHandshake else { return }
+        didStartHandshake = true
+        Task { [weak self] in await self?.performHandshake() }
+    }
+
+    /// iPad 侧 4 消息握手编排（同步跑完，成功才启 read loop）：
+    /// makeClientHello → 发 / 收 ServerHello → verifyServerHelloAndMakeClientAuth →
+    /// TOFU 比对/首信（发 ClientAuth 前）→ 发 ClientAuth → finishClient 建 SecureSession。
+    /// 不等第 4 条 SecureReady：finishClient 本地派生前会重验 devSignature，安全。
+    private func performHandshake() async {
+        guard let inputs = handshakeInputs else {
+            markHandshakeFailed(TransportError.notConnected); return
+        }
+        do {
+            let p = inputs.pairing
+            guard let devIdentityPub = Data(base64Encoded: p.devIdentityPubB64) else {
+                throw TransportError.proxyFailed("配对载荷开发机公钥非法")
+            }
+            let clientNonce = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+            let ipadDeviceId = inputs.ipadIdentity.publicKey.rawRepresentation.base64EncodedString()
+
+            let hello = Handshake.makeClientHello(
+                sessionId: p.sessionId, ipadDeviceId: ipadDeviceId,
+                ipadIdentityPub: inputs.ipadIdentity.publicKey.rawRepresentation,
+                ipadEphemeralPub: inputs.ipadEphemeral.publicKey.rawRepresentation,
+                clientNonce: clientNonce, pairingCode: p.pairingCode)
+            try await ws.sendText(String(decoding: try JSONEncoder().encode(hello), as: UTF8.self))
+
+            guard let shText = try await ws.receiveText() else {
+                throw TransportError.channelClosed(reason: "握手中连接关闭（等 ServerHello）")
+            }
+            let serverHello = try JSONDecoder().decode(ServerHello.self, from: Data(shText.utf8))
+
+            let clientAuth = try Handshake.verifyServerHelloAndMakeClientAuth(
+                clientHello: hello, serverHello: serverHello,
+                devIdentityPub: devIdentityPub, ipadIdentity: inputs.ipadIdentity)
+
+            // TOFU：验开发机签名通过后、发 ClientAuth 之前比对/首信（身份变更即拒，
+            // 绝不向被替换身份的机器出示一次性口令）。
+            try inputs.tofu.verifyOrTrust(machineKey: inputs.tofuMachineKey,
+                                          presentedPub: serverHello.devIdentityPub)
+
+            try await ws.sendText(String(decoding: try JSONEncoder().encode(clientAuth), as: UTF8.self))
+
+            let secure = try Handshake.finishClient(
+                clientHello: hello, serverHello: serverHello,
+                ipadEphemeral: inputs.ipadEphemeral, devIdentityPub: devIdentityPub)
+
+            self.session = secure
+            markHandshakeDone()
+            startReadLoopIfNeeded()
+        } catch {
+            rtLog.error("握手失败: \(String(describing: error), privacy: .public)")
+            markHandshakeFailed(error)
+            await ws.close()
+        }
     }
 
     // MARK: MessageTransport
@@ -176,7 +263,10 @@ actor RelayTransport: MessageTransport {
         case .done: return
         case .failed(let e): throw e
         case .pending:
-            try await withCheckedThrowingContinuation { cont in
+            // 先排队握手编排再挂起：actor 在本函数挂起前不会调度排入的 Task，
+            // 故 continuation 一定在 markHandshakeDone/Failed 前设好，不会丢通知。
+            startHandshakeIfNeeded()
+            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
                 self.handshakeContinuation = cont
             }
         }
