@@ -19,11 +19,14 @@ struct ConnectionConfig: Sendable {
     /// relay 连接载荷（`codexrelay://pair?…`）。非 nil 表示走 RelayTransport 而非 SSH+proxy；
     /// 此时 host/user/controlSockPath 不适用（transportFactory 按此分派）。
     var relayPairing: String? = nil
+    /// relay 连接的 TOFU 稳定键（= MachineConfig id 字符串）。SSH 连接为 nil。
+    var relayTOFUKey: String? = nil
 
-    /// relay 连接构造：只带配对载荷，SSH 字段留空。
-    init(relayPairing: String) {
+    /// relay 连接构造：带配对载荷 + TOFU 稳定键，SSH 字段留空。
+    init(relayPairing: String, relayTOFUKey: String? = nil) {
         self.host = ""; self.user = ""; self.sshPort = 0; self.controlSockPath = ""
         self.relayPairing = relayPairing
+        self.relayTOFUKey = relayTOFUKey
     }
 
     /// SSH 连接构造（保持既有调用点签名不变）。
@@ -125,7 +128,7 @@ final class ConnectionStore {
     func connect(config: ConnectionConfig) {
         if config.isRelay {
             // relay：只需配对载荷非空；SSH host/user/sock 与本机 SSH 密钥前置不适用。
-            // 真握手（RelayTransport.connect）留 Task 13/真机，此处只驱动 transportFactory 分派构造。
+            // 真握手由 RelayTransport 在 doEstablish 的 awaitHandshake() 内驱动（先握手后收loop）。
             guard !(config.relayPairing ?? "").isEmpty else {
                 connLog.error("connect 拒绝：relay 配对载荷为空")
                 phase = .failed("relay 配对信息缺失")

@@ -133,7 +133,7 @@ struct MachineConfig: Codable, Identifiable, Equatable {
             return ConnectionConfig(host: host, user: user, sshPort: sshPort,
                                     controlSockPath: sockPath)
         case .relay(let pairing):
-            return ConnectionConfig(relayPairing: pairing)
+            return ConnectionConfig(relayPairing: pairing, relayTOFUKey: id.uuidString)
         }
     }
 }
