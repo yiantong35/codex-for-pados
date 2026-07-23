@@ -84,6 +84,7 @@
 		68F41951B0D29141EC887051 /* TransportError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02F9A9AAD9F7FFA810F6D770 /* TransportError.swift */; };
 		69B7FAEA3251969A32E9C2FD /* SettingsSectionViewLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1B3BB5CFDF04256F1AAAF5F /* SettingsSectionViewLogicTests.swift */; };
 		69E24226537DF43197EBF9A7 /* ForkEphemeralTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91C5E879B32CEE9BD9553E2 /* ForkEphemeralTests.swift */; };
+		6A565B5CACD544901BD70B4D /* RelayE2EKeyManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F48B2463CDAE1D3D8004395D /* RelayE2EKeyManagerTests.swift */; };
 		6B16D52A8BDCE0F5E404DD10 /* McpStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92B50BB8B2F09085A2EA5E5 /* McpStoreTests.swift */; };
 		6D7C84B19F7DEF87B5024D46 /* TabIndicatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D94FBA85AB2491EA148D0A /* TabIndicatorTests.swift */; };
 		6FDED8BD7EE37F307D0B8BBE /* BottomPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB7B9AC104F15296013EB10 /* BottomPanelView.swift */; };
@@ -117,6 +118,7 @@
 		9DEEBF191026931C6C8ABE24 /* SkillsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 859FE9D4B2FD0EE4704763E6 /* SkillsStoreTests.swift */; };
 		9E265052FF22A341C5FCADDA /* JSONRPCClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 164835E5F53DB4EC1BCAB13B /* JSONRPCClient.swift */; };
 		9EE939BBE6DC57C306FEE425 /* TurnDiffStatsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DABB3808D7F992E8E64B2D8B /* TurnDiffStatsTests.swift */; };
+		9EFF9A81DE217A6D64762A80 /* RelayE2EKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93D9F9AC52B0CFAA6D800F4C /* RelayE2EKeyManager.swift */; };
 		9F2EB90F10A15CE1CE83FDB9 /* SidebarCollapseStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B26181D87CDAC2BD3CDE3CF1 /* SidebarCollapseStoreTests.swift */; };
 		A0657FFE6724B05B96DEEF24 /* ConversationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB7C9E83303FF08058487D8 /* ConversationStore.swift */; };
 		A189C6DCC3A1441225146DFA /* SettingsPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 395048E33FFFB3DEB6A2193A /* SettingsPageView.swift */; };
@@ -301,6 +303,7 @@
 		8F685AC990DC66E88E516025 /* ReviewPanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPanelTests.swift; sourceTree = "<group>"; };
 		90D030E0B4B70E904DBE0252 /* RelayTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayTransportTests.swift; sourceTree = "<group>"; };
 		9164D6EECFD1ED77AC8C6411 /* TurnDiffStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnDiffStats.swift; sourceTree = "<group>"; };
+		93D9F9AC52B0CFAA6D800F4C /* RelayE2EKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayE2EKeyManager.swift; sourceTree = "<group>"; };
 		96AFEE8DA0D42430297E2021 /* AppearanceSettingsSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettingsSectionView.swift; sourceTree = "<group>"; };
 		99616A4BE43A7944EC073310 /* WorkspaceMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceMetrics.swift; sourceTree = "<group>"; };
 		99A9FA53DC2DFA3F7E44AD28 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
@@ -376,6 +379,7 @@
 		F1ED1C6167187E761CB4F080 /* Methods.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Methods.swift; sourceTree = "<group>"; };
 		F31A93FB90F22CE40924C1E9 /* MessageTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageTransport.swift; sourceTree = "<group>"; };
 		F3DF563C4C5BA1D2DF864315 /* KeyCombo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCombo.swift; sourceTree = "<group>"; };
+		F48B2463CDAE1D3D8004395D /* RelayE2EKeyManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayE2EKeyManagerTests.swift; sourceTree = "<group>"; };
 		F547E588BB81CCBE715381AD /* PluginsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginsStoreTests.swift; sourceTree = "<group>"; };
 		F59BCD443AF36F312C9CA334 /* ApprovalCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalCoordinator.swift; sourceTree = "<group>"; };
 		F5B0B06C966AB8B15879FD39 /* ConnectionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStoreTests.swift; sourceTree = "<group>"; };
@@ -440,6 +444,7 @@
 				DE1457298E5D37A14AAB29D9 /* .gitkeep */,
 				DF050AC90C38320E8F8E0D52 /* KeychainStore.swift */,
 				143B36880763EB0B23DF98E5 /* KeyManager.swift */,
+				93D9F9AC52B0CFAA6D800F4C /* RelayE2EKeyManager.swift */,
 			);
 			path = Security;
 			sourceTree = "<group>";
@@ -694,6 +699,7 @@
 				29E4DEA2725E8A3517A77141 /* ProjectsStoreTests.swift */,
 				AFD990BEF80BA894D65E3CC8 /* ProtocolTypesTests.swift */,
 				8EA28631762E53EE736EF206 /* ProxyChannelHandshakeTests.swift */,
+				F48B2463CDAE1D3D8004395D /* RelayE2EKeyManagerTests.swift */,
 				9F7B0AEDB9C3217976517020 /* RelayPairingImportViewModelTests.swift */,
 				90D030E0B4B70E904DBE0252 /* RelayTransportTests.swift */,
 				653E5C8A33FD7F7568474BB5 /* RequestIdGeneratorTests.swift */,
@@ -908,6 +914,7 @@
 				F3ABCCA0D4D4D5F95EC6D43E /* ProgressCardBar.swift in Sources */,
 				046D60CECEF36F595B491834 /* ProjectsStore.swift in Sources */,
 				FF3225FE3ECC3EFFECDD3484 /* ProxyChannel.swift in Sources */,
+				9EFF9A81DE217A6D64762A80 /* RelayE2EKeyManager.swift in Sources */,
 				0027F69F8B82B895613D4827 /* RelayPairingImportView.swift in Sources */,
 				1D40975AA254F394D41A7981 /* RelayTransport.swift in Sources */,
 				8D149C418824DDC92C03C15A /* RequestIdGenerator.swift in Sources */,
@@ -996,6 +1003,7 @@
 				6166961C795F332ADF8397E9 /* ProjectsStoreTests.swift in Sources */,
 				2E22F5B05273F39AC264E778 /* ProtocolTypesTests.swift in Sources */,
 				11231A3D1912AE0AFB4B1764 /* ProxyChannelHandshakeTests.swift in Sources */,
+				6A565B5CACD544901BD70B4D /* RelayE2EKeyManagerTests.swift in Sources */,
 				FA459E8663663F5E214C3A7F /* RelayPairingImportViewModelTests.swift in Sources */,
 				387CAAD32D74648B8D238D1C /* RelayTransportTests.swift in Sources */,
 				7564BF0AF552143A02DD9568 /* RequestIdGeneratorTests.swift in Sources */,
