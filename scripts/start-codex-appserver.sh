@@ -11,7 +11,7 @@ PIN_FILE="${ROOT}/protocol/codex-version.txt"
 PIN="$(cat "${PIN_FILE}" 2>/dev/null || echo "unknown")"
 
 PORT="${CODEX_WS_PORT:-8900}"
-BIND="${CODEX_WS_BIND:-0.0.0.0}"   # LAN bring-up 便利；relay 上线后须改 127.0.0.1
+BIND="${CODEX_WS_BIND:-127.0.0.1}"   # 默认仅本机 loopback；外部访问走 relay(E2E)或 SSH 隧道。临时 LAN 裸连排障可设 CODEX_WS_BIND=0.0.0.0
 TOKEN_FILE="${CODEX_WS_TOKEN_FILE:-${HOME}/.codex/ws-capability-token}"
 
 # 1) 校验 codex 版本符合 pin
@@ -36,11 +36,15 @@ LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/nu
 echo "──────────────────────────────────────────"
 echo " 官方 Codex ws app-server 启动中"
 echo "  绑定      : ws://${BIND}:${PORT}"
-echo "  Mac LAN IP: ${LAN_IP}（iPad 用 ${LAN_IP}:${PORT}）"
+if [ "${BIND}" = "127.0.0.1" ] || [ "${BIND}" = "localhost" ]; then
+  echo "  访问方式  : 仅本机 loopback。外部（iPad）访问经 relay(E2E) 或 SSH 隧道进入，勿裸连。"
+else
+  echo "  Mac LAN IP: ${LAN_IP}（裸连模式：iPad 用 ${LAN_IP}:${PORT}）"
+  echo "  ⚠️ 当前 BIND=${BIND} 为逃生阀裸连，仅供临时排障；日常应留默认 127.0.0.1。"
+fi
 echo "  token 文件: ${TOKEN_FILE}"
 echo "  capability-token: ${TOKEN}"
-echo "  iPad/官方 TUI 配置：host=${LAN_IP} port=${PORT} token=<上方 capability-token>"
-echo "  ⚠️ relay 上线后须把 BIND 改回 127.0.0.1（见 design 分层安全模型）"
+echo "  iPad/官方 TUI 配置：port=${PORT} token=<上方 capability-token>"
 echo "──────────────────────────────────────────"
 
 codex app-server --listen "ws://${BIND}:${PORT}" \
