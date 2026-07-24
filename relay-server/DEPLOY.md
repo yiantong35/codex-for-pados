@@ -206,8 +206,10 @@ relay-dialout 已拨出 <host>:<port>/relay/<sessionId> (role=devMachine)
 
 ---
 
-## ⚠️ 安全前提（后续 change 收口）
+## ✅ 安全前提（已收口）
 
-当前探路阶段，开发机的 `app-server` 仍绑 `0.0.0.0` 便于 bring-up。**relay 上线稳定后，开发机 app-server 必须从 `0.0.0.0` 改绑 `127.0.0.1`**，强制所有外部（iPad）流量都走 relay 的端到端加密通道，杜绝绕过 relay 的明文直连。
+开发机的 `app-server` 默认绑 `127.0.0.1`（仅本机 loopback）。外部（iPad）流量只能经 relay 的端到端加密通道或 SSH 隧道进入——relay-dialout 在开发机**本机**连 app-server（loopback），SSH transport 走隧道 + Unix socket（`control.sock`），二者均不经此 TCP 监听，故收口不影响正式接入。杜绝了绕过 relay 的明文裸连。
 
-本探路 change 暂不收紧（仍 `0.0.0.0`），此项作为**紧后续 change 的安全收口任务**，不可遗漏。
+逃生阀：临时 LAN 裸连排障时可 `CODEX_WS_BIND=0.0.0.0` 启动 `scripts/start-codex-appserver.sh` 覆盖默认绑定（脚本会警示当前处于裸连模式）；日常应留默认 `127.0.0.1`。
+
+> 历史：探路阶段（relay-e2e-spike）默认绑 `0.0.0.0` 便于 bring-up，此项作为紧后续安全收口任务留待 relay 上线后处理。已由 change `bind-appserver-loopback`（2026-07-24）收口。
