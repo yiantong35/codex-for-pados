@@ -79,23 +79,38 @@ case .invalid(let msg):
     exit(2)
 }
 
-// MARK: 2. 一次性配对载荷（仅 .runDialout 才会执行到这里）
-let sessionId = randomToken(byteCount: 12)
-let pairingCode = randomToken(byteCount: 12)
+// MARK: 2. 房间选择 + 一次性配对载荷（仅 .runDialout 才会执行到这里）
+//
+// 一 iPad + 多开发机：本机至多信任一台 iPad。有则复连模式开其稳定房间（不吐配对载荷）；
+// 无则首配模式开随机房间（照旧打印 codexrelay:// 配对载荷）。不考虑多 iPad/多房间。
+let trustedRecord = trustStore.all().first
+let sessionId: String
+let reconnectMode: Bool
+if let rec = trustedRecord {
+    sessionId = rec.stableSessionId
+    reconnectMode = true
+} else {
+    sessionId = randomToken(byteCount: 12)
+    reconnectMode = false
+}
+let pairingCode = randomToken(byteCount: 12)   // 首配用；复连模式下 iPad 走空 proof 不生效
 let expiresAt = Int64(Date().timeIntervalSince1970) + 600  // now + 600s
 
-let payload = PairingPayload(
-    relayURL: relayURL,
-    sessionId: sessionId,
-    devIdentityPubB64: keyStore.identityPublicKeyRaw.base64EncodedString(),
-    pairingCode: pairingCode,
-    expiresAt: expiresAt
-)
-
-print("=== relay-dialout ready ===")
-print("将下面配对载荷搬到 iPad（10 分钟内有效）：")
-print(payload.toURLString())
-print("===========================")
+if reconnectMode {
+    print("等待受信任 iPad 复连（房间 \(sessionId.prefix(8))…）。如需重新配对，先运行 relay-dialout --forget-all")
+} else {
+    let payload = PairingPayload(
+        relayURL: relayURL,
+        sessionId: sessionId,
+        devIdentityPubB64: keyStore.identityPublicKeyRaw.base64EncodedString(),
+        pairingCode: pairingCode,
+        expiresAt: expiresAt
+    )
+    print("=== relay-dialout ready ===")
+    print("将下面配对载荷搬到 iPad（10 分钟内有效）：")
+    print(payload.toURLString())
+    print("===========================")
+}
 
 // MARK: 握手上下文 + 状态（DialoutContext 已抽到 RelayDialoutCore 库，供单测）
 //
@@ -161,6 +176,15 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             ensureBridgeStarted()
             pumpBridgeOutbound(ctx: ctx)
             return
+        }
+        // 未受信任且未持有效 proof → 判定权在 dev 侧：主动发 RejectHello 再关连接，不建会话
+        // （区别于静默断连，便于 iPad 侧展示明确原因，而非无提示卡住）。
+        if let hello = try? JSONDecoder().decode(ClientHello.self, from: data) {
+            if let reject = context.rejectHelloIfUnauthorized(hello) {
+                if let rejData = try? JSONEncoder().encode(reject) { sendFrame(rejData, ctx: ctx) }
+                ctx.close(promise: nil)
+                return
+            }
         }
         if let serverHelloData = try? context.handleClientHello(data) {
             sendFrame(serverHelloData, ctx: ctx)
