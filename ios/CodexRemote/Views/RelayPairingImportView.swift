@@ -1,5 +1,6 @@
 import SwiftUI
 import Observation
+import AVFoundation
 import RelayProtocol
 
 /// relay 配对导入的错误（面向用户的明确文案 key）。
@@ -62,6 +63,7 @@ struct RelayPairingImportView: View {
 
     @State private var vm = RelayPairingImportViewModel()
     @State private var errorText: String?
+    @State private var showScanner = false
 
     var body: some View {
         ZStack {
@@ -83,6 +85,10 @@ struct RelayPairingImportView: View {
                     .disabled(vm.pasted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
+        // 扫码用全屏，横竖屏均由 QRScannerView 自适应填满，扫码框不受表单布局挤压。
+        .fullScreenCover(isPresented: $showScanner) {
+            scannerSheet
+        }
     }
 
     private var card: some View {
@@ -100,7 +106,15 @@ struct RelayPairingImportView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            HStack {
+            HStack(spacing: 16) {
+                // 扫码入口：请求相机权限；授权则 present 扫码，拒绝/不可用则回退手动粘贴（不阻断）。
+                Button {
+                    beginScan()
+                } label: {
+                    Label("relayImport.scan", systemImage: "qrcode.viewfinder")
+                        .font(.callout)
+                }
+
                 Button {
                     if let s = UIPasteboard.general.string {
                         vm.pasted = s
@@ -120,6 +134,43 @@ struct RelayPairingImportView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 6)
+    }
+
+    /// 扫码全屏：相机预览铺满 + 顶部提示 + 取消按钮；扫到即写 vm.pasted 并走既有导入。
+    private var scannerSheet: some View {
+        ZStack(alignment: .top) {
+            Color.black.ignoresSafeArea()
+            QRScannerView { scanned in
+                showScanner = false
+                vm.pasted = scanned
+                errorText = nil
+                importPairing()
+            }
+            .ignoresSafeArea()
+
+            VStack {
+                HStack {
+                    Button {
+                        showScanner = false
+                    } label: {
+                        Label("common.cancel", systemImage: "xmark")
+                            .labelStyle(.iconOnly)
+                            .font(.title2)
+                            .foregroundStyle(.white)
+                            .padding(12)
+                    }
+                    Spacer()
+                }
+                Text("relayImport.scan.hint")
+                    .font(.callout)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(.black.opacity(0.4), in: Capsule())
+            }
+            .padding(.top, 8)
+            .frame(maxWidth: .infinity)
+        }
     }
 
     /// 多行粘贴框：TextEditor（配对串较长），带占位提示 + 圆角描边。
@@ -151,6 +202,33 @@ struct RelayPairingImportView: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(Color(.separator), lineWidth: 0.5)
         )
+    }
+
+    /// 扫码入口：先判相机可用性，再按授权状态处理；任何失败都回退手动粘贴（不阻断配对）。
+    private func beginScan() {
+        errorText = nil
+        // 相机不可用（模拟器 / 无摄像头设备）→ 提示 + 保留手动粘贴，不 present 扫码。
+        guard AVCaptureDevice.default(for: .video) != nil else {
+            errorText = String(localized: "relayImport.error.cameraUnavailable")
+            return
+        }
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            showScanner = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                Task { @MainActor in
+                    if granted {
+                        showScanner = true
+                    } else {
+                        errorText = String(localized: "relayImport.error.cameraDenied")
+                    }
+                }
+            }
+        default:
+            // denied / restricted → 明确提示前往设置或手动粘贴，手动入口始终可用。
+            errorText = String(localized: "relayImport.error.cameraDenied")
+        }
     }
 
     /// 解析导入：成功交 addMachineAndConnect（切过去 + 连接），失败展示明确文案。

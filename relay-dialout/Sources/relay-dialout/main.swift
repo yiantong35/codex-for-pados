@@ -28,9 +28,10 @@ let sockPath = env["CONTROL_SOCK"] ?? "\(NSHomeDirectory())/.codex/control.sock"
 let codexPath = env["CODEX_PATH"] ?? "codex"
 let keyDir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".codex-relay-dialout")
 
-// MARK: 1. 密钥 + 配对载荷
+// MARK: 1. 密钥 + 信任存储
 let keyStore = try DevKeyStore(dir: keyDir)
 let devDeviceId = env["DEV_DEVICE_ID"] ?? "dev-\(UUID().uuidString.prefix(8))"
+let trustStore = try TrustStore(dir: keyDir)
 
 func randomToken(byteCount: Int = 18) -> String {
     var bytes = [UInt8](repeating: 0, count: byteCount)
@@ -41,90 +42,86 @@ func randomToken(byteCount: Int = 18) -> String {
         .replacingOccurrences(of: "=", with: "")
 }
 
-let sessionId = randomToken(byteCount: 12)
-let pairingCode = randomToken(byteCount: 12)
+// MARK: 撤销信任 CLI（--forget / --forget-all / --list-trusted）
+//
+// 必须在生成/打印任何一次性配对载荷之前分派：这几个管理命令只依赖 trustStore，
+// 语义上不该产出配对信息。命中撤销/列出命令则执行后直接退出；
+// 无匹配参数（.runDialout）才继续往下生成 pairingCode 并进入拨号流程。
+switch parseTrustCommand(Array(CommandLine.arguments.dropFirst())) {
+case .forget(let key):
+    // 优先按 label 精确匹配，其次按公钥 b64 前缀匹配；找不到明确报错并非零退出。
+    if let rec = trustStore.all().first(where: { $0.label == key || $0.ipadPubB64.hasPrefix(key) }) {
+        try trustStore.revoke(ipadPubB64: rec.ipadPubB64)
+        print("已撤销信任：\(rec.label ?? rec.ipadPubB64)")
+    } else {
+        print("未找到匹配的受信任 iPad：\(key)")
+        exit(1)
+    }
+    exit(0)
+case .forgetAll:
+    try trustStore.clearAll()
+    print("已清空全部信任")
+    exit(0)
+case .list:
+    let all = trustStore.all()
+    if all.isEmpty {
+        print("（无受信任 iPad）")
+    } else {
+        for r in all {
+            print("- \(r.label ?? "(无标签)")  pub=\(r.ipadPubB64.prefix(12))…  sid=\(r.stableSessionId)")
+        }
+    }
+    exit(0)
+case .runDialout:
+    break   // 继续下面的配对载荷生成 + 拨号流程
+case .invalid(let msg):
+    print("参数错误：\(msg)")
+    exit(2)
+}
+
+// MARK: 2. 房间选择 + 一次性配对载荷（仅 .runDialout 才会执行到这里）
+//
+// 一 iPad + 多开发机：本机至多信任一台 iPad。有则复连模式开其稳定房间（不吐配对载荷）；
+// 无则首配模式开随机房间（照旧打印 codexrelay:// 配对载荷）。不考虑多 iPad/多房间。
+let trustedRecord = trustStore.all().first
+let sessionId: String
+let reconnectMode: Bool
+if let rec = trustedRecord {
+    sessionId = rec.stableSessionId
+    reconnectMode = true
+} else {
+    sessionId = randomToken(byteCount: 12)
+    reconnectMode = false
+}
+let pairingCode = randomToken(byteCount: 12)   // 首配用；复连模式下 iPad 走空 proof 不生效
 let expiresAt = Int64(Date().timeIntervalSince1970) + 600  // now + 600s
 
-let payload = PairingPayload(
-    relayURL: relayURL,
-    sessionId: sessionId,
-    devIdentityPubB64: keyStore.identityPublicKeyRaw.base64EncodedString(),
-    pairingCode: pairingCode,
-    expiresAt: expiresAt
-)
+if reconnectMode {
+    print("等待受信任 iPad 复连（房间 \(sessionId.prefix(8))…）。如需重新配对，先运行 relay-dialout --forget-all")
+} else {
+    let payload = PairingPayload(
+        relayURL: relayURL,
+        sessionId: sessionId,
+        devIdentityPubB64: keyStore.identityPublicKeyRaw.base64EncodedString(),
+        pairingCode: pairingCode,
+        expiresAt: expiresAt
+    )
+    print("=== relay-dialout ready ===")
+    print("扫码或将下面配对载荷搬到 iPad（10 分钟内有效）：")
+    print("")
+    if let qr = try? TerminalQRCode.halfBlockString(for: payload.toURLString()) {
+        print(qr)
+    }
+    print(payload.toURLString())   // 明文兜底：终端不支持扫码时手动搬运
+    print("===========================")
+}
 
-print("=== relay-dialout ready ===")
-print("将下面配对载荷搬到 iPad（10 分钟内有效）：")
-print(payload.toURLString())
-print("===========================")
-
-// MARK: 握手上下文 + 状态（Sendable，脱离 main-actor 隔离，供 ws handler 调用）
+// MARK: 握手上下文 + 状态（DialoutContext 已抽到 RelayDialoutCore 库，供单测）
 //
 // 帧类型判定：握手期收 ClientHello / ClientAuth（明文 JSON）；建通道后收 SecureEnvelope。
-enum DialoutHandshakeError: Error { case pairingExpired, pairingAlreadyUsed }
-
-/// 承载握手所需 dev 侧材料与一次性口令，并维护握手状态。整体 Sendable。
-final class DialoutContext: @unchecked Sendable {
-    let keyStore: DevKeyStore
-    let devDeviceId: String
-    let pairingCode: String
-    let expiresAt: Int64
-
-    private let lock = NSLock()
-    private var _pairingConsumed = false
-    private var _session: SecureSession?
-    private var _clientHello: ClientHello?
-    private var _serverHello: ServerHello?
-
-    init(keyStore: DevKeyStore, devDeviceId: String, pairingCode: String, expiresAt: Int64) {
-        self.keyStore = keyStore; self.devDeviceId = devDeviceId
-        self.pairingCode = pairingCode; self.expiresAt = expiresAt
-    }
-
-    /// pairingCode 是否已被消费（握手成功后置 true，再来的握手拒绝）。
-    var pairingConsumed: Bool { lock.lock(); defer { lock.unlock() }; return _pairingConsumed }
-    var session: SecureSession? { lock.lock(); defer { lock.unlock() }; return _session }
-    var hellos: (ClientHello, ServerHello)? {
-        lock.lock(); defer { lock.unlock() }
-        guard let c = _clientHello, let s = _serverHello else { return nil }
-        return (c, s)
-    }
-
-    /// 处理 ClientHello → 返回要发回 relay 的 ServerHello 编码。
-    func handleClientHello(_ data: Data) throws -> Data {
-        guard !pairingConsumed else { throw DialoutHandshakeError.pairingAlreadyUsed }
-        guard Int64(Date().timeIntervalSince1970) < expiresAt else { throw DialoutHandshakeError.pairingExpired }
-        let hello = try JSONDecoder().decode(ClientHello.self, from: data)
-        var nonce = [UInt8](repeating: 0, count: 16)
-        for i in 0..<16 { nonce[i] = UInt8.random(in: 0...255) }
-        let serverHello = try Handshake.makeServerHello(
-            clientHello: hello,
-            devDeviceId: devDeviceId,
-            devIdentity: keyStore.identity,
-            devEphemeralPub: keyStore.exchange.publicKey.rawRepresentation,
-            serverNonce: Data(nonce),
-            keyEpoch: 0,
-            pairingCode: pairingCode
-        )
-        lock.lock(); _clientHello = hello; _serverHello = serverHello; lock.unlock()
-        return try JSONEncoder().encode(serverHello)
-    }
-
-    /// 处理 ClientAuth → 验 iPad 签名，建 dev 侧 SecureSession，pairingCode 失效。
-    func handleClientAuth(_ data: Data) throws {
-        let auth = try JSONDecoder().decode(ClientAuth.self, from: data)
-        guard let (hello, serverHello) = hellos else { throw HandshakeError.badClientSignature }
-        let session = try Handshake.verifyClientAuthAndFinish(
-            clientHello: hello,
-            serverHello: serverHello,
-            clientAuth: auth,
-            devEphemeral: keyStore.exchange
-        )
-        lock.lock(); _session = session; _pairingConsumed = true; lock.unlock()  // 一次性口令用过即失效
-    }
-}
+// 注入 TrustStore：首次配对自动记信任 + 每台 iPad 稳定 sessionId + 加密回传 SecureReady。
 let context = DialoutContext(keyStore: keyStore, devDeviceId: devDeviceId,
-                             pairingCode: pairingCode, expiresAt: expiresAt)
+                             pairingCode: pairingCode, expiresAt: expiresAt, trust: trustStore)
 
 // MARK: 2/3. NIO ws 客户端拨出 relay + 帧分发（wss 前置 TLS，ws 明文保留本地测试）
 //
@@ -177,11 +174,21 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             return
         }
         // 握手期：先试 ClientAuth（更晚），再试 ClientHello。
-        if context.hellos != nil, (try? context.handleClientAuth(data)) != nil {
-            // 握手完成，启桥并开始把 proxy 输出加密回发。
+        if context.hellos != nil, let readyFrame = try? context.handleClientAuth(data) {
+            // 握手完成：先加密回传 SecureReady（稳定 sessionId），再启桥并把 proxy 输出加密回发。
+            sendFrame(readyFrame, ctx: ctx)   // 只发一次
             ensureBridgeStarted()
             pumpBridgeOutbound(ctx: ctx)
             return
+        }
+        // 未受信任且未持有效 proof → 判定权在 dev 侧：主动发 RejectHello 再关连接，不建会话
+        // （区别于静默断连，便于 iPad 侧展示明确原因，而非无提示卡住）。
+        if let hello = try? JSONDecoder().decode(ClientHello.self, from: data) {
+            if let reject = context.rejectHelloIfUnauthorized(hello) {
+                if let rejData = try? JSONEncoder().encode(reject) { sendFrame(rejData, ctx: ctx) }
+                ctx.close(promise: nil)
+                return
+            }
         }
         if let serverHelloData = try? context.handleClientHello(data) {
             sendFrame(serverHelloData, ctx: ctx)

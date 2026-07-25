@@ -6,4 +6,6 @@ import Foundation
 enum TransportControlEvent: Sendable, Equatable {
     case reconnecting      // ws 抖动，正在内部重连（UI 显示重连中）
     case ready             // 重连成功
+    case connectionFailed  // 退避重试达上限仍失败 = 终态（保留机器待手动重连）
+    case trustRevoked      // 收到 RejectHello（信任被撤销）= 终态（引导重新配对）
 }

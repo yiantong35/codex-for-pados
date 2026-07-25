@@ -15,6 +15,14 @@ func makeSharedDaemonTransport(_ config: ConnectionConfig,
     return channel   // ProxyChannel 已在 connect() 内 start()
 }
 
+/// relay 房间 + 模式判定：已持久化 stableSessionId → 受信任复连（房间用 stableSessionId）；
+/// 否则首配（房间用配对载荷 sessionId）。撮合标签决定 relay 房间号，与握手模式一体。
+func relayRoomDecision(store: StableSessionStoring, machineKey: String, payloadSessionId: String)
+    -> (room: String, isTrustedReconnect: Bool) {
+    if let stable = store.stableSessionId(machineKey: machineKey) { return (stable, true) }
+    return (payloadSessionId, false)
+}
+
 /// relay transport 工厂：解析配对载荷 → 构造真 ws（URLSessionRelayWSChannel）+ 注入 E2E 密钥/TOFU 的 RelayTransport。
 /// `tofuMachineKey` 为该机器的稳定 TOFU 键（MachineConfig id）。
 /// 真握手（4 消息）由 RelayTransport 在 doEstablish 的 `awaitHandshake()` 内驱动，与 SSH 共用握手等待链。
@@ -24,19 +32,29 @@ func makeRelayTransport(pairing: String, tofuMachineKey: String) async throws ->
     guard let base = URL(string: payload.relayURL) else {
         throw TransportError.proxyFailed("relayURL 非法: \(payload.relayURL)")
     }
-    // 与 dev 拨出对齐：路径 /relay/{sessionId}，header x-role: iPad。
-    let wsURL = base.appendingPathComponent("relay").appendingPathComponent(payload.sessionId)
-    var req = URLRequest(url: wsURL)
-    req.setValue(RelayPeer.iPad.rawValue, forHTTPHeaderField: "x-role")
-    let task = URLSession.shared.webSocketTask(with: req)
-    let channel = URLSessionRelayWSChannel(task: task)   // 内部 task.resume()
+    // 房间号 + 握手模式由已持久化的 stableSessionId 决定：复连直连受信任房间免 pairingCode。
+    let stableStore = UserDefaultsStableSessionStore()
+    let decision = relayRoomDecision(store: stableStore, machineKey: tofuMachineKey,
+                                     payloadSessionId: payload.sessionId)
+    // 与 dev 拨出对齐：路径 /relay/{room}，header x-role: iPad。
+    let wsURL = base.appendingPathComponent("relay").appendingPathComponent(decision.room)
+    // channel factory：首连与每次重连各造一条全新 URLSessionRelayWSChannel（旧通道已断，须新 task）。
+    let channelFactory: @Sendable () async throws -> RelayWSChannel = {
+        var req = URLRequest(url: wsURL)
+        req.setValue(RelayPeer.iPad.rawValue, forHTTPHeaderField: "x-role")
+        let task = URLSession.shared.webSocketTask(with: req)
+        return URLSessionRelayWSChannel(task: task)   // 内部 task.resume()
+    }
 
     let e2e = RelayE2EKeyManager()
+    let identity = e2e.identityKey()   // 持久身份，跨重连复用
     let tofu = KeychainTOFUStore()
     return RelayTransport(
-        ws: channel, pairing: payload,
-        ipadIdentity: e2e.identityKey(), ipadEphemeral: e2e.newEphemeralKey(),
-        tofu: tofu, tofuMachineKey: tofuMachineKey)
+        channelFactory: channelFactory, pairing: payload,
+        ipadIdentity: identity,
+        ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },   // 每次握手新 ephemeral（前向保密）
+        tofu: tofu, tofuMachineKey: tofuMachineKey,
+        isTrustedReconnect: decision.isTrustedReconnect, stableSessionStore: stableStore)
 }
 
 /// 生产工厂闭包（注入 ConnectionStore.transportFactory）：按连接类型分派——

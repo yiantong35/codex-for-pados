@@ -91,6 +91,7 @@ private struct WorkspaceHost: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(ProjectsStore.self) private var projects
     @Environment(ApprovalStore.self) private var approvals
+    @Environment(\.scenePhase) private var scenePhase
     @State private var coordinator: ApprovalCoordinator?
 
     var body: some View {
@@ -112,6 +113,11 @@ private struct WorkspaceHost: View {
             }
             .onChange(of: connection.phase) { _, phase in
                 if phase == .reconnecting { coordinator?.connectionLost() }
+            }
+            // 能耗（4.5）：把 app 前台/后台转发给当前活跃连接的 transport——
+            // 后台时 RelayTransport 暂停重连不烧电，回前台恢复。
+            .onChange(of: scenePhase) { _, phase in
+                connection.setForeground(phase == .active)
             }
     }
 

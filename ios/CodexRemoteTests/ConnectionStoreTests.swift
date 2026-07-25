@@ -1,4 +1,6 @@
 import XCTest
+import Crypto
+import RelayProtocol
 @testable import CodexRemote
 
 final class ConnectionStoreTests: XCTestCase {
@@ -200,6 +202,122 @@ final class ConnectionStoreTests: XCTestCase {
         try await waitUntil { await failed.value }
         let didFail = await failed.value
         XCTAssertTrue(didFail, "重连信号到达后在途请求应失败，不应永久挂起")
+    }
+
+    /// 4.2 resync：物理重连成功（control 发 .ready）应经 resumeHandler 触发一次会话恢复（resync）。
+    /// 首连已触发一次；模拟重连再发 .ready 后，handler 应被再触发一次（复用现有 resume 机制）。
+    func testReconnectReadyControlTriggersResync() async throws {
+        let ctrl = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in ctrl })
+        Task {
+            var initId: String?
+            for _ in 0..<200 {
+                try? await Task.sleep(nanoseconds: 5_000_000)
+                if let s = await ctrl.sent.first(where: { $0.contains(#""method":"initialize""#) }),
+                   let obj = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any],
+                   let id = obj["id"] as? String { initId = id; break }
+            }
+            await ctrl.feed(#"{"jsonrpc":"2.0","id":"\#(initId!)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
+        }
+        let fired = FireBox()
+        await store.connect(config: .stub)
+        try await waitUntil { await store.phase == .ready }
+        await store.setResumeHandler { await fired.bump() }
+        // 首连恢复触发一次。
+        try await waitUntil { await fired.count >= 1 }
+
+        // 模拟物理重连成功：control 发 .ready → 再触发一次 resync。
+        await ctrl.emitControl(.ready)
+        try await waitUntil { await fired.count >= 2 }
+        let count = await fired.count
+        XCTAssertGreaterThanOrEqual(count, 2, "物理重连 .ready 应再触发一次 resync，实际 \(count)")
+    }
+
+    /// 4.3 消费侧：重连退避耗尽（control 发 .connectionFailed）→ phase 落 .failed，
+    /// 且**保留机器配置**（不要求重新配对，needsRePairing 保持 false），供用户手动重连。
+    func testConnectionFailedControlKeepsConfigForManualRetry() async throws {
+        let ctrl = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in ctrl })
+        await feedInitializeResponse(ctrl)
+        await store.connect(config: .stub)
+        try await waitUntil { await store.phase == .ready }
+
+        await ctrl.emitControl(.connectionFailed)
+        try await waitUntil {
+            if case .failed = await store.phase { return true } else { return false }
+        }
+        // 连接失败 ≠ 信任撤销：不引导重新配对。
+        let needs = await store.needsRePairing
+        XCTAssertFalse(needs, "连接失败应保留机器配置、不要求重新配对")
+    }
+
+    /// 4.4 消费侧：信任被撤销（control 发 .trustRevoked）→ phase 落 .failed，
+    /// 且置位 needsRePairing 引导 UI 回配对入口。
+    func testTrustRevokedControlRequestsRePairing() async throws {
+        let ctrl = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in ctrl })
+        await feedInitializeResponse(ctrl)
+        await store.connect(config: .stub)
+        try await waitUntil { await store.phase == .ready }
+
+        await ctrl.emitControl(.trustRevoked)
+        try await waitUntil { await store.needsRePairing }
+        let needs = await store.needsRePairing
+        XCTAssertTrue(needs, "信任撤销应置位 needsRePairing 引导重新配对")
+        if case .failed = await store.phase {} else { XCTFail("信任撤销应落 .failed，实际 \(await store.phase)") }
+    }
+
+    /// #2 冷启动首连即遇 trustRevoked：iPad 持 stableSessionId 冷启动做受信任复连，
+    /// 开发机在线且已撤销该 iPad → 首连握手第一帧回 RejectHello。此时 observeControl 尚未订阅
+    /// （只在 .ready 后订阅），故 .trustRevoked 控制事件无人消费；必须靠 awaitHandshake 冒泡的
+    /// **可判别错误类型**让 connect 的 catch 置位 needsRePairing，否则用户被撤销后无重新配对出路。
+    /// 断言：首连 RejectHello → connect 后 needsRePairing==true 且 phase 是撤销引导文案。
+    func testFirstConnectRejectHelloRequestsRePairing() async throws {
+        let devIdentity = Curve25519.Signing.PrivateKey()
+        let pairing = PairingPayload(
+            relayURL: "wss://relay.test", sessionId: "sess-cold",
+            devIdentityPubB64: devIdentity.publicKey.rawRepresentation.base64EncodedString(),
+            pairingCode: "cold-code", expiresAt: 9_999_999_999)
+        // 首连（isTrustedReconnect=true）通道：对首帧 ClientHello 即回 RejectHello(trustRevoked)。
+        let transport = RelayTransport(
+            channelFactory: {
+                LoopbackRelayWSChannel { _ in
+                    let rej = RejectHello(sessionId: "sess-cold", reason: .trustRevoked)
+                    return String(decoding: try JSONEncoder().encode(rej), as: UTF8.self)
+                }
+            },
+            pairing: pairing,
+            ipadIdentity: Curve25519.Signing.PrivateKey(),
+            ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
+            tofu: InMemoryTOFUStore(), tofuMachineKey: "machine-cold",
+            isTrustedReconnect: true,
+            stableSessionStore: InMemoryStableSessionStore())
+        let store = await ConnectionStore(transportFactory: { _ in transport })
+
+        await store.connect(config: .stub)
+
+        try await waitUntil { await store.needsRePairing }
+        let needs = await store.needsRePairing
+        XCTAssertTrue(needs, "首连收 RejectHello 应置位 needsRePairing 引导重新配对")
+        if case .failed(let msg) = await store.phase {
+            XCTAssertTrue(msg.contains("重新配对"), "phase 应为撤销引导文案，实际 \(msg)")
+        } else {
+            XCTFail("首连信任被拒应落 .failed，实际 \(await store.phase)")
+        }
+    }
+
+    /// 后台回一条 initialize 响应，使握手到达 .ready（复用于多测试）。
+    private func feedInitializeResponse(_ ctrl: ControlEmittingTransport) async {
+        Task {
+            var initId: String?
+            for _ in 0..<200 {
+                try? await Task.sleep(nanoseconds: 5_000_000)
+                if let s = await ctrl.sent.first(where: { $0.contains(#""method":"initialize""#) }),
+                   let obj = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any],
+                   let id = obj["id"] as? String { initId = id; break }
+            }
+            await ctrl.feed(#"{"jsonrpc":"2.0","id":"\#(initId!)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
+        }
     }
 }
 

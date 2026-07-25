@@ -7,4 +7,5 @@ enum TransportError: Error, Equatable {
     case notConnected
     case sshAuthFailed(String)        // SSH 鉴权/建连失败（ed25519 未被接受等）
     case handshakeFailed(String)      // ws 握手失败（无 101 / Accept 校验不过）
+    case trustRevoked                 // 开发机移除信任（收 RejectHello）：可判别类型，供 connect 引导重新配对
 }

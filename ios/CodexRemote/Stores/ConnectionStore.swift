@@ -79,6 +79,9 @@ enum ConnectionPhase: Equatable {
 final class ConnectionStore {
     private(set) var phase: ConnectionPhase = .disconnected
     private(set) var serverInfo: InitializeResponse?
+    /// 信任被开发机撤销（收到 RejectHello 终态）：UI 据此引导用户回配对入口（RelayPairingImportView）。
+    /// 每次新 connect()/disconnect() 重置。仅 .trustRevoked 置位，普通连接失败不置位。
+    private(set) var needsRePairing = false
     var rpc: JSONRPCClient?
 
     private let transportFactory: @Sendable (ConnectionConfig) async throws -> MessageTransport
@@ -98,6 +101,8 @@ final class ConnectionStore {
     private var isReady = false
     /// 当前连接尝试序号：每次新连接 +1；超时也 +1 以作废仍在后台跑的旧 establish。
     private var activeAttempt = 0
+    /// app 前台/后台状态（能耗）：转发给底层 transport 以在后台暂停重连。默认前台。
+    private var foregroundActive = true
 
     init(transportFactory: @escaping @Sendable (ConnectionConfig) async throws -> MessageTransport,
          connectTimeoutNanos: UInt64 = 20_000_000_000) {
@@ -158,6 +163,7 @@ final class ConnectionStore {
         // 新连接：重置首连恢复状态（上一次连接的 rejoin 不应抑制本次）。
         didInitialRejoin = false
         isReady = false
+        needsRePairing = false   // 新连接清除上一次的信任撤销引导标记
         connLog.info("connect 开始 host=\(config.host, privacy: .public):\(config.sshPort) attempt=\(attempt)")
 
         // 建连 + 握手任务。仅当仍是当前 attempt 时才落地 phase。
@@ -178,6 +184,8 @@ final class ConnectionStore {
                 self.phase = .ready
                 self.isReady = true
                 self.observeControl(newTransport)
+                // 把当前前台/后台状态同步给新 transport（能耗：后台连接不应持续重连）。
+                await newTransport.setForeground(self.foregroundActive)
                 // 首连成功也触发一次会话恢复（rejoin），对齐「连上自动订阅全部活跃 thread」。
                 // handler 可能尚未注册（ConversationView 在 rpc 就绪后才 setResumeHandler）：
                 // 那种情况下由 setResumeHandler 注册时补触发，二者谁后到都只触发一次。
@@ -186,7 +194,15 @@ final class ConnectionStore {
             } catch {
                 guard attempt == self.activeAttempt else { return }   // 已被超时/新尝试作废
                 connLog.error("connect 失败: \(String(describing: error), privacy: .public)")
-                self.phase = .failed(Self.friendlyMessage(error))
+                // #2 冷启动首连即遇 trustRevoked：RelayTransport 首连收 RejectHello 以可判别类型
+                // .trustRevoked 冒泡（observeControl 尚未订阅，控制事件无人消费）。与 live 重连路径的
+                // .trustRevoked 处理一致：置位 needsRePairing + 撤销引导文案，UI 据此导航回配对入口。
+                if case TransportError.trustRevoked = error {
+                    self.phase = .failed("已被开发机移除信任，请重新配对")
+                    self.needsRePairing = true
+                } else {
+                    self.phase = .failed(Self.friendlyMessage(error))
+                }
             }
         }
 
@@ -223,6 +239,15 @@ final class ConnectionStore {
         isReady = false
         didInitialRejoin = false
         phase = .disconnected
+    }
+
+    /// app 生命周期 → 传输层能耗钩子（4.5）：转发前台/后台状态给当前活跃 transport。
+    /// 后台时 RelayTransport 挂起重连循环不烧电；回前台恢复。记录状态以便新建 transport 时同步。
+    /// 非 relay transport 走默认空实现，无副作用。
+    func setForeground(_ active: Bool) {
+        foregroundActive = active
+        guard let transport else { return }
+        Task { await transport.setForeground(active) }
     }
 
     // MARK: - 握手
@@ -284,6 +309,16 @@ final class ConnectionStore {
                 case .ready:
                     self.phase = .ready
                     if let h = self.resumeHandler { await h() }   // 重连成功 → 经官方列表恢复并重新订阅
+                case .connectionFailed:
+                    // 重连退避耗尽（终态，4.3）：落 .failed 提示可手动重连。
+                    // **保留机器配置**（不清 config、不 disconnect）——用户可再次 connect() 手动重连。
+                    self.phase = .failed("连接失败，请稍后重试")
+                case .trustRevoked:
+                    // 收到 RejectHello = 开发机移除信任（终态，4.4）：落 .failed 并置位 needsRePairing，
+                    // 由 UI 据此导航回配对入口（RelayPairingImportView）。仅此路径要求重新配对，
+                    // 其它连接问题（含开发机未开）走 .connectionFailed，不误报信任撤销。
+                    self.phase = .failed("已被开发机移除信任，请重新配对")
+                    self.needsRePairing = true
                 }
             }
         }
@@ -298,6 +333,7 @@ final class ConnectionStore {
             case .notConnected:          return "未连接"
             case .sshAuthFailed(let m):  return "SSH 鉴权失败：\(m)"
             case .handshakeFailed(let m): return "WebSocket 握手失败：\(m)"
+            case .trustRevoked:          return "已被开发机移除信任，请重新配对"
             }
         }
         if let to = error as? ConnectionTimeoutError { return to.errorDescription ?? "连接超时" }
