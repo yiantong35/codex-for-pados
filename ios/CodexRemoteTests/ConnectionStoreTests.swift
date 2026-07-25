@@ -201,6 +201,83 @@ final class ConnectionStoreTests: XCTestCase {
         let didFail = await failed.value
         XCTAssertTrue(didFail, "重连信号到达后在途请求应失败，不应永久挂起")
     }
+
+    /// 4.2 resync：物理重连成功（control 发 .ready）应经 resumeHandler 触发一次会话恢复（resync）。
+    /// 首连已触发一次；模拟重连再发 .ready 后，handler 应被再触发一次（复用现有 resume 机制）。
+    func testReconnectReadyControlTriggersResync() async throws {
+        let ctrl = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in ctrl })
+        Task {
+            var initId: String?
+            for _ in 0..<200 {
+                try? await Task.sleep(nanoseconds: 5_000_000)
+                if let s = await ctrl.sent.first(where: { $0.contains(#""method":"initialize""#) }),
+                   let obj = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any],
+                   let id = obj["id"] as? String { initId = id; break }
+            }
+            await ctrl.feed(#"{"jsonrpc":"2.0","id":"\#(initId!)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
+        }
+        let fired = FireBox()
+        await store.connect(config: .stub)
+        try await waitUntil { await store.phase == .ready }
+        await store.setResumeHandler { await fired.bump() }
+        // 首连恢复触发一次。
+        try await waitUntil { await fired.count >= 1 }
+
+        // 模拟物理重连成功：control 发 .ready → 再触发一次 resync。
+        await ctrl.emitControl(.ready)
+        try await waitUntil { await fired.count >= 2 }
+        let count = await fired.count
+        XCTAssertGreaterThanOrEqual(count, 2, "物理重连 .ready 应再触发一次 resync，实际 \(count)")
+    }
+
+    /// 4.3 消费侧：重连退避耗尽（control 发 .connectionFailed）→ phase 落 .failed，
+    /// 且**保留机器配置**（不要求重新配对，needsRePairing 保持 false），供用户手动重连。
+    func testConnectionFailedControlKeepsConfigForManualRetry() async throws {
+        let ctrl = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in ctrl })
+        await feedInitializeResponse(ctrl)
+        await store.connect(config: .stub)
+        try await waitUntil { await store.phase == .ready }
+
+        await ctrl.emitControl(.connectionFailed)
+        try await waitUntil {
+            if case .failed = await store.phase { return true } else { return false }
+        }
+        // 连接失败 ≠ 信任撤销：不引导重新配对。
+        let needs = await store.needsRePairing
+        XCTAssertFalse(needs, "连接失败应保留机器配置、不要求重新配对")
+    }
+
+    /// 4.4 消费侧：信任被撤销（control 发 .trustRevoked）→ phase 落 .failed，
+    /// 且置位 needsRePairing 引导 UI 回配对入口。
+    func testTrustRevokedControlRequestsRePairing() async throws {
+        let ctrl = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in ctrl })
+        await feedInitializeResponse(ctrl)
+        await store.connect(config: .stub)
+        try await waitUntil { await store.phase == .ready }
+
+        await ctrl.emitControl(.trustRevoked)
+        try await waitUntil { await store.needsRePairing }
+        let needs = await store.needsRePairing
+        XCTAssertTrue(needs, "信任撤销应置位 needsRePairing 引导重新配对")
+        if case .failed = await store.phase {} else { XCTFail("信任撤销应落 .failed，实际 \(await store.phase)") }
+    }
+
+    /// 后台回一条 initialize 响应，使握手到达 .ready（复用于多测试）。
+    private func feedInitializeResponse(_ ctrl: ControlEmittingTransport) async {
+        Task {
+            var initId: String?
+            for _ in 0..<200 {
+                try? await Task.sleep(nanoseconds: 5_000_000)
+                if let s = await ctrl.sent.first(where: { $0.contains(#""method":"initialize""#) }),
+                   let obj = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any],
+                   let id = obj["id"] as? String { initId = id; break }
+            }
+            await ctrl.feed(#"{"jsonrpc":"2.0","id":"\#(initId!)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
+        }
+    }
 }
 
 /// 记录 close() 调用次数的 transport（用于断言 disconnect 关闭底层连接）。

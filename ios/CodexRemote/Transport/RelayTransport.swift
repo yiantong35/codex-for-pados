@@ -86,6 +86,11 @@ actor RelayTransport: MessageTransport {
     /// 主动 close 标志：read loop 见 ws 断时据此区分「主动关闭（终态）」与「瞬断（转重连）」。
     private var activeClose = false
 
+    /// 前台/后台状态（能耗）：后台时重连循环挂起等待回前台，不持续造新连接烧电（4.5）。默认前台。
+    private var isForeground = true
+    /// 后台→前台的唤醒等待者（重连循环挂起点）。回前台 / close() 时 resume 以避免 continuation 泄漏。
+    private var foregroundWaiter: CheckedContinuation<Void, Never>?
+
     /// incoming 明文帧流：read loop 写入端，`incoming()` 调用方消费端。跨重连存活（瞬断不 finish）。
     private var incomingContinuation: AsyncThrowingStream<String, Error>.Continuation?
     private nonisolated let incomingStream: AsyncThrowingStream<String, Error>
@@ -275,6 +280,9 @@ actor RelayTransport: MessageTransport {
         var attempt = 0
         while attempt < reconnect.maxAttempts {
             if activeClose || Task.isCancelled { return }
+            // 能耗：后台则挂起等待回前台，不在后台持续造新连接烧电（4.5）。
+            await waitForForeground()
+            if activeClose || Task.isCancelled { return }
             emitControl(.reconnecting)
             await reconnect.sleep(reconnect.delaySeconds(attempt: attempt))
             if activeClose || Task.isCancelled { return }
@@ -301,6 +309,30 @@ actor RelayTransport: MessageTransport {
         }
         emitControl(.connectionFailed)
         finishIncomingTerminal(TransportError.channelClosed(reason: "重连重试达上限仍失败"))
+    }
+
+    // MARK: 前台/后台能耗管理
+
+    /// 后台则挂起直到回前台（4.5）：重连循环每轮前调用。actor 串行保证判定与挂起原子。
+    /// close() 主动断也会 resume 本等待（配合随后的 activeClose 检查退出），不泄漏 continuation。
+    private func waitForForeground() async {
+        if isForeground || activeClose { return }
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            // 单消费者（唯一重连循环）；防御性 resume 旧等待者避免覆盖泄漏。
+            foregroundWaiter?.resume()
+            foregroundWaiter = cont
+        }
+    }
+
+    /// 前台/后台切换钩子（能耗）：回前台唤醒挂起的重连循环；退后台仅置标志（下一轮循环处挂起）。
+    /// 签名带 `async` 精确匹配协议要求，确保覆写默认空实现（同名 async 要求 + 默认实现时，
+    /// actor 的同步方法不会被识别为见证，须显式 async 才正确覆写）。
+    func setForeground(_ active: Bool) async {
+        isForeground = active
+        if active {
+            foregroundWaiter?.resume()
+            foregroundWaiter = nil
+        }
     }
 
     // MARK: 握手状态机
@@ -464,6 +496,9 @@ actor RelayTransport: MessageTransport {
         // 先置主动 close 标志：read loop（可能被 ws.close 唤醒）据此判为终态而非瞬断，不进重连。
         activeClose = true
         readTask?.cancel()   // 若正处在重连循环，取消其退避挂起
+        // 若重连循环正挂起等待回前台，唤醒它（随后的 activeClose 检查令其退出），避免 continuation 泄漏。
+        foregroundWaiter?.resume()
+        foregroundWaiter = nil
         await ws?.close()
         if case .pending = handshakeState {
             markHandshakeFailed(TransportError.channelClosed(reason: "连接主动关闭"))

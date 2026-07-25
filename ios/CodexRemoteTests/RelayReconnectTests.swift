@@ -232,4 +232,37 @@ final class RelayReconnectTests: XCTestCase {
         // 不重连：工厂仍只被调用 1 次。
         XCTAssertEqual(script.connectCount, 1)
     }
+
+    /// 能耗：后台暂停重连（4.5）。首连成功 → 切后台 → 瞬断进重连循环，
+    /// 后台期间 factory **不再被调用**（挂起等待回前台，不持续造连接烧电）；
+    /// 切回前台 → 重连恢复 → factory 被调用 → .ready。
+    func testBackgroundPausesReconnectUntilForeground() async throws {
+        let script = ReconnectScript([.succeed, .succeed])
+        let policy = RelayReconnectPolicy(maxAttempts: 6, baseDelaySeconds: 0.0, maxDelaySeconds: 0.0,
+                                          sleep: { _ in })
+        let transport = makeTransport(script, policy: policy)
+
+        var ctrl = transport.control().makeAsyncIterator()
+        try await transport.awaitHandshake()
+        XCTAssertEqual(script.connectCount, 1)
+
+        // 先切后台，再瞬断：重连循环进入即因后台而挂起，绝不触发 factory。
+        await transport.setForeground(false)
+        await script.currentChannel?.close()
+
+        // 后台窗口内 factory 不被调用（proving negative：给足时间证明确实暂停）。
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertEqual(script.connectCount, 1, "后台应暂停重连：factory 不被调用")
+
+        // 切回前台 → 恢复重连 → factory 被调用 → .ready。
+        await transport.setForeground(true)
+        var sawReady = false
+        for _ in 0..<10 {
+            if let ev = await ctrl.next(), ev == .ready { sawReady = true; break }
+        }
+        XCTAssertTrue(sawReady, "回前台后应重连成功发 .ready")
+        XCTAssertEqual(script.connectCount, 2, "回前台后恢复重连，factory 再被调用")
+
+        await transport.close()
+    }
 }
