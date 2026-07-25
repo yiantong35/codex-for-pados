@@ -48,6 +48,28 @@ public struct SecureReady: Codable, Sendable, Equatable {
     public var devDeviceId: String
 }
 
+// MARK: - 过线拒绝消息（附加式，不改上面 4 消息）
+
+/// 握手拒绝原因（过线枚举，rawValue 稳定用于跨端序列化）。
+public enum RejectReason: String, Codable, Sendable, Equatable {
+    case trustRevoked          // iPad 曾受信任、现已被撤销
+    case untrusted             // iPad 不在信任列表且未持有效 pairingCode
+    case pairingInvalid        // 首次配对 proof 校验失败 / 口令已用 / 过期
+    case versionMismatch
+}
+
+/// 独立过线拒绝消息：dev 握手拒绝时主动发一条再关连接（而非静默 close），
+/// 使 iPad 能区分「应用层拒绝」与「传输层失败」。带独有 `kind` tag 供 iPad 类型判别
+/// （ServerHello 没有 `kind` 字段，解码 RejectHello 时会因缺失该 required 字段而失败）。
+public struct RejectHello: Codable, Sendable, Equatable {
+    public var kind: String
+    public var sessionId: String
+    public var reason: RejectReason
+    public init(sessionId: String, reason: RejectReason) {
+        self.kind = "reject"; self.sessionId = sessionId; self.reason = reason
+    }
+}
+
 // MARK: - 编排
 
 /// 4 消息双向认证握手编排。

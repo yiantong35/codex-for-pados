@@ -260,3 +260,22 @@ private struct HandshakeHarness {
         )
     }
 }
+
+/// RejectHello 过线消息：round-trip 编解码保真，且 kind tag 固定为 "reject"。
+@Test func rejectHelloRoundTrip() throws {
+    let r = RejectHello(sessionId: "sid-1", reason: .trustRevoked)
+    let data = try JSONEncoder().encode(r)
+    let back = try JSONDecoder().decode(RejectHello.self, from: data)
+    #expect(back == r)
+    #expect(back.reason == .trustRevoked)
+    #expect(back.kind == "reject")
+}
+
+/// ServerHello 无 kind 字段：iPad 侧靠该字段做类型判别，
+/// 把 ServerHello 的编码按 RejectHello 解应失败（缺 required 字段）。
+@Test func serverHelloNotDecodableAsRejectHello() throws {
+    let sh = ServerHello(devDeviceId: "d", devIdentityPub: Data([1]), devEphemeralPub: Data([2]),
+                         serverNonce: Data([3]), keyEpoch: 0, echoedClientNonce: Data([4]), devSignature: Data([5]))
+    let shData = try JSONEncoder().encode(sh)
+    #expect((try? JSONDecoder().decode(RejectHello.self, from: shData)) == nil)
+}
