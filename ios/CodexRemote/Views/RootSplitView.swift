@@ -29,6 +29,7 @@ struct RootSplitView: View {
     // 真实系统深浅值：theme=.system 时本视图跟随系统，此值即真实系统外观，传给设置 sheet
     // 以正确解析 .system（规避 sheet .preferredColorScheme(nil) 无法重置强制值）。
     @Environment(\.colorScheme) private var systemColorScheme
+    @Environment(SessionsManager.self) private var sessions
     @State private var selectedThreadId: String?
 
     /// 面板布局状态（设计 D4，方案 A）：从私有 @State 抬升，顶栏按钮 + 面板快捷键共享同一份。
@@ -38,6 +39,9 @@ struct RootSplitView: View {
 
     /// 当前活跃会话 state 的共享持有者：ConversationView 写入、摘要 popover 读出。
     @State private var activeConversation = ActiveConversationHolder()
+
+    /// 列宽 session 级持久化（D7）：拖动 save / 切 tab 读回 / 冷启动恢复。
+    @State private var columnWidths = ColumnWidthStore()
 
     /// 便利初始化：允许注入面板初始展开态（供快照测试覆盖全开布局）。
     init(initialRightOpen: Bool = false, initialBottomOpen: Bool = false) {
@@ -106,6 +110,12 @@ struct RootSplitView: View {
         }
         .environment(activeConversation)
         .sheet(isPresented: $layout.showSettings) { SettingsPageView(systemColorScheme: systemColorScheme) }
+        .onChange(of: sessions.activeSessionId) { _, newId in
+            loadColumnWidths(for: newId)
+        }
+        .task {
+            loadColumnWidths(for: sessions.activeSessionId)
+        }
     }
 
     // MARK: - 顶部固定全局工具栏：左面板 · 下面板 · 右面板 · 摘要(:≡) · 设置
@@ -192,8 +202,21 @@ struct RootSplitView: View {
         }
     }
 
-    // Task 4 接入 ColumnWidthStore 后替换为真实持久化；本任务先空实现让编译通过。
-    private func saveColumnWidths() {}
+    // MARK: - 列宽持久化数据流（D7）
+
+    private func saveColumnWidths() {
+        guard let id = sessions.activeSessionId else { return }
+        columnWidths.save(machineId: id, left: layout.leftWidth, right: layout.rightWidth)
+    }
+
+    private func loadColumnWidths(for id: UUID?) {
+        let resolved = columnWidths.resolvedWidths(for: id, total: assumedTotalWidth)
+        layout.leftWidth = resolved.left
+        layout.rightWidth = resolved.right
+    }
+
+    /// 读回时的保守总宽估计（iPad 11" 横屏宽）；真实总宽变化时 ResizableColumns 会再 reclamp。
+    private var assumedTotalWidth: CGFloat { 1_194 }
 
     @ViewBuilder private var content: some View {
         if let id = selectedThreadId {
