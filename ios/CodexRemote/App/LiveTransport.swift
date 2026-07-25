@@ -38,16 +38,21 @@ func makeRelayTransport(pairing: String, tofuMachineKey: String) async throws ->
                                      payloadSessionId: payload.sessionId)
     // 与 dev 拨出对齐：路径 /relay/{room}，header x-role: iPad。
     let wsURL = base.appendingPathComponent("relay").appendingPathComponent(decision.room)
-    var req = URLRequest(url: wsURL)
-    req.setValue(RelayPeer.iPad.rawValue, forHTTPHeaderField: "x-role")
-    let task = URLSession.shared.webSocketTask(with: req)
-    let channel = URLSessionRelayWSChannel(task: task)   // 内部 task.resume()
+    // channel factory：首连与每次重连各造一条全新 URLSessionRelayWSChannel（旧通道已断，须新 task）。
+    let channelFactory: @Sendable () async throws -> RelayWSChannel = {
+        var req = URLRequest(url: wsURL)
+        req.setValue(RelayPeer.iPad.rawValue, forHTTPHeaderField: "x-role")
+        let task = URLSession.shared.webSocketTask(with: req)
+        return URLSessionRelayWSChannel(task: task)   // 内部 task.resume()
+    }
 
     let e2e = RelayE2EKeyManager()
+    let identity = e2e.identityKey()   // 持久身份，跨重连复用
     let tofu = KeychainTOFUStore()
     return RelayTransport(
-        ws: channel, pairing: payload,
-        ipadIdentity: e2e.identityKey(), ipadEphemeral: e2e.newEphemeralKey(),
+        channelFactory: channelFactory, pairing: payload,
+        ipadIdentity: identity,
+        ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },   // 每次握手新 ephemeral（前向保密）
         tofu: tofu, tofuMachineKey: tofuMachineKey,
         isTrustedReconnect: decision.isTrustedReconnect, stableSessionStore: stableStore)
 }

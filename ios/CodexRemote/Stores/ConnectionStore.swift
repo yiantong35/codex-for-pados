@@ -284,6 +284,9 @@ final class ConnectionStore {
                 case .ready:
                     self.phase = .ready
                     if let h = self.resumeHandler { await h() }   // 重连成功 → 经官方列表恢复并重新订阅
+                case .connectionFailed, .trustRevoked:
+                    // 终态事件的 UI 处理（toast / 引导重配）由 E2 承接，此处先占位不改 UI。
+                    break
                 }
             }
         }

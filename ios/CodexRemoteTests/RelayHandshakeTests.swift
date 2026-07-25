@@ -21,8 +21,8 @@ final class RelayHandshakeTests: XCTestCase {
         let tofu = InMemoryTOFUStore()
 
         let transport = RelayTransport(
-            ws: ws, pairing: pairing(dev: dev, code: code),
-            ipadIdentity: e2e.identityKey(), ipadEphemeral: e2e.newEphemeralKey(),
+            channelFactory: { ws }, pairing: pairing(dev: dev, code: code),
+            ipadIdentity: e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
             tofu: tofu, tofuMachineKey: "machine-A",
             isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore())
 
@@ -45,8 +45,8 @@ final class RelayHandshakeTests: XCTestCase {
         let e2e = RelayE2EKeyManager(store: makeMemoryStore())
 
         let transport = RelayTransport(
-            ws: ws, pairing: pairing(dev: dev, code: code),
-            ipadIdentity: e2e.identityKey(), ipadEphemeral: e2e.newEphemeralKey(),
+            channelFactory: { ws }, pairing: pairing(dev: dev, code: code),
+            ipadIdentity: e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
             tofu: InMemoryTOFUStore(), tofuMachineKey: "m",
             isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore())
 
@@ -66,8 +66,8 @@ final class RelayHandshakeTests: XCTestCase {
             do { return try dev.handle(frame) } catch { throw TransportError.channelClosed(reason: "dev 拒绝握手") }
         }
         let transport = RelayTransport(
-            ws: driver, pairing: bad, ipadIdentity: e2e.identityKey(),
-            ipadEphemeral: e2e.newEphemeralKey(), tofu: InMemoryTOFUStore(), tofuMachineKey: "m",
+            channelFactory: { driver }, pairing: bad, ipadIdentity: e2e.identityKey(),
+            ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() }, tofu: InMemoryTOFUStore(), tofuMachineKey: "m",
             isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore())
 
         do {
@@ -89,8 +89,8 @@ final class RelayHandshakeTests: XCTestCase {
             do { return try dev.handle(frame) } catch { throw TransportError.channelClosed(reason: "dev 拒绝握手") }
         }
         let transport = RelayTransport(
-            ws: driver, pairing: bad, ipadIdentity: e2e.identityKey(),
-            ipadEphemeral: e2e.newEphemeralKey(), tofu: InMemoryTOFUStore(), tofuMachineKey: "m",
+            channelFactory: { driver }, pairing: bad, ipadIdentity: e2e.identityKey(),
+            ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() }, tofu: InMemoryTOFUStore(), tofuMachineKey: "m",
             isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore())
 
         var iter = transport.incoming().makeAsyncIterator()

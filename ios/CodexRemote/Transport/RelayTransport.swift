@@ -18,6 +18,37 @@ protocol RelayWSChannel: Sendable {
     func close() async
 }
 
+/// 收到 RejectHello（应用层拒绝，独有 `kind` tag）时抛出：与传输层失败区分。
+/// 首连时冒泡为握手失败；重连时触发 `.trustRevoked` 终态且**不再重连**。
+struct RejectHelloError: Error {
+    let reason: RejectReason
+}
+
+/// 断线重连退避策略（可注入以便测试免真 sleep）。
+/// 指数退避 + 硬上限 + 有限重试：`baseDelay * 2^attempt` 封顶 `maxDelay`，试满 `maxAttempts` 次进终态。
+struct RelayReconnectPolicy: Sendable {
+    let maxAttempts: Int
+    let baseDelaySeconds: Double
+    let maxDelaySeconds: Double
+    /// 退避挂起（默认真 sleep；测试注入 no-op / 记录钩子）。
+    let sleep: @Sendable (Double) async -> Void
+
+    init(maxAttempts: Int = 6, baseDelaySeconds: Double = 1.0, maxDelaySeconds: Double = 30.0,
+         sleep: @escaping @Sendable (Double) async -> Void = { s in
+             try? await Task.sleep(nanoseconds: UInt64(max(0, s) * 1_000_000_000))
+         }) {
+        self.maxAttempts = maxAttempts
+        self.baseDelaySeconds = baseDelaySeconds
+        self.maxDelaySeconds = maxDelaySeconds
+        self.sleep = sleep
+    }
+
+    /// 第 `attempt`（0 起）次退避秒数：指数增长封顶 `maxDelaySeconds`。
+    func delaySeconds(attempt: Int) -> Double {
+        min(baseDelaySeconds * pow(2.0, Double(attempt)), maxDelaySeconds)
+    }
+}
+
 /// Relay 传输实现：与 `ProxyChannel` 同实现 `MessageTransport` seam，对上层（JSONRPCClient/
 /// ConversationStore/UI）就是「又一个 transport」——上层零改。区别在于本 transport 内部做
 /// **端到端加解密**：明文 JSON-RPC 帧 seal 成 `SecureEnvelope` 密文才出线，收到的密文 open
@@ -31,26 +62,39 @@ protocol RelayWSChannel: Sendable {
 ///
 /// ## 握手编排
 /// 两条构造路径：
-/// - `init(session:ws:)`：注入一个已建立的 SecureSession（测试/集成加解密数据流），握手视为 `.done`。
-/// - `init(ws:pairing:ipadIdentity:ipadEphemeral:tofu:tofuMachineKey:)`：真握手路径。`awaitHandshake()`
-///   驱动 `performHandshake()` 在 ws 上同步跑完 iPad 侧握手（`makeClientHello` → 收 ServerHello →
-///   `verifyServerHelloAndMakeClientAuth` → TOFU 比对/首信 → 发 ClientAuth → `finishClient` 建
-///   SecureSession），**先握手后启 read loop**（握手期用手动 sendText/receiveText，避免 read loop
-///   抢走 ServerHello）。TOFU 在验开发机签名后、发 ClientAuth 前比对，身份变更立即拒绝。
-///   任一步失败 → `markHandshakeFailed` + `ws.close()`，`awaitHandshake()` 抛错，绝不静默挂起。
-///   （旧 `init(ws:)` 占位仍保留，供尚未接手真 ws 连接的工厂 `LiveTransport.makeRelayTransport` 构造。）
+/// - `init(session:ws:)`：注入一个已建立的 SecureSession（测试/集成加解密数据流），握手视为 `.done`，
+///   无 channel factory 故不重连。
+/// - `init(channelFactory:pairing:…)`：真握手 + 断线重连路径。`awaitHandshake()` 驱动
+///   `performHandshake()` 调 `channelFactory()` 造通道并跑完 iPad 侧握手建 SecureSession。
+///
+/// ## 断线自动重连（三改造点）
+/// 1. **ws 从注入常量 → channel factory**：`ws` 变可空的当前活跃通道，重连时调工厂造**新**通道并每轮
+///    新生成 ephemeral（前向保密），身份复用。
+/// 2. **incoming 跨重连存活**：read loop 检测 ws 断——**主动 close** → 终结流；**瞬断** → 不 finish，
+///    转重连循环（`AsyncThrowingStream` 静态挂起，几乎零能耗），`.ready` 后继续 yield。
+/// 3. **control 事件**：进重连发 `.reconnecting`；重连成功发 `.ready`；退避耗尽发 `.connectionFailed`
+///    （终态）；收 RejectHello 发 `.trustRevoked`（终态，不再重连）。
+/// 退避有硬上限（`RelayReconnectPolicy`）绝不无限重连；主动断 / 信任撤销为终态。
 actor RelayTransport: MessageTransport {
 
-    /// 已建立的加密会话（iPad 角色）。注入构造路径直接给定；真握手路径由 `performHandshake` 建立后回填。
+    /// 已建立的加密会话（iPad 角色）。注入构造路径直接给定；真握手路径由 `performHandshakeOn` 建立后回填。
     private var session: SecureSession?
-    /// 底层 ws 通道（可注入）。
-    private let ws: RelayWSChannel
+    /// 当前活跃 ws 通道。注入路径为固定通道；真握手路径首连/每次重连由工厂造新通道后回填。
+    private var ws: RelayWSChannel?
+    /// 造新通道的工厂（仅真握手路径给定；注入/占位路径为 nil → 不重连）。
+    private let channelFactory: (@Sendable () async throws -> RelayWSChannel)?
+    /// 主动 close 标志：read loop 见 ws 断时据此区分「主动关闭（终态）」与「瞬断（转重连）」。
+    private var activeClose = false
 
-    /// incoming 明文帧流：read loop 写入端，`incoming()` 调用方消费端。
+    /// incoming 明文帧流：read loop 写入端，`incoming()` 调用方消费端。跨重连存活（瞬断不 finish）。
     private var incomingContinuation: AsyncThrowingStream<String, Error>.Continuation?
     private nonisolated let incomingStream: AsyncThrowingStream<String, Error>
 
-    /// read loop 常驻 Task。幂等启动。
+    /// 控制信号流：重连各阶段 yield（.reconnecting/.ready/.connectionFailed/.trustRevoked）。
+    private var controlContinuation: AsyncStream<TransportControlEvent>.Continuation?
+    private nonisolated let controlStream: AsyncStream<TransportControlEvent>
+
+    /// read loop 常驻 Task。幂等启动 / 重连后重启。
     private var readTask: Task<Void, Never>?
     private var didStartRead = false
 
@@ -63,7 +107,8 @@ actor RelayTransport: MessageTransport {
     private struct HandshakeInputs {
         let pairing: PairingPayload
         let ipadIdentity: Curve25519.Signing.PrivateKey
-        let ipadEphemeral: Curve25519.KeyAgreement.PrivateKey
+        /// 每次握手新生成 iPad ephemeral（前向保密；重连亦新生成）。身份 `ipadIdentity` 则复用。
+        let ephemeralProvider: @Sendable () -> Curve25519.KeyAgreement.PrivateKey
         let tofu: TOFUStoring
         let tofuMachineKey: String
         /// 受信任复连：iPad 身份已在 dev 信任列表内，发空 proof 免一次性 pairingCode（验签 + TOFU 不省）。
@@ -72,53 +117,71 @@ actor RelayTransport: MessageTransport {
         let stableSessionStore: StableSessionStoring
     }
     private let handshakeInputs: HandshakeInputs?
+    /// 重连退避策略。
+    private let reconnect: RelayReconnectPolicy
     /// 握手编排幂等启动守卫。
     private var didStartHandshake = false
 
-    /// 注入构造路径：给定一个已建立的 SecureSession（测试/集成用）。握手视为已完成。
+    /// 注入构造路径：给定一个已建立的 SecureSession（测试/集成用）。握手视为已完成，无工厂故不重连。
     init(session: SecureSession, ws: RelayWSChannel) {
         self.session = session
         self.ws = ws
+        self.channelFactory = nil
         self.handshakeState = .done
         self.handshakeInputs = nil
+        self.reconnect = RelayReconnectPolicy()
         var inCont: AsyncThrowingStream<String, Error>.Continuation!
         self.incomingStream = AsyncThrowingStream<String, Error>(bufferingPolicy: .unbounded) { inCont = $0 }
         self.incomingContinuation = inCont
+        var ctlCont: AsyncStream<TransportControlEvent>.Continuation!
+        self.controlStream = AsyncStream<TransportControlEvent>(bufferingPolicy: .unbounded) { ctlCont = $0 }
+        self.controlContinuation = ctlCont
     }
 
-    /// 占位构造路径：仅给定 ws、无握手输入。真 ws 连接与握手编排尚未接入的工厂
-    /// （`LiveTransport.makeRelayTransport`）用它构造实例；`awaitHandshake` 会因缺输入落 `.failed`。
-    /// Task 5 接入真 ws 后由真握手构造取代此路径。
+    /// 占位构造路径：仅给定 ws、无握手输入、无工厂。真 ws 连接与握手编排尚未接入的调用方用它构造；
+    /// `awaitHandshake` 会因缺输入落 `.failed`。
     init(ws: RelayWSChannel) {
         self.session = nil
         self.ws = ws
+        self.channelFactory = nil
         self.handshakeState = .pending
         self.handshakeInputs = nil
+        self.reconnect = RelayReconnectPolicy()
         var inCont: AsyncThrowingStream<String, Error>.Continuation!
         self.incomingStream = AsyncThrowingStream<String, Error>(bufferingPolicy: .unbounded) { inCont = $0 }
         self.incomingContinuation = inCont
+        var ctlCont: AsyncStream<TransportControlEvent>.Continuation!
+        self.controlStream = AsyncStream<TransportControlEvent>(bufferingPolicy: .unbounded) { ctlCont = $0 }
+        self.controlContinuation = ctlCont
     }
 
-    /// 真握手构造路径：注入配对载荷 + iPad E2E 密钥 + TOFU，`awaitHandshake()` 触发 `performHandshake()`
-    /// 编排 4 消息握手建 SecureSession。
-    init(ws: RelayWSChannel,
+    /// 真握手 + 断线重连构造路径：注入 channel factory + 配对载荷 + iPad 身份 + ephemeral 工厂 + TOFU。
+    /// `awaitHandshake()` 触发 `performHandshake()`：调 `channelFactory()` 造通道 → 编排 4 消息握手建
+    /// SecureSession。read loop 检测瞬断即调工厂造新通道重握手（退避 + 上限，见 `reconnect`）。
+    init(channelFactory: @escaping @Sendable () async throws -> RelayWSChannel,
          pairing: PairingPayload,
          ipadIdentity: Curve25519.Signing.PrivateKey,
-         ipadEphemeral: Curve25519.KeyAgreement.PrivateKey,
+         ephemeralProvider: @escaping @Sendable () -> Curve25519.KeyAgreement.PrivateKey,
          tofu: TOFUStoring,
          tofuMachineKey: String,
          isTrustedReconnect: Bool,
-         stableSessionStore: StableSessionStoring) {
+         stableSessionStore: StableSessionStoring,
+         reconnect: RelayReconnectPolicy = RelayReconnectPolicy()) {
         self.session = nil
-        self.ws = ws
+        self.ws = nil
+        self.channelFactory = channelFactory
         self.handshakeState = .pending
         self.handshakeInputs = HandshakeInputs(
-            pairing: pairing, ipadIdentity: ipadIdentity, ipadEphemeral: ipadEphemeral,
+            pairing: pairing, ipadIdentity: ipadIdentity, ephemeralProvider: ephemeralProvider,
             tofu: tofu, tofuMachineKey: tofuMachineKey,
             isTrustedReconnect: isTrustedReconnect, stableSessionStore: stableSessionStore)
+        self.reconnect = reconnect
         var inCont: AsyncThrowingStream<String, Error>.Continuation!
         self.incomingStream = AsyncThrowingStream<String, Error>(bufferingPolicy: .unbounded) { inCont = $0 }
         self.incomingContinuation = inCont
+        var ctlCont: AsyncStream<TransportControlEvent>.Continuation!
+        self.controlStream = AsyncStream<TransportControlEvent>(bufferingPolicy: .unbounded) { ctlCont = $0 }
+        self.controlContinuation = ctlCont
     }
 
     // MARK: read loop
@@ -135,11 +198,19 @@ actor RelayTransport: MessageTransport {
         }
     }
 
+    /// 重连成功后重启 read loop（旧 loop 已在进入重连时返回，故此处新建不会与之并存）。
+    private func restartReadLoop() {
+        readTask = Task { [weak self] in
+            await self?.runReadLoop()
+        }
+    }
+
     private func runReadLoop() async {
         do {
             while true {
+                guard let ws else { finishIncoming(nil); return }
                 guard let frame = try await ws.receiveText() else {
-                    finishIncoming(nil)   // ws 正常关闭
+                    await handleDisconnect(nil)   // ws 关闭（可能瞬断，可能主动）
                     return
                 }
                 guard let session else {
@@ -152,12 +223,26 @@ actor RelayTransport: MessageTransport {
             }
         } catch {
             rtLog.error("read loop 退出/抛错: \(String(describing: error), privacy: .public)")
-            finishIncoming(error)
+            await handleDisconnect(error)
         }
+    }
+
+    /// read loop 检测 ws 断后的分流：**主动 close** 或**无工厂**（注入路径）→ 终结 incoming；
+    /// 否则**瞬断** → 不 finish incoming，转重连循环（incoming 静态挂起存活）。
+    private func handleDisconnect(_ error: Error?) async {
+        if activeClose || channelFactory == nil {
+            finishIncoming(error)
+            return
+        }
+        await reconnectLoop()
     }
 
     private func emit(_ line: String) {
         incomingContinuation?.yield(line)
+    }
+
+    private func emitControl(_ ev: TransportControlEvent) {
+        controlContinuation?.yield(ev)
     }
 
     private func finishIncoming(_ error: Error?) {
@@ -170,6 +255,52 @@ actor RelayTransport: MessageTransport {
             incomingContinuation?.finish()
         }
         incomingContinuation = nil
+    }
+
+    /// 重连终态（连接失败 / 信任撤销）收束 incoming：直接以给定错误抛错终止（不二次包裹）。
+    private func finishIncomingTerminal(_ error: Error) {
+        incomingContinuation?.finish(throwing: error)
+        incomingContinuation = nil
+    }
+
+    // MARK: 断线重连循环
+
+    /// 瞬断后的重连循环：指数退避 + 硬上限 + 有限重试。
+    /// - 每次尝试前发 `.reconnecting`、退避挂起；成功 → 回填 ws/重启 read loop → 发 `.ready` 返回。
+    /// - 收 RejectHello → 发 `.trustRevoked` + 终结 incoming，**不再重连**（4.4）。
+    /// - 试满 `maxAttempts` 仍失败 → 发 `.connectionFailed` + 终结 incoming（4.3 终态，绝不无限重连）。
+    /// - 主动 close / 任务取消 → 静默退出（不发终态、不再造通道）。
+    private func reconnectLoop() async {
+        guard let factory = channelFactory else { finishIncoming(nil); return }
+        var attempt = 0
+        while attempt < reconnect.maxAttempts {
+            if activeClose || Task.isCancelled { return }
+            emitControl(.reconnecting)
+            await reconnect.sleep(reconnect.delaySeconds(attempt: attempt))
+            if activeClose || Task.isCancelled { return }
+            do {
+                let ch = try await factory()
+                do {
+                    try await performHandshakeOn(ch)
+                } catch {
+                    await ch.close()
+                    throw error
+                }
+                self.ws = ch
+                restartReadLoop()
+                emitControl(.ready)
+                return
+            } catch is RejectHelloError {
+                emitControl(.trustRevoked)
+                finishIncomingTerminal(TransportError.channelClosed(reason: "信任已被撤销（RejectHello）"))
+                return
+            } catch {
+                rtLog.error("重连尝试 \(attempt) 失败: \(String(describing: error), privacy: .public)")
+                attempt += 1
+            }
+        }
+        emitControl(.connectionFailed)
+        finishIncomingTerminal(TransportError.channelClosed(reason: "重连重试达上限仍失败"))
     }
 
     // MARK: 握手状态机
@@ -197,70 +328,30 @@ actor RelayTransport: MessageTransport {
         Task { [weak self] in await self?.performHandshake() }
     }
 
-    /// iPad 侧握手编排（同步跑完，成功才启 read loop）：
-    /// makeClientHello（受信任复连 proof 留空）→ 发 / 收 ServerHello → verifyServerHelloAndMakeClientAuth →
-    /// TOFU 比对/首信（发 ClientAuth 前，受信任复连不省）→ 发 ClientAuth → finishClient 建 SecureSession →
-    /// 消费第 4 条 SecureReady 持久化 stableSessionId。startReadLoop 前必须消费 SecureReady，
-    /// 否则 read loop 会把这条加密帧当业务帧 yield。
+    /// 首连握手编排：调 `channelFactory()` 造通道 → `performHandshakeOn` 跑完握手建 SecureSession →
+    /// markHandshakeDone + 启 read loop。失败落 `.failed` + 终结 incoming（含首连收 RejectHello →
+    /// 发 `.trustRevoked`），绝不静默挂起。
     private func performHandshake() async {
-        guard let inputs = handshakeInputs else {
+        guard let factory = channelFactory else {
             markHandshakeFailed(TransportError.notConnected); return
         }
         do {
-            let p = inputs.pairing
-            guard let devIdentityPub = Data(base64Encoded: p.devIdentityPubB64) else {
-                throw TransportError.proxyFailed("配对载荷开发机公钥非法")
+            let ch = try await factory()
+            do {
+                try await performHandshakeOn(ch)
+            } catch {
+                await ch.close()
+                throw error
             }
-            let clientNonce = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
-            let ipadDeviceId = inputs.ipadIdentity.publicKey.rawRepresentation.base64EncodedString()
-
-            let hello = Handshake.makeClientHello(
-                sessionId: p.sessionId, ipadDeviceId: ipadDeviceId,
-                ipadIdentityPub: inputs.ipadIdentity.publicKey.rawRepresentation,
-                ipadEphemeralPub: inputs.ipadEphemeral.publicKey.rawRepresentation,
-                clientNonce: clientNonce, pairingCode: p.pairingCode)
-            // 受信任复连：proof 留空免一次性 pairingCode（判定权在 dev 侧信任列表）；其余字段同首配。
-            // 验 dev 签名 + TOFU 比对任何模式都保留不省——见下文。
-            var clientHello = hello
-            if inputs.isTrustedReconnect { clientHello.pairingCodeProof = Data() }
-            try await ws.sendText(String(decoding: try JSONEncoder().encode(clientHello), as: UTF8.self))
-
-            guard let shText = try await ws.receiveText() else {
-                throw TransportError.channelClosed(reason: "握手中连接关闭（等 ServerHello）")
-            }
-            let serverHello = try JSONDecoder().decode(ServerHello.self, from: Data(shText.utf8))
-
-            let clientAuth = try Handshake.verifyServerHelloAndMakeClientAuth(
-                clientHello: clientHello, serverHello: serverHello,
-                devIdentityPub: devIdentityPub, ipadIdentity: inputs.ipadIdentity)
-
-            // TOFU：验开发机签名通过后、发 ClientAuth 之前比对/首信（身份变更即拒，
-            // 绝不向被替换身份的机器出示一次性口令）。受信任复连同样不省。
-            try inputs.tofu.verifyOrTrust(machineKey: inputs.tofuMachineKey,
-                                          presentedPub: devIdentityPub)
-
-            try await ws.sendText(String(decoding: try JSONEncoder().encode(clientAuth), as: UTF8.self))
-
-            let secure = try Handshake.finishClient(
-                clientHello: clientHello, serverHello: serverHello,
-                ipadEphemeral: inputs.ipadEphemeral, devIdentityPub: devIdentityPub)
-
-            self.session = secure
-
-            // 发 ClientAuth 后、启 read loop 前，多收一条 SecureReady（msg 4，加密帧）并消费：
-            // dev 首配与复连都发。必须在 markHandshakeDone/startReadLoop 之前消费，否则 read loop
-            // 会把这条加密帧当业务帧 yield 给上层。收/解失败抛错落 .failed，不静默挂起。
-            guard let readyText = try await ws.receiveText() else {
-                throw TransportError.channelClosed(reason: "握手中连接关闭（等 SecureReady）")
-            }
-            let readyEnv = try SecureEnvelope(decoding: Data(readyText.utf8))
-            let readyPlain = try secure.open(readyEnv)
-            let secureReady = try JSONDecoder().decode(SecureReady.self, from: readyPlain)
-            inputs.stableSessionStore.save(machineKey: inputs.tofuMachineKey,
-                                           stableSessionId: secureReady.stableSessionId)
-
+            self.ws = ch
             markHandshakeDone()
             startReadLoopIfNeeded()
+        } catch let rej as RejectHelloError {
+            rtLog.error("首连握手被拒(RejectHello): \(String(describing: rej.reason), privacy: .public)")
+            emitControl(.trustRevoked)
+            markHandshakeFailed(TransportError.channelClosed(reason: "首连信任被拒（RejectHello）"))
+            incomingContinuation?.finish(throwing: TransportError.channelClosed(reason: "首连信任被拒（RejectHello）"))
+            incomingContinuation = nil
         } catch {
             rtLog.error("握手失败: \(String(describing: error), privacy: .public)")
             // 先落 .failed 保留真实握手错误类型给 awaitHandshake，再收束 incoming 流：
@@ -269,14 +360,77 @@ actor RelayTransport: MessageTransport {
             markHandshakeFailed(error)
             incomingContinuation?.finish(throwing: TransportError.channelClosed(reason: "\(error)"))
             incomingContinuation = nil
-            await ws.close()
         }
+    }
+
+    /// 在**指定通道**上跑完 iPad 侧握手（首连与每次重连共用编排）：
+    /// makeClientHello（受信任复连 proof 留空；ephemeral 每次新生成 → 前向保密）→ 发 / 收 ServerHello →
+    /// **先判 RejectHello**（独有 kind tag，命中即抛 `RejectHelloError`）→ verifyServerHelloAndMakeClientAuth →
+    /// TOFU 比对/首信（发 ClientAuth 前，受信任复连不省）→ 发 ClientAuth → finishClient 建 SecureSession →
+    /// 消费第 4 条 SecureReady 持久化 stableSessionId → 回填 `self.session`。
+    /// **不** markHandshakeDone / 启 read loop（由调用方按首连 vs 重连分别处理）。
+    private func performHandshakeOn(_ ch: RelayWSChannel) async throws {
+        guard let inputs = handshakeInputs else { throw TransportError.notConnected }
+        let p = inputs.pairing
+        guard let devIdentityPub = Data(base64Encoded: p.devIdentityPubB64) else {
+            throw TransportError.proxyFailed("配对载荷开发机公钥非法")
+        }
+        let ephemeral = inputs.ephemeralProvider()   // 每次握手新 ephemeral（前向保密），身份复用
+        let clientNonce = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+        let ipadDeviceId = inputs.ipadIdentity.publicKey.rawRepresentation.base64EncodedString()
+
+        var clientHello = Handshake.makeClientHello(
+            sessionId: p.sessionId, ipadDeviceId: ipadDeviceId,
+            ipadIdentityPub: inputs.ipadIdentity.publicKey.rawRepresentation,
+            ipadEphemeralPub: ephemeral.publicKey.rawRepresentation,
+            clientNonce: clientNonce, pairingCode: p.pairingCode)
+        // 受信任复连：proof 留空免一次性 pairingCode（判定权在 dev 侧信任列表）；验签 + TOFU 任何模式不省。
+        if inputs.isTrustedReconnect { clientHello.pairingCodeProof = Data() }
+        try await ch.sendText(String(decoding: try JSONEncoder().encode(clientHello), as: UTF8.self))
+
+        guard let shText = try await ch.receiveText() else {
+            throw TransportError.channelClosed(reason: "握手中连接关闭（等 ServerHello）")
+        }
+        // 先判 RejectHello（独有 `kind` tag；ServerHello 无 kind 故互不误解）：命中 → 抛错，
+        // 首连冒泡为握手失败，重连触发 .trustRevoked 终态不再重连。首连与重连都判。
+        if let rej = try? JSONDecoder().decode(RejectHello.self, from: Data(shText.utf8)), rej.kind == "reject" {
+            throw RejectHelloError(reason: rej.reason)
+        }
+        let serverHello = try JSONDecoder().decode(ServerHello.self, from: Data(shText.utf8))
+
+        let clientAuth = try Handshake.verifyServerHelloAndMakeClientAuth(
+            clientHello: clientHello, serverHello: serverHello,
+            devIdentityPub: devIdentityPub, ipadIdentity: inputs.ipadIdentity)
+
+        // TOFU：验开发机签名通过后、发 ClientAuth 之前比对/首信（身份变更即拒，
+        // 绝不向被替换身份的机器出示一次性口令）。受信任复连同样不省。
+        try inputs.tofu.verifyOrTrust(machineKey: inputs.tofuMachineKey,
+                                      presentedPub: devIdentityPub)
+
+        try await ch.sendText(String(decoding: try JSONEncoder().encode(clientAuth), as: UTF8.self))
+
+        let secure = try Handshake.finishClient(
+            clientHello: clientHello, serverHello: serverHello,
+            ipadEphemeral: ephemeral, devIdentityPub: devIdentityPub)
+
+        // 发 ClientAuth 后、回填 session 前，多收一条 SecureReady（msg 4，加密帧）并消费：
+        // dev 首配与复连都发。必须在启 read loop 之前消费，否则 read loop 会把这条加密帧当业务帧 yield。
+        guard let readyText = try await ch.receiveText() else {
+            throw TransportError.channelClosed(reason: "握手中连接关闭（等 SecureReady）")
+        }
+        let readyEnv = try SecureEnvelope(decoding: Data(readyText.utf8))
+        let readyPlain = try secure.open(readyEnv)
+        let secureReady = try JSONDecoder().decode(SecureReady.self, from: readyPlain)
+        inputs.stableSessionStore.save(machineKey: inputs.tofuMachineKey,
+                                       stableSessionId: secureReady.stableSessionId)
+
+        self.session = secure
     }
 
     // MARK: MessageTransport
 
     func send(_ text: String) async throws {
-        guard let session else { throw TransportError.notConnected }
+        guard let session, let ws else { throw TransportError.notConnected }
         let env = try session.seal(Data(text.utf8))
         let frame = String(decoding: try env.encoded(), as: UTF8.self)
         try await ws.sendText(frame)
@@ -286,6 +440,10 @@ actor RelayTransport: MessageTransport {
         // 首次取流即启动 read loop（在 actor 上下文中幂等启动）。
         Task { await self.startReadLoopIfNeeded() }
         return incomingStream
+    }
+
+    nonisolated func control() -> AsyncStream<TransportControlEvent> {
+        controlStream
     }
 
     func awaitHandshake() async throws {
@@ -303,12 +461,16 @@ actor RelayTransport: MessageTransport {
     }
 
     func close() async {
-        await ws.close()
+        // 先置主动 close 标志：read loop（可能被 ws.close 唤醒）据此判为终态而非瞬断，不进重连。
+        activeClose = true
+        readTask?.cancel()   // 若正处在重连循环，取消其退避挂起
+        await ws?.close()
         if case .pending = handshakeState {
             markHandshakeFailed(TransportError.channelClosed(reason: "连接主动关闭"))
         }
         incomingContinuation?.finish()
         incomingContinuation = nil
-        readTask?.cancel()
+        controlContinuation?.finish()
+        controlContinuation = nil
     }
 }

@@ -41,8 +41,8 @@ final class RelayTrustedHandshakeTests: XCTestCase {
         let tofu = InMemoryTOFUStore()
 
         let transport = RelayTransport(
-            ws: ws, pairing: pairing(devPubB64: dev.devIdentityPubB64, code: "unused-in-trusted"),
-            ipadIdentity: e2e.identityKey(), ipadEphemeral: e2e.newEphemeralKey(),
+            channelFactory: { ws }, pairing:pairing(devPubB64: dev.devIdentityPubB64, code: "unused-in-trusted"),
+            ipadIdentity: e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
             tofu: tofu, tofuMachineKey: "machine-T",
             isTrustedReconnect: true, stableSessionStore: InMemoryStableSessionStore())
 
@@ -70,8 +70,8 @@ final class RelayTrustedHandshakeTests: XCTestCase {
         let e2e = RelayE2EKeyManager(store: memKeyStore())
 
         let transport = RelayTransport(
-            ws: ws, pairing: pairing(devPubB64: wrongDevPub, code: "x"),
-            ipadIdentity: e2e.identityKey(), ipadEphemeral: e2e.newEphemeralKey(),
+            channelFactory: { ws }, pairing:pairing(devPubB64: wrongDevPub, code: "x"),
+            ipadIdentity: e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
             tofu: InMemoryTOFUStore(), tofuMachineKey: "m",
             isTrustedReconnect: true, stableSessionStore: InMemoryStableSessionStore())
 
@@ -93,8 +93,8 @@ final class RelayTrustedHandshakeTests: XCTestCase {
         let store = InMemoryStableSessionStore()
 
         let transport = RelayTransport(
-            ws: ws, pairing: pairing(devPubB64: dev.devIdentityPubB64, code: "unused"),
-            ipadIdentity: e2e.identityKey(), ipadEphemeral: e2e.newEphemeralKey(),
+            channelFactory: { ws }, pairing:pairing(devPubB64: dev.devIdentityPubB64, code: "unused"),
+            ipadIdentity: e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
             tofu: InMemoryTOFUStore(), tofuMachineKey: "machine-S",
             isTrustedReconnect: true, stableSessionStore: store)
 
@@ -113,8 +113,8 @@ final class RelayTrustedHandshakeTests: XCTestCase {
         let store = InMemoryStableSessionStore()
 
         let transport = RelayTransport(
-            ws: ws, pairing: pairing(devPubB64: dev.devIdentityPubB64, code: code),
-            ipadIdentity: e2e.identityKey(), ipadEphemeral: e2e.newEphemeralKey(),
+            channelFactory: { ws }, pairing:pairing(devPubB64: dev.devIdentityPubB64, code: code),
+            ipadIdentity: e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
             tofu: InMemoryTOFUStore(), tofuMachineKey: "machine-F",
             isTrustedReconnect: false, stableSessionStore: store)
 
