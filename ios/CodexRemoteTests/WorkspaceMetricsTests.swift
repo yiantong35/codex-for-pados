@@ -52,4 +52,74 @@ final class WorkspaceMetricsTests: XCTestCase {
         XCTAssertEqual(WorkspaceMetrics.bottomResizeHandleTopPadding,
                        WorkspaceMetrics.resizeHandleEdgePadding)
     }
+
+    // MARK: - custom-resizable-columns 列宽纯函数（D4）
+
+    func testMaxColumnWidthIsTwoThirdsOfTotal() {
+        XCTAssertEqual(WorkspaceMetrics.maxColumnWidth(total: 1_200), 800, accuracy: 0.001)
+    }
+
+    func testClampColumnWidthCapsAtTwoThirds() {
+        // 另一栏很窄时（byCenter ≥ 2/3），2/3 上界成为约束：proposed 1000 应被夹到 1200*2/3=800。
+        // 注：other 必须窄到 byCenter=1200-other-28-320 ≥ 800（即 other ≤ 52），2/3 才真正 binding；
+        // 否则中栏保护先生效。故此处用 other=40（byCenter=812），确保 2/3 是唯一约束。
+        let w = WorkspaceMetrics.clampColumnWidth(
+            1_000, total: 1_200, otherColumnWidth: 40,
+            columnMin: WorkspaceMetrics.leftColumnMinWidth)
+        XCTAssertEqual(w, 800, accuracy: 0.001)
+    }
+
+    func testClampColumnWidthProtectsCenterMinWidth() {
+        // 另一栏已占 600、中栏最小 320、两分隔线 28：left 上界 = 1200-600-28-320=252，
+        // 该值 < 2/3(800)，故中栏保护成为约束，proposed 1000 被夹到 252。
+        let total: CGFloat = 1_200
+        let other: CGFloat = 600
+        let expected = total - other
+            - WorkspaceMetrics.resizableDividerHitWidth * 2
+            - WorkspaceMetrics.centerColumnMinWidth
+        let w = WorkspaceMetrics.clampColumnWidth(
+            1_000, total: total, otherColumnWidth: other,
+            columnMin: WorkspaceMetrics.leftColumnMinWidth)
+        XCTAssertEqual(w, expected, accuracy: 0.001)
+    }
+
+    func testClampColumnWidthFloorsAtColumnMin() {
+        let w = WorkspaceMetrics.clampColumnWidth(
+            10, total: 1_200, otherColumnWidth: 300,
+            columnMin: WorkspaceMetrics.leftColumnMinWidth)
+        XCTAssertEqual(w, WorkspaceMetrics.leftColumnMinWidth, accuracy: 0.001)
+    }
+
+    func testClampColumnWidthNeverBelowMinEvenWhenNoRoom() {
+        // 极端：另一栏几乎占满，上界算出来 < columnMin，也不得返回低于 columnMin。
+        let w = WorkspaceMetrics.clampColumnWidth(
+            500, total: 700, otherColumnWidth: 650,
+            columnMin: WorkspaceMetrics.leftColumnMinWidth)
+        XCTAssertEqual(w, WorkspaceMetrics.leftColumnMinWidth, accuracy: 0.001)
+    }
+
+    func testClampColumnWidthDecoupledFromOtherColumn() {
+        // 左右解耦：同一 proposed、同一 total，仅改 otherColumnWidth，返回值只随「本栏可用余量」变化，
+        // 不会去修改另一栏——纯函数只返回本栏结果。
+        let a = WorkspaceMetrics.clampColumnWidth(
+            9_999, total: 1_400, otherColumnWidth: 300,
+            columnMin: WorkspaceMetrics.rightColumnMinWidth)
+        let b = WorkspaceMetrics.clampColumnWidth(
+            9_999, total: 1_400, otherColumnWidth: 500,
+            columnMin: WorkspaceMetrics.rightColumnMinWidth)
+        // 另一栏更宽 → 本栏上界更小。
+        XCTAssertGreaterThan(a, b)
+    }
+
+    func testCenterColumnWidthFloorsAtMin() {
+        // 左右加起来几乎占满，中栏被夹到最小宽而非负数。
+        let c = WorkspaceMetrics.centerColumnWidth(total: 1_000, left: 500, right: 490)
+        XCTAssertEqual(c, WorkspaceMetrics.centerColumnMinWidth, accuracy: 0.001)
+    }
+
+    func testCenterColumnWidthNormalCase() {
+        let c = WorkspaceMetrics.centerColumnWidth(total: 1_200, left: 300, right: 320)
+        XCTAssertEqual(c, 1_200 - 300 - 320 - WorkspaceMetrics.resizableDividerHitWidth * 2,
+                       accuracy: 0.001)
+    }
 }
