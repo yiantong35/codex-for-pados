@@ -34,15 +34,15 @@ final class OrientationSnapshotTests: XCTestCase {
         hc.view.frame = CGRect(origin: .zero, size: size)
         hc.view.backgroundColor = .systemBackground
 
-        // 关键：把 hostingController 真正挂进一个 keyWindow 再渲染。
-        // 否则 trait=compact，NavigationSplitView 列宽计算异常（三栏挤在半屏）。
+        // 关键：把 hostingController 真正挂进一个 keyWindow 再渲染，拿到 regular size class，
+        // GeometryReader 读到全屏总宽（自绘三栏按 2/3 上界与列宽正确布局）。
         let window = UIWindow(frame: CGRect(origin: .zero, size: size))
         window.rootViewController = hc
         window.makeKeyAndVisible()
 
         hc.view.setNeedsLayout()
         hc.view.layoutIfNeeded()
-        // 给 SwiftUI 多个 runloop 周期完成 NavigationSplitView 列布局 + 导航栏/toolbar 异步装配。
+        // 给 SwiftUI 多个 runloop 周期完成自绘三栏 GeometryReader 布局 + 顶栏 safeAreaInset 装配。
         for _ in 0..<3 {
             RunLoop.current.run(until: Date().addingTimeInterval(0.3))
             hc.view.layoutIfNeeded()
