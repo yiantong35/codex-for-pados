@@ -3,7 +3,7 @@ import SwiftUI
 /// 左栏：按项目（同一 cwd）分组展示对话树。
 /// 每个 Section = 一个项目（displayName + 文件夹图标）；其下逐条渲染 ThreadSummary。
 /// 对话标题取 `name ?? preview`，副标题为相对时间；待批准的对话显示橙色徽标（复刻 desktop）。
-/// 选中态通过 `selectedThreadId` 绑定回 NavigationSplitView。
+/// 选中态通过 `selectedThreadId` 绑定回 RootSplitView（自绘三栏，已移除 NavigationSplitView）。
 struct SidebarView: View {
     @Environment(ProjectsStore.self) private var projects
     @Environment(ConnectionStore.self) private var connection

@@ -2,7 +2,7 @@ import CoreGraphics
 
 /// 五窗口面板的尺寸常量与 clamp 纯函数（design D3/D4/D5）。
 enum WorkspaceMetrics {
-    /// 右边栏最小 / 理想 / 最大宽（供 `.inspectorColumnWidth`，系统检视列托管 resize）。
+    /// 右边栏最小 / 理想 / 最大宽（原供已移除的系统 `.inspectorColumnWidth`；现由自绘右列复用为 rightColumn 宽度约束，见下）。
     static let rightPanelMinWidth: CGFloat = 220
     static let rightPanelIdealWidth: CGFloat = 320
     static let rightPanelMaxWidth: CGFloat = 480

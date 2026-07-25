@@ -48,13 +48,11 @@ final class OrientationSnapshotTests: XCTestCase {
             hc.view.layoutIfNeeded()
         }
 
-        // 渲染：挂进 window 拿到 regular size class（NavigationSplitView 展开三栏、列宽正确），
+        // 渲染：挂进 window 拿到 regular size class（自绘三栏容器 ResizableColumns 按 2/3 上界与列宽正确布局），
         // 用 layer.render 同步捕获当前 layer 树（三栏内容 / Form / 列分隔 / 大标题全部正确）。
         // 已知局限：drawHierarchy(afterScreenUpdates:true) 在 UIGraphicsImageRenderer 离屏上下文中
-        // 恒返回空白（需真实屏幕渲染通道）；SwiftUI inline toolbar（右上角齿轮）由系统在独立
-        // 渲染通道异步绘制，layer.render 离屏快照捕获不到。齿轮按钮的接入在源码层确认：
-        // SettingsMenu 置于 ConnectionConfigView / RootSplitView 的 .toolbar(.topBarTrailing)，
-        // 两个朝向同一份 toolbar 修饰符，故两朝向均接入（见报告）。
+        // 恒返回空白（需真实屏幕渲染通道）。齿轮已不走系统 toolbar：现挂在自绘顶栏 topBar 的
+        // HStack 内（RootSplitView），随 layer 树同步渲染即可捕获，两个朝向同一份自绘顶栏均接入（见报告）。
         let renderer = UIGraphicsImageRenderer(size: size)
         let image = renderer.image { ctx in
             window.layer.render(in: ctx.cgContext)

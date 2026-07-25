@@ -43,6 +43,9 @@ struct RootSplitView: View {
     /// 列宽 session 级持久化（D7）：拖动 save / 切 tab 读回 / 冷启动恢复。
     @State private var columnWidths = ColumnWidthStore()
 
+    /// 每次外部载入列宽（切 tab / 冷启动）自增，驱动 ResizableColumns 用真实总宽重新收敛（修复窄屏恢复溢出）。
+    @State private var widthLoadRevision = 0
+
     /// 便利初始化：允许注入面板初始展开态（供快照测试覆盖全开布局）。
     init(initialRightOpen: Bool = false, initialBottomOpen: Bool = false) {
         _layout = State(initialValue: WorkspaceLayoutStore(showRight: initialRightOpen,
@@ -140,7 +143,7 @@ struct RootSplitView: View {
             .accessibilityLabel(Text("sidebar.newThread"))
             .disabled(projects.isCreatingThread)   // 防抖：创建进行中禁用，避免连点建多个会话
 
-            // 左面板：显式控制 columnVisibility（不叠加系统 sidebarToggle）。
+            // 左面板：切换 layout.leftVisible 显隐自绘左列（无系统 columnVisibility / sidebarToggle）。
             Button {
                 withAnimation { layout.leftVisible.toggle() }
             } label: { Image(systemName: "rectangle.leadinghalf.inset.filled") }
@@ -187,6 +190,7 @@ struct RootSplitView: View {
             rightWidth: $layout.rightWidth,
             leftVisible: layout.leftVisible,
             rightVisible: layout.showRight,
+            loadRevision: widthLoadRevision,
             onResizeEnded: { saveColumnWidths() }
         ) {
             SidebarView(selectedThreadId: $selectedThreadId)
@@ -214,6 +218,8 @@ struct RootSplitView: View {
         let resolved = columnWidths.resolvedWidths(for: id, total: assumedTotalWidth)
         layout.leftWidth = resolved.left
         layout.rightWidth = resolved.right
+        // 载入后自增修订号：驱动 ResizableColumns 用真实总宽再收敛（窄屏冷启动/切 tab 恢复防溢出）。
+        widthLoadRevision &+= 1
     }
 
     /// 读回时的保守总宽估计（iPad 11" 横屏宽）；真实几何由 ResizableColumns 的 onChange(of:total, initial:true) 在首帧即重 clamp 纠正。

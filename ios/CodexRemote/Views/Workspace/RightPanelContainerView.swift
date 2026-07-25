@@ -14,7 +14,7 @@ enum RightPanelTab: CaseIterable, Identifiable {
 }
 
 /// 右边栏 tab 容器（D1）：顶部自绘 tab 条 + 按枚举 switch 渲染，不用 SwiftUI TabView
-/// （避免其在 NavigationSplitView 右栏内的额外手势区与尺寸重算）。
+/// （避免其在自绘右列内的额外手势区与尺寸重算）。
 /// 整列全屏（设计 D5）：tab 条右侧「⤢」入口 → .fullScreenCover 覆盖层铺满屏渲染同一容器，
 /// 三 tab 通用、退出恢复原 inspector 列宽。
 struct RightPanelContainerView: View {

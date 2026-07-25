@@ -15,6 +15,8 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
     /// 左 / 右栏显隐（D5：条件渲染 + 宽度动画，竖屏并排挤窄，无浮层）。
     let leftVisible: Bool
     let rightVisible: Bool
+    /// 外部载入列宽的修订号：变化即用当前真实总宽重新收敛已写入的列宽（D7 窄屏恢复兜底）。
+    let loadRevision: Int
     /// 一次拖拽 / 一次无障碍调节结束后回调（Task 4 接持久化 save）。
     let onResizeEnded: () -> Void
 
@@ -59,6 +61,9 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
             .frame(width: total, alignment: .leading)
             // 旋转 / 分屏使总宽突变时，已存绝对列宽可能越界 → 用新总宽重跑 clamp 收敛（Design 风险表）。
             .onChange(of: total, initial: true) { _, newTotal in reclamp(total: newTotal, dividerCount: dividerCount) }
+            // 外部载入列宽（切 tab / 冷启动）后，用当前真实总宽重新收敛已写入的列宽，
+            // 不依赖 .task 与首帧 onChange(of: total) 的先后顺序（D7 窄屏恢复溢出兜底）。
+            .onChange(of: loadRevision) { _, _ in reclamp(total: total, dividerCount: dividerCount) }
             // 固定坐标系锚在不动的容器上：分隔线 DragGesture 在此系读绝对 x，消除慢拖抖动（D2）。
             .coordinateSpace(name: Self.coordinateSpaceName)
             .animation(.easeOut(duration: 0.22), value: leftVisible)   // D5 宽度动画
