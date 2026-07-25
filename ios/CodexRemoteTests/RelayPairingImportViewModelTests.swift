@@ -24,6 +24,45 @@ final class RelayPairingImportViewModelTests: XCTestCase {
         XCTAssertThrowsError(try vm.makeMachineConfig(now: 1))
     }
 
+    // MARK: - 扫码结果 = 字符串后的逻辑（与手动粘贴同路径；相机本身不单测）
+
+    /// 扫到合法二维码字符串写入 vm.pasted → makeMachineConfig 成功返回 .relay。
+    func testScannedValidPayloadParsesToMachineConfig() throws {
+        let vm = RelayPairingImportViewModel()
+        // 模拟 QRScannerView.onScan 回调把扫得的字符串交给 vm.pasted。
+        let scanned = "codexrelay://pair?relay=wss://x&sid=s&pk=QQ&pc=c&exp=9999999999"
+        vm.pasted = scanned
+        let cfg = try vm.makeMachineConfig(now: 1)
+        if case .relay = cfg.connection {} else { XCTFail("expected .relay connection") }
+    }
+
+    /// 扫到过期二维码字符串 → makeMachineConfig 抛 .expired。
+    func testScannedExpiredPayloadRejected() {
+        let vm = RelayPairingImportViewModel()
+        vm.pasted = "codexrelay://pair?relay=wss://x&sid=s&pk=QQ&pc=c&exp=1000"
+        XCTAssertThrowsError(try vm.makeMachineConfig(now: 2000)) { error in
+            XCTAssertEqual(error as? PairingImportError, .expired)
+        }
+    }
+
+    /// 扫到非法（非配对串）二维码 → makeMachineConfig 抛 .badFormat（明确错误）。
+    func testScannedGarbagePayloadRejected() {
+        let vm = RelayPairingImportViewModel()
+        vm.pasted = "https://example.com/not-a-pairing"
+        XCTAssertThrowsError(try vm.makeMachineConfig(now: 1)) { error in
+            XCTAssertEqual(error as? PairingImportError, .badFormat)
+        }
+    }
+
+    /// 扫码相关本地化键须可解析（扫码按钮 + 相机权限/不可用回退文案）。
+    func test_relayImport_scanLocalizationKeys_present() {
+        for key in ["relayImport.scan", "relayImport.error.cameraDenied",
+                    "relayImport.error.cameraUnavailable"] {
+            let value = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
+        }
+    }
+
     // MARK: - 横竖屏适配快照（UI 基线自检，非永久回归断言）
     // 与 OrientationSnapshotTests 同法：UIHostingController 挂进 keyWindow，
     // 在 iPad 11" 竖屏/横屏尺寸渲染成 PNG 落 /tmp/relaypair/ 供目视。

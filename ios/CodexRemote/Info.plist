@@ -27,6 +27,8 @@
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>连接同一局域网内你的 Mac 上运行的 Codex 服务。</string>
+	<key>NSCameraUsageDescription</key>
+	<string>扫描开发机终端二维码以导入 relay 配对</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIApplicationSceneManifest</key>
