@@ -66,6 +66,42 @@ let trustStore = try TrustStore(dir: keyDir)
 let context = DialoutContext(keyStore: keyStore, devDeviceId: devDeviceId,
                              pairingCode: pairingCode, expiresAt: expiresAt, trust: trustStore)
 
+// MARK: 撤销信任 CLI（--forget / --forget-all / --list-trusted）
+//
+// 在进入 ws 拨号前拦截：命中撤销/列出命令则执行后直接退出，不进行拨号；
+// 无匹配参数（.runDialout）则继续走下面原有拨号流程。
+switch parseTrustCommand(Array(CommandLine.arguments.dropFirst())) {
+case .forget(let key):
+    // 优先按 label 精确匹配，其次按公钥 b64 前缀匹配；找不到明确报错并非零退出。
+    if let rec = trustStore.all().first(where: { $0.label == key || $0.ipadPubB64.hasPrefix(key) }) {
+        try trustStore.revoke(ipadPubB64: rec.ipadPubB64)
+        print("已撤销信任：\(rec.label ?? rec.ipadPubB64)")
+    } else {
+        print("未找到匹配的受信任 iPad：\(key)")
+        exit(1)
+    }
+    exit(0)
+case .forgetAll:
+    try trustStore.clearAll()
+    print("已清空全部信任")
+    exit(0)
+case .list:
+    let all = trustStore.all()
+    if all.isEmpty {
+        print("（无受信任 iPad）")
+    } else {
+        for r in all {
+            print("- \(r.label ?? "(无标签)")  pub=\(r.ipadPubB64.prefix(12))…  sid=\(r.stableSessionId)")
+        }
+    }
+    exit(0)
+case .runDialout:
+    break   // 继续原拨号流程
+case .invalid(let msg):
+    print("参数错误：\(msg)")
+    exit(2)
+}
+
 // MARK: 2/3. NIO ws 客户端拨出 relay + 帧分发（wss 前置 TLS，ws 明文保留本地测试）
 //
 // TODO(Task 13/集成): 下面为 ws 客户端拨出骨架。关键点：
