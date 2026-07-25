@@ -33,7 +33,7 @@ struct RootSplitView: View {
 
     /// 面板布局状态（设计 D4，方案 A）：从私有 @State 抬升，顶栏按钮 + 面板快捷键共享同一份。
     @State private var layout: WorkspaceLayoutStore
-    // 下栏高度（自绘纵向拖 + clamp）。下栏挂在 split 外层全宽 safeAreaInset（design D2）。
+    // 下栏高度（自绘纵向拖 + clamp）。下栏为外层 VStack 底部兄弟槽（design D2）。
     @State private var bottomHeight: CGFloat = WorkspaceMetrics.bottomPanelIdealHeight
 
     /// 当前活跃会话 state 的共享持有者：ConversationView 写入、摘要 popover 读出。
@@ -89,7 +89,7 @@ struct RootSplitView: View {
                     }
                 }
 
-            // 下栏：VStack 底部兄弟槽，横跨左+中+右、把 split 挤压上移（design D2 目标，改用 VStack 实现）。
+            // 下栏：VStack 底部兄弟槽，横跨左+中+右、把 resizableColumns 挤压上移（design D2 目标，改用 VStack 实现）。
             if layout.showBottom {
                 Divider()
                 BottomPanelView(height: $bottomHeight, cwd: selectedThread?.cwd)
@@ -117,8 +117,7 @@ struct RootSplitView: View {
         HStack(spacing: 18) {
             Spacer()
 
-            // 新建会话：SidebarView 的系统 .toolbar 按钮在「split + 自定义顶栏 safeAreaInset」布局下不渲染，
-            // 故新建入口挂在此自定义顶栏（design D1 深挖）。点击发 thread/start，切 selectedThreadId 进入新会话。
+            // 新建会话：SidebarView 无导航栏（已移除 NavigationSplitView），故新建入口挂在此自定义顶栏（design D1 深挖）。点击发 thread/start，切 selectedThreadId 进入新会话。
             // rpc 从 connection 显式取（projects.self.rpc 未经 attach 注入，对齐 loadFromServer(rpc:) 模式）。
             Button {
                 guard let rpc = connection.rpc else { return }
