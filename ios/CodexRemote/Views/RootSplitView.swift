@@ -139,7 +139,7 @@ struct RootSplitView: View {
                     selectedThreadId = newId
                     projects.markViewed(threadId: newId, updatedAt: Date().timeIntervalSince1970)
                 }
-            } label: { Image(systemName: "square.and.pencil") }
+            } label: { Image(systemName: "plus.rectangle") }
             .accessibilityLabel(Text("sidebar.newThread"))
             .disabled(projects.isCreatingThread)   // 防抖：创建进行中禁用，避免连点建多个会话
 
