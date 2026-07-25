@@ -158,6 +158,32 @@ public enum Handshake {
         return s
     }
 
+    /// 受信任复连：iPad 身份已在 dev 信任列表内，免一次性 pairingCode（proof 留空）。
+    /// 除跳过 proof 校验外，与 makeServerHello 逐字节一致（同 transcript、同签名）。
+    /// 安全：iPad 的 Ed25519 身份签名验证仍在 verifyClientAuthAndFinish 中照常执行，未弱化。
+    public static func makeServerHelloTrusted(clientHello h: ClientHello,
+                                              devDeviceId: String,
+                                              devIdentity: Curve25519.Signing.PrivateKey,
+                                              devEphemeralPub: Data,
+                                              serverNonce: Data,
+                                              keyEpoch: UInt32) throws -> ServerHello {
+        guard h.protocolVersion == RelayProtocolVersion.tag else {
+            throw HandshakeError.versionMismatch
+        }
+        // 受信任复连不验 pairingCodeProof——判定权在 dev 侧信任列表；验签在后续步骤照常执行。
+        // 先组半成品 ServerHello（signature 待填），以便算出与 iPad 一致的 transcript。
+        var s = ServerHello(devDeviceId: devDeviceId,
+                            devIdentityPub: devIdentity.publicKey.rawRepresentation,
+                            devEphemeralPub: devEphemeralPub,
+                            serverNonce: serverNonce,
+                            keyEpoch: keyEpoch,
+                            echoedClientNonce: h.clientNonce,
+                            devSignature: Data())
+        let tr = transcript(clientHello: h, serverHello: s)
+        s.devSignature = try devIdentity.signature(for: tr)
+        return s
+    }
+
     // 步骤 3：iPad 用带外得到的 dev 身份公钥验 devSignature，通过后签名构造 ClientAuth。
     public static func verifyServerHelloAndMakeClientAuth(
         clientHello h: ClientHello,

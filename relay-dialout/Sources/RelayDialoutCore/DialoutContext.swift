@@ -35,6 +35,9 @@ public final class DialoutContext: @unchecked Sendable {
     private var _session: SecureSession?
     private var _clientHello: ClientHello?
     private var _serverHello: ServerHello?
+    // 当前在飞握手是否走受信任复连分支（在 handleClientHello 判定，供 handleClientAuth 决定是否
+    // 施加一次性口令重放守卫）。首配=false（受 pairingConsumed 约束）；受信任复连=true（可重握手）。
+    private var _currentHandshakeTrusted = false
 
     public init(keyStore: DevKeyStore, devDeviceId: String, pairingCode: String,
                 expiresAt: Int64, trust: TrustStore) {
@@ -51,42 +54,97 @@ public final class DialoutContext: @unchecked Sendable {
         return (c, s)
     }
 
+    /// 返回非 nil 表示 dev 应向 iPad 发该 RejectHello 后关连接（而非静默断/继续）。
+    /// 未受信任且未持有效 proof（空 proof）→ .untrusted（防降级：判定权在 dev 侧）。
+    /// 已在信任列表则 nil（走受信任握手）；未受信任但带 proof 则 nil（走首配校验）。
+    public func rejectHelloIfUnauthorized(_ hello: ClientHello) -> RejectHello? {
+        let ipadPub = hello.ipadIdentityPub.base64EncodedString()
+        if trust.record(forPubB64: ipadPub) != nil { return nil }   // 受信任 → 走受信任握手
+        if hello.pairingCodeProof.isEmpty {                         // 未受信任 + 空 proof → 拒
+            return RejectHello(sessionId: hello.sessionId, reason: .untrusted)
+        }
+        return nil   // 未受信任但带 proof → 交首配路径校验
+    }
+
     /// 处理 ClientHello → 返回要发回 relay 的 ServerHello 编码。
+    ///
+    /// 按 iPad 身份公钥是否在信任列表分两条路径：
+    /// - 受信任复连：免一次性 pairingCode（不查 pairingConsumed/expiresAt），用 makeServerHelloTrusted；
+    ///   每次都重置在飞握手状态，支持同一 context 上多次重握手（弱网重连）。
+    /// - 未受信任首配：查 pairingConsumed/expiresAt，用 makeServerHello 验 proof（空 proof 必 HMAC 失败）。
     public func handleClientHello(_ data: Data) throws -> Data {
-        guard !pairingConsumed else { throw DialoutHandshakeError.pairingAlreadyUsed }
-        guard Int64(Date().timeIntervalSince1970) < expiresAt else { throw DialoutHandshakeError.pairingExpired }
         let hello = try JSONDecoder().decode(ClientHello.self, from: data)
+        let isTrusted = trust.record(forPubB64: hello.ipadIdentityPub.base64EncodedString()) != nil
+
         var nonce = [UInt8](repeating: 0, count: 16)
         for i in 0..<16 { nonce[i] = UInt8.random(in: 0...255) }
-        let serverHello = try Handshake.makeServerHello(
-            clientHello: hello,
-            devDeviceId: devDeviceId,
-            devIdentity: keyStore.identity,
-            devEphemeralPub: keyStore.exchange.publicKey.rawRepresentation,
-            serverNonce: Data(nonce),
-            keyEpoch: 0,
-            pairingCode: pairingCode
-        )
-        lock.lock(); _clientHello = hello; _serverHello = serverHello; lock.unlock()
+
+        let serverHello: ServerHello
+        if isTrusted {
+            // 受信任复连：免 proof，不受一次性口令的消费/过期约束。
+            serverHello = try Handshake.makeServerHelloTrusted(
+                clientHello: hello,
+                devDeviceId: devDeviceId,
+                devIdentity: keyStore.identity,
+                devEphemeralPub: keyStore.exchange.publicKey.rawRepresentation,
+                serverNonce: Data(nonce),
+                keyEpoch: 0
+            )
+        } else {
+            // 首配路径：一次性口令约束照旧（空 proof 会在 makeServerHello 里 HMAC 失败 → 抛，防降级）。
+            guard !pairingConsumed else { throw DialoutHandshakeError.pairingAlreadyUsed }
+            guard Int64(Date().timeIntervalSince1970) < expiresAt else { throw DialoutHandshakeError.pairingExpired }
+            serverHello = try Handshake.makeServerHello(
+                clientHello: hello,
+                devDeviceId: devDeviceId,
+                devIdentity: keyStore.identity,
+                devEphemeralPub: keyStore.exchange.publicKey.rawRepresentation,
+                serverNonce: Data(nonce),
+                keyEpoch: 0,
+                pairingCode: pairingCode
+            )
+        }
+        // 重握手支持：受信任路径每次都重置在飞握手状态（不被上一次的 hello/session 挡）。
+        lock.lock()
+        _clientHello = hello; _serverHello = serverHello
+        _currentHandshakeTrusted = isTrusted
+        if isTrusted { _session = nil }
+        lock.unlock()
         return try JSONEncoder().encode(serverHello)
     }
 
-    /// 处理 ClientAuth → 验 iPad 签名建 dev 侧 SecureSession，pairingCode 失效；
+    /// 处理 ClientAuth → 验 iPad 签名建 dev 侧 SecureSession；
     /// 首次配对自动记信任（幂等）+ 生成/复用稳定 sessionId，返回加密后的 SecureReady 帧
     /// （走已建通道，供 handler 写回 ws；不明文过 relay）。
+    ///
+    /// 重放/重握手状态模型：
+    /// - 首配路径（!trusted）：施加 `guard !pairingConsumed` 重放守卫，成功后置 pairingConsumed=true——
+    ///   一次性口令用过即失效，relay 原样重放同一 ClientAuth 明文帧会被拒。
+    /// - 受信任复连（trusted）：不施加该守卫、不置 pairingConsumed，允许幂等重复建 session（弱网重连）。
+    /// verifyClientAuthAndFinish 验签任何路径都不省。
     public func handleClientAuth(_ data: Data) throws -> Data {
-        // 重放守卫：会话已建立后 relay（不可信中转）若原样重放同一 ClientAuth 明文帧，
-        // 必须直接拒绝，不能重新走一遍验签/建 session/重发 SecureReady。
-        guard !pairingConsumed else { throw DialoutHandshakeError.pairingAlreadyUsed }
         let auth = try JSONDecoder().decode(ClientAuth.self, from: data)
-        guard let (hello, serverHello) = hellos else { throw HandshakeError.badClientSignature }
+        lock.lock()
+        let trusted = _currentHandshakeTrusted
+        let hellosSnapshot: (ClientHello, ServerHello)?
+        if let c = _clientHello, let s = _serverHello { hellosSnapshot = (c, s) } else { hellosSnapshot = nil }
+        let consumed = _pairingConsumed
+        lock.unlock()
+
+        // 重放守卫仅对首配一次性口令路径生效；受信任复连允许重握手。
+        if !trusted { guard !consumed else { throw DialoutHandshakeError.pairingAlreadyUsed } }
+        guard let (hello, serverHello) = hellosSnapshot else { throw HandshakeError.badClientSignature }
+
         let session = try Handshake.verifyClientAuthAndFinish(
             clientHello: hello,
             serverHello: serverHello,
             clientAuth: auth,
             devEphemeral: keyStore.exchange
         )
-        lock.lock(); _session = session; _pairingConsumed = true; lock.unlock()  // 一次性口令用过即失效
+        lock.lock()
+        _session = session
+        if !trusted { _pairingConsumed = true }   // 仅首配消费一次性口令；受信任复连不置
+        lock.unlock()
 
         // 稳定 sessionId：已受信任的 iPad 复用其记录值；首次配对新生成。每台 iPad 各一个。
         let ipadPub = hello.ipadIdentityPub.base64EncodedString()

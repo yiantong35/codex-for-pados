@@ -280,6 +280,70 @@ private struct HandshakeHarness {
     #expect((try? JSONDecoder().decode(RejectHello.self, from: shData)) == nil)
 }
 
+/// 受信任复连：iPad 身份已在 dev 信任列表内，走 makeServerHelloTrusted 免一次性 pairingCode
+/// （proof 留空），但 Ed25519 双向验签一步不省——仍能建立完整双向认证会话。
+/// 证明「免 proof 但验签不省」。
+@Test func trustedReconnectSkipsProofButStillMutualAuth() throws {
+    let ipadIdentity = Curve25519.Signing.PrivateKey()
+    let devIdentity  = Curve25519.Signing.PrivateKey()
+    let ipadEphemeral = Curve25519.KeyAgreement.PrivateKey()
+    let devEphemeral  = Curve25519.KeyAgreement.PrivateKey()
+
+    let clientNonce = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+    // 受信任复连：ClientHello 的 pairingCodeProof 留空（不带一次性口令证明）。
+    var hello = Handshake.makeClientHello(
+        sessionId: "sess-1", ipadDeviceId: "ipad-1",
+        ipadIdentityPub: ipadIdentity.publicKey.rawRepresentation,
+        ipadEphemeralPub: ipadEphemeral.publicKey.rawRepresentation,
+        clientNonce: clientNonce, pairingCode: "unused")
+    hello.pairingCodeProof = Data()   // 复连免 proof
+
+    // dev 走 trusted 分支：不验 proof，其余（版本、组包、签 transcript）一致。
+    let serverHello = try Handshake.makeServerHelloTrusted(
+        clientHello: hello, devDeviceId: "dev-1", devIdentity: devIdentity,
+        devEphemeralPub: devEphemeral.publicKey.rawRepresentation,
+        serverNonce: Data((0..<32).map { _ in UInt8.random(in: 0...255) }),
+        keyEpoch: 0)
+
+    // iPad 验 devSignature 并造 ClientAuth（验签不省）。
+    let clientAuth = try Handshake.verifyServerHelloAndMakeClientAuth(
+        clientHello: hello, serverHello: serverHello,
+        devIdentityPub: devIdentity.publicKey.rawRepresentation, ipadIdentity: ipadIdentity)
+    // dev 验 ipadSignature 并建 session（验签不省）。
+    let devSession = try Handshake.verifyClientAuthAndFinish(
+        clientHello: hello, serverHello: serverHello, clientAuth: clientAuth,
+        devEphemeral: devEphemeral)
+    let ipadSession = try Handshake.finishClient(
+        clientHello: hello, serverHello: serverHello,
+        ipadEphemeral: ipadEphemeral, devIdentityPub: devIdentity.publicKey.rawRepresentation)
+
+    // 双向认证会话建立成功且加密通道可用。
+    let env = try ipadSession.seal(Data("ping".utf8))
+    #expect(try devSession.open(env) == Data("ping".utf8))
+}
+
+/// 防降级：未受信任路径（原 makeServerHello）遇空 pairingCodeProof 仍必抛 pairingCodeMismatch，
+/// 不被绕过——受信任免 proof 只走 trusted 专用函数。
+@Test func makeServerHelloRejectsEmptyProof() throws {
+    let ipadIdentity = Curve25519.Signing.PrivateKey()
+    let ipadEphemeral = Curve25519.KeyAgreement.PrivateKey()
+    let clientNonce = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+    var hello = Handshake.makeClientHello(
+        sessionId: "sess-1", ipadDeviceId: "ipad-1",
+        ipadIdentityPub: ipadIdentity.publicKey.rawRepresentation,
+        ipadEphemeralPub: ipadEphemeral.publicKey.rawRepresentation,
+        clientNonce: clientNonce, pairingCode: "PAIR-OK")
+    hello.pairingCodeProof = Data()   // 空 proof
+    #expect(throws: HandshakeError.pairingCodeMismatch) {
+        _ = try Handshake.makeServerHello(
+            clientHello: hello, devDeviceId: "dev-1",
+            devIdentity: Curve25519.Signing.PrivateKey(),
+            devEphemeralPub: Data((0..<32).map { _ in UInt8.random(in: 0...255) }),
+            serverNonce: Data((0..<32).map { _ in UInt8.random(in: 0...255) }),
+            keyEpoch: 0, pairingCode: "PAIR-OK")
+    }
+}
+
 /// SecureReady（消息 4）附加 stableSessionId 字段：dev 建 SecureSession 后回传该 iPad 的稳定
 /// sessionId，供 iPad 首次配对消费并持久化用于后续复连直连。round-trip 编解码保真。
 @Test func secureReadyCarriesStableSessionId() throws {
