@@ -23,7 +23,8 @@ final class RelayHandshakeTests: XCTestCase {
         let transport = RelayTransport(
             ws: ws, pairing: pairing(dev: dev, code: code),
             ipadIdentity: e2e.identityKey(), ipadEphemeral: e2e.newEphemeralKey(),
-            tofu: tofu, tofuMachineKey: "machine-A")
+            tofu: tofu, tofuMachineKey: "machine-A",
+            isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore())
 
         var iter = transport.incoming().makeAsyncIterator()
         try await transport.awaitHandshake()
@@ -46,7 +47,8 @@ final class RelayHandshakeTests: XCTestCase {
         let transport = RelayTransport(
             ws: ws, pairing: pairing(dev: dev, code: code),
             ipadIdentity: e2e.identityKey(), ipadEphemeral: e2e.newEphemeralKey(),
-            tofu: InMemoryTOFUStore(), tofuMachineKey: "m")
+            tofu: InMemoryTOFUStore(), tofuMachineKey: "m",
+            isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore())
 
         _ = transport.incoming()
         try await transport.awaitHandshake()
@@ -65,7 +67,8 @@ final class RelayHandshakeTests: XCTestCase {
         }
         let transport = RelayTransport(
             ws: driver, pairing: bad, ipadIdentity: e2e.identityKey(),
-            ipadEphemeral: e2e.newEphemeralKey(), tofu: InMemoryTOFUStore(), tofuMachineKey: "m")
+            ipadEphemeral: e2e.newEphemeralKey(), tofu: InMemoryTOFUStore(), tofuMachineKey: "m",
+            isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore())
 
         do {
             try await transport.awaitHandshake()
@@ -87,7 +90,8 @@ final class RelayHandshakeTests: XCTestCase {
         }
         let transport = RelayTransport(
             ws: driver, pairing: bad, ipadIdentity: e2e.identityKey(),
-            ipadEphemeral: e2e.newEphemeralKey(), tofu: InMemoryTOFUStore(), tofuMachineKey: "m")
+            ipadEphemeral: e2e.newEphemeralKey(), tofu: InMemoryTOFUStore(), tofuMachineKey: "m",
+            isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore())
 
         var iter = transport.incoming().makeAsyncIterator()
         do { try await transport.awaitHandshake(); XCTFail("应握手失败") } catch { /* 预期 */ }

@@ -66,6 +66,10 @@ actor RelayTransport: MessageTransport {
         let ipadEphemeral: Curve25519.KeyAgreement.PrivateKey
         let tofu: TOFUStoring
         let tofuMachineKey: String
+        /// 受信任复连：iPad 身份已在 dev 信任列表内，发空 proof 免一次性 pairingCode（验签 + TOFU 不省）。
+        let isTrustedReconnect: Bool
+        /// 消费第 4 条 SecureReady 后持久化 dev 回传的 stableSessionId（撮合标签）。
+        let stableSessionStore: StableSessionStoring
     }
     private let handshakeInputs: HandshakeInputs?
     /// 握手编排幂等启动守卫。
@@ -102,13 +106,16 @@ actor RelayTransport: MessageTransport {
          ipadIdentity: Curve25519.Signing.PrivateKey,
          ipadEphemeral: Curve25519.KeyAgreement.PrivateKey,
          tofu: TOFUStoring,
-         tofuMachineKey: String) {
+         tofuMachineKey: String,
+         isTrustedReconnect: Bool,
+         stableSessionStore: StableSessionStoring) {
         self.session = nil
         self.ws = ws
         self.handshakeState = .pending
         self.handshakeInputs = HandshakeInputs(
             pairing: pairing, ipadIdentity: ipadIdentity, ipadEphemeral: ipadEphemeral,
-            tofu: tofu, tofuMachineKey: tofuMachineKey)
+            tofu: tofu, tofuMachineKey: tofuMachineKey,
+            isTrustedReconnect: isTrustedReconnect, stableSessionStore: stableSessionStore)
         var inCont: AsyncThrowingStream<String, Error>.Continuation!
         self.incomingStream = AsyncThrowingStream<String, Error>(bufferingPolicy: .unbounded) { inCont = $0 }
         self.incomingContinuation = inCont
@@ -190,10 +197,11 @@ actor RelayTransport: MessageTransport {
         Task { [weak self] in await self?.performHandshake() }
     }
 
-    /// iPad 侧 4 消息握手编排（同步跑完，成功才启 read loop）：
-    /// makeClientHello → 发 / 收 ServerHello → verifyServerHelloAndMakeClientAuth →
-    /// TOFU 比对/首信（发 ClientAuth 前）→ 发 ClientAuth → finishClient 建 SecureSession。
-    /// 不等第 4 条 SecureReady：finishClient 本地派生前会重验 devSignature，安全。
+    /// iPad 侧握手编排（同步跑完，成功才启 read loop）：
+    /// makeClientHello（受信任复连 proof 留空）→ 发 / 收 ServerHello → verifyServerHelloAndMakeClientAuth →
+    /// TOFU 比对/首信（发 ClientAuth 前，受信任复连不省）→ 发 ClientAuth → finishClient 建 SecureSession →
+    /// 消费第 4 条 SecureReady 持久化 stableSessionId。startReadLoop 前必须消费 SecureReady，
+    /// 否则 read loop 会把这条加密帧当业务帧 yield。
     private func performHandshake() async {
         guard let inputs = handshakeInputs else {
             markHandshakeFailed(TransportError.notConnected); return
@@ -211,7 +219,11 @@ actor RelayTransport: MessageTransport {
                 ipadIdentityPub: inputs.ipadIdentity.publicKey.rawRepresentation,
                 ipadEphemeralPub: inputs.ipadEphemeral.publicKey.rawRepresentation,
                 clientNonce: clientNonce, pairingCode: p.pairingCode)
-            try await ws.sendText(String(decoding: try JSONEncoder().encode(hello), as: UTF8.self))
+            // 受信任复连：proof 留空免一次性 pairingCode（判定权在 dev 侧信任列表）；其余字段同首配。
+            // 验 dev 签名 + TOFU 比对任何模式都保留不省——见下文。
+            var clientHello = hello
+            if inputs.isTrustedReconnect { clientHello.pairingCodeProof = Data() }
+            try await ws.sendText(String(decoding: try JSONEncoder().encode(clientHello), as: UTF8.self))
 
             guard let shText = try await ws.receiveText() else {
                 throw TransportError.channelClosed(reason: "握手中连接关闭（等 ServerHello）")
@@ -219,22 +231,34 @@ actor RelayTransport: MessageTransport {
             let serverHello = try JSONDecoder().decode(ServerHello.self, from: Data(shText.utf8))
 
             let clientAuth = try Handshake.verifyServerHelloAndMakeClientAuth(
-                clientHello: hello, serverHello: serverHello,
+                clientHello: clientHello, serverHello: serverHello,
                 devIdentityPub: devIdentityPub, ipadIdentity: inputs.ipadIdentity)
 
             // TOFU：验开发机签名通过后、发 ClientAuth 之前比对/首信（身份变更即拒，
-            // 绝不向被替换身份的机器出示一次性口令）。用配对载荷 pub 作信任锚——它才是带外
-            // 获得的锚（验签也用它、transcript 覆盖 serverHello.devIdentityPub，验签通过后二者必然相等）。
+            // 绝不向被替换身份的机器出示一次性口令）。受信任复连同样不省。
             try inputs.tofu.verifyOrTrust(machineKey: inputs.tofuMachineKey,
                                           presentedPub: devIdentityPub)
 
             try await ws.sendText(String(decoding: try JSONEncoder().encode(clientAuth), as: UTF8.self))
 
             let secure = try Handshake.finishClient(
-                clientHello: hello, serverHello: serverHello,
+                clientHello: clientHello, serverHello: serverHello,
                 ipadEphemeral: inputs.ipadEphemeral, devIdentityPub: devIdentityPub)
 
             self.session = secure
+
+            // 发 ClientAuth 后、启 read loop 前，多收一条 SecureReady（msg 4，加密帧）并消费：
+            // dev 首配与复连都发。必须在 markHandshakeDone/startReadLoop 之前消费，否则 read loop
+            // 会把这条加密帧当业务帧 yield 给上层。收/解失败抛错落 .failed，不静默挂起。
+            guard let readyText = try await ws.receiveText() else {
+                throw TransportError.channelClosed(reason: "握手中连接关闭（等 SecureReady）")
+            }
+            let readyEnv = try SecureEnvelope(decoding: Data(readyText.utf8))
+            let readyPlain = try secure.open(readyEnv)
+            let secureReady = try JSONDecoder().decode(SecureReady.self, from: readyPlain)
+            inputs.stableSessionStore.save(machineKey: inputs.tofuMachineKey,
+                                           stableSessionId: secureReady.stableSessionId)
+
             markHandshakeDone()
             startReadLoopIfNeeded()
         } catch {

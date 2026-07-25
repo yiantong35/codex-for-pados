@@ -28,7 +28,8 @@ final class RelayIntegrationTests: XCTestCase {
         let t = RelayTransport(
             ws: ws, pairing: pairing(devPubB64: dev.devIdentityPubB64, sid: "s", code: code),
             ipadIdentity: e2e.identityKey(), ipadEphemeral: e2e.newEphemeralKey(),
-            tofu: InMemoryTOFUStore(), tofuMachineKey: "m")
+            tofu: InMemoryTOFUStore(), tofuMachineKey: "m",
+            isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore())
 
         var iter = t.incoming().makeAsyncIterator()
         try await t.awaitHandshake()
@@ -51,7 +52,8 @@ final class RelayIntegrationTests: XCTestCase {
         let t1 = RelayTransport(
             ws: ws1, pairing: pairing(devPubB64: dev1.devIdentityPubB64, sid: "s1", code: "c1"),
             ipadIdentity: e2e1.identityKey(), ipadEphemeral: e2e1.newEphemeralKey(),
-            tofu: sharedTOFU, tofuMachineKey: machineKey)
+            tofu: sharedTOFU, tofuMachineKey: machineKey,
+            isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore())
         _ = t1.incoming()
         try await t1.awaitHandshake()   // 成功，记下 dev1
 
@@ -61,7 +63,8 @@ final class RelayIntegrationTests: XCTestCase {
         let t2 = RelayTransport(
             ws: ws2, pairing: pairing(devPubB64: dev2.devIdentityPubB64, sid: "s2", code: "c2"),
             ipadIdentity: e2e2.identityKey(), ipadEphemeral: e2e2.newEphemeralKey(),
-            tofu: sharedTOFU, tofuMachineKey: machineKey)
+            tofu: sharedTOFU, tofuMachineKey: machineKey,
+            isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore())
         _ = t2.incoming()
         do {
             try await t2.awaitHandshake()

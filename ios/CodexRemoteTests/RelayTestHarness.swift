@@ -10,14 +10,18 @@ final class DevResponder: @unchecked Sendable {
     let devEphemeral = Curve25519.KeyAgreement.PrivateKey()
     let devDeviceId = "dev-test"
     let pairingCode: String
+    /// 首配握手第 4 条 SecureReady 回传给 iPad 的稳定 sessionId（撮合标签）。
+    let stableSessionId: String
 
     private let lock = NSLock()
     private var _clientHello: ClientHello?
     private var _serverHello: ServerHello?
     private var _session: SecureSession?
 
-    init(pairingCode: String, devIdentity: Curve25519.Signing.PrivateKey = .init()) {
+    init(pairingCode: String, stableSessionId: String = "stable-default",
+         devIdentity: Curve25519.Signing.PrivateKey = .init()) {
         self.pairingCode = pairingCode
+        self.stableSessionId = stableSessionId
         self.devIdentity = devIdentity
     }
 
@@ -35,18 +39,32 @@ final class DevResponder: @unchecked Sendable {
         }
         if _clientHello == nil, let hello = try? JSONDecoder().decode(ClientHello.self, from: data) {
             let nonce = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
-            let sh = try Handshake.makeServerHello(
-                clientHello: hello, devDeviceId: devDeviceId, devIdentity: devIdentity,
-                devEphemeralPub: devEphemeral.publicKey.rawRepresentation,
-                serverNonce: nonce, keyEpoch: 0, pairingCode: pairingCode)
+            // 空 proof = 受信任复连：不验 pairingCode（判定权在信任列表），验签在后续步骤照常。
+            let sh: ServerHello
+            if hello.pairingCodeProof.isEmpty {
+                sh = try Handshake.makeServerHelloTrusted(
+                    clientHello: hello, devDeviceId: devDeviceId, devIdentity: devIdentity,
+                    devEphemeralPub: devEphemeral.publicKey.rawRepresentation,
+                    serverNonce: nonce, keyEpoch: 0)
+            } else {
+                sh = try Handshake.makeServerHello(
+                    clientHello: hello, devDeviceId: devDeviceId, devIdentity: devIdentity,
+                    devEphemeralPub: devEphemeral.publicKey.rawRepresentation,
+                    serverNonce: nonce, keyEpoch: 0, pairingCode: pairingCode)
+            }
             _clientHello = hello; _serverHello = sh
             return String(decoding: try JSONEncoder().encode(sh), as: UTF8.self)
         }
         if let h = _clientHello, let s = _serverHello,
            let auth = try? JSONDecoder().decode(ClientAuth.self, from: data) {
-            _session = try Handshake.verifyClientAuthAndFinish(
+            let session = try Handshake.verifyClientAuthAndFinish(
                 clientHello: h, serverHello: s, clientAuth: auth, devEphemeral: devEphemeral)
-            return nil
+            _session = session
+            // 首配与复连都回发加密 SecureReady（msg 4），带 stableSessionId 供 iPad 持久化。
+            let ready = SecureReady(sessionId: h.sessionId, keyEpoch: 0,
+                                    devDeviceId: devDeviceId, stableSessionId: stableSessionId)
+            let env = try session.seal(JSONEncoder().encode(ready))
+            return String(decoding: try env.encoded(), as: UTF8.self)
         }
         return nil
     }
