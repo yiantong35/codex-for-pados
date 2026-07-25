@@ -33,7 +33,6 @@ struct SidebarView: View {
                 }
             }
         }
-        .navigationTitle("sidebar.title")
         .overlay {
             if projects.projects.isEmpty && projects.looseConversations.isEmpty {
                 ContentUnavailableView("sidebar.empty.title", systemImage: "tray",

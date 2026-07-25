@@ -17,10 +17,10 @@ final class ActiveConversationHolder {
     var startReview: ((_ mode: ReviewSourceMode) async -> Bool)?
 }
 
-/// 主界面（复刻 Codex desktop 五窗口工作区骨架，三列系统列重构 workspace-3col-layout）：
-/// 顶/底栏均用 safeAreaInset 挂在 split 外层（不用 VStack 包裹 split，避免破坏系统列/inspector 拖动）。
-/// - 左边栏 = NavigationSplitView 系统 sidebar 列；右边栏 = 中栏 `.inspector`（右侧系统列，系统托管 resize 不闪）。
-/// - 下边栏 = split 外层全宽 `.safeAreaInset(edge:.bottom)`：横跨左+中+右、压所有（design D2，布局翻转）。
+/// 主界面（复刻 Codex desktop 五窗口工作区骨架，自绘三栏重构 custom-resizable-columns）：
+/// 顶栏用 safeAreaInset(.top)、摘要用常驻 overlay，均挂在自绘三栏容器 ResizableColumns 外层（design D6）。
+/// - 左边栏 = ResizableColumns 左列（条件渲染，leftVisible 承接，D5）；右边栏 = 右列（showRight 承接）。
+/// - 下边栏 = VStack 底部兄弟槽：横跨左+中+右、把三栏挤压上移（design D2，布局翻转）。
 /// - 摘要 = :≡ 按钮触发的常驻悬浮浮层（overlay，design D2），非占列。
 struct RootSplitView: View {
     @Environment(ConnectionStore.self) private var connection
@@ -35,13 +35,6 @@ struct RootSplitView: View {
     @State private var layout: WorkspaceLayoutStore
     // 下栏高度（自绘纵向拖 + clamp）。下栏挂在 split 外层全宽 safeAreaInset（design D2）。
     @State private var bottomHeight: CGFloat = WorkspaceMetrics.bottomPanelIdealHeight
-    private let splitCoordinateSpaceName = "RootSplitView.split"
-    // 分隔线坐标测量（保留但当前无消费者，见 plan Task B1）：装饰把手 overlay 删除后这些字段
-    // 由 update*DividerX / GeometryReader 监听持续写入却不再被读取；删除范围大、风险高，故按最小改动保留。
-    @State private var leftDividerX: CGFloat = 300
-    @State private var rightDividerX: CGFloat?
-    @State private var hasMeasuredLeftDivider = false
-    @State private var hasMeasuredRightDivider = false
 
     /// 当前活跃会话 state 的共享持有者：ConversationView 写入、摘要 popover 读出。
     @State private var activeConversation = ActiveConversationHolder()
@@ -63,12 +56,10 @@ struct RootSplitView: View {
     var body: some View {
         @Bindable var layout = layout
         // 下栏改为 VStack 兄弟槽（不再用 split 的 .safeAreaInset(.bottom)）：
-        // 根因——safeAreaInset(.bottom) 挂在 NavigationSplitView 上时，其系统列(sidebar/detail)
-        // 以 maxHeight:.infinity 填满、不吃底部 inset，导致下栏覆盖而非上推挤压（Task 6 诊断实测：
-        // 展开前后 detail 全局 frame 完全一致 maxY=1190）。放进 VStack 让下栏占真实布局槽 → split 被挤压。
-        // 顶栏仍用 split 自身的 safeAreaInset(.top)（该方向系统列正常响应），摘要 overlay 也仍挂 split。
+        // 顶栏与摘要 overlay 迁到自绘三栏容器 resizableColumns 外层（design D6）：顶栏用
+        // .safeAreaInset(.top) 挂外层横跨三栏，摘要用常驻 overlay 落在顶栏下方内容区。
         VStack(spacing: 0) {
-            split
+            resizableColumns
                 // 摘要：常驻悬浮浮层（design D2 改）。用 overlay 而非 .popover，故点击别处不收回，
                 // 仅由顶栏摘要按钮显隐。overlay 放在 safeAreaInset 之前 → 浮层落在顶栏「下方」内容区，
                 // 不会遮挡顶栏按钮（否则会盖住摘要按钮本身导致收不回）。
@@ -178,84 +169,32 @@ struct RootSplitView: View {
         .background(.bar)
     }
 
-    // MARK: - split：左栏 | detail + inspector
+    // MARK: - 自绘三栏（custom-resizable-columns，替换 NavigationSplitView + .inspector）
 
-    /// columnVisibility ↔ layout.leftVisible 双向派生（设计 D4：columnVisibility 由 leftVisible 派生，
-    /// 同时把系统拖动收起列同步回 store）。
-    private var columnVisibilityBinding: Binding<NavigationSplitViewVisibility> {
-        Binding(
-            get: { layout.leftVisible ? .all : .detailOnly },
-            set: { layout.leftVisible = ($0 != .detailOnly) }
-        )
-    }
-
-    private var split: some View {
-        NavigationSplitView(columnVisibility: columnVisibilityBinding) {
+    private var resizableColumns: some View {
+        @Bindable var layout = layout
+        return ResizableColumns(
+            leftWidth: $layout.leftWidth,
+            rightWidth: $layout.rightWidth,
+            leftVisible: layout.leftVisible,
+            rightVisible: layout.showRight,
+            onResizeEnded: { saveColumnWidths() }
+        ) {
             SidebarView(selectedThreadId: $selectedThreadId)
-                .background {
-                    GeometryReader { proxy in
-                        let dividerX = proxy.frame(in: .named(splitCoordinateSpaceName)).maxX
-                        Color.clear
-                            .onAppear {
-                                updateLeftDividerX(dividerX)
-                            }
-                            .onChange(of: dividerX) { _, newDividerX in
-                                updateLeftDividerX(newDividerX)
-                            }
-                    }
-                }
-                .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 380)
-                .toolbar(removing: .sidebarToggle)
-                .toolbarBackground(.hidden, for: .navigationBar)
-        } detail: {
-            detail
-                .toolbar(removing: .sidebarToggle)
+        } center: {
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } right: {
+            RightPanelContainerView(cwd: selectedThread?.cwd, mainThreadId: selectedThreadId)
+                // 右栏在自绘列内仍显式注入环境（对齐原 .inspector 注入），
+                // 否则 RightPanelContainerView 读环境时运行时崩溃。
+                .environment(activeConversation)
+                .environment(layout)   // 设计 D6：右栏跳转信号载体
         }
-        .navigationSplitViewStyle(.automatic)
-        .coordinateSpace(name: splitCoordinateSpaceName)
     }
 
-    // detail = 中栏对话 + 右栏 `.inspector`（右侧系统检视列，系统托管 resize 不闪，design D1）。
-    // 不被任何 VStack 包裹（下栏已移到 body 外层 safeAreaInset）→ inspector 拖动无 VStack 干扰（design D3）。
-    private var detail: some View {
-        content
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .inspector(isPresented: $layout.showRight) {
-                RightPanelContainerView(cwd: selectedThread?.cwd, mainThreadId: selectedThreadId)
-                    // inspector 内容在独立系统列，不保证继承 body 链上的 .environment，
-                    // 故在此显式注入 ActiveConversationHolder（否则 RightPanelContainerView 读环境时运行时崩溃）。
-                    .environment(activeConversation)
-                    .environment(layout)   // 设计 D6：右栏跳转信号载体（此处先注入，Task 10 才消费）
-                    // 监听 inspector 分隔线坐标变化 → 拖动中点亮统一 overlay 中的右把手。
-                    .background {
-                        GeometryReader { proxy in
-                            let dividerX = proxy.frame(in: .named(splitCoordinateSpaceName)).minX
-                            Color.clear
-                                .onAppear {
-                                    updateRightDividerX(dividerX)
-                                }
-                                .onChange(of: dividerX) { _, newDividerX in
-                                    updateRightDividerX(newDividerX)
-                                }
-                        }
-                    }
-                    .inspectorColumnWidth(min: WorkspaceMetrics.rightPanelMinWidth,
-                                          ideal: WorkspaceMetrics.rightPanelIdealWidth,
-                                          max: WorkspaceMetrics.rightPanelMaxWidth)
-            }
-    }
-
-    private func updateLeftDividerX(_ newDividerX: CGFloat) {
-        guard newDividerX > 0 else { return }
-        leftDividerX = newDividerX
-        hasMeasuredLeftDivider = true
-    }
-
-    private func updateRightDividerX(_ newDividerX: CGFloat) {
-        guard newDividerX > 0 else { return }
-        rightDividerX = newDividerX
-        hasMeasuredRightDivider = true
-    }
+    // Task 4 接入 ColumnWidthStore 后替换为真实持久化；本任务先空实现让编译通过。
+    private func saveColumnWidths() {}
 
     @ViewBuilder private var content: some View {
         if let id = selectedThreadId {
