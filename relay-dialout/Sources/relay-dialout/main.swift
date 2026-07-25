@@ -28,9 +28,10 @@ let sockPath = env["CONTROL_SOCK"] ?? "\(NSHomeDirectory())/.codex/control.sock"
 let codexPath = env["CODEX_PATH"] ?? "codex"
 let keyDir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".codex-relay-dialout")
 
-// MARK: 1. 密钥 + 配对载荷
+// MARK: 1. 密钥 + 信任存储
 let keyStore = try DevKeyStore(dir: keyDir)
 let devDeviceId = env["DEV_DEVICE_ID"] ?? "dev-\(UUID().uuidString.prefix(8))"
+let trustStore = try TrustStore(dir: keyDir)
 
 func randomToken(byteCount: Int = 18) -> String {
     var bytes = [UInt8](repeating: 0, count: byteCount)
@@ -41,35 +42,11 @@ func randomToken(byteCount: Int = 18) -> String {
         .replacingOccurrences(of: "=", with: "")
 }
 
-let sessionId = randomToken(byteCount: 12)
-let pairingCode = randomToken(byteCount: 12)
-let expiresAt = Int64(Date().timeIntervalSince1970) + 600  // now + 600s
-
-let payload = PairingPayload(
-    relayURL: relayURL,
-    sessionId: sessionId,
-    devIdentityPubB64: keyStore.identityPublicKeyRaw.base64EncodedString(),
-    pairingCode: pairingCode,
-    expiresAt: expiresAt
-)
-
-print("=== relay-dialout ready ===")
-print("将下面配对载荷搬到 iPad（10 分钟内有效）：")
-print(payload.toURLString())
-print("===========================")
-
-// MARK: 握手上下文 + 状态（DialoutContext 已抽到 RelayDialoutCore 库，供单测）
-//
-// 帧类型判定：握手期收 ClientHello / ClientAuth（明文 JSON）；建通道后收 SecureEnvelope。
-// 注入 TrustStore：首次配对自动记信任 + 每台 iPad 稳定 sessionId + 加密回传 SecureReady。
-let trustStore = try TrustStore(dir: keyDir)
-let context = DialoutContext(keyStore: keyStore, devDeviceId: devDeviceId,
-                             pairingCode: pairingCode, expiresAt: expiresAt, trust: trustStore)
-
 // MARK: 撤销信任 CLI（--forget / --forget-all / --list-trusted）
 //
-// 在进入 ws 拨号前拦截：命中撤销/列出命令则执行后直接退出，不进行拨号；
-// 无匹配参数（.runDialout）则继续走下面原有拨号流程。
+// 必须在生成/打印任何一次性配对载荷之前分派：这几个管理命令只依赖 trustStore，
+// 语义上不该产出配对信息。命中撤销/列出命令则执行后直接退出；
+// 无匹配参数（.runDialout）才继续往下生成 pairingCode 并进入拨号流程。
 switch parseTrustCommand(Array(CommandLine.arguments.dropFirst())) {
 case .forget(let key):
     // 优先按 label 精确匹配，其次按公钥 b64 前缀匹配；找不到明确报错并非零退出。
@@ -96,11 +73,36 @@ case .list:
     }
     exit(0)
 case .runDialout:
-    break   // 继续原拨号流程
+    break   // 继续下面的配对载荷生成 + 拨号流程
 case .invalid(let msg):
     print("参数错误：\(msg)")
     exit(2)
 }
+
+// MARK: 2. 一次性配对载荷（仅 .runDialout 才会执行到这里）
+let sessionId = randomToken(byteCount: 12)
+let pairingCode = randomToken(byteCount: 12)
+let expiresAt = Int64(Date().timeIntervalSince1970) + 600  // now + 600s
+
+let payload = PairingPayload(
+    relayURL: relayURL,
+    sessionId: sessionId,
+    devIdentityPubB64: keyStore.identityPublicKeyRaw.base64EncodedString(),
+    pairingCode: pairingCode,
+    expiresAt: expiresAt
+)
+
+print("=== relay-dialout ready ===")
+print("将下面配对载荷搬到 iPad（10 分钟内有效）：")
+print(payload.toURLString())
+print("===========================")
+
+// MARK: 握手上下文 + 状态（DialoutContext 已抽到 RelayDialoutCore 库，供单测）
+//
+// 帧类型判定：握手期收 ClientHello / ClientAuth（明文 JSON）；建通道后收 SecureEnvelope。
+// 注入 TrustStore：首次配对自动记信任 + 每台 iPad 稳定 sessionId + 加密回传 SecureReady。
+let context = DialoutContext(keyStore: keyStore, devDeviceId: devDeviceId,
+                             pairingCode: pairingCode, expiresAt: expiresAt, trust: trustStore)
 
 // MARK: 2/3. NIO ws 客户端拨出 relay + 帧分发（wss 前置 TLS，ws 明文保留本地测试）
 //

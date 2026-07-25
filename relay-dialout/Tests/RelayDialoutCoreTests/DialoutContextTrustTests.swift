@@ -83,6 +83,33 @@ private struct DialoutTrustHarness {
     #expect(ready.devDeviceId == h.devDeviceId)
 }
 
+@Test func handleClientAuthRejectsReplayOfSameFrame() throws {
+    // relay 是不可信中转：若把已握手成功那一帧 ClientAuth 明文原样重放进来，
+    // handleClientAuth 必须拒绝，不能重新验签/重发 SecureReady（会话已建立，一次性口令早该失效）。
+    let h = try DialoutTrustHarness()
+    let trust = try TrustStore(dir: h.trustDir)
+    let context = DialoutContext(keyStore: h.devKeyStore, devDeviceId: h.devDeviceId,
+                                 pairingCode: h.pairingCode, expiresAt: h.expiresAt, trust: trust)
+    let clientNonce = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+    let hello = Handshake.makeClientHello(
+        sessionId: "room-1", ipadDeviceId: "ipad-1",
+        ipadIdentityPub: h.ipadIdentity.publicKey.rawRepresentation,
+        ipadEphemeralPub: h.ipadEphemeral.publicKey.rawRepresentation,
+        clientNonce: clientNonce, pairingCode: h.pairingCode)
+    let serverHelloData = try context.handleClientHello(JSONEncoder().encode(hello))
+    let serverHello = try JSONDecoder().decode(ServerHello.self, from: serverHelloData)
+    let clientAuth = try Handshake.verifyServerHelloAndMakeClientAuth(
+        clientHello: hello, serverHello: serverHello,
+        devIdentityPub: h.devKeyStore.identityPublicKeyRaw, ipadIdentity: h.ipadIdentity)
+    let clientAuthData = try JSONEncoder().encode(clientAuth)
+
+    _ = try context.handleClientAuth(clientAuthData)   // 首次：正常建通道，pairingConsumed 置 true
+
+    #expect(throws: DialoutHandshakeError.pairingAlreadyUsed) {
+        _ = try context.handleClientAuth(clientAuthData)   // relay 重放同一帧：必须拒绝
+    }
+}
+
 @Test func repeatedPairingReusesSameStableSessionId() throws {
     let h = try DialoutTrustHarness()
     // 第一次配对：新 TrustStore。

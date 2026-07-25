@@ -75,6 +75,9 @@ public final class DialoutContext: @unchecked Sendable {
     /// 首次配对自动记信任（幂等）+ 生成/复用稳定 sessionId，返回加密后的 SecureReady 帧
     /// （走已建通道，供 handler 写回 ws；不明文过 relay）。
     public func handleClientAuth(_ data: Data) throws -> Data {
+        // 重放守卫：会话已建立后 relay（不可信中转）若原样重放同一 ClientAuth 明文帧，
+        // 必须直接拒绝，不能重新走一遍验签/建 session/重发 SecureReady。
+        guard !pairingConsumed else { throw DialoutHandshakeError.pairingAlreadyUsed }
         let auth = try JSONDecoder().decode(ClientAuth.self, from: data)
         guard let (hello, serverHello) = hellos else { throw HandshakeError.badClientSignature }
         let session = try Handshake.verifyClientAuthAndFinish(
