@@ -58,73 +58,13 @@ print("将下面配对载荷搬到 iPad（10 分钟内有效）：")
 print(payload.toURLString())
 print("===========================")
 
-// MARK: 握手上下文 + 状态（Sendable，脱离 main-actor 隔离，供 ws handler 调用）
+// MARK: 握手上下文 + 状态（DialoutContext 已抽到 RelayDialoutCore 库，供单测）
 //
 // 帧类型判定：握手期收 ClientHello / ClientAuth（明文 JSON）；建通道后收 SecureEnvelope。
-enum DialoutHandshakeError: Error { case pairingExpired, pairingAlreadyUsed }
-
-/// 承载握手所需 dev 侧材料与一次性口令，并维护握手状态。整体 Sendable。
-final class DialoutContext: @unchecked Sendable {
-    let keyStore: DevKeyStore
-    let devDeviceId: String
-    let pairingCode: String
-    let expiresAt: Int64
-
-    private let lock = NSLock()
-    private var _pairingConsumed = false
-    private var _session: SecureSession?
-    private var _clientHello: ClientHello?
-    private var _serverHello: ServerHello?
-
-    init(keyStore: DevKeyStore, devDeviceId: String, pairingCode: String, expiresAt: Int64) {
-        self.keyStore = keyStore; self.devDeviceId = devDeviceId
-        self.pairingCode = pairingCode; self.expiresAt = expiresAt
-    }
-
-    /// pairingCode 是否已被消费（握手成功后置 true，再来的握手拒绝）。
-    var pairingConsumed: Bool { lock.lock(); defer { lock.unlock() }; return _pairingConsumed }
-    var session: SecureSession? { lock.lock(); defer { lock.unlock() }; return _session }
-    var hellos: (ClientHello, ServerHello)? {
-        lock.lock(); defer { lock.unlock() }
-        guard let c = _clientHello, let s = _serverHello else { return nil }
-        return (c, s)
-    }
-
-    /// 处理 ClientHello → 返回要发回 relay 的 ServerHello 编码。
-    func handleClientHello(_ data: Data) throws -> Data {
-        guard !pairingConsumed else { throw DialoutHandshakeError.pairingAlreadyUsed }
-        guard Int64(Date().timeIntervalSince1970) < expiresAt else { throw DialoutHandshakeError.pairingExpired }
-        let hello = try JSONDecoder().decode(ClientHello.self, from: data)
-        var nonce = [UInt8](repeating: 0, count: 16)
-        for i in 0..<16 { nonce[i] = UInt8.random(in: 0...255) }
-        let serverHello = try Handshake.makeServerHello(
-            clientHello: hello,
-            devDeviceId: devDeviceId,
-            devIdentity: keyStore.identity,
-            devEphemeralPub: keyStore.exchange.publicKey.rawRepresentation,
-            serverNonce: Data(nonce),
-            keyEpoch: 0,
-            pairingCode: pairingCode
-        )
-        lock.lock(); _clientHello = hello; _serverHello = serverHello; lock.unlock()
-        return try JSONEncoder().encode(serverHello)
-    }
-
-    /// 处理 ClientAuth → 验 iPad 签名，建 dev 侧 SecureSession，pairingCode 失效。
-    func handleClientAuth(_ data: Data) throws {
-        let auth = try JSONDecoder().decode(ClientAuth.self, from: data)
-        guard let (hello, serverHello) = hellos else { throw HandshakeError.badClientSignature }
-        let session = try Handshake.verifyClientAuthAndFinish(
-            clientHello: hello,
-            serverHello: serverHello,
-            clientAuth: auth,
-            devEphemeral: keyStore.exchange
-        )
-        lock.lock(); _session = session; _pairingConsumed = true; lock.unlock()  // 一次性口令用过即失效
-    }
-}
+// 注入 TrustStore：首次配对自动记信任 + 每台 iPad 稳定 sessionId + 加密回传 SecureReady。
+let trustStore = try TrustStore(dir: keyDir)
 let context = DialoutContext(keyStore: keyStore, devDeviceId: devDeviceId,
-                             pairingCode: pairingCode, expiresAt: expiresAt)
+                             pairingCode: pairingCode, expiresAt: expiresAt, trust: trustStore)
 
 // MARK: 2/3. NIO ws 客户端拨出 relay + 帧分发（wss 前置 TLS，ws 明文保留本地测试）
 //
@@ -177,8 +117,9 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             return
         }
         // 握手期：先试 ClientAuth（更晚），再试 ClientHello。
-        if context.hellos != nil, (try? context.handleClientAuth(data)) != nil {
-            // 握手完成，启桥并开始把 proxy 输出加密回发。
+        if context.hellos != nil, let readyFrame = try? context.handleClientAuth(data) {
+            // 握手完成：先加密回传 SecureReady（稳定 sessionId），再启桥并把 proxy 输出加密回发。
+            sendFrame(readyFrame, ctx: ctx)   // 只发一次
             ensureBridgeStarted()
             pumpBridgeOutbound(ctx: ctx)
             return
