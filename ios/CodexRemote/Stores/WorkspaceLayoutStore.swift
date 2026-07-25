@@ -27,6 +27,9 @@ final class WorkspaceLayoutStore {
     var showBottom: Bool
     var showSummary: Bool
     var showSettings: Bool
+    /// 运行时列宽（custom-resizable-columns，D7）：拖动实时改这里，ColumnWidthStore 负责持久化。
+    var leftWidth: CGFloat
+    var rightWidth: CGFloat
     /// 右栏跳转/全屏一次性信号（设计 D6）；消费即复位为 nil，防自触发回环（功耗约束 4）。
     var pendingRightPanelIntent: RightPanelIntent?
 
@@ -34,12 +37,16 @@ final class WorkspaceLayoutStore {
          showRight: Bool = false,
          showBottom: Bool = false,
          showSummary: Bool = false,
-         showSettings: Bool = false) {
+         showSettings: Bool = false,
+         leftWidth: CGFloat = WorkspaceMetrics.leftColumnDefaultWidth,
+         rightWidth: CGFloat = WorkspaceMetrics.rightColumnDefaultWidth) {
         self.leftVisible = leftVisible
         self.showRight = showRight
         self.showBottom = showBottom
         self.showSummary = showSummary
         self.showSettings = showSettings
+        self.leftWidth = leftWidth
+        self.rightWidth = rightWidth
     }
 
     /// 快捷键请求右栏跳转/全屏（设计 D6）：先开右栏（未开先开），再发一次性信号。
