@@ -210,12 +210,13 @@ struct RootSplitView: View {
     }
 
     private func loadColumnWidths(for id: UUID?) {
+        guard let id else { return }
         let resolved = columnWidths.resolvedWidths(for: id, total: assumedTotalWidth)
         layout.leftWidth = resolved.left
         layout.rightWidth = resolved.right
     }
 
-    /// 读回时的保守总宽估计（iPad 11" 横屏宽）；真实总宽变化时 ResizableColumns 会再 reclamp。
+    /// 读回时的保守总宽估计（iPad 11" 横屏宽）；真实几何由 ResizableColumns 的 onChange(of:total, initial:true) 在首帧即重 clamp 纠正。
     private var assumedTotalWidth: CGFloat { 1_194 }
 
     @ViewBuilder private var content: some View {

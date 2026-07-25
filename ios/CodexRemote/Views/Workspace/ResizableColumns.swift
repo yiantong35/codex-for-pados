@@ -58,7 +58,7 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
             }
             .frame(width: total, alignment: .leading)
             // 旋转 / 分屏使总宽突变时，已存绝对列宽可能越界 → 用新总宽重跑 clamp 收敛（Design 风险表）。
-            .onChange(of: total) { _, newTotal in reclamp(total: newTotal, dividerCount: dividerCount) }
+            .onChange(of: total, initial: true) { _, newTotal in reclamp(total: newTotal, dividerCount: dividerCount) }
             // 固定坐标系锚在不动的容器上：分隔线 DragGesture 在此系读绝对 x，消除慢拖抖动（D2）。
             .coordinateSpace(name: Self.coordinateSpaceName)
             .animation(.easeOut(duration: 0.22), value: leftVisible)   // D5 宽度动画
