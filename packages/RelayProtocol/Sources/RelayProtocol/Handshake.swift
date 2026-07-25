@@ -41,11 +41,16 @@ public struct ClientAuth: Codable, Sendable, Equatable {
     public var ipadSignature: Data       // Ed25519 over transcript + "client-auth"
 }
 
-/// 消息 4：dev → iPad。确认握手完成。
+/// 消息 4：dev → iPad。确认握手完成，并回传该 iPad 的稳定 sessionId（加密走已建通道）。
 public struct SecureReady: Codable, Sendable, Equatable {
     public var sessionId: String
     public var keyEpoch: UInt32
     public var devDeviceId: String
+    public var stableSessionId: String     // 新增：iPad 首次配对消费并持久化，供后续复连直连
+    public init(sessionId: String, keyEpoch: UInt32, devDeviceId: String, stableSessionId: String) {
+        self.sessionId = sessionId; self.keyEpoch = keyEpoch
+        self.devDeviceId = devDeviceId; self.stableSessionId = stableSessionId
+    }
 }
 
 // MARK: - 过线拒绝消息（附加式，不改上面 4 消息）

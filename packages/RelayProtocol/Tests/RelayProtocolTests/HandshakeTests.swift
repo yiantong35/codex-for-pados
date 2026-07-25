@@ -279,3 +279,13 @@ private struct HandshakeHarness {
     let shData = try JSONEncoder().encode(sh)
     #expect((try? JSONDecoder().decode(RejectHello.self, from: shData)) == nil)
 }
+
+/// SecureReady（消息 4）附加 stableSessionId 字段：dev 建 SecureSession 后回传该 iPad 的稳定
+/// sessionId，供 iPad 首次配对消费并持久化用于后续复连直连。round-trip 编解码保真。
+@Test func secureReadyCarriesStableSessionId() throws {
+    let sr = SecureReady(sessionId: "sid-room", keyEpoch: 0, devDeviceId: "dev-1", stableSessionId: "stable-abc")
+    let data = try JSONEncoder().encode(sr)
+    let back = try JSONDecoder().decode(SecureReady.self, from: data)
+    #expect(back.stableSessionId == "stable-abc")
+    #expect(back == sr)
+}
