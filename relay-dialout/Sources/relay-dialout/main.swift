@@ -107,8 +107,12 @@ if reconnectMode {
         expiresAt: expiresAt
     )
     print("=== relay-dialout ready ===")
-    print("将下面配对载荷搬到 iPad（10 分钟内有效）：")
-    print(payload.toURLString())
+    print("扫码或将下面配对载荷搬到 iPad（10 分钟内有效）：")
+    print("")
+    if let qr = try? TerminalQRCode.halfBlockString(for: payload.toURLString()) {
+        print(qr)
+    }
+    print(payload.toURLString())   // 明文兜底：终端不支持扫码时手动搬运
     print("===========================")
 }
 
