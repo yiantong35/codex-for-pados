@@ -31,23 +31,26 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
         GeometryReader { proxy in
             // 只读恒定总宽做 clamp 边界（D3）——不把 proxy 传进子树逐帧重算。
             let total = proxy.size.width
-            let center = WorkspaceMetrics.centerColumnWidth(
-                total: total, left: displayedLeft, right: displayedRight)
+            // 实际渲染的分隔线条数：左右各条件渲染，隐藏则不占宽（消除单栏布局的尾部空隙）。
+            let dividerCount = (leftVisible ? 1 : 0) + (rightVisible ? 1 : 0)
+            let centerWidth = WorkspaceMetrics.centerColumnWidth(
+                total: total, left: displayedLeft, right: displayedRight,
+                dividerCount: dividerCount)
 
             HStack(spacing: 0) {
                 if leftVisible {
                     left()
                         .frame(width: displayedLeft)
                         .clipped()
-                    leftDivider(total: total)
+                    leftDivider(total: total, dividerCount: dividerCount)
                 }
 
-                self.center()
-                    .frame(width: center)
+                center()
+                    .frame(width: centerWidth)
                     .frame(maxHeight: .infinity)
 
                 if rightVisible {
-                    rightDivider(total: total)
+                    rightDivider(total: total, dividerCount: dividerCount)
                     right()
                         .frame(width: displayedRight)
                         .clipped()
@@ -55,7 +58,7 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
             }
             .frame(width: total, alignment: .leading)
             // 旋转 / 分屏使总宽突变时，已存绝对列宽可能越界 → 用新总宽重跑 clamp 收敛（Design 风险表）。
-            .onChange(of: total) { _, newTotal in reclamp(total: newTotal) }
+            .onChange(of: total) { _, newTotal in reclamp(total: newTotal, dividerCount: dividerCount) }
             // 固定坐标系锚在不动的容器上：分隔线 DragGesture 在此系读绝对 x，消除慢拖抖动（D2）。
             .coordinateSpace(name: Self.coordinateSpaceName)
             .animation(.easeOut(duration: 0.22), value: leftVisible)   // D5 宽度动画
@@ -69,21 +72,21 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
 
     // MARK: - 左分隔线（只改 leftWidth，右栏不受影响 → 解耦）
 
-    private func leftDivider(total: CGFloat) -> some View {
+    private func leftDivider(total: CGFloat, dividerCount: Int) -> some View {
         divider(accessibilityLabel: "workspace.column.left.resize") { absX in
             if dragStartX == nil { dragStartX = absX; dragStartWidth = leftWidth }
             let dx = absX - (dragStartX ?? absX)
             let base = dragStartWidth ?? leftWidth
             leftWidth = WorkspaceMetrics.clampColumnWidth(
                 base + dx, total: total, otherColumnWidth: displayedRight,
-                columnMin: WorkspaceMetrics.leftColumnMinWidth)
+                columnMin: WorkspaceMetrics.leftColumnMinWidth, dividerCount: dividerCount)
         } onAdjust: { direction in
             let delta = direction == .increment
                 ? WorkspaceMetrics.columnResizeAccessibilityStep
                 : -WorkspaceMetrics.columnResizeAccessibilityStep
             leftWidth = WorkspaceMetrics.clampColumnWidth(
                 leftWidth + delta, total: total, otherColumnWidth: displayedRight,
-                columnMin: WorkspaceMetrics.leftColumnMinWidth)
+                columnMin: WorkspaceMetrics.leftColumnMinWidth, dividerCount: dividerCount)
             onResizeEnded()
         }
     }
@@ -91,21 +94,21 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
     // MARK: - 右分隔线（只改 rightWidth，左栏不受影响 → 解耦）
     // 拖右分隔线向左（absX 减小）→ 右栏变宽，故用「起点绝对宽 − dx」。
 
-    private func rightDivider(total: CGFloat) -> some View {
+    private func rightDivider(total: CGFloat, dividerCount: Int) -> some View {
         divider(accessibilityLabel: "workspace.column.right.resize") { absX in
             if dragStartX == nil { dragStartX = absX; dragStartWidth = rightWidth }
             let dx = absX - (dragStartX ?? absX)
             let base = dragStartWidth ?? rightWidth
             rightWidth = WorkspaceMetrics.clampColumnWidth(
                 base - dx, total: total, otherColumnWidth: displayedLeft,
-                columnMin: WorkspaceMetrics.rightColumnMinWidth)
+                columnMin: WorkspaceMetrics.rightColumnMinWidth, dividerCount: dividerCount)
         } onAdjust: { direction in
             let delta = direction == .increment
                 ? WorkspaceMetrics.columnResizeAccessibilityStep
                 : -WorkspaceMetrics.columnResizeAccessibilityStep
             rightWidth = WorkspaceMetrics.clampColumnWidth(
                 rightWidth + delta, total: total, otherColumnWidth: displayedLeft,
-                columnMin: WorkspaceMetrics.rightColumnMinWidth)
+                columnMin: WorkspaceMetrics.rightColumnMinWidth, dividerCount: dividerCount)
             onResizeEnded()
         }
     }
@@ -141,12 +144,12 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
     }
 
     // 总宽突变后，把左右列宽在新总宽下重新收敛（不直接用旧绝对值）。
-    private func reclamp(total: CGFloat) {
+    private func reclamp(total: CGFloat, dividerCount: Int) {
         leftWidth = WorkspaceMetrics.clampColumnWidth(
             leftWidth, total: total, otherColumnWidth: displayedRight,
-            columnMin: WorkspaceMetrics.leftColumnMinWidth)
+            columnMin: WorkspaceMetrics.leftColumnMinWidth, dividerCount: dividerCount)
         rightWidth = WorkspaceMetrics.clampColumnWidth(
             rightWidth, total: total, otherColumnWidth: displayedLeft,
-            columnMin: WorkspaceMetrics.rightColumnMinWidth)
+            columnMin: WorkspaceMetrics.rightColumnMinWidth, dividerCount: dividerCount)
     }
 }

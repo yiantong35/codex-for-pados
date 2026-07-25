@@ -51,24 +51,29 @@ enum WorkspaceMetrics {
     }
 
     /// 把某一栏的建议宽夹到合法区间（D4 三约束）：
-    /// 下界 = columnMin；上界 = min(总宽2/3, 总宽 − 另一栏当前宽 − 两分隔线 − 中栏最小宽)。
+    /// 下界 = columnMin；上界 = min(总宽2/3, 总宽 − 另一栏当前宽 − 可见分隔线 − 中栏最小宽)。
     /// 只减「另一栏当前宽」→ 拖一侧只吃中栏余量、不动另一栏（左右解耦）。
     /// 上界可能算出 < columnMin（空间不足），此时用 max(columnMin, upper) 兜底，绝不返回低于 columnMin。
+    /// `dividerCount` 为当前实际渲染的分隔线条数（左右各 1，隐藏则不计）；默认 2 = 左右都显示。
     static func clampColumnWidth(_ proposed: CGFloat,
                                  total: CGFloat,
                                  otherColumnWidth: CGFloat,
-                                 columnMin: CGFloat) -> CGFloat {
+                                 columnMin: CGFloat,
+                                 dividerCount: Int = 2) -> CGFloat {
         let byTwoThirds = maxColumnWidth(total: total)
         let byCenter = total - otherColumnWidth
-            - resizableDividerHitWidth * 2
+            - resizableDividerHitWidth * CGFloat(dividerCount)
             - centerColumnMinWidth
         let upper = Swift.min(byTwoThirds, byCenter)
         return clamp(proposed, min: columnMin, max: Swift.max(columnMin, upper))
     }
 
-    /// 中栏渲染宽 = 剩余空间（扣两分隔线），并保证不低于中栏最小宽。
-    static func centerColumnWidth(total: CGFloat, left: CGFloat, right: CGFloat) -> CGFloat {
-        Swift.max(centerColumnMinWidth, total - left - right - resizableDividerHitWidth * 2)
+    /// 中栏渲染宽 = 剩余空间（扣可见分隔线），并保证不低于中栏最小宽。
+    /// `dividerCount` 为当前实际渲染的分隔线条数（左右各 1，隐藏则不计）；默认 2 = 左右都显示。
+    static func centerColumnWidth(total: CGFloat, left: CGFloat, right: CGFloat,
+                                  dividerCount: Int = 2) -> CGFloat {
+        Swift.max(centerColumnMinWidth,
+                  total - left - right - resizableDividerHitWidth * CGFloat(dividerCount))
     }
 
     static func columnResizeHandleCenterY(in containerHeight: CGFloat,

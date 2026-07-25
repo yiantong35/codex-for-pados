@@ -122,4 +122,22 @@ final class WorkspaceMetricsTests: XCTestCase {
         XCTAssertEqual(c, 1_200 - 300 - 320 - WorkspaceMetrics.resizableDividerHitWidth * 2,
                        accuracy: 0.001)
     }
+
+    func testCenterColumnWidthWithSingleDividerReclaimsGap() {
+        // 单栏隐藏：只有 1 条分隔线时，中栏应比默认（2 条）多 resizableDividerHitWidth。
+        let two = WorkspaceMetrics.centerColumnWidth(total: 1_200, left: 300, right: 0, dividerCount: 2)
+        let one = WorkspaceMetrics.centerColumnWidth(total: 1_200, left: 300, right: 0, dividerCount: 1)
+        XCTAssertEqual(one - two, WorkspaceMetrics.resizableDividerHitWidth, accuracy: 0.001)
+    }
+
+    func testClampColumnWidthDividerCountWidensUpperBound() {
+        // 分隔线更少 → 中栏保护上界更宽松 → 允许的列宽上界更大（当中栏保护是绑定约束时）。
+        let two = WorkspaceMetrics.clampColumnWidth(
+            9_999, total: 1_200, otherColumnWidth: 600,
+            columnMin: WorkspaceMetrics.leftColumnMinWidth, dividerCount: 2)
+        let one = WorkspaceMetrics.clampColumnWidth(
+            9_999, total: 1_200, otherColumnWidth: 600,
+            columnMin: WorkspaceMetrics.leftColumnMinWidth, dividerCount: 1)
+        XCTAssertEqual(one - two, WorkspaceMetrics.resizableDividerHitWidth, accuracy: 0.001)
+    }
 }
