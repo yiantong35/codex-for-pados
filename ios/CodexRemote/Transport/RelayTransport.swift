@@ -294,6 +294,11 @@ actor RelayTransport: MessageTransport {
                     await ch.close()
                     throw error
                 }
+                // #1 竞态硬化：performHandshakeOn 的 await 期间 close() 可能已落地（置 activeClose、
+                // cancel readTask、收束流）而握手仍成功返回。此时若原子执行 self.ws=ch/restartReadLoop/
+                // .ready，新通道永不 close（活连接泄漏）+ 僵尸 read task。故启用前守卫：主动关闭则关掉
+                // 新通道并静默退出（incoming 已由 close() 收束，不再发 .ready）。
+                if activeClose || Task.isCancelled { await ch.close(); return }
                 self.ws = ch
                 restartReadLoop()
                 emitControl(.ready)
@@ -375,14 +380,29 @@ actor RelayTransport: MessageTransport {
                 await ch.close()
                 throw error
             }
+            // #1 竞态硬化：performHandshakeOn 的 await 期间可能有 close() 落地（置 activeClose、
+            // cancel readTask、收束流）。若握手未在 await 上抛取消而成功返回，须在启用新通道前守卫：
+            // 已主动关闭则关掉新通道防活连接泄漏，不 markHandshakeDone / 不启 read loop。
+            // close() 已在 pending 时落 .failed 并收束 incoming（重复调用被守卫忽略）；此处 markHandshakeFailed
+            // 亦兜住「仅 Task 取消而未经 close」的边角，避免 awaitHandshake/incoming 永挂。
+            if activeClose || Task.isCancelled {
+                await ch.close()
+                markHandshakeFailed(TransportError.channelClosed(reason: "连接主动关闭"))
+                incomingContinuation?.finish(throwing: TransportError.channelClosed(reason: "连接主动关闭"))
+                incomingContinuation = nil
+                return
+            }
             self.ws = ch
             markHandshakeDone()
             startReadLoopIfNeeded()
         } catch let rej as RejectHelloError {
             rtLog.error("首连握手被拒(RejectHello): \(String(describing: rej.reason), privacy: .public)")
             emitControl(.trustRevoked)
-            markHandshakeFailed(TransportError.channelClosed(reason: "首连信任被拒（RejectHello）"))
-            incomingContinuation?.finish(throwing: TransportError.channelClosed(reason: "首连信任被拒（RejectHello）"))
+            // 以可判别类型 .trustRevoked 冒泡（而非通用 channelClosed）：observeControl 尚未订阅
+            // （只在 .ready 后订阅），冷启动首连被撤销时靠此错误让 ConnectionStore.connect 的 catch
+            // 置位 needsRePairing 引导重新配对。
+            markHandshakeFailed(TransportError.trustRevoked)
+            incomingContinuation?.finish(throwing: TransportError.trustRevoked)
             incomingContinuation = nil
         } catch {
             rtLog.error("握手失败: \(String(describing: error), privacy: .public)")

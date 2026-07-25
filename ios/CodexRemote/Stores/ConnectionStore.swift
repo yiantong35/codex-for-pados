@@ -194,7 +194,15 @@ final class ConnectionStore {
             } catch {
                 guard attempt == self.activeAttempt else { return }   // 已被超时/新尝试作废
                 connLog.error("connect 失败: \(String(describing: error), privacy: .public)")
-                self.phase = .failed(Self.friendlyMessage(error))
+                // #2 冷启动首连即遇 trustRevoked：RelayTransport 首连收 RejectHello 以可判别类型
+                // .trustRevoked 冒泡（observeControl 尚未订阅，控制事件无人消费）。与 live 重连路径的
+                // .trustRevoked 处理一致：置位 needsRePairing + 撤销引导文案，UI 据此导航回配对入口。
+                if case TransportError.trustRevoked = error {
+                    self.phase = .failed("已被开发机移除信任，请重新配对")
+                    self.needsRePairing = true
+                } else {
+                    self.phase = .failed(Self.friendlyMessage(error))
+                }
             }
         }
 
@@ -325,6 +333,7 @@ final class ConnectionStore {
             case .notConnected:          return "未连接"
             case .sshAuthFailed(let m):  return "SSH 鉴权失败：\(m)"
             case .handshakeFailed(let m): return "WebSocket 握手失败：\(m)"
+            case .trustRevoked:          return "已被开发机移除信任，请重新配对"
             }
         }
         if let to = error as? ConnectionTimeoutError { return to.errorDescription ?? "连接超时" }
