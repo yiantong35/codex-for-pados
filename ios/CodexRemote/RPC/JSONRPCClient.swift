@@ -55,6 +55,9 @@ actor JSONRPCClient {
         }
     }
 
+    /// 测试支持：当前存活的 notifications() 订阅数。用于回归锁「切对话不累积正文订阅」（D2）。
+    func liveNotificationSubscriberCount() -> Int { notifContinuations.count }
+
     private func removeNotifContinuation(_ id: UUID) { notifContinuations[id] = nil }
     private func removeServerRequestContinuation(_ id: UUID) { serverRequestContinuations[id] = nil }
 
