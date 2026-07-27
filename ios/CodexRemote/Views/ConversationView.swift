@@ -95,7 +95,7 @@ struct ConversationView: View {
             // D2：保持本任务存活，把正文订阅生命周期绑定到 threadId。threadId 变化 / 视图消失时
             // SwiftUI 取消本 .task → Task.sleep 抛出 → defer 停止**本** store 的订阅，避免旧 observer
             // 残留消费通知流、唤醒主线程；切 N 次对话订阅数不累积。
-            // 单次挂起，无周期唤醒（能耗）。使用有限大值（≈31000 年）避免 .max 与当前时钟相加溢出即时返回。
+            // 单次挂起，无周期唤醒（能耗）。使用有限大值（≈31.7 年）避免 .max 与当前时钟相加溢出即时返回。
             try? await Task.sleep(nanoseconds: 999_999_999_999_999_999)
         }
     }
