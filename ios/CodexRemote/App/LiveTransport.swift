@@ -32,6 +32,12 @@ func makeRelayTransport(payload: PairingPayload, tofuMachineKey: String) async t
     guard let base = URL(string: payload.relayURL) else {
         throw TransportError.proxyFailed("relayURL 非法: \(payload.relayURL)")
     }
+    // 生产强制 wss：明文 ws（非 loopback）拒绝并明确提示需 wss（D6，fail-closed）。
+    do {
+        try RelaySchemeValidator.validate(url: base)
+    } catch {
+        throw TransportError.proxyFailed("relay 地址为明文 ws，生产环境需使用加密的 wss: \(payload.relayURL)")
+    }
     // 房间号 + 握手模式由已持久化的 stableSessionId 决定：复连直连受信任房间免 pairingCode。
     let stableStore = UserDefaultsStableSessionStore()
     let decision = relayRoomDecision(store: stableStore, machineKey: tofuMachineKey,
