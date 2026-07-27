@@ -286,6 +286,10 @@ actor RelayTransport: MessageTransport {
             emitControl(.reconnecting)
             await reconnect.sleep(reconnect.delaySeconds(attempt: attempt))
             if activeClose || Task.isCancelled { return }
+            // 能耗（D3）：退避 sleep 期间可能转入后台——建通道/握手前再确认前台，
+            // 否则退避一结束就在后台造新连接烧电。回前台后（或 close 唤醒后）继续，其后仍受 activeClose/isCancelled 守卫。
+            await waitForForeground()
+            if activeClose || Task.isCancelled { return }
             do {
                 let ch = try await factory()
                 do {

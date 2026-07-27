@@ -105,7 +105,8 @@ final class ConnectionStore {
     /// 当前连接尝试序号：每次新连接 +1；超时也 +1 以作废仍在后台跑的旧 establish。
     private var activeAttempt = 0
     /// app 前台/后台状态（能耗）：转发给底层 transport 以在后台暂停重连。默认前台。
-    private var foregroundActive = true
+    /// private(set)：外部（含单测）只读，写入仍仅经 setForeground(_:)。
+    private(set) var foregroundActive = true
 
     init(transportFactory: @escaping @Sendable (ConnectionConfig) async throws -> MessageTransport,
          connectTimeoutNanos: UInt64 = 20_000_000_000) {

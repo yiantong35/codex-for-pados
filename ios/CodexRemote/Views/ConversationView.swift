@@ -48,7 +48,10 @@ struct ConversationView: View {
         .onChange(of: store?.state) { _, newValue in
             activeConversation.state = newValue
         }
-        .onDisappear { activeConversation.state = nil; activeConversation.fetchFullDiff = nil; activeConversation.startReview = nil }
+        .onDisappear {
+            store?.stopObserving()
+            activeConversation.state = nil; activeConversation.fetchFullDiff = nil; activeConversation.startReview = nil
+        }
         .safeAreaInset(edge: .bottom) {
             if let store {
                 VStack(spacing: 0) {
@@ -80,6 +83,7 @@ struct ConversationView: View {
             await s.startObserving()   // 先完成订阅注册（async），再 resume，避免漏掉随后到达的事件
             await s.resume()        // session-management：恢复已有会话历史
             store = s
+            defer { s.stopObserving() }   // D2：任务结束（threadId 变化/视图消失取消）即停本 store 订阅
             // 审查面板「全量」数据源：注入拉取回调（gitDiffToRemote），供右栏按 cwd 拉全量 diff。
             activeConversation.fetchFullDiff = { [weak s] cwd in await s?.fetchFullDiff(cwd: cwd) }
             // 审查 tab AI 审查发起：注入 review/start 回调（设计 D4，对齐 fetchFullDiff 注入）。
@@ -88,6 +92,11 @@ struct ConversationView: View {
             // thread/resume(rejoin) 重建并重新订阅全部活跃 thread（§5），不依赖本地 seq/threadId。
             // 注：SSH 通道物理重连属 Phase 5，当前 ProxyChannel 的 control() 为空流。
             connection.setResumeHandler { [weak s] in await s?.rejoinRunningThreads() }
+            // D2：保持本任务存活，把正文订阅生命周期绑定到 threadId。threadId 变化 / 视图消失时
+            // SwiftUI 取消本 .task → Task.sleep 抛出 → defer 停止**本** store 的订阅，避免旧 observer
+            // 残留消费通知流、唤醒主线程；切 N 次对话订阅数不累积。
+            // 单次挂起，无周期唤醒（能耗）。使用有限大值（≈31.7 年）避免 .max 与当前时钟相加溢出即时返回。
+            try? await Task.sleep(nanoseconds: 999_999_999_999_999_999)
         }
     }
 
