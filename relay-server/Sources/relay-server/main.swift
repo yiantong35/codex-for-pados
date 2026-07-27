@@ -18,6 +18,9 @@ import RelayServerCore
 let port = Int(ProcessInfo.processInfo.environment["RELAY_PORT"] ?? "") ?? 9000
 let host = "0.0.0.0"
 let rooms = RelayRooms()
+let limiter = RelayLimiter(maxPerIP: RelayLimits.maxConnectionsPerIP,
+                           maxRooms: RelayLimits.maxRooms,
+                           ratePerMinute: RelayLimits.connectRatePerMinute)
 
 let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
 
@@ -40,12 +43,15 @@ let bootstrap = ServerBootstrap(group: group)
                 guard let parsed = UpgradeRequest.parseUpgrade(uri: head.uri, role: role) else {
                     return channel.eventLoop.makeFailedFuture(RelayError.badUpgrade)
                 }
+                // 取来源 IP 用于 per-IP 并发/速率配额(准入在 handlerAdded 内,升级已定才计数)。
+                let ip = channel.remoteAddress?.ipAddress ?? "unknown"
                 // 先插 IdleStateHandler(空闲超时回收连接),再插撮合 handler。
                 return channel.pipeline.addHandler(
                     IdleStateHandler(allTimeout: .seconds(RelayLimits.idleTimeoutSeconds))
                 ).flatMap {
                     channel.pipeline.addHandler(
-                        RelayConnectionHandler(rooms: rooms, sessionId: parsed.sessionId, role: parsed.role,
+                        RelayConnectionHandler(rooms: rooms, limiter: limiter, ip: ip,
+                                               sessionId: parsed.sessionId, role: parsed.role,
                                                maxMessageBytes: RelayLimits.maxMessageBytes)
                     )
                 }
@@ -73,19 +79,39 @@ final class RelayConnectionHandler: ChannelInboundHandler, @unchecked Sendable {
     typealias OutboundOut = WebSocketFrame
 
     private let rooms: RelayRooms
+    private let limiter: RelayLimiter            // 资源配额（4.3，D3）
+    private let ip: String                       // 来源 IP（per-IP 并发/速率）
     private let sessionId: String
     private let role: RelayPeer
     private var accumulator: FrameAccumulator   // 单消息字节上限累积器（4.1）
     private var connId: UUID?                    // 本连接的唯一身份（3.4，D4）
+    private var admitted = false                 // 本连接是否已计入配额（决定 remove 时是否释放）
+    private var admittedRoom = false             // 本连接是否已计入房间配额
 
-    init(rooms: RelayRooms, sessionId: String, role: RelayPeer, maxMessageBytes: Int) {
+    init(rooms: RelayRooms, limiter: RelayLimiter, ip: String,
+         sessionId: String, role: RelayPeer, maxMessageBytes: Int) {
         self.rooms = rooms
+        self.limiter = limiter
+        self.ip = ip
         self.sessionId = sessionId
         self.role = role
         self.accumulator = FrameAccumulator(maxBytes: maxMessageBytes)
     }
 
     func handlerAdded(context: ChannelHandlerContext) {
+        // 资源准入(升级已定才计数):速率 + per-IP 并发。超限即关连接,不进撮合。
+        guard limiter.admit(ip: ip, now: Date().timeIntervalSince1970) else {
+            context.close(promise: nil)
+            return
+        }
+        admitted = true
+        // 房间总数配额:超上限拒(fail-closed)。
+        guard limiter.admitRoom(sessionId: sessionId) else {
+            context.close(promise: nil)
+            return
+        }
+        admittedRoom = true
+
         // sink:把对端投来的密文字符串编成 ws text frame 写回本连接。
         let channel = context.channel
         let result = rooms.join(sessionId: sessionId, role: role) { frame in
@@ -110,6 +136,11 @@ final class RelayConnectionHandler: ChannelInboundHandler, @unchecked Sendable {
         if let id = connId {
             rooms.leave(sessionId: sessionId, role: role, connId: id)
         }
+        // 对称释放配额:仅释放本连接实际计入过的部分。
+        // 注:房间配额按连接释放(简化,D3 acknowledged)——半开房间可能短暂多占一格,
+        // 属防御性上限的可接受偏差,不影响零知识转发与安全语义。
+        if admittedRoom { limiter.releaseRoom(sessionId: sessionId) }
+        if admitted { limiter.release(ip: ip) }
     }
 
     func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
