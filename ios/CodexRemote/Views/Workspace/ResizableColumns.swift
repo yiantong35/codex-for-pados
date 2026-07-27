@@ -64,6 +64,9 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
             // 外部载入列宽（切 tab / 冷启动）后，用当前真实总宽重新收敛已写入的列宽，
             // 不依赖 .task 与首帧 onChange(of: total) 的先后顺序（D7 窄屏恢复溢出兜底）。
             .onChange(of: loadRevision) { _, _ in reclamp(total: total, dividerCount: dividerCount) }
+            // 切换某一栏显隐会改变可用分隔线数与占宽：立即用新 dividerCount 重夹，
+            // 让相邻栏收敛到最小宽而非把对侧栏挤出屏幕（修复「开左栏→右栏出不来/自动收回」）。
+            .onChange(of: dividerCount) { _, newCount in reclamp(total: total, dividerCount: newCount) }
             // 固定坐标系锚在不动的容器上：分隔线 DragGesture 在此系读绝对 x，消除慢拖抖动（D2）。
             .coordinateSpace(name: Self.coordinateSpaceName)
             .animation(.easeOut(duration: 0.22), value: leftVisible)   // D5 宽度动画
@@ -127,7 +130,8 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
                          onAdjust: @escaping (AccessibilityAdjustmentDirection) -> Void) -> some View {
         ZStack {
             Color.clear                                             // 透明命中带（把手可隐藏，仍可拖 → spec）
-            Rectangle().fill(Color.secondary.opacity(0.35)).frame(width: 1)
+            // 用主题橙（accentColor，深浅色各自的橙）画分界线，黑底上也醒目。
+            Rectangle().fill(Color.accentColor).frame(width: 1)
         }
         .frame(width: WorkspaceMetrics.resizableDividerHitWidth)    // 命中区 ≥ 视觉线（D8）
         .frame(maxHeight: .infinity)

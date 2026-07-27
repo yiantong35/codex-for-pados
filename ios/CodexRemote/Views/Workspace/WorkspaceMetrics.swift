@@ -31,13 +31,17 @@ enum WorkspaceMetrics {
     // MARK: - 自绘可调宽三栏（custom-resizable-columns，D2/D4/D8）
 
     /// 左 / 右 / 中栏最小可用宽（中栏永不被压没）。
-    static let leftColumnMinWidth: CGFloat = 240
-    static let rightColumnMinWidth: CGFloat = rightPanelMinWidth   // 复用既有 220
-    static let centerColumnMinWidth: CGFloat = 320
+    /// 左栏只放 session 列表，不需宽 → 取小值。三者之和 + 两分隔线要明显小于竖屏 iPad 总宽（~834），
+    /// 否则三栏全开时全部钉在最小宽、无拖动余量。160 + 280 + 200 + 28 = 668 < 834 → ~166pt 可拖余量。
+    static let leftColumnMinWidth: CGFloat = 160
+    static let rightColumnMinWidth: CGFloat = 200   // 独立于 rightPanelMinWidth，便于按三栏预算单独调
+    static let centerColumnMinWidth: CGFloat = 280
 
     /// 左 / 右栏默认宽（无持久化记录时的冷启动初值）。
-    static let leftColumnDefaultWidth: CGFloat = 300
-    static let rightColumnDefaultWidth: CGFloat = rightPanelIdealWidth   // 复用既有 320
+    /// 默认宽也要偏小：竖屏三栏全开时 左220 + 右280 + 中(834−220−280−28=306) 全部落在各自 [min,max] 内，
+    /// 两侧都留有拖动余量（默认宽过大会让另一栏 reclamp 后被钉在最小宽而拖不动）。
+    static let leftColumnDefaultWidth: CGFloat = 220
+    static let rightColumnDefaultWidth: CGFloat = 280
 
     /// 分隔线命中区宽（手感关键：够宽才好抓；也是视觉线所在的透明命中带宽）。
     static let resizableDividerHitWidth: CGFloat = 14

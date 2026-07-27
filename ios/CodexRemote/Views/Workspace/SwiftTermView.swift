@@ -33,14 +33,15 @@ struct SwiftTermView: UIViewRepresentable {
     /// 故同时设视图 backgroundColor 保证背景实际生效（设计文档 A）。
     private func applyColors(to view: TerminalView, scheme: ColorScheme) {
         let foreground: UIColor
-        let background: UIColor
         if scheme == .dark {
             foreground = UIColor(white: 0.92, alpha: 1.0)   // 近白，暗背景高对比
-            background = UIColor(white: 0.11, alpha: 1.0)   // 深灰黑，与 app 深色主题协调
         } else {
             foreground = UIColor(white: 0.12, alpha: 1.0)   // 近黑，亮背景高对比
-            background = UIColor(white: 0.98, alpha: 1.0)   // 近白
         }
+        // 背景与各列统一：解析 systemBackground 到当前深浅（深色=纯黑 / 浅色=纯白），
+        // 不再用独立灰底（原 0.11/0.98 会显得与相邻列不一致）。
+        let traits = UITraitCollection(userInterfaceStyle: scheme == .dark ? .dark : .light)
+        let background = UIColor.systemBackground.resolvedColor(with: traits)
         view.nativeForegroundColor = foreground
         view.nativeBackgroundColor = background
         view.backgroundColor = background

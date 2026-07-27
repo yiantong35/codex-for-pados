@@ -38,9 +38,10 @@ struct BottomPanelView: View {
     /// 拖动效果（手势）靠模拟器/UI 测试确认；clamp 逻辑已在 WorkspaceMetricsTests 单测。
     private var dragHandle: some View {
         ZStack(alignment: .top) {
-            // 隐藏可见把手横条（设计文档 B）：轨道整体透明，仅保留可拖命中区。
-            // 用透明 Color 撑满轨道，配合下方 .contentShape 保证透明区仍可命中 DragGesture。
+            // 透明轨道撑满命中区，配合下方 .contentShape 保证透明区仍可命中 DragGesture。
             Color.clear
+            // 顶部 1pt 主题橙分界线：与竖直列分隔线（accentColor）统一，标出下栏与上方列的分界。
+            Rectangle().fill(Color.accentColor).frame(height: 1)
         }
         .frame(height: WorkspaceMetrics.bottomResizeHandleTrackHeight)
         .contentShape(Rectangle())
