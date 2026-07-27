@@ -8,8 +8,42 @@ final class RelayPairingImportViewModelTests: XCTestCase {
     func testValidPasteParsesToMachineConfig() throws {
         let vm = RelayPairingImportViewModel()
         vm.pasted = "codexrelay://pair?relay=wss://x&sid=s&pk=QQ&pc=c&exp=9999999999"
-        let cfg = try vm.makeMachineConfig(now: 1)
-        if case .relay = cfg.connection {} else { XCTFail("expected .relay connection") }
+        let (cfg, pc) = try vm.makeMachineConfig(now: 1)
+        // 5.4：断言 connection 为结构化 relay 且三字段非空，pc 单独非空返回（不进 config）。
+        if case .relay(let url, let sid, let pub) = cfg.connection {
+            XCTAssertFalse(url.isEmpty)
+            XCTAssertFalse(sid.isEmpty)
+            XCTAssertFalse(pub.isEmpty)
+        } else {
+            XCTFail("expected .relay connection")
+        }
+        XCTAssertFalse(pc.isEmpty)
+    }
+
+    /// 6.2：非 loopback 明文 ws 导入即报 insecureScheme（早报错，不等到连接时才失败）。
+    func testImportRejectsPlainWsWithSchemeError() {
+        let vm = RelayPairingImportViewModel()
+        vm.pasted = "codexrelay://pair?relay=ws://relay.example/ws&sid=s&pk=PUB&pc=C&exp=9999999999"
+        XCTAssertThrowsError(try vm.makeMachineConfig(now: 0)) { error in
+            XCTAssertEqual(error as? PairingImportError, .insecureScheme)
+        }
+    }
+
+    /// 5.4：配对成功后走 MachineStore.add 持久化一遍，磁盘原始字节绝不含配对码（pc）。
+    /// 配对码只应经 PendingPairingStore（内存）流转，绝不落 UserDefaults。
+    func testPersistedMachinesNeverContainPairingCode() throws {
+        let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        let store = MachineStore(defaults: defaults)
+        let vm = RelayPairingImportViewModel()
+        vm.pasted = "codexrelay://pair?relay=wss://r.example/ws&sid=s&pk=PUB&pc=TOPSECRET&exp=9999999999"
+        let (config, pc) = try vm.makeMachineConfig(now: 0)
+        XCTAssertEqual(pc, "TOPSECRET")
+
+        _ = store.add(config)   // 持久化
+
+        let raw = String(decoding: defaults.data(forKey: "machines") ?? Data(), as: UTF8.self)
+        XCTAssertFalse(raw.contains("TOPSECRET"), "持久化字节不应含配对码原文")
+        XCTAssertFalse(raw.contains("pc="), "持久化字节不应含 pc= 标记")
     }
 
     func testExpiredPayloadRejected() {
@@ -32,7 +66,7 @@ final class RelayPairingImportViewModelTests: XCTestCase {
         // 模拟 QRScannerView.onScan 回调把扫得的字符串交给 vm.pasted。
         let scanned = "codexrelay://pair?relay=wss://x&sid=s&pk=QQ&pc=c&exp=9999999999"
         vm.pasted = scanned
-        let cfg = try vm.makeMachineConfig(now: 1)
+        let (cfg, _) = try vm.makeMachineConfig(now: 1)
         if case .relay = cfg.connection {} else { XCTFail("expected .relay connection") }
     }
 
@@ -123,7 +157,8 @@ final class RelayPairingImportViewModelTests: XCTestCase {
         for key in ["machineForm.mode", "machineForm.mode.ssh", "machineForm.mode.relay",
                     "relayImport.title", "relayImport.hint", "relayImport.paste",
                     "relayImport.import", "relayImport.error.empty",
-                    "relayImport.error.badFormat", "relayImport.error.expired"] {
+                    "relayImport.error.badFormat", "relayImport.error.expired",
+                    "relayImport.error.insecureScheme"] {
             let value = String(localized: String.LocalizationValue(key), bundle: .main)
             XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
         }

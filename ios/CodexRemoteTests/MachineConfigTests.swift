@@ -43,18 +43,21 @@ final class MachineConfigRelayTests: XCTestCase {
         XCTAssertEqual(sock, "/tmp/s.sock")
     }
 
-    // .relay(pairing:) 构造 → Codable round-trip → 相等（不丢 pairing）。
+    // .relay(relayURL:sessionId:devIdentityPubB64:) 构造 → Codable round-trip → 相等（结构化非密字段，不含 pc）。
     func test_relayConfigRoundTripsCodable() throws {
-        let pairing = "codexrelay://pair?relay=wss://r.example/ws&sid=S1&pk=PK&pc=PC&exp=9999999999"
         let m = MachineConfig(id: UUID(), displayName: "relay-box",
-                              connection: .relay(pairing: pairing), lastActiveAt: nil)
+                              connection: .relay(relayURL: "wss://r.example/ws", sessionId: "S1",
+                                                 devIdentityPubB64: "PK"),
+                              lastActiveAt: nil)
         let data = try JSONEncoder().encode(m)
         let back = try JSONDecoder().decode(MachineConfig.self, from: data)
         XCTAssertEqual(back, m)
-        guard case .relay(let p) = back.connection else {
+        guard case .relay(let url, let sid, let pub) = back.connection else {
             return XCTFail("round-trip 后应仍是 .relay kind")
         }
-        XCTAssertEqual(p, pairing)
+        XCTAssertEqual(url, "wss://r.example/ws")
+        XCTAssertEqual(sid, "S1")
+        XCTAssertEqual(pub, "PK")
     }
 
     // 关键回归防线：旧格式扁平 JSON（有 host/user/sshPort/sockPath、无 connection 字段）

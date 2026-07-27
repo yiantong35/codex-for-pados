@@ -16,28 +16,31 @@ struct ConnectionConfig: Sendable {
     var user: String              // SSH 用户名
     var sshPort: Int = 22
     var controlSockPath: String   // 远端 ~/.codex/app-server-control/app-server-control.sock
-    /// relay 连接载荷（`codexrelay://pair?…`）。非 nil 表示走 RelayTransport 而非 SSH+proxy；
-    /// 此时 host/user/controlSockPath 不适用（transportFactory 按此分派）。
-    var relayPairing: String? = nil
+    /// relay 连接的非密字段（relayURL 非 nil 表示走 RelayTransport 而非 SSH+proxy；
+    /// 此时 host/user/controlSockPath 不适用，transportFactory 按此分派）。
+    /// 配对码（pc）绝不进这里，只驻内存 PendingPairingStore，由 liveTransportFactory 现取现用。
+    var relayURL: String? = nil
+    var relaySessionId: String = ""
+    var relayDevIdentityPubB64: String = ""
     /// relay 连接的 TOFU 稳定键（= MachineConfig id 字符串）。SSH 连接为 nil。
     var relayTOFUKey: String? = nil
 
-    /// relay 连接构造：带配对载荷 + TOFU 稳定键，SSH 字段留空。
-    init(relayPairing: String, relayTOFUKey: String? = nil) {
+    /// relay 连接构造：带结构化非密字段 + TOFU 稳定键，SSH 字段留空。
+    init(relayURL: String, relaySessionId: String, relayDevIdentityPubB64: String, relayTOFUKey: String? = nil) {
         self.host = ""; self.user = ""; self.sshPort = 0; self.controlSockPath = ""
-        self.relayPairing = relayPairing
-        self.relayTOFUKey = relayTOFUKey
+        self.relayURL = relayURL; self.relaySessionId = relaySessionId
+        self.relayDevIdentityPubB64 = relayDevIdentityPubB64; self.relayTOFUKey = relayTOFUKey
     }
 
     /// SSH 连接构造（保持既有调用点签名不变）。
     init(host: String, user: String, sshPort: Int = 22, controlSockPath: String) {
         self.host = host; self.user = user; self.sshPort = sshPort
         self.controlSockPath = controlSockPath
-        self.relayPairing = nil
+        self.relayURL = nil
     }
 
     /// 是否 relay 连接。
-    var isRelay: Bool { relayPairing != nil }
+    var isRelay: Bool { relayURL != nil }
 
     static var stub: ConnectionConfig {
         .init(host: "x", user: "u", sshPort: 22, controlSockPath: "/tmp/s.sock")
@@ -135,7 +138,7 @@ final class ConnectionStore {
         if config.isRelay {
             // relay：只需配对载荷非空；SSH host/user/sock 与本机 SSH 密钥前置不适用。
             // 真握手由 RelayTransport 在 doEstablish 的 awaitHandshake() 内驱动（先握手后收loop）。
-            guard !(config.relayPairing ?? "").isEmpty else {
+            guard !(config.relayURL ?? "").isEmpty else {
                 connLog.error("connect 拒绝：relay 配对载荷为空")
                 phase = .failed("relay 配对信息缺失")
                 return

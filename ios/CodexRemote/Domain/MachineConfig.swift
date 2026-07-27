@@ -1,14 +1,17 @@
 import Foundation
+import RelayProtocol
 
 /// 连接方式（SSH 直连共享 daemon vs relay 中继）。
-/// SSH 专有字段收进 `.ssh` case，避免散在 MachineConfig 顶层；relay 只需一段配对载荷字符串。
-/// Codable：以 `kind` 判别子编码（`.ssh` 平铺 host/user/…，`.relay` 带 pairing）。
+/// SSH 专有字段收进 `.ssh` case，避免散在 MachineConfig 顶层；relay 结构化为非密字段
+/// （relayURL/sessionId/devIdentityPubB64），配对码（pc）绝不持久化，只驻内存 PendingPairingStore（5.1/5.2）。
+/// Codable：以 `kind` 判别子编码（`.ssh` 平铺 host/user/…，`.relay` 平铺 relayURL/sessionId/devIdentityPubB64）。
+/// 旧 `pairing` 键仍留在 CodingKeys 中供 5.3 迁移解码旧含 pc 数据，本类型 encode 时不再写它。
 enum ConnectionKind: Codable, Equatable {
     case ssh(host: String, user: String, sshPort: Int, sockPath: String)
-    case relay(pairing: String)
+    case relay(relayURL: String, sessionId: String, devIdentityPubB64: String)
 
     private enum CodingKeys: String, CodingKey {
-        case kind, host, user, sshPort, sockPath, pairing
+        case kind, host, user, sshPort, sockPath, pairing, relayURL, sessionId, devIdentityPubB64
     }
     private enum Kind: String, Codable { case ssh, relay }
 
@@ -21,9 +24,11 @@ enum ConnectionKind: Codable, Equatable {
             try c.encode(user, forKey: .user)
             try c.encode(sshPort, forKey: .sshPort)
             try c.encode(sockPath, forKey: .sockPath)
-        case .relay(let pairing):
+        case .relay(let relayURL, let sessionId, let devIdentityPubB64):
             try c.encode(Kind.relay, forKey: .kind)
-            try c.encode(pairing, forKey: .pairing)
+            try c.encode(relayURL, forKey: .relayURL)
+            try c.encode(sessionId, forKey: .sessionId)
+            try c.encode(devIdentityPubB64, forKey: .devIdentityPubB64)
         }
     }
 
@@ -36,7 +41,18 @@ enum ConnectionKind: Codable, Equatable {
                         sshPort: try c.decode(Int.self, forKey: .sshPort),
                         sockPath: try c.decode(String.self, forKey: .sockPath))
         case .relay:
-            self = .relay(pairing: try c.decode(String.self, forKey: .pairing))
+            if let url = try c.decodeIfPresent(String.self, forKey: .relayURL) {
+                self = .relay(relayURL: url,
+                              sessionId: try c.decode(String.self, forKey: .sessionId),
+                              devIdentityPubB64: try c.decode(String.self, forKey: .devIdentityPubB64))
+            } else {
+                // 旧格式迁移：解 pairing 串，只留非密字段，丢弃 pc/exp（幂等）。
+                let legacy = try c.decode(String.self, forKey: .pairing)
+                let p = (try? PairingPayload(parsing: legacy))
+                self = .relay(relayURL: p?.relayURL ?? "",
+                              sessionId: p?.sessionId ?? "",
+                              devIdentityPubB64: p?.devIdentityPubB64 ?? "")
+            }
         }
     }
 }
@@ -126,14 +142,15 @@ struct MachineConfig: Codable, Identifiable, Equatable {
     }
 
     /// 转为连接层 ConnectionConfig（按 kind 分派）。
-    /// `.ssh` → SSH 直连字段；`.relay` → 带 pairing 载荷，transportFactory 据此构造 RelayTransport。
+    /// `.ssh` → SSH 直连字段；`.relay` → 结构化非密字段，transportFactory 据此 + 内存 pc 构造 RelayTransport。
     var connectionConfig: ConnectionConfig {
         switch connection {
         case .ssh(let host, let user, let sshPort, let sockPath):
             return ConnectionConfig(host: host, user: user, sshPort: sshPort,
                                     controlSockPath: sockPath)
-        case .relay(let pairing):
-            return ConnectionConfig(relayPairing: pairing, relayTOFUKey: id.uuidString)
+        case .relay(let relayURL, let sessionId, let pub):
+            return ConnectionConfig(relayURL: relayURL, relaySessionId: sessionId,
+                                    relayDevIdentityPubB64: pub, relayTOFUKey: id.uuidString)
         }
     }
 }

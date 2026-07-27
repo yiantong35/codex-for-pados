@@ -8,12 +8,14 @@ enum PairingImportError: LocalizedError, Equatable {
     case empty
     case badFormat
     case expired
+    case insecureScheme
 
     var errorDescription: String? {
         switch self {
-        case .empty:     return String(localized: "relayImport.error.empty")
-        case .badFormat: return String(localized: "relayImport.error.badFormat")
-        case .expired:   return String(localized: "relayImport.error.expired")
+        case .empty:          return String(localized: "relayImport.error.empty")
+        case .badFormat:      return String(localized: "relayImport.error.badFormat")
+        case .expired:        return String(localized: "relayImport.error.expired")
+        case .insecureScheme: return String(localized: "relayImport.error.insecureScheme")
         }
     }
 }
@@ -26,12 +28,13 @@ enum PairingImportError: LocalizedError, Equatable {
 final class RelayPairingImportViewModel {
     var pasted: String = ""
 
-    /// 从粘贴串解析并校验，成功返回 `.relay(pairing:)` 的 MachineConfig。
+    /// 从粘贴串解析并校验，成功返回结构化 `.relay(...)` 的 MachineConfig + 单独的配对码。
     /// - 空/纯空白 → `.empty`
     /// - 解析失败（scheme/host/缺字段）→ `.badFormat`
     /// - 已过期 → `.expired`
     /// - `now`：当前 Unix 秒；默认取系统时间，测试可注入。
-    func makeMachineConfig(now: Int64 = Int64(Date().timeIntervalSince1970)) throws -> MachineConfig {
+    /// pc（配对码）绝不进 MachineConfig 持久化，单独返回交调用方暂存内存 PendingPairingStore。
+    func makeMachineConfig(now: Int64 = Int64(Date().timeIntervalSince1970)) throws -> (config: MachineConfig, pairingCode: String) {
         let text = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { throw PairingImportError.empty }
 
@@ -43,11 +46,18 @@ final class RelayPairingImportViewModel {
         }
 
         guard !payload.isExpired(now: now) else { throw PairingImportError.expired }
+        guard let url = URL(string: payload.relayURL) else { throw PairingImportError.badFormat }
+
+        // 6.2：导入即校验 scheme——生产明文 ws 早报错（不等到连接时才失败）。
+        do { try RelaySchemeValidator.validate(url: url) }
+        catch { throw PairingImportError.insecureScheme }
 
         // displayName 回落到 relayURL 的 host（无则用 relayURL 原串），保证 MachineConfig 非空显示名。
-        let name = URL(string: payload.relayURL)?.host ?? payload.relayURL
-        return MachineConfig(displayName: name.isEmpty ? nil : name,
-                             connection: .relay(pairing: text))
+        let name = url.host ?? payload.relayURL
+        let config = MachineConfig(displayName: name.isEmpty ? nil : name,
+            connection: .relay(relayURL: payload.relayURL, sessionId: payload.sessionId,
+                               devIdentityPubB64: payload.devIdentityPubB64))
+        return (config, payload.pairingCode)   // pc 单独返回，绝不进 MachineConfig 持久化
     }
 }
 
@@ -234,7 +244,8 @@ struct RelayPairingImportView: View {
     /// 解析导入：成功交 addMachineAndConnect（切过去 + 连接），失败展示明确文案。
     private func importPairing() {
         do {
-            let m = try vm.makeMachineConfig()
+            let (m, pc) = try vm.makeMachineConfig()
+            PendingPairingStore.shared.stash(pc, for: m.id)   // pc 仅驻内存，配 machine id
             if sessions.addMachineAndConnect(m) {
                 dismiss()
             }

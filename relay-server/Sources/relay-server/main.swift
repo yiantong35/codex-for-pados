@@ -18,6 +18,9 @@ import RelayServerCore
 let port = Int(ProcessInfo.processInfo.environment["RELAY_PORT"] ?? "") ?? 9000
 let host = "0.0.0.0"
 let rooms = RelayRooms()
+let limiter = RelayLimiter(maxPerIP: RelayLimits.maxConnectionsPerIP,
+                           maxRooms: RelayLimits.maxRooms,
+                           ratePerMinute: RelayLimits.connectRatePerMinute)
 
 let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
 
@@ -26,6 +29,7 @@ let bootstrap = ServerBootstrap(group: group)
     .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
     .childChannelInitializer { channel in
         let upgrader = NIOWebSocketServerUpgrader(
+            maxFrameSize: RelayLimits.maxMessageBytes,   // 单帧上限；分片累积上限由 FrameAccumulator 兜底
             shouldUpgrade: { (channel, head) -> EventLoopFuture<HTTPHeaders?> in
                 let role = head.headers.first(name: "x-role")
                 if UpgradeRequest.parseUpgrade(uri: head.uri, role: role) != nil {
@@ -39,9 +43,18 @@ let bootstrap = ServerBootstrap(group: group)
                 guard let parsed = UpgradeRequest.parseUpgrade(uri: head.uri, role: role) else {
                     return channel.eventLoop.makeFailedFuture(RelayError.badUpgrade)
                 }
+                // 取来源 IP 用于 per-IP 并发/速率配额(准入在 handlerAdded 内,升级已定才计数)。
+                let ip = channel.remoteAddress?.ipAddress ?? "unknown"
+                // 先插 IdleStateHandler(空闲超时回收连接),再插撮合 handler。
                 return channel.pipeline.addHandler(
-                    RelayConnectionHandler(rooms: rooms, sessionId: parsed.sessionId, role: parsed.role)
-                )
+                    IdleStateHandler(allTimeout: .seconds(RelayLimits.idleTimeoutSeconds))
+                ).flatMap {
+                    channel.pipeline.addHandler(
+                        RelayConnectionHandler(rooms: rooms, limiter: limiter, ip: ip,
+                                               sessionId: parsed.sessionId, role: parsed.role,
+                                               maxMessageBytes: RelayLimits.maxMessageBytes)
+                    )
+                }
             }
         )
         return channel.pipeline.configureHTTPServerPipeline(
@@ -66,20 +79,42 @@ final class RelayConnectionHandler: ChannelInboundHandler, @unchecked Sendable {
     typealias OutboundOut = WebSocketFrame
 
     private let rooms: RelayRooms
+    private let limiter: RelayLimiter            // 资源配额（4.3，D3）
+    private let ip: String                       // 来源 IP（per-IP 并发/速率）
     private let sessionId: String
     private let role: RelayPeer
-    private var textBuffer = ByteBuffer()
+    private var accumulator: FrameAccumulator   // 单消息字节上限累积器（4.1）
+    private var connId: UUID?                    // 本连接的唯一身份（3.4，D4）
+    private var admitted = false                 // 本连接是否已计入配额（决定 remove 时是否释放）
+    private var admittedRoom = false             // 本连接是否已计入房间配额
 
-    init(rooms: RelayRooms, sessionId: String, role: RelayPeer) {
+    init(rooms: RelayRooms, limiter: RelayLimiter, ip: String,
+         sessionId: String, role: RelayPeer, maxMessageBytes: Int) {
         self.rooms = rooms
+        self.limiter = limiter
+        self.ip = ip
         self.sessionId = sessionId
         self.role = role
+        self.accumulator = FrameAccumulator(maxBytes: maxMessageBytes)
     }
 
     func handlerAdded(context: ChannelHandlerContext) {
+        // 资源准入(升级已定才计数):速率 + per-IP 并发。超限即关连接,不进撮合。
+        guard limiter.admit(ip: ip, now: Date().timeIntervalSince1970) else {
+            context.close(promise: nil)
+            return
+        }
+        admitted = true
+        // 房间总数配额:超上限拒(fail-closed)。
+        guard limiter.admitRoom(sessionId: sessionId) else {
+            context.close(promise: nil)
+            return
+        }
+        admittedRoom = true
+
         // sink:把对端投来的密文字符串编成 ws text frame 写回本连接。
         let channel = context.channel
-        rooms.join(sessionId: sessionId, role: role) { frame in
+        let result = rooms.join(sessionId: sessionId, role: role) { frame in
             channel.eventLoop.execute {
                 var buf = channel.allocator.buffer(capacity: frame.utf8.count)
                 buf.writeString(frame)
@@ -87,22 +122,46 @@ final class RelayConnectionHandler: ChannelInboundHandler, @unchecked Sendable {
                 channel.writeAndFlush(wsFrame, promise: nil)
             }
         }
+        switch result {
+        case .joined(let id):
+            self.connId = id
+        case .rejectedRoleOccupied:
+            // 后到同角色被拒:主动关连接,不接管先到转发(D4)。
+            context.close(promise: nil)
+        }
     }
 
     func handlerRemoved(context: ChannelHandlerContext) {
-        rooms.leave(sessionId: sessionId, role: role)
+        // 仅按本连接自己的 connId 精确 leave;被拒连接(connId 为 nil)不误清占用槽的先到连接。
+        if let id = connId {
+            rooms.leave(sessionId: sessionId, role: role, connId: id)
+        }
+        // 对称释放配额:仅释放本连接实际计入过的部分。
+        // 房间用引用计数,每次成功 admitRoom 对应一次 releaseRoom,房间仅在最后一端离开才释放。
+        if admittedRoom { limiter.releaseRoom(sessionId: sessionId) }
+        if admitted { limiter.release(ip: ip) }
+    }
+
+    func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+        if event is IdleStateHandler.IdleStateEvent {
+            context.close(promise: nil)   // 空闲超时:回收连接释放资源(4.2)
+        } else {
+            context.fireUserInboundEventTriggered(event)
+        }
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let frame = self.unwrapInboundIn(data)
         switch frame.opcode {
         case .text, .continuation:
-            textBuffer.writeImmutableBuffer(frame.unmaskedData)
-            if frame.fin {
-                let payload = textBuffer.readString(length: textBuffer.readableBytes) ?? ""
-                textBuffer.clear()
+            switch accumulator.append(Array(frame.unmaskedData.readableBytesView), fin: frame.fin) {
+            case .accumulating:
+                break
+            case .complete(let payload):
                 // 零知识:不解析 payload,原样转给对端。
                 rooms.forward(sessionId: sessionId, from: role, frame: payload)
+            case .overflow:
+                context.close(promise: nil)   // 超单消息上限:关连接,内存不无界增长
             }
         case .connectionClose:
             context.close(promise: nil)

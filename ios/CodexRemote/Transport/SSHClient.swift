@@ -1,7 +1,39 @@
 import Foundation
 import Citadel
 import NIOCore
+import NIOSSH
 import Crypto
+
+/// host key 决策纯逻辑（从 NIO 回调抽出便于单测）：序列化后的 host key 字节交 store 做 TOFU 校验。
+/// 首次信任持久化、再连比对、变更抛 `SSHHostKeyError.hostKeyChanged`（fail-closed）。
+enum SSHHostKeyDecision {
+    static func decide(store: SSHHostKeyStoring, machineKey: String, hostKeyBytes: Data) throws {
+        try store.verifyOrTrust(machineKey: machineKey, presentedHostKey: hostKeyBytes)
+    }
+}
+
+/// TOFU host key 校验 delegate：首信持久化、再连比对、变更 fail-closed 拒连（fail promise）。
+/// 绝不无条件放行（替代旧的无条件接受配置）。序列化用 `NIOSSHPublicKey.write(to:)` 的
+/// SSH host key 原始字节（含算法前缀，稳定可比），存 Keychain 并逐字节比对。
+final class TOFUHostKeyDelegate: NIOSSHClientServerAuthenticationDelegate, @unchecked Sendable {
+    private let store: SSHHostKeyStoring
+    private let machineKey: String
+    init(store: SSHHostKeyStoring, machineKey: String) {
+        self.store = store
+        self.machineKey = machineKey
+    }
+    func validateHostKey(hostKey: NIOSSHPublicKey, validationCompletePromise: EventLoopPromise<Void>) {
+        var buf = ByteBufferAllocator().buffer(capacity: 128)
+        hostKey.write(to: &buf)
+        let bytes = Data(buf.readableBytesView)
+        do {
+            try SSHHostKeyDecision.decide(store: store, machineKey: machineKey, hostKeyBytes: bytes)
+            validationCompletePromise.succeed(())   // 首信/匹配 → 接受
+        } catch {
+            validationCompletePromise.fail(error)   // 变更/首信持久化失败 → 拒连（不进 initialize）
+        }
+    }
+}
 
 /// SSH 鉴权方式。
 enum SSHAuth {
@@ -30,7 +62,9 @@ enum SSHClientWrapper {
     /// - 鉴权失败 → `TransportError.sshAuthFailed`
     /// - 连接建立但 app-server exec 无法启动 → `TransportError.appServerUnreachable`（在 ProxyChannel 内体现为通道关闭）
     static func connect(host: String, sshPort: Int, auth: SSHAuth,
-                        controlSockPath: String) async throws -> ProxyChannel {
+                        controlSockPath: String,
+                        hostKeyStore: SSHHostKeyStoring = KeychainSSHHostKeyStore(),
+                        machineKey: String) async throws -> ProxyChannel {
         let method: SSHAuthenticationMethod
         switch auth {
         case .password(let u, let p):
@@ -53,15 +87,22 @@ enum SSHClientWrapper {
         }
 
         let connected: Citadel.SSHClient
+        // TOFU host key 校验：首次信任并持久化、再连比对、变更 fail-closed 拒连报警。
+        // machineKey 为该 SSH 连接的稳定标识（user@host:port），独立于 relay E2E TOFU。
+        let hostKeyDelegate = TOFUHostKeyDelegate(store: hostKeyStore, machineKey: machineKey)
         do {
             connected = try await Citadel.SSHClient.connect(
                 host: host,
                 port: sshPort,
                 authenticationMethod: method,
-                hostKeyValidator: .acceptAnything(),   // TODO Task 11：固定/记录 host key
+                hostKeyValidator: .custom(hostKeyDelegate),   // TOFU + fail-closed（替换旧无条件放行）
                 reconnect: .never
             )
         } catch {
+            // host key 变更/首信持久化失败与鉴权失败都落此；区分错误类型给明确报警文案。
+            if let e = error as? SSHHostKeyError {
+                throw TransportError.sshAuthFailed("SSH host key 校验失败（可能中间人或服务器身份变更）：\(e)")
+            }
             throw TransportError.sshAuthFailed("\(error)")
         }
 
