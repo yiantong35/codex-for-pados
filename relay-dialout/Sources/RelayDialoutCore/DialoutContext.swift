@@ -1,4 +1,5 @@
 import Foundation
+import Crypto
 import RelayProtocol
 
 // MARK: - 开发机侧握手上下文（从可执行 target 抽到库，供单测）
@@ -35,6 +36,9 @@ public final class DialoutContext: @unchecked Sendable {
     private var _session: SecureSession?
     private var _clientHello: ClientHello?
     private var _serverHello: ServerHello?
+    // 每次握手新生成的 dev X25519 交换私钥（前向保密：不落盘、握手完成/失败即释放）。
+    // 与 _clientHello/_serverHello 并列，受 lock 保护；hello 与 auth 必须用同一把。
+    private var _eph: Curve25519.KeyAgreement.PrivateKey?
     // 当前在飞握手是否走受信任复连分支（在 handleClientHello 判定，供 handleClientAuth 决定是否
     // 施加一次性口令重放守卫）。首配=false（受 pairingConsumed 约束）；受信任复连=true（可重握手）。
     private var _currentHandshakeTrusted = false
@@ -79,6 +83,10 @@ public final class DialoutContext: @unchecked Sendable {
         var nonce = [UInt8](repeating: 0, count: 16)
         for i in 0..<16 { nonce[i] = UInt8.random(in: 0...255) }
 
+        // 本次握手专用的 dev X25519 交换私钥：每会话新生、不落盘（前向保密）。
+        // hello 出示其公钥、auth 用同一把做 DH——必须是同一个 eph，否则 DH 对不上握手失败。
+        let eph = Curve25519.KeyAgreement.PrivateKey()
+
         let serverHello: ServerHello
         if isTrusted {
             // 受信任复连：免 proof，不受一次性口令的消费/过期约束。
@@ -86,7 +94,7 @@ public final class DialoutContext: @unchecked Sendable {
                 clientHello: hello,
                 devDeviceId: devDeviceId,
                 devIdentity: keyStore.identity,
-                devEphemeralPub: keyStore.exchange.publicKey.rawRepresentation,
+                devEphemeralPub: eph.publicKey.rawRepresentation,
                 serverNonce: Data(nonce),
                 keyEpoch: 0
             )
@@ -98,7 +106,7 @@ public final class DialoutContext: @unchecked Sendable {
                 clientHello: hello,
                 devDeviceId: devDeviceId,
                 devIdentity: keyStore.identity,
-                devEphemeralPub: keyStore.exchange.publicKey.rawRepresentation,
+                devEphemeralPub: eph.publicKey.rawRepresentation,
                 serverNonce: Data(nonce),
                 keyEpoch: 0,
                 pairingCode: pairingCode
@@ -106,7 +114,7 @@ public final class DialoutContext: @unchecked Sendable {
         }
         // 重握手支持：受信任路径每次都重置在飞握手状态（不被上一次的 hello/session 挡）。
         lock.lock()
-        _clientHello = hello; _serverHello = serverHello
+        _clientHello = hello; _serverHello = serverHello; _eph = eph
         _currentHandshakeTrusted = isTrusted
         if isTrusted { _session = nil }
         lock.unlock()
@@ -128,21 +136,31 @@ public final class DialoutContext: @unchecked Sendable {
         let trusted = _currentHandshakeTrusted
         let hellosSnapshot: (ClientHello, ServerHello)?
         if let c = _clientHello, let s = _serverHello { hellosSnapshot = (c, s) } else { hellosSnapshot = nil }
+        let ephSnapshot = _eph
         let consumed = _pairingConsumed
         lock.unlock()
 
         // 重放守卫仅对首配一次性口令路径生效；受信任复连允许重握手。
         if !trusted { guard !consumed else { throw DialoutHandshakeError.pairingAlreadyUsed } }
-        guard let (hello, serverHello) = hellosSnapshot else { throw HandshakeError.badClientSignature }
+        guard let (hello, serverHello) = hellosSnapshot, let eph = ephSnapshot else { throw HandshakeError.badClientSignature }
 
-        let session = try Handshake.verifyClientAuthAndFinish(
-            clientHello: hello,
-            serverHello: serverHello,
-            clientAuth: auth,
-            devEphemeral: keyStore.exchange
-        )
+        let session: SecureSession
+        do {
+            // 用与 ServerHello 同一把 eph 做 DH（前向保密：本次握手专用私钥）。
+            session = try Handshake.verifyClientAuthAndFinish(
+                clientHello: hello,
+                serverHello: serverHello,
+                clientAuth: auth,
+                devEphemeral: eph
+            )
+        } catch {
+            // 握手失败即释放交换私钥，不留驻内存。
+            lock.lock(); _eph = nil; lock.unlock()
+            throw error
+        }
         lock.lock()
         _session = session
+        _eph = nil                                 // 握手完成即释放交换私钥
         if !trusted { _pairingConsumed = true }   // 仅首配消费一次性口令；受信任复连不置
         lock.unlock()
 
