@@ -1,4 +1,5 @@
 import Foundation
+import RelayProtocol
 
 /// 连接方式（SSH 直连共享 daemon vs relay 中继）。
 /// SSH 专有字段收进 `.ssh` case，避免散在 MachineConfig 顶层；relay 结构化为非密字段
@@ -40,9 +41,18 @@ enum ConnectionKind: Codable, Equatable {
                         sshPort: try c.decode(Int.self, forKey: .sshPort),
                         sockPath: try c.decode(String.self, forKey: .sockPath))
         case .relay:
-            self = .relay(relayURL: try c.decode(String.self, forKey: .relayURL),
-                          sessionId: try c.decode(String.self, forKey: .sessionId),
-                          devIdentityPubB64: try c.decode(String.self, forKey: .devIdentityPubB64))
+            if let url = try c.decodeIfPresent(String.self, forKey: .relayURL) {
+                self = .relay(relayURL: url,
+                              sessionId: try c.decode(String.self, forKey: .sessionId),
+                              devIdentityPubB64: try c.decode(String.self, forKey: .devIdentityPubB64))
+            } else {
+                // 旧格式迁移：解 pairing 串，只留非密字段，丢弃 pc/exp（幂等）。
+                let legacy = try c.decode(String.self, forKey: .pairing)
+                let p = (try? PairingPayload(parsing: legacy))
+                self = .relay(relayURL: p?.relayURL ?? "",
+                              sessionId: p?.sessionId ?? "",
+                              devIdentityPubB64: p?.devIdentityPubB64 ?? "")
+            }
         }
     }
 }

@@ -20,4 +20,18 @@ struct MachineConfigRelayMigrationTests {
             #expect(url == "wss://r.example/ws" && sid == "sid1" && pub == "PUB")
         } else { #expect(Bool(false)) }
     }
+
+    @Test func legacyRelayPairingStringMigratesStrippingPairingCode() throws {
+        // 构造旧格式：connection.kind == relay, pairing == 含 pc 的 URI。
+        let legacyURI = "codexrelay://pair?relay=wss://r.example/ws&sid=sidOld&pk=PUBOLD&pc=SECRET123&exp=9999999999"
+        let legacyJSON = """
+        {"id":"\(UUID().uuidString)","displayName":"old","connection":{"kind":"relay","pairing":"\(legacyURI)"}}
+        """
+        let cfg = try JSONDecoder().decode(MachineConfig.self, from: Data(legacyJSON.utf8))
+        guard case .relay(let url, let sid, let pub) = cfg.connection else { return #expect(Bool(false)) }
+        #expect(url == "wss://r.example/ws" && sid == "sidOld" && pub == "PUBOLD")
+        // 重新编码后绝不含 pc。
+        let reEncoded = String(decoding: try JSONEncoder().encode(cfg), as: UTF8.self)
+        #expect(!reEncoded.contains("SECRET123") && !reEncoded.contains("pc="))
+    }
 }
