@@ -71,6 +71,7 @@ final class RelayConnectionHandler: ChannelInboundHandler, @unchecked Sendable {
     private let sessionId: String
     private let role: RelayPeer
     private var accumulator: FrameAccumulator   // 单消息字节上限累积器（4.1）
+    private var connId: UUID?                    // 本连接的唯一身份（3.4，D4）
 
     init(rooms: RelayRooms, sessionId: String, role: RelayPeer, maxMessageBytes: Int) {
         self.rooms = rooms
@@ -82,7 +83,7 @@ final class RelayConnectionHandler: ChannelInboundHandler, @unchecked Sendable {
     func handlerAdded(context: ChannelHandlerContext) {
         // sink:把对端投来的密文字符串编成 ws text frame 写回本连接。
         let channel = context.channel
-        rooms.join(sessionId: sessionId, role: role) { frame in
+        let result = rooms.join(sessionId: sessionId, role: role) { frame in
             channel.eventLoop.execute {
                 var buf = channel.allocator.buffer(capacity: frame.utf8.count)
                 buf.writeString(frame)
@@ -90,10 +91,20 @@ final class RelayConnectionHandler: ChannelInboundHandler, @unchecked Sendable {
                 channel.writeAndFlush(wsFrame, promise: nil)
             }
         }
+        switch result {
+        case .joined(let id):
+            self.connId = id
+        case .rejectedRoleOccupied:
+            // 后到同角色被拒:主动关连接,不接管先到转发(D4)。
+            context.close(promise: nil)
+        }
     }
 
     func handlerRemoved(context: ChannelHandlerContext) {
-        rooms.leave(sessionId: sessionId, role: role)
+        // 仅按本连接自己的 connId 精确 leave;被拒连接(connId 为 nil)不误清占用槽的先到连接。
+        if let id = connId {
+            rooms.leave(sessionId: sessionId, role: role, connId: id)
+        }
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
