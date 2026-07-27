@@ -30,3 +30,12 @@ import Testing
     l.releaseRoom(sessionId: "a")
     #expect(l.admitRoom(sessionId: "b"))
 }
+
+// 4.4：正常一对连接(dev+iPad 同 IP 各一条)远低于配额 → 始终放行，超限不误伤正常流量。
+@Test func normalTrafficWithinQuotaAlwaysAdmitted() {
+    let l = RelayLimiter(maxPerIP: RelayLimits.maxConnectionsPerIP,
+                         maxRooms: RelayLimits.maxRooms, ratePerMinute: RelayLimits.connectRatePerMinute)
+    #expect(l.admit(ip: "10.0.0.1", now: 0))
+    #expect(l.admit(ip: "10.0.0.1", now: 0))
+    #expect(l.admitRoom(sessionId: "sid-normal"))
+}
