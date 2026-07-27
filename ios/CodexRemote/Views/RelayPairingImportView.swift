@@ -8,12 +8,14 @@ enum PairingImportError: LocalizedError, Equatable {
     case empty
     case badFormat
     case expired
+    case insecureScheme
 
     var errorDescription: String? {
         switch self {
-        case .empty:     return String(localized: "relayImport.error.empty")
-        case .badFormat: return String(localized: "relayImport.error.badFormat")
-        case .expired:   return String(localized: "relayImport.error.expired")
+        case .empty:          return String(localized: "relayImport.error.empty")
+        case .badFormat:      return String(localized: "relayImport.error.badFormat")
+        case .expired:        return String(localized: "relayImport.error.expired")
+        case .insecureScheme: return String(localized: "relayImport.error.insecureScheme")
         }
     }
 }
@@ -45,6 +47,10 @@ final class RelayPairingImportViewModel {
 
         guard !payload.isExpired(now: now) else { throw PairingImportError.expired }
         guard let url = URL(string: payload.relayURL) else { throw PairingImportError.badFormat }
+
+        // 6.2：导入即校验 scheme——生产明文 ws 早报错（不等到连接时才失败）。
+        do { try RelaySchemeValidator.validate(url: url) }
+        catch { throw PairingImportError.insecureScheme }
 
         // displayName 回落到 relayURL 的 host（无则用 relayURL 原串），保证 MachineConfig 非空显示名。
         let name = url.host ?? payload.relayURL

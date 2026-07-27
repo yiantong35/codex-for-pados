@@ -20,6 +20,15 @@ final class RelayPairingImportViewModelTests: XCTestCase {
         XCTAssertFalse(pc.isEmpty)
     }
 
+    /// 6.2：非 loopback 明文 ws 导入即报 insecureScheme（早报错，不等到连接时才失败）。
+    func testImportRejectsPlainWsWithSchemeError() {
+        let vm = RelayPairingImportViewModel()
+        vm.pasted = "codexrelay://pair?relay=ws://relay.example/ws&sid=s&pk=PUB&pc=C&exp=9999999999"
+        XCTAssertThrowsError(try vm.makeMachineConfig(now: 0)) { error in
+            XCTAssertEqual(error as? PairingImportError, .insecureScheme)
+        }
+    }
+
     /// 5.4：配对成功后走 MachineStore.add 持久化一遍，磁盘原始字节绝不含配对码（pc）。
     /// 配对码只应经 PendingPairingStore（内存）流转，绝不落 UserDefaults。
     func testPersistedMachinesNeverContainPairingCode() throws {
@@ -148,7 +157,8 @@ final class RelayPairingImportViewModelTests: XCTestCase {
         for key in ["machineForm.mode", "machineForm.mode.ssh", "machineForm.mode.relay",
                     "relayImport.title", "relayImport.hint", "relayImport.paste",
                     "relayImport.import", "relayImport.error.empty",
-                    "relayImport.error.badFormat", "relayImport.error.expired"] {
+                    "relayImport.error.badFormat", "relayImport.error.expired",
+                    "relayImport.error.insecureScheme"] {
             let value = String(localized: String.LocalizationValue(key), bundle: .main)
             XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
         }
