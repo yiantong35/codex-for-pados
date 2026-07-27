@@ -33,8 +33,10 @@
 	<dict/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
+		<!-- 单窗口 app：全局单一 SessionsManager + 单一活跃机器，多窗口会共享同一状态互相打架，
+		     且各窗口 scenePhase 会误触发全局 setAppForegroundAll 暂停他窗连接（能耗修复的多 Scene 隐患）。故关闭。 -->
 		<key>UIApplicationSupportsMultipleScenes</key>
-		<true/>
+		<false/>
 	</dict>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
