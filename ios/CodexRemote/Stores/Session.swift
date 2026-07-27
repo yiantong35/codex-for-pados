@@ -70,4 +70,11 @@ final class Session: Identifiable {
             projects.stopPolling()
         }
     }
+
+    /// app 级前后台（能耗，D1）：与 tab 级 `setForeground`（轮询）**正交**——本方法**只**转发
+    /// 给 connection（→ transport 暂停/恢复重连），绝不动 `isForeground` 与 `projects` 轮询。
+    /// app 整体进/出系统后台时由 RootView 经 SessionsManager 广播给全部缓存 Session。
+    func setAppForeground(_ active: Bool) {
+        connection.setForeground(active)
+    }
 }

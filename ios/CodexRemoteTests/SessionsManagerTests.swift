@@ -324,6 +324,38 @@ final class SessionsManagerTests: XCTestCase {
         XCTAssertFalse(sa.projects === sb.projects, "各机器 projects store 应隔离，切 tab 不串台")
     }
 
+    // MARK: - fix-lifecycle-energy-leaks D1：app 级前后台正交广播
+
+    func test_setAppForegroundAll_broadcastsToAllCachedSessions() {
+        let m = mgr()
+        let a = MachineConfig(host: "a", user: "u"); m.machineStore.add(a)
+        let b = MachineConfig(host: "b", user: "u"); m.machineStore.add(b)
+        let sa = m.session(for: a.id)!
+        let sb = m.session(for: b.id)!
+        m.setActive(a.id)
+        XCTAssertTrue(sa.connection.foregroundActive, "前置：默认前台")
+        XCTAssertTrue(sb.connection.foregroundActive, "前置：默认前台")
+        m.setAppForegroundAll(false)
+        XCTAssertFalse(sa.connection.foregroundActive, "活跃 Session 应收 app 后台")
+        XCTAssertFalse(sb.connection.foregroundActive, "非活跃缓存 Session 也应收 app 后台（P1-1 修复点）")
+        m.setAppForegroundAll(true)
+        XCTAssertTrue(sa.connection.foregroundActive, "回前台应恢复")
+        XCTAssertTrue(sb.connection.foregroundActive, "回前台应恢复")
+    }
+
+    func test_setAppForegroundAll_doesNotTouchTabForeground() {
+        let m = mgr()
+        let a = MachineConfig(host: "a", user: "u"); m.machineStore.add(a)
+        let b = MachineConfig(host: "b", user: "u"); m.machineStore.add(b)
+        let sa = m.session(for: a.id)!
+        let sb = m.session(for: b.id)!
+        m.setActive(a.id)
+        XCTAssertTrue(sa.isForeground); XCTAssertFalse(sb.isForeground)
+        m.setAppForegroundAll(false)
+        XCTAssertTrue(sa.isForeground, "app 后台不得改 tab 级前台标记（正交）")
+        XCTAssertFalse(sb.isForeground, "tab 级标记保持不变")
+    }
+
     /// 由本测试文件路径（#filePath）推导源码 Views 目录，避免硬编码绝对路径。
     /// 结构：<repo>/ios/CodexRemoteTests/SessionsManagerTests.swift →
     ///       <repo>/ios/CodexRemote/Views/

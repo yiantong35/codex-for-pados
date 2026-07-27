@@ -36,6 +36,7 @@ struct CodexRemoteApp: App {
 /// - 有活跃 Session → workspace（方案②注入该 Session 的散 store + `.id` 强制切 tab 重建子树）。
 struct RootView: View {
     @Environment(SessionsManager.self) private var sessions
+    @Environment(\.scenePhase) private var scenePhase   // D1：app 级前后台唯一来源
 
     var body: some View {
         // @Bindable 桥接 addMachinePresented，供 sheet 双向绑定（引导态/主界面共用一个稳定挂载层）。
@@ -58,6 +59,11 @@ struct RootView: View {
         }
         // sheet 挂在 RootView（稳定层）：无论引导态还是主界面点 [+]/「添加第一台机器」都能弹出。
         .sheet(isPresented: $sessions.addMachinePresented) { MachineFormView() }
+        // 能耗（D1）：app 级前后台唯一来源。广播给全部缓存 Session 的 transport
+        //（→ 后台暂停重连/握手、回前台恢复）。与 tab 级轮询开关正交。
+        .onChange(of: scenePhase) { _, phase in
+            sessions.setAppForegroundAll(phase == .active)
+        }
     }
 
     /// 方案②：注入当前 Session 的散 store，读取点（Sidebar/Conversation/… 的
@@ -91,7 +97,6 @@ private struct WorkspaceHost: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(ProjectsStore.self) private var projects
     @Environment(ApprovalStore.self) private var approvals
-    @Environment(\.scenePhase) private var scenePhase
     @State private var coordinator: ApprovalCoordinator?
 
     var body: some View {
@@ -113,11 +118,6 @@ private struct WorkspaceHost: View {
             }
             .onChange(of: connection.phase) { _, phase in
                 if phase == .reconnecting { coordinator?.connectionLost() }
-            }
-            // 能耗（4.5）：把 app 前台/后台转发给当前活跃连接的 transport——
-            // 后台时 RelayTransport 暂停重连不烧电，回前台恢复。
-            .onChange(of: scenePhase) { _, phase in
-                connection.setForeground(phase == .active)
             }
     }
 
