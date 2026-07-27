@@ -64,6 +64,12 @@ final class MachineStore {
         if let data = defaults.data(forKey: Self.machinesKey),
            let list = try? JSONDecoder().decode([MachineConfig].self, from: data) {
             machines = list
+            // 首次读取即自愈：若磁盘字节与规范化编码不一致（旧/非规范格式，如 relay 的
+            // pairing 串仍含明文 pc），立即回写剥离后的规范 JSON，使磁盘不再滞留 pairingCode。
+            // encode 只写非密三字段；重写后字节一致，后续启动不再触发（幂等）。
+            if let normalized = try? JSONEncoder().encode(machines), normalized != data {
+                defaults.set(normalized, forKey: Self.machinesKey)
+            }
         }
         if let s = defaults.string(forKey: Self.activeKey) { activeMachineId = UUID(uuidString: s) }
     }
