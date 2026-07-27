@@ -16,6 +16,17 @@ import Testing
     #expect(acc.append(Array("cd".utf8), fin: false) == .overflow)   // 累积超上限 → overflow
 }
 
+@Test func accumulatorAcceptsExactlyAtCap() {
+    var acc = FrameAccumulator(maxBytes: 4)
+    #expect(acc.append(Array("abcd".utf8), fin: true) == .complete("abcd"))   // 恰好 = 上限 → 放行，非 overflow
+}
+
+@Test func accumulatorRecoversAfterOverflow() {
+    var acc = FrameAccumulator(maxBytes: 3)
+    #expect(acc.append(Array("abcd".utf8), fin: false) == .overflow)   // 超限清空
+    #expect(acc.append(Array("ok".utf8), fin: true) == .complete("ok")) // overflow 后缓冲已清，可正常累积
+}
+
 @Test func accumulatorResetsAfterComplete() {
     var acc = FrameAccumulator(maxBytes: 10)
     _ = acc.append(Array("hi".utf8), fin: true)

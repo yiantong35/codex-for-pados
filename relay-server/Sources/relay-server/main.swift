@@ -137,8 +137,7 @@ final class RelayConnectionHandler: ChannelInboundHandler, @unchecked Sendable {
             rooms.leave(sessionId: sessionId, role: role, connId: id)
         }
         // 对称释放配额:仅释放本连接实际计入过的部分。
-        // 注:房间配额按连接释放(简化,D3 acknowledged)——半开房间可能短暂多占一格,
-        // 属防御性上限的可接受偏差,不影响零知识转发与安全语义。
+        // 房间用引用计数,每次成功 admitRoom 对应一次 releaseRoom,房间仅在最后一端离开才释放。
         if admittedRoom { limiter.releaseRoom(sessionId: sessionId) }
         if admitted { limiter.release(ip: ip) }
     }
