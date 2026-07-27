@@ -265,4 +265,52 @@ final class RelayReconnectTests: XCTestCase {
 
         await transport.close()
     }
+
+    /// 线程安全的一次性钩子：首次退避 sleep 时把 transport 切后台，制造「退避期间转后台」时序。
+    final class BackgroundOnFirstSleep: @unchecked Sendable {
+        private let lock = NSLock()
+        private var fired = false
+        weak var transport: RelayTransport?
+        /// 同步取"是否首次"（锁只在同步上下文持有，避免 Swift 6 async 上下文禁用 NSLock）。
+        private func claimFirst() -> Bool {
+            lock.lock(); defer { lock.unlock() }
+            let first = !fired; fired = true; return first
+        }
+        func onSleep() async {
+            guard claimFirst(), let t = transport else { return }
+            await t.setForeground(false)
+        }
+    }
+
+    /// D3：退避 sleep 期间 app 转入后台 → 退避结束后**不**创建通道（factory 不被调用）；
+    /// 回前台后才建通道握手。区别于 testBackgroundPausesReconnectUntilForeground
+    ///（那是断线前已后台，循环顶部挂起）：本用例后台发生在退避 sleep 之中，由退避后新增的 waitForForeground() 兜住。
+    func testBackgroundDuringBackoffDefersFactoryUntilForeground() async throws {
+        let script = ReconnectScript([.succeed, .succeed])
+        let flip = BackgroundOnFirstSleep()
+        let policy = RelayReconnectPolicy(maxAttempts: 6, baseDelaySeconds: 0.0, maxDelaySeconds: 0.0,
+                                          sleep: { _ in await flip.onSleep() })
+        let transport = makeTransport(script, policy: policy)
+        flip.transport = transport
+
+        var ctrl = transport.control().makeAsyncIterator()
+        try await transport.awaitHandshake()
+        XCTAssertEqual(script.connectCount, 1)
+
+        await script.currentChannel?.close()
+
+        let e1 = await ctrl.next()
+        XCTAssertEqual(e1, .reconnecting, "退避前应先发 .reconnecting")
+
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertEqual(script.connectCount, 1, "退避中转后台后不得创建新通道（factory 不被调用）")
+
+        await transport.setForeground(true)
+        var sawReady = false
+        for _ in 0..<10 { if let ev = await ctrl.next(), ev == .ready { sawReady = true; break } }
+        XCTAssertTrue(sawReady, "回前台后应重连成功发 .ready")
+        XCTAssertEqual(script.connectCount, 2, "回前台后才创建新通道，factory 再被调用")
+
+        await transport.close()
+    }
 }
