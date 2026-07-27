@@ -23,6 +23,17 @@ import Crypto
     #expect(FileManager.default.fileExists(atPath: identityURL.path))
 }
 
+@Test func devKeyStoreRemovesLegacyExchangeKeyOnInit() throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    // 预置旧版本遗留的交换私钥文件。
+    let exchangeURL = dir.appendingPathComponent("exchange.key")
+    try Data(Curve25519.KeyAgreement.PrivateKey().rawRepresentation).write(to: exchangeURL)
+    _ = try DevKeyStore(dir: dir)
+    #expect(!FileManager.default.fileExists(atPath: exchangeURL.path))   // 遗留交换私钥被清理
+}
+
 @Test func devKeyStoreThrowsOnCorruptedKeyFileInsteadOfOverwriting() throws {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: dir) }

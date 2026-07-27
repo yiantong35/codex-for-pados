@@ -32,6 +32,11 @@ public final class DevKeyStore {
         }
         let identityURL = dir.appendingPathComponent("identity.key")
         self.identity = try Self.loadOrCreateIdentity(at: identityURL)
+
+        // 清理旧版本遗留的交换私钥文件（前向保密后不再使用；缩小落盘密钥面）。
+        // best-effort：删不掉（权限等）不报错，不阻塞 store 初始化。
+        let legacyExchange = dir.appendingPathComponent("exchange.key")
+        try? fm.removeItem(at: legacyExchange)
     }
 
     private static func loadOrCreateIdentity(at url: URL) throws -> Curve25519.Signing.PrivateKey {
