@@ -64,11 +64,12 @@ final class SessionsManager {
     }
 
     /// 添加机器后自动切过去并连接（D13）。
+    /// setActive 内 `if s.shouldAutoConnect { s.connect() }` 已负责懒连（新增机器 Session 初始
+    /// .disconnected → shouldAutoConnect 真 → 已 connect），故此处不再重复 connect（能耗 D4）。
     @discardableResult
     func addMachineAndConnect(_ m: MachineConfig) -> Bool {
         guard machineStore.add(m) else { return false }
         setActive(m.id)
-        session(for: m.id)?.connect()
         return true
     }
 
@@ -102,6 +103,13 @@ final class SessionsManager {
         let s = session(for: m.id)
         s?.connect()
         s?.setForeground(true)
+    }
+
+    /// app 级前后台广播（D1）：遍历**全部缓存 Session**（不止当前活跃 tab）转发 app 级前后台，
+    /// 使每个连接的 transport 在 app 后台暂停重连/握手、回前台恢复。与 tab 级切换（setActive
+    /// 的轮询开关）正交，不改任何 tab 的 isForeground / 轮询。
+    func setAppForegroundAll(_ active: Bool) {
+        for s in cache.values { s.setAppForeground(active) }
     }
 
     // MARK: - T7 UI 依赖桩（数据源/表单接线在 T11/T8 补）

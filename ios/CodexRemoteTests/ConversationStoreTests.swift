@@ -202,6 +202,47 @@ final class ConversationStoreTests: XCTestCase {
         }
     }
 
+    // MARK: - fix-lifecycle-energy-leaks D2：切对话不累积正文订阅
+
+    func testSwitchingThreadsKeepsSingleLiveSubscriber() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+
+        // 反例：只建不停 → 订阅累积（证明泄漏路径真实存在）。
+        var leaked: [ConversationStore] = []
+        for i in 0..<4 {
+            let s = ConversationStore(rpc: rpc, threadId: "leak-\(i)")
+            await s.startObserving()
+            leaked.append(s)
+        }
+        let grew = try await waitUntilCount(rpc, is: 4)
+        XCTAssertTrue(grew, "不停旧订阅时 notifications 订阅应累积到 4（泄漏特征）")
+        for s in leaked { s.stopObserving() }
+        _ = try await waitUntilCount(rpc, is: 0)
+
+        // 正例（D2 修复后 ConversationView 的行为）：切走前停旧、再建新 → 恒 1。
+        var current: ConversationStore?
+        for i in 0..<5 {
+            current?.stopObserving()
+            let s = ConversationStore(rpc: rpc, threadId: "t-\(i)")
+            await s.startObserving()
+            current = s
+            let ok = try await waitUntilCount(rpc, is: 1)
+            XCTAssertTrue(ok, "第 \(i) 次切换后存活订阅数应恒为 1")
+        }
+    }
+
+    private func waitUntilCount(_ rpc: JSONRPCClient, is expected: Int,
+                               timeout: TimeInterval = 2.0) async throws -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await rpc.liveNotificationSubscriberCount() == expected { return true }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        return await rpc.liveNotificationSubscriberCount() == expected
+    }
+
     // MARK: - helpers
 
     /// 轮询条件直到为真或超时，避免固定 sleep 造成 flake。
