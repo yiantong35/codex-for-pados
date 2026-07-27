@@ -12,7 +12,7 @@ struct MachineConfigRelayMigrationTests {
         let data = try JSONEncoder().encode(cfg)
         let json = String(decoding: data, as: UTF8.self)
         #expect(!json.contains("pc="))          // 无配对码
-        #expect(!json.lowercased().contains("paircode"))
+        #expect(!json.contains("pairingCode"))  // 无配对码字段
         #expect(json.contains("relayURL") || json.contains("relay"))
         // 往返可解
         let back = try JSONDecoder().decode(MachineConfig.self, from: data)
