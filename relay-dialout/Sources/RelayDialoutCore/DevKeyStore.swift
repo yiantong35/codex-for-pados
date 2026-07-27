@@ -55,21 +55,6 @@ public final class DevKeyStore {
         return key
     }
 
-    private static func loadOrCreateExchange(at url: URL) throws -> Curve25519.KeyAgreement.PrivateKey {
-        if FileManager.default.fileExists(atPath: url.path) {
-            let data: Data
-            do { data = try Data(contentsOf: url) }
-            catch { throw DevKeyStoreError.unreadableKeyFile(url.path) }
-            guard let key = try? Curve25519.KeyAgreement.PrivateKey(rawRepresentation: data) else {
-                throw DevKeyStoreError.corruptedKeyFile(url.path)
-            }
-            return key
-        }
-        let key = Curve25519.KeyAgreement.PrivateKey()
-        try writeSecret(key.rawRepresentation, to: url)
-        return key
-    }
-
     /// 以 0600 权限原子写入密钥字节。
     private static func writeSecret(_ data: Data, to url: URL) throws {
         try data.write(to: url, options: .atomic)
