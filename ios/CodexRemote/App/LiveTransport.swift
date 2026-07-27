@@ -11,7 +11,8 @@ func makeSharedDaemonTransport(_ config: ConnectionConfig,
     let channel = try await SSHClientWrapper.connect(
         host: config.host, sshPort: config.sshPort,
         auth: .ed25519Key(user: config.user, key: key),
-        controlSockPath: config.controlSockPath)
+        controlSockPath: config.controlSockPath,
+        machineKey: "\(config.user)@\(config.host):\(config.sshPort)")
     return channel   // ProxyChannel 已在 connect() 内 start()
 }
 

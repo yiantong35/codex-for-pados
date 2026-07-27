@@ -41,3 +41,15 @@ private final class MemoryHostKeyStore: SSHHostKeyStoring, @unchecked Sendable {
     // 独立性：SSH host key 用独立 service（默认 com.codexremote.ssh-hostkey），
     // 与 relay 侧 relay-tofu-* / E2E 密钥天然隔离，互不复用同一 Keychain 记录。
 }
+
+// MARK: - 2.3 host key 决策逻辑（从 NIO 回调抽出便于测）
+
+@Test func decisionTrustsFirstThenRejectsChange() throws {
+    let s = MemoryHostKeyStore()
+    try SSHHostKeyDecision.decide(store: s, machineKey: "m", hostKeyBytes: Data([1]))   // 首次 OK，存下
+    try SSHHostKeyDecision.decide(store: s, machineKey: "m", hostKeyBytes: Data([1]))   // 再连 OK
+    #expect(throws: SSHHostKeyError.hostKeyChanged) {
+        try SSHHostKeyDecision.decide(store: s, machineKey: "m", hostKeyBytes: Data([2]))   // 变更 → 拒
+    }
+}
+
