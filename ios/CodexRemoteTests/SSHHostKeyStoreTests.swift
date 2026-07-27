@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import Security
 import Crypto
 import NIOCore
 import NIOEmbedded
@@ -10,13 +11,24 @@ import NIOSSH
 private final class MemoryHostKeyStore: SSHHostKeyStoring, @unchecked Sendable {
     private var map: [String: Data] = [:]
     private let lock = NSLock()
-    func rememberedHostKey(forMachineKey key: String) -> Data? {
+    func rememberedHostKey(forMachineKey key: String) throws -> Data? {
         lock.lock(); defer { lock.unlock() }
         return map[key]
     }
     func remember(_ hostKey: Data, forMachineKey key: String) throws {
         lock.lock(); map[key] = hostKey; lock.unlock()
     }
+}
+
+/// 对抗性 mock：读取信任锚时抛"notFound 以外"的 Keychain 错误（模拟锁屏窗口期
+/// `errSecInteractionNotAllowed` / `errSecAuthFailed` / 瞬时故障）。用于验证读失败必须
+/// fail-closed（拒连），且绝不覆盖信任锚（不调 remember）。
+private final class ReadFailingHostKeyStore: SSHHostKeyStoring, @unchecked Sendable {
+    let readError: Error
+    private(set) var rememberCalled = false
+    init(readError: Error) { self.readError = readError }
+    func rememberedHostKey(forMachineKey key: String) throws -> Data? { throw readError }
+    func remember(_ hostKey: Data, forMachineKey key: String) throws { rememberCalled = true }
 }
 
 /// 造一个真 ed25519 `NIOSSHPublicKey`（走公开 `init(openSSHPublicKey:)`），
@@ -41,8 +53,20 @@ struct SSHHostKeyStoreTests {
         let s = MemoryHostKeyStore()
         let k = Data([1, 2, 3])
         try s.verifyOrTrust(machineKey: "m", presentedHostKey: k)   // 首次：存下并信任
-        #expect(s.rememberedHostKey(forMachineKey: "m") == k)
+        #expect(try s.rememberedHostKey(forMachineKey: "m") == k)
         try s.verifyOrTrust(machineKey: "m", presentedHostKey: k)   // 再连：比对通过，不抛
+    }
+
+    /// 读信任锚遇 notFound 以外错误（锁屏窗口期等）：verifyOrTrust 必须抛错拒连（fail-closed），
+    /// 且绝不把读失败当首信 → 绝不调 remember 覆盖信任锚。旧代码用 `try?` 吞错→当首信→调 remember，
+    /// 此断言在旧代码下失败。
+    @Test func hostKeyReadFailureFailsClosedWithoutOverwriting() throws {
+        let store = ReadFailingHostKeyStore(
+            readError: KeychainStore.KeychainError.os(errSecInteractionNotAllowed))
+        #expect(throws: (any Error).self) {
+            try store.verifyOrTrust(machineKey: "m", presentedHostKey: Data([1, 2, 3]))
+        }
+        #expect(store.rememberCalled == false)   // 读失败绝不覆盖/污染信任锚
     }
 
     @Test func hostKeyChangeFailsClosed() throws {
@@ -59,7 +83,7 @@ struct SSHHostKeyStoreTests {
         defer { try? KeychainStore(service: service).delete("ssh-hostkey-mac1") }
         let k = Data([4, 5, 6])
         try store.remember(k, forMachineKey: "mac1")
-        #expect(store.rememberedHostKey(forMachineKey: "mac1") == k)
+        #expect(try store.rememberedHostKey(forMachineKey: "mac1") == k)
         // 独立性：SSH host key 用独立 service（默认 com.codexremote.ssh-hostkey），
         // 与 relay 侧 relay-tofu-* / E2E 密钥天然隔离，互不复用同一 Keychain 记录。
     }
@@ -88,7 +112,7 @@ struct SSHHostKeyStoreTests {
         let p1 = loop.makePromise(of: Void.self)
         delegate.validateHostKey(hostKey: key, validationCompletePromise: p1)
         #expect(throws: Never.self) { try p1.futureResult.wait() }
-        #expect(store.rememberedHostKey(forMachineKey: "m") != nil)
+        #expect(try store.rememberedHostKey(forMachineKey: "m") != nil)
 
         // 再连同一 host key：仍 succeed（比对通过）。
         let p2 = loop.makePromise(of: Void.self)
