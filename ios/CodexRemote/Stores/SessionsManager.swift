@@ -64,11 +64,12 @@ final class SessionsManager {
     }
 
     /// 添加机器后自动切过去并连接（D13）。
+    /// setActive 内 `if s.shouldAutoConnect { s.connect() }` 已负责懒连（新增机器 Session 初始
+    /// .disconnected → shouldAutoConnect 真 → 已 connect），故此处不再重复 connect（能耗 D4）。
     @discardableResult
     func addMachineAndConnect(_ m: MachineConfig) -> Bool {
         guard machineStore.add(m) else { return false }
         setActive(m.id)
-        session(for: m.id)?.connect()
         return true
     }
 

@@ -356,6 +356,36 @@ final class SessionsManagerTests: XCTestCase {
         XCTAssertFalse(sb.isForeground, "tab 级标记保持不变")
     }
 
+    // MARK: - fix-lifecycle-energy-leaks D4：新增机器只建连一次
+
+    private actor FactoryCounter {
+        private(set) var count = 0
+        func bump() { count += 1 }
+    }
+
+    func test_addMachineAndConnect_invokesFactoryExactlyOnce() async {
+        await MainActor.run { KeyManager().generateIfNeeded() }   // 越过 connect 密钥前置校验
+        let counter = FactoryCounter()
+        let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
+        let m = SessionsManager(machineStore: store,
+                                transportFactory: { _ in await counter.bump(); return MockTransport() })
+
+        let mc = MachineConfig(host: "a", user: "u")
+        m.addMachineAndConnect(mc)
+
+        // 等第一次建连触发 factory（异步：connect → Task doEstablish → factory）。内联轮询。
+        var got1 = false
+        for _ in 0..<400 {
+            if await counter.count >= 1 { got1 = true; break }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+        XCTAssertTrue(got1, "新增机器应触发一次建连")
+        // 证伪：再给窗口，确认不会出现第二次建连（旧实现此处为 2）。
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        let final = await counter.count
+        XCTAssertEqual(final, 1, "新增机器 transport factory 只应被调用一次（不并行两套建连）")
+    }
+
     /// 由本测试文件路径（#filePath）推导源码 Views 目录，避免硬编码绝对路径。
     /// 结构：<repo>/ios/CodexRemoteTests/SessionsManagerTests.swift →
     ///       <repo>/ios/CodexRemote/Views/
