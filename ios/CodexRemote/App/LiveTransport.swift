@@ -24,12 +24,11 @@ func relayRoomDecision(store: StableSessionStoring, machineKey: String, payloadS
     return (payloadSessionId, false)
 }
 
-/// relay transport 工厂：解析配对载荷 → 构造真 ws（URLSessionRelayWSChannel）+ 注入 E2E 密钥/TOFU 的 RelayTransport。
+/// relay transport 工厂：收已构造配对载荷 → 构造真 ws（URLSessionRelayWSChannel）+ 注入 E2E 密钥/TOFU 的 RelayTransport。
 /// `tofuMachineKey` 为该机器的稳定 TOFU 键（MachineConfig id）。
 /// 真握手（4 消息）由 RelayTransport 在 doEstablish 的 `awaitHandshake()` 内驱动，与 SSH 共用握手等待链。
 @MainActor
-func makeRelayTransport(pairing: String, tofuMachineKey: String) async throws -> MessageTransport {
-    let payload = try PairingPayload(parsing: pairing)
+func makeRelayTransport(payload: PairingPayload, tofuMachineKey: String) async throws -> MessageTransport {
     guard let base = URL(string: payload.relayURL) else {
         throw TransportError.proxyFailed("relayURL 非法: \(payload.relayURL)")
     }
@@ -63,9 +62,15 @@ func makeRelayTransport(pairing: String, tofuMachineKey: String) async throws ->
 /// 密钥取法以 KeyManager 实际 API 为准（`privateKey()`）；缺密钥抛 `sshAuthFailed`。
 @MainActor
 func liveTransportFactory(_ config: ConnectionConfig) async throws -> MessageTransport {
-    if let pairing = config.relayPairing {
-        return try await makeRelayTransport(pairing: pairing,
-                                            tofuMachineKey: config.relayTOFUKey ?? pairing)
+    if let relayURL = config.relayURL {
+        let machineId = config.relayTOFUKey.flatMap { UUID(uuidString: $0) }
+        // 一次性取内存 pending pc（首配用；受信任复连为 nil，走空 proof 路径）。
+        let pc = machineId.flatMap { PendingPairingStore.shared.take(for: $0) } ?? ""
+        let payload = PairingPayload(relayURL: relayURL, sessionId: config.relaySessionId,
+                                     devIdentityPubB64: config.relayDevIdentityPubB64,
+                                     pairingCode: pc, expiresAt: 0)
+        return try await makeRelayTransport(payload: payload,
+                                            tofuMachineKey: config.relayTOFUKey ?? relayURL)
     }
     guard let key = KeyManager().privateKey() else {
         throw TransportError.sshAuthFailed("缺少本机密钥")

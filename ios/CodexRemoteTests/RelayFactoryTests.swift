@@ -7,7 +7,7 @@ final class RelayFactoryTests: XCTestCase {
     func testRelayMachineConfigCarriesTOFUKey() {
         let id = UUID()
         let m = MachineConfig(id: id, displayName: "relay-x",
-                              connection: .relay(pairing: "codexrelay://pair?relay=wss://x&sid=s&pk=QQ&pc=c&exp=9999999999"))
+                              connection: .relay(relayURL: "wss://x", sessionId: "s", devIdentityPubB64: "QQ"))
         let cfg = m.connectionConfig
         XCTAssertTrue(cfg.isRelay)
         XCTAssertEqual(cfg.relayTOFUKey, id.uuidString, "relay 连接应带 MachineConfig id 作 TOFU 稳定键")

@@ -8,7 +8,7 @@ final class RelayPairingImportViewModelTests: XCTestCase {
     func testValidPasteParsesToMachineConfig() throws {
         let vm = RelayPairingImportViewModel()
         vm.pasted = "codexrelay://pair?relay=wss://x&sid=s&pk=QQ&pc=c&exp=9999999999"
-        let cfg = try vm.makeMachineConfig(now: 1)
+        let (cfg, _) = try vm.makeMachineConfig(now: 1)
         if case .relay = cfg.connection {} else { XCTFail("expected .relay connection") }
     }
 
@@ -32,7 +32,7 @@ final class RelayPairingImportViewModelTests: XCTestCase {
         // 模拟 QRScannerView.onScan 回调把扫得的字符串交给 vm.pasted。
         let scanned = "codexrelay://pair?relay=wss://x&sid=s&pk=QQ&pc=c&exp=9999999999"
         vm.pasted = scanned
-        let cfg = try vm.makeMachineConfig(now: 1)
+        let (cfg, _) = try vm.makeMachineConfig(now: 1)
         if case .relay = cfg.connection {} else { XCTFail("expected .relay connection") }
     }
 
