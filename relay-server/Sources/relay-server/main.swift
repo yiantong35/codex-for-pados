@@ -26,6 +26,7 @@ let bootstrap = ServerBootstrap(group: group)
     .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
     .childChannelInitializer { channel in
         let upgrader = NIOWebSocketServerUpgrader(
+            maxFrameSize: RelayLimits.maxMessageBytes,   // 单帧上限；分片累积上限由 FrameAccumulator 兜底
             shouldUpgrade: { (channel, head) -> EventLoopFuture<HTTPHeaders?> in
                 let role = head.headers.first(name: "x-role")
                 if UpgradeRequest.parseUpgrade(uri: head.uri, role: role) != nil {
@@ -40,7 +41,8 @@ let bootstrap = ServerBootstrap(group: group)
                     return channel.eventLoop.makeFailedFuture(RelayError.badUpgrade)
                 }
                 return channel.pipeline.addHandler(
-                    RelayConnectionHandler(rooms: rooms, sessionId: parsed.sessionId, role: parsed.role)
+                    RelayConnectionHandler(rooms: rooms, sessionId: parsed.sessionId, role: parsed.role,
+                                           maxMessageBytes: RelayLimits.maxMessageBytes)
                 )
             }
         )
@@ -68,12 +70,13 @@ final class RelayConnectionHandler: ChannelInboundHandler, @unchecked Sendable {
     private let rooms: RelayRooms
     private let sessionId: String
     private let role: RelayPeer
-    private var textBuffer = ByteBuffer()
+    private var accumulator: FrameAccumulator   // 单消息字节上限累积器（4.1）
 
-    init(rooms: RelayRooms, sessionId: String, role: RelayPeer) {
+    init(rooms: RelayRooms, sessionId: String, role: RelayPeer, maxMessageBytes: Int) {
         self.rooms = rooms
         self.sessionId = sessionId
         self.role = role
+        self.accumulator = FrameAccumulator(maxBytes: maxMessageBytes)
     }
 
     func handlerAdded(context: ChannelHandlerContext) {
@@ -97,12 +100,14 @@ final class RelayConnectionHandler: ChannelInboundHandler, @unchecked Sendable {
         let frame = self.unwrapInboundIn(data)
         switch frame.opcode {
         case .text, .continuation:
-            textBuffer.writeImmutableBuffer(frame.unmaskedData)
-            if frame.fin {
-                let payload = textBuffer.readString(length: textBuffer.readableBytes) ?? ""
-                textBuffer.clear()
+            switch accumulator.append(Array(frame.unmaskedData.readableBytesView), fin: frame.fin) {
+            case .accumulating:
+                break
+            case .complete(let payload):
                 // 零知识:不解析 payload,原样转给对端。
                 rooms.forward(sessionId: sessionId, from: role, frame: payload)
+            case .overflow:
+                context.close(promise: nil)   // 超单消息上限:关连接,内存不无界增长
             }
         case .connectionClose:
             context.close(promise: nil)
