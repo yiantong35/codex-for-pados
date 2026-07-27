@@ -40,10 +40,15 @@ let bootstrap = ServerBootstrap(group: group)
                 guard let parsed = UpgradeRequest.parseUpgrade(uri: head.uri, role: role) else {
                     return channel.eventLoop.makeFailedFuture(RelayError.badUpgrade)
                 }
+                // 先插 IdleStateHandler(空闲超时回收连接),再插撮合 handler。
                 return channel.pipeline.addHandler(
-                    RelayConnectionHandler(rooms: rooms, sessionId: parsed.sessionId, role: parsed.role,
-                                           maxMessageBytes: RelayLimits.maxMessageBytes)
-                )
+                    IdleStateHandler(allTimeout: .seconds(RelayLimits.idleTimeoutSeconds))
+                ).flatMap {
+                    channel.pipeline.addHandler(
+                        RelayConnectionHandler(rooms: rooms, sessionId: parsed.sessionId, role: parsed.role,
+                                               maxMessageBytes: RelayLimits.maxMessageBytes)
+                    )
+                }
             }
         )
         return channel.pipeline.configureHTTPServerPipeline(
@@ -104,6 +109,14 @@ final class RelayConnectionHandler: ChannelInboundHandler, @unchecked Sendable {
         // 仅按本连接自己的 connId 精确 leave;被拒连接(connId 为 nil)不误清占用槽的先到连接。
         if let id = connId {
             rooms.leave(sessionId: sessionId, role: role, connId: id)
+        }
+    }
+
+    func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+        if event is IdleStateHandler.IdleStateEvent {
+            context.close(promise: nil)   // 空闲超时:回收连接释放资源(4.2)
+        } else {
+            context.fireUserInboundEventTriggered(event)
         }
     }
 
