@@ -5,7 +5,7 @@ import Foundation
 final class InMemoryTOFUStore: TOFUStoring, @unchecked Sendable {
     private var map: [String: Data] = [:]
     private let lock = NSLock()
-    func rememberedIdentity(forMachineKey key: String) -> Data? {
+    func rememberedIdentity(forMachineKey key: String) throws -> Data? {
         lock.lock(); defer { lock.unlock() }
         return map[key]
     }

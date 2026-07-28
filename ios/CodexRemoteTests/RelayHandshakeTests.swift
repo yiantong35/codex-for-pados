@@ -29,7 +29,7 @@ final class RelayHandshakeTests: XCTestCase {
         var iter = transport.incoming().makeAsyncIterator()
         try await transport.awaitHandshake()
 
-        XCTAssertEqual(tofu.rememberedIdentity(forMachineKey: "machine-A"),
+        XCTAssertEqual(try tofu.rememberedIdentity(forMachineKey: "machine-A"),
                        Data(base64Encoded: dev.devIdentityPubB64))
 
         try await transport.send("ping")
