@@ -120,6 +120,8 @@ actor RelayTransport: MessageTransport {
         let isTrustedReconnect: Bool
         /// 消费第 4 条 SecureReady 后持久化 dev 回传的 stableSessionId（撮合标签）。
         let stableSessionStore: StableSessionStoring
+        /// 握手成功（收 SecureReady）后消费一次性 pairingCode（幂等；失败/超时路径不调用）。
+        let consumePairingCode: @Sendable () async -> Void
     }
     private let handshakeInputs: HandshakeInputs?
     /// 重连退避策略。
@@ -171,6 +173,7 @@ actor RelayTransport: MessageTransport {
          tofuMachineKey: String,
          isTrustedReconnect: Bool,
          stableSessionStore: StableSessionStoring,
+         consumePairingCode: @escaping @Sendable () async -> Void = {},
          reconnect: RelayReconnectPolicy = RelayReconnectPolicy()) {
         self.session = nil
         self.ws = nil
@@ -179,7 +182,8 @@ actor RelayTransport: MessageTransport {
         self.handshakeInputs = HandshakeInputs(
             pairing: pairing, ipadIdentity: ipadIdentity, ephemeralProvider: ephemeralProvider,
             tofu: tofu, tofuMachineKey: tofuMachineKey,
-            isTrustedReconnect: isTrustedReconnect, stableSessionStore: stableSessionStore)
+            isTrustedReconnect: isTrustedReconnect, stableSessionStore: stableSessionStore,
+            consumePairingCode: consumePairingCode)
         self.reconnect = reconnect
         var inCont: AsyncThrowingStream<String, Error>.Continuation!
         self.incomingStream = AsyncThrowingStream<String, Error>(bufferingPolicy: .unbounded) { inCont = $0 }
@@ -481,6 +485,9 @@ actor RelayTransport: MessageTransport {
                                        stableSessionId: secureReady.stableSessionId)
 
         self.session = secure
+        // 握手成功（已收并解开 SecureReady）→ 此刻才消费一次性 pairingCode（幂等；失败/超时路径到不了这里，pc 保留）。
+        // 首连与重连共用本编排；重连时 pc 早已消费，take 幂等返回 nil，重复调用无害。
+        await inputs.consumePairingCode()
     }
 
     // MARK: MessageTransport
