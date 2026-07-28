@@ -151,6 +151,31 @@ curl http://<ecs-ip>:9000/health
   - 此时对外为 `wss://relay.example.com`（443），relay-server 只监听 127.0.0.1:9000，安全组只放行 443。
   - 客户端（relay-dialout 的 `RELAY_URL`、iPad 配对载荷里的 relay 地址）相应用 `wss://relay.example.com`。
 
+### per-IP 限流由反代（Caddy）承担
+
+relay-server 自身**不再做 per-IP 并发/速率限流**（历史上曾用 `channel.remoteAddress`——反代后所有对端为 `127.0.0.1`，per-IP 桶会塌成全体共享、把整机误卡在上限，见 relay-security-hardening-2/D2）。relay 只保**全局并发**（`maxTotalConnections`）+ **房间总数**（`maxRooms`）+ 单消息大小上限 + 空闲超时四道全局闸。
+
+**生产 MUST 走 Caddy `wss` 反代，并在 Caddy 层按真实客户端 IP 做 per-IP 限流**（Caddy 看得到 `X-Forwarded-For` / 真实远端，relay 看不到）：
+
+```
+relay.example.com {
+    rate_limit {
+        zone per_ip {
+            key    {remote_host}
+            events 60
+            window 1m
+        }
+    }
+    reverse_proxy 127.0.0.1:9000
+}
+```
+
+（`rate_limit` 为 Caddy 限流插件指令，按部署的 Caddy 构建选用等价配置。）
+
+**部署前提**：
+- 生产 MUST 经 Caddy 反代对外暴露 `wss://`，per-IP 保护由反代承担；relay-server 只监听 `127.0.0.1:9000`。
+- 裸机 `ws://<ecs-ip>:9000`（无 Caddy）**无 per-IP 保护**，仅全局并发 + 房间 + 消息大小 + 空闲超时兜底——**仅供本机排障**，不作生产暴露。
+
 ---
 
 ## 5. 兜底方案（musl SDK 编译遇阻时）
