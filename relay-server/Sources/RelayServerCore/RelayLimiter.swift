@@ -38,6 +38,13 @@ public final class RelayLimiter: @unchecked Sendable {
         if activeConnections > 0 { activeConnections -= 1 }
     }
 
+    /// 当前活跃连接数只读快照（测试可见性辅助，不改配额语义）。
+    /// 管线单测直接断言 upgrade 前后计数恒定，比反复 admit/release 探测更直接。
+    internal var activeConnectionsSnapshot: Int {
+        lock.lock(); defer { lock.unlock() }
+        return activeConnections
+    }
+
     /// 房间准入:已存在的房间(后续连接加入)不占新配额,只增引用计数;
     /// 新房间受房间总数上限(distinct sessionId 数)约束。
     public func admitRoom(sessionId: String) -> Bool {
