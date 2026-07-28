@@ -1,7 +1,10 @@
 import Foundation
 
-/// SSH host key TOFU 校验失败：服务器出示的 host key 与首次记住的不一致（可能中间人或服务器身份变更）。
-enum SSHHostKeyError: Error, Equatable { case hostKeyChanged }
+/// SSH host key TOFU 校验失败：
+/// - `hostKeyChanged`：服务器出示的 host key 与首次记住的不一致（可能中间人或服务器身份变更）。
+/// - `recordCorrupted`：Keychain 里存在记录但内容损坏（非法 base64），无法还原信任锚；
+///   fail-closed 拒连而非静默当"无记录"覆盖——须用户显式重置信任。
+enum SSHHostKeyError: Error, Equatable { case hostKeyChanged; case recordCorrupted }
 
 /// iPad 侧 SSH host key TOFU 存储抽象：按机器稳定键记开发机 SSH host key。
 ///
@@ -12,6 +15,8 @@ protocol SSHHostKeyStoring: Sendable {
     /// 仅"确实无记录"（Keychain `errSecItemNotFound`）返回 nil；
     /// 读取遇 notFound 以外的任何错误（锁屏窗口期 `errSecInteractionNotAllowed`、
     /// `errSecAuthFailed`、瞬时故障等）必须上抛（fail-closed）——绝不把读失败静默当首信。
+    /// 记录存在但内容损坏（非法 base64）抛 `SSHHostKeyError.recordCorrupted`——绝不当"无记录"
+    /// 覆盖信任锚，须用户显式重置信任。
     func rememberedHostKey(forMachineKey key: String) throws -> Data?
     /// 记住该机器键的 SSH host key（覆盖式）。持久化失败必须上抛（fail-closed）。
     func remember(_ hostKey: Data, forMachineKey key: String) throws
@@ -47,7 +52,9 @@ struct KeychainSSHHostKeyStore: SSHHostKeyStoring {
         // `KeychainStore.load` 已区分：notFound → nil（确实无记录），其它 OSStatus → throw。
         // 这里不再用 `try?` 吞错——读失败会上抛，由 verifyOrTrust/delegate 传播为拒连（fail-closed）。
         guard let s = try keychain.load(account(key)) else { return nil }
-        return Data(base64Encoded: s)
+        // 关严：字符串存在但非法 base64 → 抛"记录损坏"（不再返回 nil 当无记录 → 覆盖信任锚）。
+        guard let data = Data(base64Encoded: s) else { throw SSHHostKeyError.recordCorrupted }
+        return data
     }
     func remember(_ hostKey: Data, forMachineKey key: String) throws {
         try keychain.save(hostKey.base64EncodedString(), for: account(key))
