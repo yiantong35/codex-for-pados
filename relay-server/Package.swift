@@ -16,6 +16,12 @@ let package = Package(
             "RelayProtocol",
         ]),
         .executableTarget(name: "relay-server", dependencies: ["RelayServerCore"]),
-        .testTarget(name: "RelayServerCoreTests", dependencies: ["RelayServerCore"]),
+        .testTarget(name: "RelayServerCoreTests", dependencies: [
+            "RelayServerCore",
+            .product(name: "NIOEmbedded", package: "swift-nio"),
+            .product(name: "NIOCore", package: "swift-nio"),
+            .product(name: "NIOHTTP1", package: "swift-nio"),
+            .product(name: "NIOWebSocket", package: "swift-nio"),
+        ]),
     ]
 )
