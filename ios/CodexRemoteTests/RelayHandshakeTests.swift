@@ -29,7 +29,7 @@ final class RelayHandshakeTests: XCTestCase {
         var iter = transport.incoming().makeAsyncIterator()
         try await transport.awaitHandshake()
 
-        XCTAssertEqual(tofu.rememberedIdentity(forMachineKey: "machine-A"),
+        XCTAssertEqual(try tofu.rememberedIdentity(forMachineKey: "machine-A"),
                        Data(base64Encoded: dev.devIdentityPubB64))
 
         try await transport.send("ping")
@@ -105,7 +105,59 @@ final class RelayHandshakeTests: XCTestCase {
         }
     }
 
+    // MARK: 消费时机（pairingCode 在收 SecureReady 后才消费；失败路径不消费）
+
+    /// 握手成功（收 SecureReady）后消费闭包被调用恰一次。
+    func testPairingCodeConsumedOnlyAfterSecureReady() async throws {
+        let code = "pc-1"
+        let dev = DevResponder(pairingCode: code)
+        let ws = LoopbackRelayWSChannel { try dev.handle($0) }
+        let e2e = RelayE2EKeyManager(store: makeMemoryStore())
+        let consumed = ConsumeFlag()
+
+        let transport = RelayTransport(
+            channelFactory: { ws }, pairing: pairing(dev: dev, code: code),
+            ipadIdentity: e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
+            tofu: InMemoryTOFUStore(), tofuMachineKey: "m",
+            isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore(),
+            consumePairingCode: { await consumed.mark() })
+
+        try await transport.awaitHandshake()
+        let count = await consumed.count
+        XCTAssertEqual(count, 1)   // 收 SecureReady 后恰消费一次
+    }
+
+    /// 握手失败（错 pairingCode，收 SecureReady 前失败）→ 消费闭包不被调用（pc 保留可重试）。
+    func testPairingCodeNotConsumedOnHandshakeFailure() async throws {
+        let dev = DevResponder(pairingCode: "right")
+        let e2e = RelayE2EKeyManager(store: makeMemoryStore())
+        let bad = PairingPayload(relayURL: "wss://relay.test", sessionId: "s",
+                                 devIdentityPubB64: dev.devIdentityPubB64, pairingCode: "wrong",
+                                 expiresAt: 9_999_999_999)
+        let driver = LoopbackRelayWSChannel { frame in
+            do { return try dev.handle(frame) } catch { throw TransportError.channelClosed(reason: "dev 拒绝握手") }
+        }
+        let consumed = ConsumeFlag()
+
+        let transport = RelayTransport(
+            channelFactory: { driver }, pairing: bad, ipadIdentity: e2e.identityKey(),
+            ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() }, tofu: InMemoryTOFUStore(),
+            tofuMachineKey: "m", isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore(),
+            consumePairingCode: { await consumed.mark() })
+
+        _ = try? await transport.awaitHandshake()
+        let count = await consumed.count
+        XCTAssertEqual(count, 0)   // 失败不消费，pc 保留
+    }
+
     // MARK: helpers
+
+    /// 测试用消费计数器：断言消费闭包被调用的次数（成功恰 1，失败恰 0）。
+    private actor ConsumeFlag {
+        var count = 0
+        func mark() { count += 1 }
+    }
+
     private func makeMemoryStore() -> KeyStoring {
         final class Mem: KeyStoring {
             private var d: Data?

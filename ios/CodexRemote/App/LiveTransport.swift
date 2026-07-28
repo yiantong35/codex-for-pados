@@ -28,7 +28,8 @@ func relayRoomDecision(store: StableSessionStoring, machineKey: String, payloadS
 /// `tofuMachineKey` 为该机器的稳定 TOFU 键（MachineConfig id）。
 /// 真握手（4 消息）由 RelayTransport 在 doEstablish 的 `awaitHandshake()` 内驱动，与 SSH 共用握手等待链。
 @MainActor
-func makeRelayTransport(payload: PairingPayload, tofuMachineKey: String) async throws -> MessageTransport {
+func makeRelayTransport(payload: PairingPayload, tofuMachineKey: String,
+                        consumePairingCode: @escaping @Sendable () async -> Void = {}) async throws -> MessageTransport {
     guard let base = URL(string: payload.relayURL) else {
         throw TransportError.proxyFailed("relayURL 非法: \(payload.relayURL)")
     }
@@ -60,7 +61,8 @@ func makeRelayTransport(payload: PairingPayload, tofuMachineKey: String) async t
         ipadIdentity: identity,
         ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },   // 每次握手新 ephemeral（前向保密）
         tofu: tofu, tofuMachineKey: tofuMachineKey,
-        isTrustedReconnect: decision.isTrustedReconnect, stableSessionStore: stableStore)
+        isTrustedReconnect: decision.isTrustedReconnect, stableSessionStore: stableStore,
+        consumePairingCode: consumePairingCode)
 }
 
 /// 生产工厂闭包（注入 ConnectionStore.transportFactory）：按连接类型分派——
@@ -70,13 +72,19 @@ func makeRelayTransport(payload: PairingPayload, tofuMachineKey: String) async t
 func liveTransportFactory(_ config: ConnectionConfig) async throws -> MessageTransport {
     if let relayURL = config.relayURL {
         let machineId = config.relayTOFUKey.flatMap { UUID(uuidString: $0) }
-        // 一次性取内存 pending pc（首配用；受信任复连为 nil，走空 proof 路径）。
-        let pc = machineId.flatMap { PendingPairingStore.shared.take(for: $0) } ?? ""
+        // 建连前 peek（不删）：失败可用同一 pc 直接重试不重扫（D3）。受信任复连无 pc → nil → 空 proof。
+        let pc = machineId.flatMap { PendingPairingStore.shared.peek(for: $0) } ?? ""
         let payload = PairingPayload(relayURL: relayURL, sessionId: config.relaySessionId,
                                      devIdentityPubB64: config.relayDevIdentityPubB64,
                                      pairingCode: pc, expiresAt: 0)
+        // 握手成功（收 SecureReady）后由 RelayTransport 回调消费（跳 MainActor 调 take；对已删键幂等返回 nil）。
+        let consume: @Sendable () async -> Void = {
+            guard let id = machineId else { return }
+            await MainActor.run { _ = PendingPairingStore.shared.take(for: id) }
+        }
         return try await makeRelayTransport(payload: payload,
-                                            tofuMachineKey: config.relayTOFUKey ?? relayURL)
+                                            tofuMachineKey: config.relayTOFUKey ?? relayURL,
+                                            consumePairingCode: consume)
     }
     guard let key = KeyManager().privateKey() else {
         throw TransportError.sshAuthFailed("缺少本机密钥")

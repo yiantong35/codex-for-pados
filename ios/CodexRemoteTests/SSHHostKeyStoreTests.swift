@@ -77,6 +77,22 @@ struct SSHHostKeyStoreTests {
         }
     }
 
+    /// 记录存在但 base64 损坏 → rememberedHostKey 抛 .recordCorrupted；verifyOrTrust 拒连不覆盖。
+    /// 旧代码 `Data(base64Encoded:)` 为 nil 时静默返回 nil → 当"无记录"覆盖信任锚（fail-open），
+    /// 本断言在旧代码下失败。损坏错误经 verifyOrTrust → delegate promise.fail 传播为拒连。
+    @Test func hostKeyCorruptRecordFailsClosed() throws {
+        let service = "com.codexremote.ssh-hostkey.test-\(UUID())"
+        let store = KeychainSSHHostKeyStore(service: service)
+        defer { try? KeychainStore(service: service).delete("ssh-hostkey-m") }
+        try KeychainStore(service: service).save("@@@ not base64 @@@", for: "ssh-hostkey-m")
+        #expect(throws: SSHHostKeyError.recordCorrupted) {
+            _ = try store.rememberedHostKey(forMachineKey: "m")
+        }
+        #expect(throws: (any Error).self) {
+            try store.verifyOrTrust(machineKey: "m", presentedHostKey: Data([1, 2, 3]))
+        }
+    }
+
     @Test func keychainHostKeyStoreRoundTripsIndependentOfRelayTOFU() throws {
         let service = "com.codexremote.ssh-hostkey.test-\(UUID())"
         let store = KeychainSSHHostKeyStore(service: service)

@@ -8,12 +8,10 @@ public enum RelayLimits {
     public static let maxMessageBytes = 1 << 20
     /// 空闲（无数据往来）连接超时秒数：超时后回收连接。
     public static let idleTimeoutSeconds: Int64 = 120
-    /// 单一来源 IP 的并发连接数上限。
-    public static let maxConnectionsPerIP = 20
+    /// 全局并发连接数上限（per-IP 限流交反代承担，见 D2）。
+    public static let maxTotalConnections = 2000
     /// 房间（sessionId）总数上限。
     public static let maxRooms = 500
-    /// 单一来源 IP 每分钟建连速率上限。
-    public static let connectRatePerMinute = 60
 }
 
 /// 分片文本帧累积器：累积到 fin 才产出整消息；超上限即 overflow（调用方须关连接）。

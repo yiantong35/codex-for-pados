@@ -50,7 +50,7 @@ final class RelayTrustedHandshakeTests: XCTestCase {
         try await transport.awaitHandshake()
 
         // 受信任模式 TOFU 不省：仍记住了 dev 身份。
-        XCTAssertEqual(tofu.rememberedIdentity(forMachineKey: "machine-T"),
+        XCTAssertEqual(try tofu.rememberedIdentity(forMachineKey: "machine-T"),
                        Data(base64Encoded: dev.devIdentityPubB64))
 
         // 上层零改：SecureReady 已被 startReadLoop 前消费，业务帧往返不受干扰。
