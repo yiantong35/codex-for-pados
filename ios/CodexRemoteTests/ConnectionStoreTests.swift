@@ -63,6 +63,36 @@ final class ConnectionStoreTests: XCTestCase {
         if case .ready = await store.phase { XCTFail("initialize 收到 -32600 不应视为 ready") }
     }
 
+    // F6：doEstablish 内 transport 与 JSON-RPC 接收循环在 initialize 之前已启动、inFlightTransport
+    // 已设。initialize 抛错时必须 fail-closed 显式清理（client 停 + transport 关 + inFlightTransport
+    // 清空），不能只落 phase=.failed 而遗留打开的连接/接收任务。用默认 20s 超时（不注入短超时）：
+    // 3s 测试窗口内超时兜底不会触发（!phase.isSettled 在 .failed 后为 false），证明清理来自失败路径
+    // 本身，而非超时兜底路径（那条已被 testConnectTimeoutClosesInFlightTransport 覆盖）。
+    func testInitializeFailureClosesTransportAndClearsInFlight() async throws {
+        let mock = MockTransport()
+        let store = await ConnectionStore(transportFactory: { _ in mock })
+        Task {
+            var initId: String?
+            for _ in 0..<200 {
+                try? await Task.sleep(nanoseconds: 5_000_000)
+                if let s = await mock.sent.first(where: { $0.contains(#""method":"initialize""#) }),
+                   let obj = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any],
+                   let id = obj["id"] as? String { initId = id; break }
+            }
+            await mock.feed(#"{"jsonrpc":"2.0","id":"\#(initId!)","error":{"code":-32600,"message":"Already initialized"}}"#)
+        }
+        await store.connect(config: .stub)
+        try await waitUntil {
+            if case .failed = await store.phase { return true } else { return false }
+        }
+        // fail-closed 清理见证：在途 transport 已关闭 + inFlightTransport 已清空。
+        // bug 版本（catch 只置 phase）下这两条都会失败：closeCount 停在 0、inFlight 仍非 nil。
+        let closeCount = await mock.closeCount
+        XCTAssertGreaterThanOrEqual(closeCount, 1, "initialize 失败应关闭在途 transport，实际 closeCount=\(closeCount)")
+        let inFlight = await store.inFlightTransportForTesting
+        XCTAssertNil(inFlight, "initialize 失败应清空 inFlightTransport，避免泄漏")
+    }
+
     /// 必填项缺失（host/user/sock 路径任一为空）时 connect 不调 transportFactory，直接落 .failed。
     @MainActor
     func testIncompleteConfigDoesNotConnect() async throws {

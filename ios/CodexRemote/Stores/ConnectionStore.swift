@@ -108,6 +108,12 @@ final class ConnectionStore {
     /// private(set)：外部（含单测）只读，写入仍仅经 setForeground(_:)。
     private(set) var foregroundActive = true
 
+    #if DEBUG
+    /// 测试专用只读访问器：暴露在途 transport 引用以断言 fail-closed 清理（F6）。
+    /// `inFlightTransport` 本身对生产代码保持 private；仅测试经 `@testable import` 需要可见性。
+    var inFlightTransportForTesting: MessageTransport? { inFlightTransport }
+    #endif
+
     init(transportFactory: @escaping @Sendable (ConnectionConfig) async throws -> MessageTransport,
          connectTimeoutNanos: UInt64 = 20_000_000_000) {
         self.transportFactory = transportFactory
@@ -271,21 +277,38 @@ final class ConnectionStore {
         let client = JSONRPCClient(transport: transport)
         await client.start()
 
-        connLog.notice("doEstablish: 等待 ws 握手完成…")
-        try await transport.awaitHandshake()
+        do {
+            connLog.notice("doEstablish: 等待 ws 握手完成…")
+            try await transport.awaitHandshake()
 
-        phase = .initializing
-        connLog.notice("doEstablish: 发送 initialize, 等响应…")
-        let params = InitializeParams(
-            clientInfo: ClientInfo(name: "CodexRemote", title: nil, version: "0.1.0"),
-            capabilities: nil)
-        // 连接级 initialize：失败直接抛出（不容忍 -32600），由 connect 落 .failed。
-        let result = try await client.send(method: RPCMethod.initialize,
-                                           params: try Self.encode(params))
-        serverInfo = try? Self.decode(InitializeResponse.self, from: result)
-        try? await client.notify(method: RPCMethod.initialized, params: nil)
-        connLog.notice("doEstablish: 握手完成")
-        return (client, transport)
+            phase = .initializing
+            connLog.notice("doEstablish: 发送 initialize, 等响应…")
+            let params = InitializeParams(
+                clientInfo: ClientInfo(name: "CodexRemote", title: nil, version: "0.1.0"),
+                capabilities: nil)
+            // 连接级 initialize：失败直接抛出（不容忍 -32600），由 catch 做 fail-closed 清理后向上抛。
+            let result = try await client.send(method: RPCMethod.initialize,
+                                               params: try Self.encode(params))
+            serverInfo = try? Self.decode(InitializeResponse.self, from: result)
+            try? await client.notify(method: RPCMethod.initialized, params: nil)
+            connLog.notice("doEstablish: 握手完成")
+            return (client, transport)
+        } catch {
+            // F6 fail-closed：transport 与接收循环在 initialize 之前已启动、inFlightTransport 已设；
+            // 握手/initialize 失败必须显式清理，不能只让调用方落 .failed 而遗留打开的连接与悬挂接收任务
+            // ——settled 超时兜底（:217 !phase.isSettled）在 phase 落 .failed 后不会触发，无法兜底。
+            // 与「attempt 被后续新连接取代」的清理路径（connect:159-163）一致。
+            connLog.error("doEstablish: 握手/initialize 失败，fail-closed 清理: \(String(describing: error), privacy: .public)")
+            await client.stop()
+            await transport.close()
+            // 恒等判断：避免误清一个已被新 attempt 覆盖的在途引用。`MessageTransport` 协议本身未约束
+            // AnyObject（existential 不能直接 `===`），但本仓库全部实现均为引用类型（class/actor），
+            // 经 `as AnyObject` 装箱后按引用比较等价于 `===`。
+            if let inflight = inFlightTransport, (inflight as AnyObject) === (transport as AnyObject) {
+                inFlightTransport = nil
+            }
+            throw error
+        }
     }
 
     // MARK: - 控制信号观察
