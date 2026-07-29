@@ -48,6 +48,7 @@ public final class ConnectionCountHandler: ChannelInboundHandler, @unchecked Sen
 public func configureRelayPipeline(
     channel: Channel, rooms: RelayRooms, limiter: RelayLimiter,
     idleTimeoutSeconds: Int64 = RelayLimits.idleTimeoutSeconds,
+    upgradedIdleTimeoutSeconds: Int64 = RelayLimits.upgradedIdleTimeoutSeconds,
     maxMessageBytes: Int = RelayLimits.maxMessageBytes) -> EventLoopFuture<Void> {
 
     let upgrader = NIOWebSocketServerUpgrader(
@@ -64,18 +65,35 @@ public func configureRelayPipeline(
             guard let parsed = UpgradeRequest.parseUpgrade(uri: head.uri, role: role) else {
                 return ch.eventLoop.makeFailedFuture(RelayError.badUpgrade)
             }
+            // F3 两段式解耦：upgrade 成功后，把 HEAD-ward 的握手期短空闲 handler（preUpgradeIdle）
+            // 移除，换装一个远长于握手超时的长窗口 IdleStateHandler（upgradedIdle），装在
+            // RelayConnectionHandler 之前（tail-ward）。这样：
+            //   - 已升级健康连接改受长窗口约束——前台静置数分钟零额外流量、不被 120s 误回收；
+            //   - 长窗口的 IdleStateEvent 沿 inbound 向尾部 fire 到 RelayConnectionHandler 消费（→ close），
+            //     兜底回收真死连接，不产生无限存活僵尸；
+            //   - HEAD-ward ConnectionCountHandler 位于 upgradedIdle 之前，收不到该事件、不重复关连接，
+            //     其全局计数所有权（D1）不受影响。
             // post-upgrade handler 只做房间 admit/release + 转发，不再触碰全局连接配额（D1 收敛点）。
-            return ch.pipeline.addHandler(
-                RelayConnectionHandler(rooms: rooms, limiter: limiter,
-                                       sessionId: parsed.sessionId, role: parsed.role,
-                                       maxMessageBytes: maxMessageBytes))
+            return ch.pipeline.removeHandler(name: "preUpgradeIdle").flatMap {
+                ch.pipeline.addHandler(
+                    IdleStateHandler(allTimeout: .seconds(upgradedIdleTimeoutSeconds)),
+                    name: "upgradedIdle")
+            }.flatMap {
+                ch.pipeline.addHandler(
+                    RelayConnectionHandler(rooms: rooms, limiter: limiter,
+                                           sessionId: parsed.sessionId, role: parsed.role,
+                                           maxMessageBytes: maxMessageBytes))
+            }
         })
 
     // HEAD-ward：IdleStateHandler 与 ConnectionCountHandler 装在 HTTP 管线之前，穿越 upgrade 存活。
     // 顺序关键：IdleStateHandler 在前，ConnectionCountHandler 紧随其后——IdleStateHandler 的空闲事件
     // 沿 inbound **向尾部** fire，故消费该事件（→ close）的 ConnectionCountHandler 必须位于其 tail-ward，
     // 否则 upgrade 前的慢连接/只连不发无人消费 IdleStateEvent 而不被回收。
-    return channel.pipeline.addHandler(IdleStateHandler(allTimeout: .seconds(idleTimeoutSeconds))).flatMap {
+    // 该短空闲 handler 命名 preUpgradeIdle：upgrade 成功后被移除、换成长窗口 upgradedIdle（F3）。
+    return channel.pipeline.addHandler(
+        IdleStateHandler(allTimeout: .seconds(idleTimeoutSeconds)),
+        name: "preUpgradeIdle").flatMap {
         channel.pipeline.addHandler(ConnectionCountHandler(limiter: limiter))
     }.flatMap {
         channel.pipeline.configureHTTPServerPipeline(
