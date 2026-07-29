@@ -30,6 +30,7 @@ final class ThreadReducerTests: XCTestCase {
         reducer.apply(notif("item/started", ["item": ["id": "C1", "type": "commandExecution", "command": "ls"]]), to: &state)
         reducer.apply(notif("item/commandExecution/outputDelta", ["itemId": "C1", "delta": "a.txt\n"]), to: &state)
         reducer.apply(notif("item/commandExecution/outputDelta", ["itemId": "C1", "delta": "b.txt\n"]), to: &state)
+        reducer.applyCoalesced(reducer.coalescer.drain(), &state)   // F8：delta 攒批，读前落地
         guard case .commandExecution(_, _, let out, _, _, _)? = state.items.first(where: { $0.id == "C1" }) else {
             return XCTFail("应有命令项")
         }
@@ -190,6 +191,7 @@ final class ThreadReducerTests: XCTestCase {
                                                        "summary": [], "content": []]]), to: &state)
         reducer.apply(notif("item/reasoning/textDelta", ["itemId": "R1", "delta": "Let me "]), to: &state)
         reducer.apply(notif("item/reasoning/textDelta", ["itemId": "R1", "delta": "think"]), to: &state)
+        reducer.applyCoalesced(reducer.coalescer.drain(), &state)   // F8：delta 攒批，读前落地
         guard case .reasoning(_, let text)? = state.items.first(where: { $0.id == "R1" }) else {
             return XCTFail("应出现 reasoning 卡片")
         }
@@ -204,6 +206,7 @@ final class ThreadReducerTests: XCTestCase {
                                                        "summary": [], "content": []]]), to: &state)
         reducer.apply(notif("item/reasoning/summaryTextDelta", ["itemId": "R1", "delta": "Plan: "]), to: &state)
         reducer.apply(notif("item/reasoning/summaryTextDelta", ["itemId": "R1", "delta": "do X"]), to: &state)
+        reducer.applyCoalesced(reducer.coalescer.drain(), &state)   // F8：delta 攒批，读前落地
         guard case .reasoning(_, let text)? = state.items.first(where: { $0.id == "R1" }) else {
             return XCTFail("应出现 reasoning 卡片")
         }
@@ -215,6 +218,7 @@ final class ThreadReducerTests: XCTestCase {
         var state = ConversationState(threadId: "t")
         let reducer = ThreadReducer()
         reducer.apply(notif("item/reasoning/textDelta", ["itemId": "R1", "delta": "early"]), to: &state)
+        reducer.applyCoalesced(reducer.coalescer.drain(), &state)   // F8：delta 攒批，读前落地
         guard case .reasoning(_, let text)? = state.items.first(where: { $0.id == "R1" }) else {
             return XCTFail("应出现 reasoning 卡片")
         }
