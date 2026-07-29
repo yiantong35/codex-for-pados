@@ -8,8 +8,7 @@ struct ApprovalCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label(card.isFileChange ? "approval.fileTitle" : "approval.commandTitle",
-                  systemImage: card.isFileChange ? "doc.badge.gearshape" : "terminal")
+            Label(titleKey, systemImage: titleIcon)
                 .font(.headline)
             if card.awaitingRecovery {
                 Label("approval.awaitingRecovery", systemImage: "wifi.exclamationmark")
@@ -17,6 +16,29 @@ struct ApprovalCardView: View {
                     .foregroundStyle(.secondary)
             }
             Text(card.title).font(.callout.monospaced())
+            // F4：权限审批展示知情要素——reason + 请求的 network/fileSystem 条目，
+            // 用户批准前看清实际授权范围（守 UI 基线：文本可换行/随 Dynamic Type，无固定宽度）。
+            if card.isPermissions {
+                if let reason = card.reason, !reason.isEmpty {
+                    Text(reason)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let net = card.requestedNetworkEnabled {
+                    Label(net ? "approval.perm.network.on" : "approval.perm.network.off",
+                          systemImage: "network")
+                        .font(.caption)
+                }
+                if let fs = card.requestedFileSystem, !fs.isEmpty {
+                    ForEach(fs, id: \.self) { path in
+                        Label(path, systemImage: "folder")
+                            .font(.caption.monospaced())
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
+            }
             if !card.detail.isEmpty {
                 Text(card.detail)
                     .font(.caption.monospaced())
@@ -37,6 +59,17 @@ struct ApprovalCardView: View {
         .padding()
         .background(.orange.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// 卡片标题键：权限 / 文件 / 命令三态。
+    private var titleKey: LocalizedStringKey {
+        if card.isPermissions { return "approval.permissionTitle" }
+        return card.isFileChange ? "approval.fileTitle" : "approval.commandTitle"
+    }
+
+    private var titleIcon: String {
+        if card.isPermissions { return "lock.shield" }
+        return card.isFileChange ? "doc.badge.gearshape" : "terminal"
     }
 
     private func resolve(_ choice: ApprovalChoice) {

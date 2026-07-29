@@ -17,6 +17,11 @@ struct ApprovalCard: Identifiable {
     let detail: String              // 命令明细(cwd)或 diff 摘要
     let proposedPrefix: [String]?   // v2 命令审批可能携带 proposedExecpolicyAmendment
     let isFileChange: Bool
+    // F4：权限审批（item/permissions/requestApproval）的知情展示要素。
+    let isPermissions: Bool
+    let reason: String?                     // 请求携带的授权理由（若有）
+    let requestedNetworkEnabled: Bool?      // 请求的 network.enabled（若有）
+    let requestedFileSystem: [String]?      // 请求的 fileSystem read+write 合并条目（若有）
     var awaitingRecovery: Bool = false   // Task 19：断线未决标记
 }
 
@@ -42,14 +47,41 @@ final class ApprovalStore {
         let threadId = p["threadId"] as? String ?? ""
         let isFile = req.method == ServerRequestMethod.fileApprovalV2
                   || req.method == ServerRequestMethod.applyPatchApprovalLegacy
+        let isPerms = req.method == ServerRequestMethod.permsApprovalV2
+
+        // F4：解析权限请求的知情要素（reason + network/fileSystem 条目 + cwd）。
+        let permsDict = p["permissions"] as? [String: Any]
+        let netEnabled = (permsDict?["network"] as? [String: Any])?["enabled"] as? Bool
+        let fsDict = permsDict?["fileSystem"] as? [String: Any]
+        let fsEntries = ((fsDict?["read"] as? [String]) ?? []) + ((fsDict?["write"] as? [String]) ?? [])
+
+        let title: String
+        if isFile {
+            title = p["file"] as? String ?? String(localized: "approval.fallback.file")
+        } else if isPerms {
+            title = String(localized: "approval.permissionTitle")
+        } else {
+            title = p["command"] as? String ?? String(localized: "approval.fallback.command")
+        }
+        let detail: String
+        if isFile {
+            detail = p["diff"] as? String ?? ""
+        } else {
+            detail = p["cwd"] as? String ?? ""   // 命令与权限均以 cwd 作明细
+        }
+
         let card = ApprovalCard(
             id: req.id,
             method: req.method,
             threadId: threadId,
-            title: isFile ? (p["file"] as? String ?? String(localized: "approval.fallback.file")) : (p["command"] as? String ?? String(localized: "approval.fallback.command")),
-            detail: isFile ? (p["diff"] as? String ?? "") : (p["cwd"] as? String ?? ""),
+            title: title,
+            detail: detail,
             proposedPrefix: p["proposedExecpolicyAmendment"] as? [String],
-            isFileChange: isFile)
+            isFileChange: isFile,
+            isPermissions: isPerms,
+            reason: isPerms ? (p["reason"] as? String) : nil,
+            requestedNetworkEnabled: isPerms ? netEnabled : nil,
+            requestedFileSystem: isPerms && !fsEntries.isEmpty ? fsEntries : nil)
         cards.append(card)
         onPendingChange?(threadId, true)
     }
@@ -74,6 +106,27 @@ final class ApprovalStore {
         let isLegacy = method == ServerRequestMethod.execApprovalLegacy
                     || method == ServerRequestMethod.applyPatchApprovalLegacy
         let isFile = method == ServerRequestMethod.fileApprovalV2
+        let isPerms = method == ServerRequestMethod.permsApprovalV2
+        if isPerms {
+            // F4：权限审批 MUST 返回 PermissionsRequestApprovalResponse（permissions+scope），
+            // 绝不落命令执行审批的 { decision }。scope：approve→turn、按前缀放行→session、deny→turn。
+            // 授予档案随决定：批准授予 network、拒绝不授予（fail-closed，enabled=false）。
+            let scope: PermissionGrantScope
+            let granted: GrantedPermissionProfile
+            switch decision {
+            case .approve:
+                scope = .turn
+                granted = GrantedPermissionProfile(network: AdditionalNetworkPermissions(enabled: true), fileSystem: nil)
+            case .approveForSessionPrefix:
+                scope = .session
+                granted = GrantedPermissionProfile(network: AdditionalNetworkPermissions(enabled: true), fileSystem: nil)
+            case .deny:
+                scope = .turn
+                granted = GrantedPermissionProfile(network: AdditionalNetworkPermissions(enabled: false), fileSystem: nil)
+            }
+            return AnyEncodable(PermissionsRequestApprovalResponse(
+                permissions: granted, scope: scope, strictAutoReview: nil))
+        }
         if isLegacy {
             let d: ReviewDecision
             switch decision {

@@ -80,6 +80,73 @@ final class ApprovalStoreTests: XCTestCase {
         XCTAssertTrue(store.cards.isEmpty)
     }
 
+    // MARK: - F4（P1）权限审批协议正确响应 + 知情展示
+
+    /// permissions 请求必须返回 PermissionsRequestApprovalResponse（含 permissions+scope），
+    /// 不得误落 CommandExecutionApprovalResponse（仅含 decision）。
+    func test_permissions_approval_returns_permissions_response_not_command() throws {
+        let store = ApprovalStore()
+        let req = JSONRPCRequest(id: .string("p1"),
+            method: ServerRequestMethod.permsApprovalV2,
+            params: AnyCodable(["threadId": "t1", "reason": "需要联网",
+                                "permissions": ["network": ["enabled": true]],
+                                "cwd": "/work"]))
+        store.handle(request: req)
+        let body = store.responseBody(for: ServerRequestMethod.permsApprovalV2, decision: .approve)
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(body)) as! [String: Any]
+        XCTAssertNotNil(json["permissions"])
+        XCTAssertNotNil(json["scope"])
+        XCTAssertNil(json["decision"])
+    }
+
+    /// 命令/文件/权限三类各用对应响应类型，绝不串用。
+    func test_three_approval_kinds_use_distinct_response_types() throws {
+        let store = ApprovalStore()
+        let cmd = try JSONSerialization.jsonObject(with:
+            JSONEncoder().encode(store.responseBody(for: ServerRequestMethod.cmdApprovalV2, decision: .approve))) as! [String: Any]
+        XCTAssertNotNil(cmd["decision"]); XCTAssertNil(cmd["permissions"])
+        let file = try JSONSerialization.jsonObject(with:
+            JSONEncoder().encode(store.responseBody(for: ServerRequestMethod.fileApprovalV2, decision: .approve))) as! [String: Any]
+        XCTAssertNotNil(file["decision"]); XCTAssertNil(file["permissions"])
+        let perm = try JSONSerialization.jsonObject(with:
+            JSONEncoder().encode(store.responseBody(for: ServerRequestMethod.permsApprovalV2, decision: .approve))) as! [String: Any]
+        XCTAssertNotNil(perm["permissions"]); XCTAssertNotNil(perm["scope"]); XCTAssertNil(perm["decision"])
+    }
+
+    /// scope 随决定映射：approve→turn、approveForSessionPrefix→session；deny 时不授予（network.enabled=false）。
+    func test_permissions_scope_and_grant_reflect_decision() throws {
+        let store = ApprovalStore()
+        func perms(_ d: ApprovalChoice) throws -> [String: Any] {
+            try JSONSerialization.jsonObject(with:
+                JSONEncoder().encode(store.responseBody(for: ServerRequestMethod.permsApprovalV2, decision: d))) as! [String: Any]
+        }
+        XCTAssertEqual(try perms(.approve)["scope"] as? String, "turn")
+        XCTAssertEqual(try perms(.approveForSessionPrefix(["x"]))["scope"] as? String, "session")
+        let denied = try perms(.deny)
+        XCTAssertEqual(denied["scope"] as? String, "turn")
+        let net = (denied["permissions"] as? [String: Any])?["network"] as? [String: Any]
+        XCTAssertEqual(net?["enabled"] as? Bool, false)
+    }
+
+    /// handle 解析权限请求的知情要素（reason + network/fileSystem 条目）存入卡片。
+    func test_permissions_request_parsed_into_card_for_informed_display() throws {
+        let store = ApprovalStore()
+        let req = JSONRPCRequest(id: .string("p2"),
+            method: ServerRequestMethod.permsApprovalV2,
+            params: AnyCodable(["threadId": "t1", "reason": "需要读写文件",
+                                "permissions": ["network": ["enabled": true],
+                                                "fileSystem": ["read": ["/a"], "write": ["/b"]]],
+                                "cwd": "/work"]))
+        store.handle(request: req)
+        let card = store.cards.first
+        XCTAssertEqual(card?.isPermissions, true)
+        XCTAssertEqual(card?.reason, "需要读写文件")
+        XCTAssertEqual(card?.requestedNetworkEnabled, true)
+        XCTAssertEqual(card?.requestedFileSystem ?? [], ["/a", "/b"])
+        XCTAssertEqual(card?.threadId, "t1")
+        XCTAssertEqual(card?.detail, "/work")
+    }
+
     // 辅助：轮询直到条件满足或超时。
     private func waitUntil(timeout: TimeInterval = 2,
                            _ cond: @escaping () async -> Bool) async throws {
