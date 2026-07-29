@@ -147,6 +147,52 @@ final class ApprovalStoreTests: XCTestCase {
         XCTAssertEqual(card?.detail, "/work")
     }
 
+    // F4-fix：批准授予档案 MUST 回显请求，杜绝硬编码 network 过授（最小权限）。
+
+    /// 仅请求 fileSystem 的权限请求，批准后授予档案回显请求的 fileSystem，
+    /// 且绝不出现未请求的 network 授予（既不过授 network，也不漏授 fileSystem）。
+    func test_permissions_filesystem_only_approve_echoes_request_no_unrequested_network() async throws {
+        let store = ApprovalStore()
+        var captured: AnyCodable?
+        store.resolver = { _, body in captured = body }
+        let req = JSONRPCRequest(id: .string("p3"),
+            method: ServerRequestMethod.permsApprovalV2,
+            params: AnyCodable(["threadId": "t1", "reason": "需要读写文件",
+                                "permissions": ["fileSystem": ["read": ["/a"], "write": ["/b"]]],
+                                "cwd": "/work"]))
+        store.handle(request: req)
+        let card = store.cards.first!
+        await store.resolve(card: card, choice: .approve)
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(captured!)) as! [String: Any]
+        let perms = json["permissions"] as! [String: Any]
+        // 回显请求的 fileSystem read+write。
+        let fs = perms["fileSystem"] as? [String: Any]
+        XCTAssertEqual(fs?["read"] as? [String], ["/a"])
+        XCTAssertEqual(fs?["write"] as? [String], ["/b"])
+        // 未请求 network → 授予中绝不出现 network egress（过授）。
+        XCTAssertNil(perms["network"], "未请求 network 却授予了 network egress（过授）")
+    }
+
+    /// 仅请求 network 的权限请求，批准后回显 network 授予、不夹带未请求的 fileSystem。
+    func test_permissions_network_only_approve_echoes_network_no_filesystem() async throws {
+        let store = ApprovalStore()
+        var captured: AnyCodable?
+        store.resolver = { _, body in captured = body }
+        let req = JSONRPCRequest(id: .string("p4"),
+            method: ServerRequestMethod.permsApprovalV2,
+            params: AnyCodable(["threadId": "t1", "reason": "需要联网",
+                                "permissions": ["network": ["enabled": true]],
+                                "cwd": "/work"]))
+        store.handle(request: req)
+        let card = store.cards.first!
+        await store.resolve(card: card, choice: .approve)
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(captured!)) as! [String: Any]
+        let perms = json["permissions"] as! [String: Any]
+        let net = perms["network"] as? [String: Any]
+        XCTAssertEqual(net?["enabled"] as? Bool, true)
+        XCTAssertNil(perms["fileSystem"], "未请求 fileSystem 却授予了 fileSystem 访问（过授）")
+    }
+
     // 辅助：轮询直到条件满足或超时。
     private func waitUntil(timeout: TimeInterval = 2,
                            _ cond: @escaping () async -> Bool) async throws {

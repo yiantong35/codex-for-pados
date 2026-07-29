@@ -21,7 +21,9 @@ struct ApprovalCard: Identifiable {
     let isPermissions: Bool
     let reason: String?                     // 请求携带的授权理由（若有）
     let requestedNetworkEnabled: Bool?      // 请求的 network.enabled（若有）
-    let requestedFileSystem: [String]?      // 请求的 fileSystem read+write 合并条目（若有）
+    let requestedFileSystem: [String]?      // 请求的 fileSystem read+write 合并条目（若有，仅用于知情展示）
+    // F4-fix：授权回显所需的完整请求档案（network/fileSystem 分列 read/write），批准时按此原样授予（最小权限）。
+    var requestedProfile: RequestPermissionProfile? = nil
     var awaitingRecovery: Bool = false   // Task 19：断线未决标记
 }
 
@@ -51,9 +53,20 @@ final class ApprovalStore {
 
         // F4：解析权限请求的知情要素（reason + network/fileSystem 条目 + cwd）。
         let permsDict = p["permissions"] as? [String: Any]
-        let netEnabled = (permsDict?["network"] as? [String: Any])?["enabled"] as? Bool
+        let netDict = permsDict?["network"] as? [String: Any]
+        let netEnabled = netDict?["enabled"] as? Bool
         let fsDict = permsDict?["fileSystem"] as? [String: Any]
-        let fsEntries = ((fsDict?["read"] as? [String]) ?? []) + ((fsDict?["write"] as? [String]) ?? [])
+        let fsRead = fsDict?["read"] as? [String]
+        let fsWrite = fsDict?["write"] as? [String]
+        let fsEntries = (fsRead ?? []) + (fsWrite ?? [])
+        // F4-fix：构造原样授权所需的请求档案（network 存在才承载、fileSystem 存在才承载），
+        // 使批准时按请求精确授予，杜绝硬编码 network 过授。
+        let requestedProfile: RequestPermissionProfile? = {
+            guard isPerms else { return nil }
+            let net = netDict != nil ? AdditionalNetworkPermissions(enabled: netEnabled) : nil
+            let fs = fsDict != nil ? AdditionalFileSystemPermissions(read: fsRead, write: fsWrite) : nil
+            return (net != nil || fs != nil) ? RequestPermissionProfile(network: net, fileSystem: fs) : nil
+        }()
 
         let title: String
         if isFile {
@@ -81,7 +94,8 @@ final class ApprovalStore {
             isPermissions: isPerms,
             reason: isPerms ? (p["reason"] as? String) : nil,
             requestedNetworkEnabled: isPerms ? netEnabled : nil,
-            requestedFileSystem: isPerms && !fsEntries.isEmpty ? fsEntries : nil)
+            requestedFileSystem: isPerms && !fsEntries.isEmpty ? fsEntries : nil,
+            requestedProfile: requestedProfile)
         cards.append(card)
         onPendingChange?(threadId, true)
     }
@@ -89,7 +103,7 @@ final class ApprovalStore {
     // MARK: - 用户决定回传
 
     func resolve(card: ApprovalCard, choice: ApprovalChoice) async {
-        let body = responseBody(for: card.method, decision: choice)
+        let body = responseBody(for: card.method, decision: choice, requestedProfile: card.requestedProfile)
         let any = (try? JSONDecoder().decode(AnyCodable.self, from: JSONEncoder().encode(body)))
             ?? AnyCodable([String: Any]())
         await resolver?(card.id, any)
@@ -102,7 +116,8 @@ final class ApprovalStore {
     }
 
     /// 按请求方法把统一选项映射到正确的 decision 形状（v2 用 CommandExecution/FileChange，legacy 用 ReviewDecision）。
-    func responseBody(for method: String, decision: ApprovalChoice) -> AnyEncodable {
+    func responseBody(for method: String, decision: ApprovalChoice,
+                      requestedProfile: RequestPermissionProfile? = nil) -> AnyEncodable {
         let isLegacy = method == ServerRequestMethod.execApprovalLegacy
                     || method == ServerRequestMethod.applyPatchApprovalLegacy
         let isFile = method == ServerRequestMethod.fileApprovalV2
@@ -110,16 +125,19 @@ final class ApprovalStore {
         if isPerms {
             // F4：权限审批 MUST 返回 PermissionsRequestApprovalResponse（permissions+scope），
             // 绝不落命令执行审批的 { decision }。scope：approve→turn、按前缀放行→session、deny→turn。
-            // 授予档案随决定：批准授予 network、拒绝不授予（fail-closed，enabled=false）。
+            // F4-fix：批准即原样回显请求档案（network/fileSystem 各按请求授予），
+            // 杜绝硬编码 network 过授、fileSystem 漏授（最小权限）；拒绝一律 fail-closed（不授予）。
             let scope: PermissionGrantScope
             let granted: GrantedPermissionProfile
             switch decision {
             case .approve:
                 scope = .turn
-                granted = GrantedPermissionProfile(network: AdditionalNetworkPermissions(enabled: true), fileSystem: nil)
+                granted = GrantedPermissionProfile(network: requestedProfile?.network,
+                                                   fileSystem: requestedProfile?.fileSystem)
             case .approveForSessionPrefix:
                 scope = .session
-                granted = GrantedPermissionProfile(network: AdditionalNetworkPermissions(enabled: true), fileSystem: nil)
+                granted = GrantedPermissionProfile(network: requestedProfile?.network,
+                                                   fileSystem: requestedProfile?.fileSystem)
             case .deny:
                 scope = .turn
                 granted = GrantedPermissionProfile(network: AdditionalNetworkPermissions(enabled: false), fileSystem: nil)
