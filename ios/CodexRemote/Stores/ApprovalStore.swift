@@ -17,6 +17,13 @@ struct ApprovalCard: Identifiable {
     let detail: String              // 命令明细(cwd)或 diff 摘要
     let proposedPrefix: [String]?   // v2 命令审批可能携带 proposedExecpolicyAmendment
     let isFileChange: Bool
+    // F4：权限审批（item/permissions/requestApproval）的知情展示要素。
+    let isPermissions: Bool
+    let reason: String?                     // 请求携带的授权理由（若有）
+    let requestedNetworkEnabled: Bool?      // 请求的 network.enabled（若有）
+    let requestedFileSystem: [String]?      // 请求的 fileSystem read+write 合并条目（若有，仅用于知情展示）
+    // F4-fix：授权回显所需的完整请求档案（network/fileSystem 分列 read/write），批准时按此原样授予（最小权限）。
+    var requestedProfile: RequestPermissionProfile? = nil
     var awaitingRecovery: Bool = false   // Task 19：断线未决标记
 }
 
@@ -42,14 +49,53 @@ final class ApprovalStore {
         let threadId = p["threadId"] as? String ?? ""
         let isFile = req.method == ServerRequestMethod.fileApprovalV2
                   || req.method == ServerRequestMethod.applyPatchApprovalLegacy
+        let isPerms = req.method == ServerRequestMethod.permsApprovalV2
+
+        // F4：解析权限请求的知情要素（reason + network/fileSystem 条目 + cwd）。
+        let permsDict = p["permissions"] as? [String: Any]
+        let netDict = permsDict?["network"] as? [String: Any]
+        let netEnabled = netDict?["enabled"] as? Bool
+        let fsDict = permsDict?["fileSystem"] as? [String: Any]
+        let fsRead = fsDict?["read"] as? [String]
+        let fsWrite = fsDict?["write"] as? [String]
+        let fsEntries = (fsRead ?? []) + (fsWrite ?? [])
+        // F4-fix：构造原样授权所需的请求档案（network 存在才承载、fileSystem 存在才承载），
+        // 使批准时按请求精确授予，杜绝硬编码 network 过授。
+        let requestedProfile: RequestPermissionProfile? = {
+            guard isPerms else { return nil }
+            let net = netDict != nil ? AdditionalNetworkPermissions(enabled: netEnabled) : nil
+            let fs = fsDict != nil ? AdditionalFileSystemPermissions(read: fsRead, write: fsWrite) : nil
+            return (net != nil || fs != nil) ? RequestPermissionProfile(network: net, fileSystem: fs) : nil
+        }()
+
+        let title: String
+        if isFile {
+            title = p["file"] as? String ?? String(localized: "approval.fallback.file")
+        } else if isPerms {
+            title = String(localized: "approval.permissionTitle")
+        } else {
+            title = p["command"] as? String ?? String(localized: "approval.fallback.command")
+        }
+        let detail: String
+        if isFile {
+            detail = p["diff"] as? String ?? ""
+        } else {
+            detail = p["cwd"] as? String ?? ""   // 命令与权限均以 cwd 作明细
+        }
+
         let card = ApprovalCard(
             id: req.id,
             method: req.method,
             threadId: threadId,
-            title: isFile ? (p["file"] as? String ?? String(localized: "approval.fallback.file")) : (p["command"] as? String ?? String(localized: "approval.fallback.command")),
-            detail: isFile ? (p["diff"] as? String ?? "") : (p["cwd"] as? String ?? ""),
+            title: title,
+            detail: detail,
             proposedPrefix: p["proposedExecpolicyAmendment"] as? [String],
-            isFileChange: isFile)
+            isFileChange: isFile,
+            isPermissions: isPerms,
+            reason: isPerms ? (p["reason"] as? String) : nil,
+            requestedNetworkEnabled: isPerms ? netEnabled : nil,
+            requestedFileSystem: isPerms && !fsEntries.isEmpty ? fsEntries : nil,
+            requestedProfile: requestedProfile)
         cards.append(card)
         onPendingChange?(threadId, true)
     }
@@ -57,7 +103,7 @@ final class ApprovalStore {
     // MARK: - 用户决定回传
 
     func resolve(card: ApprovalCard, choice: ApprovalChoice) async {
-        let body = responseBody(for: card.method, decision: choice)
+        let body = responseBody(for: card.method, decision: choice, requestedProfile: card.requestedProfile)
         let any = (try? JSONDecoder().decode(AnyCodable.self, from: JSONEncoder().encode(body)))
             ?? AnyCodable([String: Any]())
         await resolver?(card.id, any)
@@ -70,10 +116,35 @@ final class ApprovalStore {
     }
 
     /// 按请求方法把统一选项映射到正确的 decision 形状（v2 用 CommandExecution/FileChange，legacy 用 ReviewDecision）。
-    func responseBody(for method: String, decision: ApprovalChoice) -> AnyEncodable {
+    func responseBody(for method: String, decision: ApprovalChoice,
+                      requestedProfile: RequestPermissionProfile? = nil) -> AnyEncodable {
         let isLegacy = method == ServerRequestMethod.execApprovalLegacy
                     || method == ServerRequestMethod.applyPatchApprovalLegacy
         let isFile = method == ServerRequestMethod.fileApprovalV2
+        let isPerms = method == ServerRequestMethod.permsApprovalV2
+        if isPerms {
+            // F4：权限审批 MUST 返回 PermissionsRequestApprovalResponse（permissions+scope），
+            // 绝不落命令执行审批的 { decision }。scope：approve→turn、按前缀放行→session、deny→turn。
+            // F4-fix：批准即原样回显请求档案（network/fileSystem 各按请求授予），
+            // 杜绝硬编码 network 过授、fileSystem 漏授（最小权限）；拒绝一律 fail-closed（不授予）。
+            let scope: PermissionGrantScope
+            let granted: GrantedPermissionProfile
+            switch decision {
+            case .approve:
+                scope = .turn
+                granted = GrantedPermissionProfile(network: requestedProfile?.network,
+                                                   fileSystem: requestedProfile?.fileSystem)
+            case .approveForSessionPrefix:
+                scope = .session
+                granted = GrantedPermissionProfile(network: requestedProfile?.network,
+                                                   fileSystem: requestedProfile?.fileSystem)
+            case .deny:
+                scope = .turn
+                granted = GrantedPermissionProfile(network: AdditionalNetworkPermissions(enabled: false), fileSystem: nil)
+            }
+            return AnyEncodable(PermissionsRequestApprovalResponse(
+                permissions: granted, scope: scope, strictAutoReview: nil))
+        }
         if isLegacy {
             let d: ReviewDecision
             switch decision {

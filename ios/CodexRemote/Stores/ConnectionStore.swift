@@ -108,6 +108,12 @@ final class ConnectionStore {
     /// private(set)：外部（含单测）只读，写入仍仅经 setForeground(_:)。
     private(set) var foregroundActive = true
 
+    #if DEBUG
+    /// 测试专用只读访问器：暴露在途 transport 引用以断言 fail-closed 清理（F6）。
+    /// `inFlightTransport` 本身对生产代码保持 private；仅测试经 `@testable import` 需要可见性。
+    var inFlightTransportForTesting: MessageTransport? { inFlightTransport }
+    #endif
+
     init(transportFactory: @escaping @Sendable (ConnectionConfig) async throws -> MessageTransport,
          connectTimeoutNanos: UInt64 = 20_000_000_000) {
         self.transportFactory = transportFactory
@@ -238,8 +244,8 @@ final class ConnectionStore {
         if let transport { await transport.close() }
         transport = nil
         // 作废任何仍在握手途中、尚未落地的 transport，避免其 SSH 连接 + 挂起任务泄漏（#1）。
-        if let inflight = inFlightTransport { await inflight.close() }
-        inFlightTransport = nil
+        // take-and-nil：先原子取所有权再 close，避免与在途 establish 的失败清理路径双关同一 transport。
+        if let inflight = inFlightTransport { inFlightTransport = nil; await inflight.close() }
         isReady = false
         didInitialRejoin = false
         phase = .disconnected
@@ -271,21 +277,43 @@ final class ConnectionStore {
         let client = JSONRPCClient(transport: transport)
         await client.start()
 
-        connLog.notice("doEstablish: 等待 ws 握手完成…")
-        try await transport.awaitHandshake()
+        do {
+            connLog.notice("doEstablish: 等待 ws 握手完成…")
+            try await transport.awaitHandshake()
 
-        phase = .initializing
-        connLog.notice("doEstablish: 发送 initialize, 等响应…")
-        let params = InitializeParams(
-            clientInfo: ClientInfo(name: "CodexRemote", title: nil, version: "0.1.0"),
-            capabilities: nil)
-        // 连接级 initialize：失败直接抛出（不容忍 -32600），由 connect 落 .failed。
-        let result = try await client.send(method: RPCMethod.initialize,
-                                           params: try Self.encode(params))
-        serverInfo = try? Self.decode(InitializeResponse.self, from: result)
-        try? await client.notify(method: RPCMethod.initialized, params: nil)
-        connLog.notice("doEstablish: 握手完成")
-        return (client, transport)
+            phase = .initializing
+            connLog.notice("doEstablish: 发送 initialize, 等响应…")
+            let params = InitializeParams(
+                clientInfo: ClientInfo(name: "CodexRemote", title: nil, version: "0.1.0"),
+                capabilities: nil)
+            // 连接级 initialize：失败直接抛出（不容忍 -32600），由 catch 做 fail-closed 清理后向上抛。
+            let result = try await client.send(method: RPCMethod.initialize,
+                                               params: try Self.encode(params))
+            serverInfo = try? Self.decode(InitializeResponse.self, from: result)
+            try? await client.notify(method: RPCMethod.initialized, params: nil)
+            connLog.notice("doEstablish: 握手完成")
+            return (client, transport)
+        } catch {
+            // F6 fail-closed：transport 与接收循环在 initialize 之前已启动、inFlightTransport 已设；
+            // 握手/initialize 失败必须显式清理，不能只让调用方落 .failed 而遗留打开的连接与悬挂接收任务
+            // ——settled 超时兜底（:217 !phase.isSettled）在 phase 落 .failed 后不会触发，无法兜底。
+            // 与「attempt 被后续新连接取代」的清理路径（connect:159-163）一致。
+            connLog.error("doEstablish: 握手/initialize 失败，fail-closed 清理: \(String(describing: error), privacy: .public)")
+            // client 为本 establish 独占的局部量（未落地 self.rpc），无论谁关 transport 都须 stop
+            // 以免接收循环泄漏，故 client.stop() 不入所有权判断、无条件执行。
+            await client.stop()
+            // take-and-nil 原子取所有权后再 close：仅当仍持有本 transport（inFlightTransport 未被
+            // 超时兜底 / 新连接作废 / disconnect 抢先取走）时才关闭它，令同一 transport 恰好 close 一次——
+            // 消除与超时兜底路径（connect 内 :229-231）对同一 transport 的双关竞态（双 close → closeCount=2）。
+            // 若已被抢走（identity 不匹配或已 nil），对方已负责 close，此处不得重复关闭，否则重复关闭。
+            // 恒等判断：`MessageTransport` 协议本身未约束 AnyObject（existential 不能直接 `===`），
+            // 但本仓库全部实现均为引用类型（class/actor），经 `as AnyObject` 装箱后按引用比较等价于 `===`。
+            if let inflight = inFlightTransport, (inflight as AnyObject) === (transport as AnyObject) {
+                inFlightTransport = nil
+                await inflight.close()
+            }
+            throw error
+        }
     }
 
     // MARK: - 控制信号观察

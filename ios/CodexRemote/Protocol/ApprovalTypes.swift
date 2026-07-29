@@ -113,3 +113,52 @@ struct FileChangeApprovalParams: Codable {
     // 文件改动明细：MVP 用 AnyCodable 承载 patch/diff，Task 18 渲染时取所需字段
     let changes: AnyCodable?
 }
+
+// ===== F4：v2 权限审批（item/permissions/requestApproval）=====
+// 对齐 protocol/ts/v2：AdditionalNetworkPermissions / AdditionalFileSystemPermissions /
+// GrantedPermissionProfile / RequestPermissionProfile / PermissionGrantScope /
+// PermissionsRequestApprovalResponse / PermissionsRequestApprovalParams（MVP 子集）。
+
+struct AdditionalNetworkPermissions: Codable, Equatable {
+    let enabled: Bool?
+}
+
+struct AdditionalFileSystemPermissions: Codable, Equatable {
+    // read/write 官方将迁移到 entries，MVP 仅承载 read/write 绝对路径列表用于知情展示。
+    let read: [String]?
+    let write: [String]?
+}
+
+/// 授予档案（对齐 GrantedPermissionProfile.ts：network?/fileSystem? 均可选）。
+struct GrantedPermissionProfile: Codable, Equatable {
+    let network: AdditionalNetworkPermissions?
+    let fileSystem: AdditionalFileSystemPermissions?
+}
+
+/// 请求档案（对齐 RequestPermissionProfile.ts：network/fileSystem 可为 null）。
+struct RequestPermissionProfile: Codable, Equatable {
+    let network: AdditionalNetworkPermissions?
+    let fileSystem: AdditionalFileSystemPermissions?
+}
+
+/// 授权范围（对齐 PermissionGrantScope.ts："turn" | "session"）。
+enum PermissionGrantScope: String, Codable, Equatable {
+    case turn
+    case session
+}
+
+/// 权限审批响应（对齐 PermissionsRequestApprovalResponse.ts）：
+/// MUST 含 permissions + scope；MUST NOT 误用命令执行审批的 { decision }。
+struct PermissionsRequestApprovalResponse: Codable {
+    let permissions: GrantedPermissionProfile
+    let scope: PermissionGrantScope
+    let strictAutoReview: Bool?
+}
+
+/// 权限审批请求参数子集（对齐 PermissionsRequestApprovalParams.ts）：解析知情要素。
+struct PermissionsRequestApprovalParams: Codable {
+    let threadId: String
+    let reason: String?
+    let permissions: RequestPermissionProfile?
+    let cwd: String?
+}

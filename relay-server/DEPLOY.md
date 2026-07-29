@@ -2,7 +2,7 @@
 
 relay-server 是一个基于 SwiftNIO 的极简中继服务端：
 
-- 绑定 `0.0.0.0:9000`（端口可用环境变量 `RELAY_PORT` 覆盖）。
+- 默认绑定 `127.0.0.1:9000`（仅本机 loopback；端口可用环境变量 `RELAY_PORT` 覆盖，绑定地址可用 `RELAY_HOST` 覆盖）。生产经 Caddy 反代对外暴露 `wss://`，relay 只监听 `127.0.0.1:9000`（见 §4）；仅显式设置 `RELAY_HOST`（如 `0.0.0.0`）才绑定公网接口——**逃生阀仅供本机排障或置于可信反代之后**，不作裸机公网暴露。
 - `GET /relay/{sessionId}` + WebSocket upgrade + 请求头 `x-role`（`devMachine` / `iPad`）→ 按 sessionId 撮合一对连接。
 - `GET /health`（非 upgrade）→ 返回 `{"ok":true}`（200）。
 - **零知识**：relay 只按 sessionId 撮合并原样双向转发密文帧，绝不解密、绝不解析 JSON-RPC。端到端加密由共享包 RelayProtocol 保证。

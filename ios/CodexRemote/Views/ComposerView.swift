@@ -14,6 +14,8 @@ struct ComposerView: View {
     @State private var text = ""
     @State private var photoItem: PhotosPickerItem?
     @State private var imageDataURL: String?
+    /// F7：图片后台编码失败（超出 relay 单帧上限）时的非阻塞提示；带具体大小/上限数字。
+    @State private var imageError: String?
     /// 模型/强度选择：nil override = 跟随账号默认（config），用户可显式覆盖。
     @State private var selection = ModelSelection()
     @State private var showModelPopover = false
@@ -48,12 +50,25 @@ struct ComposerView: View {
                 }
                 .buttonStyle(.plain)
             }
+            if let err = imageError {
+                // F7：图片超出 relay 单帧上限，非阻塞提示（不像发送失败那样可重试——需换图）。
+                // `err` 已是 `String(format:)` 拼好的最终文案（含具体 MB 数字），直接展示，
+                // 不再当作新的本地化 key 查表（否则会去找不存在的 "composer.image.tooLarge %@"）。
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                    Text(err)
+                        .font(.footnote).multilineTextAlignment(.leading)
+                    Spacer()
+                }
+                .foregroundStyle(.red)
+                .padding(.horizontal, 4)
+            }
             if imageDataURL != nil {
                 HStack(spacing: 6) {
                     Image(systemName: "photo").foregroundStyle(.secondary)
                     Text("composer.imageAttached").font(.footnote).foregroundStyle(.secondary)
                     Spacer()
-                    Button("composer.remove") { imageDataURL = nil; photoItem = nil }
+                    Button("composer.remove") { imageDataURL = nil; photoItem = nil; imageError = nil }
                         .font(.footnote)
                 }
             }
@@ -111,9 +126,26 @@ struct ComposerView: View {
             Task {
                 guard let item,
                       let data = try? await item.loadTransferable(type: Data.self) else { return }
-                imageDataURL = "data:image/jpeg;base64," + data.base64EncodedString()
+                // F7：后台（非主 actor）降采样 + 有界编码，杜绝全尺寸原图 base64 撑爆 relay
+                // 单帧上限致断连；超限拒绝并提示具体大小/上限数字。
+                switch await ImageEncoder.encodeForSend(data) {
+                case .ok(let url, _):
+                    imageDataURL = url
+                    imageError = nil
+                case .tooLarge(let bytes, let limit):
+                    imageDataURL = nil
+                    imageError = String(
+                        format: String(localized: "composer.image.tooLarge"),
+                        Self.mb(bytes), Self.mb(limit)
+                    )
+                }
             }
         }
+    }
+
+    /// 字节数格式化为 MB（保留 1 位小数，如 `1.3 MB`），用于超限提示带具体数字。
+    static func mb(_ bytes: Int) -> String {
+        String(format: "%.1f MB", Double(bytes) / 1_048_576.0)
     }
 
     /// 模型 + 推理强度选择浮层（inline picker，一屏列出，选中带勾）。
@@ -161,6 +193,7 @@ struct ComposerView: View {
         text = ""
         imageDataURL = nil
         photoItem = nil
+        imageError = nil
     }
 
     private func send() async {

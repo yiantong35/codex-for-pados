@@ -139,3 +139,45 @@ private final class LifecycleProbe: ChannelInboundHandler, @unchecked Sendable {
     #expect(channel.isActive == false, "idle 事件应触发 HEAD-ward 兜底关连接")
     #expect(limiter.activeConnectionsSnapshot == 0, "关连接后释放全局配额（channelInactive 对称释放）")
 }
+
+// MARK: - F3：握手短空闲与已升级 WS 长空闲窗口解耦（接线单测）
+
+/// upgrade 完成后，pre-upgrade 短空闲 handler（`preUpgradeIdle`）MUST 被移除，
+/// 换装一个长窗口 IdleStateHandler（`upgradedIdle`），使已升级健康连接不再受握手期 120s 短超时约束。
+///
+/// 说明（NIO 坑，回归锚，与 upgradeDoesNotDoubleCount 同因）：EmbeddedChannel 上 HTTP→WS upgrade
+/// 是异步排到 event loop 的，必须 `loop.run()` 驱动才真正完成（upgradePipelineHandler 才跑），
+/// 否则管线仍停在 pre-upgrade 状态 = 假绿。两个 IdleStateHandler 都是同类型，无法凭类型区分，
+/// 故用**命名 handler 的存在/缺失**断言这次替换真实发生：upgrade 前 preUpgradeIdle 在、upgradedIdle 不在；
+/// upgrade 后 preUpgradeIdle 已移除、upgradedIdle 已安装。
+/// （长窗口的真实秒数属 IdleStateHandler 墙钟职责，由 IdleTimeoutIntegrationTests 真钟集成测覆盖。）
+@Test func upgradeSwapsShortIdleForLongWindow() throws {
+    let loop = EmbeddedEventLoop()
+    let channel = EmbeddedChannel(loop: loop)
+    let limiter = RelayLimiter(maxTotalConnections: 5, maxRooms: 10)
+    try configureRelayPipeline(channel: channel, rooms: RelayRooms(), limiter: limiter,
+                               idleTimeoutSeconds: 120,
+                               upgradedIdleTimeoutSeconds: 900).wait()
+    try channel.connect(to: SocketAddress(unixDomainSocketPath: "/tmp/f3swap")).wait()
+
+    // upgrade 前：短空闲 handler 在、长窗口 handler 不在。
+    #expect((try? channel.pipeline.context(name: "preUpgradeIdle").wait()) != nil,
+            "upgrade 前 preUpgradeIdle 应在管线（覆盖握手期慢连接）")
+    #expect((try? channel.pipeline.context(name: "upgradedIdle").wait()) == nil,
+            "upgrade 前不应存在长窗口 handler")
+
+    // 驱动一次合法 ws upgrade（GET /relay/<sid> + Upgrade + x-role）。
+    let req = "GET /relay/s HTTP/1.1\r\nHost: x\r\nx-role: iPad\r\nConnection: upgrade\r\n" +
+              "Upgrade: websocket\r\nSec-WebSocket-Version: 13\r\n" +
+              "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n"
+    var buf = channel.allocator.buffer(capacity: req.utf8.count); buf.writeString(req)
+    try channel.writeInbound(buf)
+    loop.run()   // NIO 坑：不 run() 则 upgrade future 未完成 = 假绿
+
+    // upgrade 后：短空闲 handler 已移除、长窗口 handler 已安装（两段式解耦生效）。
+    #expect((try? channel.pipeline.context(name: "preUpgradeIdle").wait()) == nil,
+            "upgrade 后握手期短空闲 handler 应被移除")
+    #expect((try? channel.pipeline.context(name: "upgradedIdle").wait()) != nil,
+            "upgrade 后应安装长窗口 idle handler")
+    _ = try? channel.finish()
+}

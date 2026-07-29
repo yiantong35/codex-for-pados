@@ -1,5 +1,40 @@
 import Foundation
 
+/// 流式 delta 的三种累积载体，供 StreamCoalescer 区分落回哪种 item case。
+enum StreamKind { case agent, reasoning, command }
+
+/// 流式 delta 攒批：按 itemId 维护可变 String 缓冲，`append` 就地追加（摊销 O(1)），
+/// `drain` 一次性交出并清空。消除逐 token `t + append` 重建整串的 O(n²) 复制。
+///
+/// 就地 O(1) 关键：先 `removeValue` 把缓冲字符串移出字典（此时引用计数=1，唯一持有），
+/// 再 `+=`（唯一引用 → 原地扩容，不触发 COW 全量拷贝），最后写回。
+/// class（引用类型）以便 ThreadReducer（struct）持有 `let` 引用后仍能在非 mutating 方法里改缓冲。
+final class StreamCoalescer {
+    private var buffers: [String: (kind: StreamKind, text: String)] = [:]
+
+    func append(id: String, kind: StreamKind, delta: String) {
+        if var entry = buffers.removeValue(forKey: id) {
+            // 移出后 entry.text 为唯一引用 → reserveCapacity + += 原地追加，摊销 O(1)。
+            entry.text.reserveCapacity(entry.text.utf8.count + delta.utf8.count)
+            entry.text += delta
+            buffers[id] = entry
+        } else {
+            var text = ""
+            text.reserveCapacity(delta.utf8.count)
+            text += delta
+            buffers[id] = (kind, text)
+        }
+    }
+
+    /// 返回全部脏缓冲并清空（保留桶容量，避免反复扩容）。
+    func drain() -> [String: (kind: StreamKind, text: String)] {
+        defer { buffers.removeAll(keepingCapacity: true) }
+        return buffers
+    }
+
+    var isEmpty: Bool { buffers.isEmpty }
+}
+
 /// 把 server notification 归约进 ConversationState 的纯函数集合。
 ///
 /// 两条摄入路径：
@@ -12,8 +47,26 @@ import Foundation
 ///   2. `ingest(resumeResult:to:)` —— thread/resume 同步响应里的历史 turn/item，
 ///      字段名取自 Task 20 实测真实 schema（见方法注释），与流式形状不同。
 struct ThreadReducer {
+    /// F8：流式 delta 攒批缓冲。struct 存 class 引用，`mutate*` 调 `coalescer.append`
+    /// 改的是引用对象（非 self），故这些方法无需 `mutating`。
+    let coalescer = StreamCoalescer()
+
+    /// 四个「delta」通知方法：仅这些路由到 coalescer.append（就地追加，不立即改 items）。
+    static func isDeltaMethod(_ m: String) -> Bool {
+        m == ServerNotificationMethod.agentMessageDelta
+            || m == ServerNotificationMethod.reasoningTextDelta
+            || m == ServerNotificationMethod.reasoningSummaryTextDelta
+            || m == ServerNotificationMethod.commandOutputDelta
+    }
+
     func apply(_ n: JSONRPCNotification, to state: inout ConversationState) {
         let p = (n.params?.value as? [String: Any]) ?? [:]
+        // 保真锚（F8）：任何**非 delta** 事件在跑既有逻辑之前，先把已缓冲的 delta 落地，
+        // 保证后续任何读 item 文本的分支（finishReasoning / finishCommand / reconcileUserMessage /
+        // itemStarted upsert…）都看到最新值 → 与逐 token 追加逐字一致，不误填 fallback、不双重追加。
+        if !Self.isDeltaMethod(n.method) {
+            applyCoalesced(coalescer.drain(), &state)
+        }
         switch n.method {
         case ServerNotificationMethod.turnStarted:
             // 真实通知（codex 0.133.0 实测）：turn 是嵌套对象，id 在 params.turn.id，
@@ -306,23 +359,20 @@ struct ThreadReducer {
     }
 
     private func mutateAgent(id: String, append: String, _ s: inout ConversationState) {
-        guard let i = s.items.firstIndex(where: { $0.id == id }) else {
-            // delta 先于 item/started 到达：建一个空 agentMessage 再累加
-            s.items.append(.agentMessage(id: id, text: append))
-            return
+        // 保留原「delta 先于 item/started」容错：item 不存在则先建空壳 .agentMessage(id,"")，
+        // 文本一律经 coalescer 累积（就地 O(1)），不再每 delta 重建整串。
+        if !s.items.contains(where: { $0.id == id }) {
+            s.items.append(.agentMessage(id: id, text: ""))
         }
-        guard case .agentMessage(_, let t) = s.items[i] else { return }
-        s.items[i] = .agentMessage(id: id, text: t + append)
+        coalescer.append(id: id, kind: .agent, delta: append)
     }
 
     private func mutateReasoning(id: String, append: String, _ s: inout ConversationState) {
-        guard let i = s.items.firstIndex(where: { $0.id == id }) else {
-            // delta 先于 item/started 到达：建一个空 reasoning 再累加（与 agentMessage 容错一致）。
-            s.items.append(.reasoning(id: id, text: append))
-            return
+        // 与 agentMessage 容错一致：delta 先于 started 时建空壳 .reasoning(id,"")，文本进 coalescer。
+        if !s.items.contains(where: { $0.id == id }) {
+            s.items.append(.reasoning(id: id, text: ""))
         }
-        guard case .reasoning(_, let t) = s.items[i] else { return }
-        s.items[i] = .reasoning(id: id, text: t + append)
+        coalescer.append(id: id, kind: .reasoning, delta: append)
     }
 
     /// reasoning 完成收尾：本地累加为空但完成事件带了文本时补落，已有内容则保留。
@@ -345,10 +395,30 @@ struct ThreadReducer {
     }
 
     private func mutateCommand(id: String, append: String, _ s: inout ConversationState) {
+        // 保留原语义：命令项不存在（或非 commandExecution）则忽略该 delta，**不建**空壳。
         guard let i = s.items.firstIndex(where: { $0.id == id }),
-              case .commandExecution(_, let c, let o, let st, let ec, let dm) = s.items[i] else { return }
-        s.items[i] = .commandExecution(id: id, command: c, output: o + append,
-                                       status: st, exitCode: ec, durationMs: dm)
+              case .commandExecution = s.items[i] else { return }
+        coalescer.append(id: id, kind: .command, delta: append)
+    }
+
+    /// F8：把攒批缓冲一次性并入 items。每 flush 每 item 仅做**一次** `t + buf.text` 落回
+    /// 对应 case（一次拷贝而非每 token 一次），未命中/类型不符则跳过。
+    func applyCoalesced(_ drained: [String: (kind: StreamKind, text: String)], _ s: inout ConversationState) {
+        guard !drained.isEmpty else { return }
+        for (id, buf) in drained {
+            guard let i = s.items.firstIndex(where: { $0.id == id }) else { continue }
+            switch (buf.kind, s.items[i]) {
+            case (.agent, .agentMessage(_, let t)):
+                s.items[i] = .agentMessage(id: id, text: t + buf.text)
+            case (.reasoning, .reasoning(_, let t)):
+                s.items[i] = .reasoning(id: id, text: t + buf.text)
+            case (.command, .commandExecution(_, let c, let o, let st, let ec, let dm)):
+                s.items[i] = .commandExecution(id: id, command: c, output: o + buf.text,
+                                               status: st, exitCode: ec, durationMs: dm)
+            default:
+                break
+            }
+        }
     }
 
     /// 批次⑤：从 item 聚合子智能体状态到 ConversationState.subAgents。幂等，非相关 type 无操作。

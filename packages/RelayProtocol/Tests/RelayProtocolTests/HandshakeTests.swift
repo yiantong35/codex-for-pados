@@ -344,6 +344,78 @@ private struct HandshakeHarness {
     }
 }
 
+/// F1（P0）：pairingCodeProof MUST 绑定整条 ClientHello（除 proof 自身外全字段）。
+/// 攻击者复用一条合法 ClientHello 的 clientNonce + pairingCodeProof，但替换
+/// ipadIdentityPub / ipadEphemeralPub / ipadDeviceId 任意一项 → dev 侧 makeServerHello
+/// 以完整 ClientHello 重算 proof 必失配 → 抛 pairingCodeMismatch（杜绝替换公钥认证绕过）。
+/// 合法未篡改的 ClientHello 仍正常通过（回归护栏，改前改后都应绿）。
+@Test func pairingProofBoundToFullClientHelloRejectsKeySubstitution() throws {
+    let pairingCode = "123456"
+    let ipadIdentity = Curve25519.Signing.PrivateKey()
+    let ipadEph = Curve25519.KeyAgreement.PrivateKey()
+    let clientNonce = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
+    let legit = Handshake.makeClientHello(
+        sessionId: "s-1", ipadDeviceId: "ipad-A",
+        ipadIdentityPub: ipadIdentity.publicKey.rawRepresentation,
+        ipadEphemeralPub: ipadEph.publicKey.rawRepresentation,
+        clientNonce: clientNonce, pairingCode: pairingCode)
+
+    let devIdentity = Curve25519.Signing.PrivateKey()
+    let devEph = Curve25519.KeyAgreement.PrivateKey()
+    let serverNonce = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
+
+    // 攻击者的替换材料
+    let attackerIdentity = Curve25519.Signing.PrivateKey()
+    let attackerEph = Curve25519.KeyAgreement.PrivateKey()
+
+    func makeServer(_ h: ClientHello) throws -> ServerHello {
+        try Handshake.makeServerHello(
+            clientHello: h, devDeviceId: "dev-1", devIdentity: devIdentity,
+            devEphemeralPub: devEph.publicKey.rawRepresentation,
+            serverNonce: serverNonce, keyEpoch: 1, pairingCode: pairingCode)
+    }
+
+    // (a) 替换 ipadIdentityPub，复用合法 nonce+proof
+    var tamperedIdentity = legit
+    tamperedIdentity.ipadIdentityPub = attackerIdentity.publicKey.rawRepresentation
+    #expect(throws: HandshakeError.pairingCodeMismatch) { _ = try makeServer(tamperedIdentity) }
+
+    // (b) 替换 ipadEphemeralPub
+    var tamperedEph = legit
+    tamperedEph.ipadEphemeralPub = attackerEph.publicKey.rawRepresentation
+    #expect(throws: HandshakeError.pairingCodeMismatch) { _ = try makeServer(tamperedEph) }
+
+    // (c) 替换 ipadDeviceId
+    var tamperedId = legit
+    tamperedId.ipadDeviceId = "ipad-EVIL"
+    #expect(throws: HandshakeError.pairingCodeMismatch) { _ = try makeServer(tamperedId) }
+
+    // 合法未篡改仍通过（回归护栏）
+    #expect(throws: Never.self) { _ = try makeServer(legit) }
+}
+
+/// F1 顺序护栏：makeServerHello 的版本校验 MUST 先于 proof 校验——混版端得干净的
+/// versionMismatch，而非误导性 pairingCodeMismatch（即便 proof 因版本进编码也随之失配）。
+@Test func versionMismatchTakesPrecedenceOverProof() throws {
+    let ipadIdentity = Curve25519.Signing.PrivateKey()
+    let ipadEph = Curve25519.KeyAgreement.PrivateKey()
+    let clientNonce = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
+    var hello = Handshake.makeClientHello(
+        sessionId: "s-1", ipadDeviceId: "ipad-A",
+        ipadIdentityPub: ipadIdentity.publicKey.rawRepresentation,
+        ipadEphemeralPub: ipadEph.publicKey.rawRepresentation,
+        clientNonce: clientNonce, pairingCode: "PAIR-OK")
+    hello.protocolVersion = "codexrelay-e2ee-v1"   // 旧版本：与当前 tag(v2) 不符
+    #expect(throws: HandshakeError.versionMismatch) {
+        _ = try Handshake.makeServerHello(
+            clientHello: hello, devDeviceId: "dev-1",
+            devIdentity: Curve25519.Signing.PrivateKey(),
+            devEphemeralPub: Data((0..<16).map { _ in UInt8.random(in: 0...255) }),
+            serverNonce: Data((0..<16).map { _ in UInt8.random(in: 0...255) }),
+            keyEpoch: 1, pairingCode: "PAIR-OK")
+    }
+}
+
 /// SecureReady（消息 4）附加 stableSessionId 字段：dev 建 SecureSession 后回传该 iPad 的稳定
 /// sessionId，供 iPad 首次配对消费并持久化用于后续复连直连。round-trip 编解码保真。
 @Test func secureReadyCarriesStableSessionId() throws {

@@ -15,6 +15,8 @@ final class ConversationStore {
     private let rpc: JSONRPCClient
     private let reducer = ThreadReducer()
     private var observer: Task<Void, Never>?
+    /// F8：30Hz（33ms）攒批发布定时任务。随 startObserving 起、stopObserving 停。
+    private var coalesceTask: Task<Void, Never>?
     /// D2：最近一次发送的输入暂存，供失败重发（retryLastSend）。
     private var lastSent: (input: [UserInput], model: String?, effort: ReasoningEffort?)?
     /// D3：乐观回显临时 id 单调序号（同会话内唯一，用于与权威回显对账）。
@@ -39,6 +41,7 @@ final class ConversationStore {
     func startObserving() async {
         guard observer == nil else { return }
         let stream = await rpc.notifications()
+        startCoalesceTimer()   // F8：起 30Hz 攒批发布定时器
         observer = Task { [weak self] in
             for await n in stream {
                 await MainActor.run {
@@ -55,6 +58,33 @@ final class ConversationStore {
     func stopObserving() {
         observer?.cancel()
         observer = nil
+        coalesceTask?.cancel()
+        coalesceTask = nil
+        flushCoalesced()   // F8：强制最后一次落地，兜底不丢尾字。
+    }
+
+    // MARK: - F8：流式攒批发布（30Hz）
+
+    /// 30Hz（33ms）定时 drain → applyCoalesced → 一次 `state` 发布，消除每 token 全量刷新风暴。
+    /// Task 建在 @MainActor 上下文，故 flushCoalesced 与 reducer.apply 内的 drain 同在主线程、互斥安全。
+    private func startCoalesceTimer() {
+        guard coalesceTask == nil else { return }
+        coalesceTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 33_000_000)
+                if Task.isCancelled { break }
+                self?.flushCoalesced()
+            }
+        }
+    }
+
+    /// 把攒批缓冲一次性并入 state 并发布一次（无脏项则不发布）。
+    private func flushCoalesced() {
+        let drained = reducer.coalescer.drain()
+        guard !drained.isEmpty else { return }
+        var s = state
+        reducer.applyCoalesced(drained, &s)
+        state = s   // 一次发布，非每 token。
     }
 
     /// 恢复桌面 app 创建的会话：发 thread/resume，加载并渲染历史。

@@ -7,7 +7,12 @@ public enum RelayLimits {
     /// 单消息（分片累积后）字节上限：1 MiB。超限连接被关闭，内存不无界增长。
     public static let maxMessageBytes = 1 << 20
     /// 空闲（无数据往来）连接超时秒数：超时后回收连接。
+    /// 仅适用于 **upgrade 之前**的慢连接/只连不发/被遗弃连接（握手期短空闲）。
     public static let idleTimeoutSeconds: Int64 = 120
+    /// 已完成 upgrade 的健康 WS 的独立空闲窗口秒数（F3）：远长于握手期短空闲，
+    /// 使前台常态下应用层无数据往来的健康连接不被 120s 误回收（避免不必要的断连 + E2E 重握手，能耗）；
+    /// 仍作为兜底回收真死连接的上限——不产生无限存活的僵尸连接。默认 15 分钟。
+    public static let upgradedIdleTimeoutSeconds: Int64 = 900
     /// 全局并发连接数上限（per-IP 限流交反代承担，见 D2）。
     public static let maxTotalConnections = 2000
     /// 房间（sessionId）总数上限。
