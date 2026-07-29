@@ -244,8 +244,8 @@ final class ConnectionStore {
         if let transport { await transport.close() }
         transport = nil
         // 作废任何仍在握手途中、尚未落地的 transport，避免其 SSH 连接 + 挂起任务泄漏（#1）。
-        if let inflight = inFlightTransport { await inflight.close() }
-        inFlightTransport = nil
+        // take-and-nil：先原子取所有权再 close，避免与在途 establish 的失败清理路径双关同一 transport。
+        if let inflight = inFlightTransport { inFlightTransport = nil; await inflight.close() }
         isReady = false
         didInitialRejoin = false
         phase = .disconnected
@@ -299,13 +299,18 @@ final class ConnectionStore {
             // ——settled 超时兜底（:217 !phase.isSettled）在 phase 落 .failed 后不会触发，无法兜底。
             // 与「attempt 被后续新连接取代」的清理路径（connect:159-163）一致。
             connLog.error("doEstablish: 握手/initialize 失败，fail-closed 清理: \(String(describing: error), privacy: .public)")
+            // client 为本 establish 独占的局部量（未落地 self.rpc），无论谁关 transport 都须 stop
+            // 以免接收循环泄漏，故 client.stop() 不入所有权判断、无条件执行。
             await client.stop()
-            await transport.close()
-            // 恒等判断：避免误清一个已被新 attempt 覆盖的在途引用。`MessageTransport` 协议本身未约束
-            // AnyObject（existential 不能直接 `===`），但本仓库全部实现均为引用类型（class/actor），
-            // 经 `as AnyObject` 装箱后按引用比较等价于 `===`。
+            // take-and-nil 原子取所有权后再 close：仅当仍持有本 transport（inFlightTransport 未被
+            // 超时兜底 / 新连接作废 / disconnect 抢先取走）时才关闭它，令同一 transport 恰好 close 一次——
+            // 消除与超时兜底路径（connect 内 :229-231）对同一 transport 的双关竞态（双 close → closeCount=2）。
+            // 若已被抢走（identity 不匹配或已 nil），对方已负责 close，此处不得重复关闭，否则重复关闭。
+            // 恒等判断：`MessageTransport` 协议本身未约束 AnyObject（existential 不能直接 `===`），
+            // 但本仓库全部实现均为引用类型（class/actor），经 `as AnyObject` 装箱后按引用比较等价于 `===`。
             if let inflight = inFlightTransport, (inflight as AnyObject) === (transport as AnyObject) {
                 inFlightTransport = nil
+                await inflight.close()
             }
             throw error
         }
