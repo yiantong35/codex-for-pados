@@ -19,7 +19,7 @@ public struct ClientHello: Codable, Sendable, Equatable {
     public var ipadIdentityPub: Data     // Ed25519 raw
     public var ipadEphemeralPub: Data    // X25519 raw
     public var clientNonce: Data
-    public var pairingCodeProof: Data    // HMAC-SHA256(key: pairingCode, msg: clientNonce)
+    public var pairingCodeProof: Data    // HMAC-SHA256(key: pairingCode, msg: Transcript.encode(整条 ClientHello 除 proof 外全字段))
 }
 
 /// 消息 2：dev → iPad。带 dev 身份公钥与对 transcript 的签名，回显 clientNonce。
@@ -103,9 +103,29 @@ public enum Handshake {
         ])
     }
 
-    static func pairingCodeProof(pairingCode: String, clientNonce: Data) -> Data {
+    /// 一次性配对口令证明的输入：整条 ClientHello（除 proof 自身外全字段），
+    /// 固定顺序经 Transcript.encode 长度前缀编码——防拼接歧义、两端逐字节一致。
+    /// F1：由此把 proof 覆盖从「仅 clientNonce」扩到「协议版本/sessionId/ipadDeviceId/
+    /// 身份公钥/临时公钥/clientNonce」，杜绝复用合法 nonce+proof 后替换公钥的认证绕过。
+    static func pairingProofMessage(protocolVersion: String,
+                                    sessionId: String,
+                                    ipadDeviceId: String,
+                                    ipadIdentityPub: Data,
+                                    ipadEphemeralPub: Data,
+                                    clientNonce: Data) -> Data {
+        Transcript.encode([
+            Data(protocolVersion.utf8),
+            Data(sessionId.utf8),
+            Data(ipadDeviceId.utf8),
+            ipadIdentityPub,
+            ipadEphemeralPub,
+            clientNonce
+        ])
+    }
+
+    static func pairingCodeProof(pairingCode: String, message: Data) -> Data {
         let key = SymmetricKey(data: Data(pairingCode.utf8))
-        let mac = HMAC<SHA256>.authenticationCode(for: clientNonce, using: key)
+        let mac = HMAC<SHA256>.authenticationCode(for: message, using: key)
         return Data(mac)
     }
 
@@ -123,7 +143,15 @@ public enum Handshake {
             ipadIdentityPub: ipadIdentityPub,
             ipadEphemeralPub: ipadEphemeralPub,
             clientNonce: clientNonce,
-            pairingCodeProof: pairingCodeProof(pairingCode: pairingCode, clientNonce: clientNonce)
+            pairingCodeProof: pairingCodeProof(
+                pairingCode: pairingCode,
+                message: pairingProofMessage(
+                    protocolVersion: RelayProtocolVersion.tag,
+                    sessionId: sessionId,
+                    ipadDeviceId: ipadDeviceId,
+                    ipadIdentityPub: ipadIdentityPub,
+                    ipadEphemeralPub: ipadEphemeralPub,
+                    clientNonce: clientNonce))
         )
     }
 
@@ -138,10 +166,18 @@ public enum Handshake {
         guard h.protocolVersion == RelayProtocolVersion.tag else {
             throw HandshakeError.versionMismatch
         }
-        // 常量时间比对 pairingCodeProof：dev 用自己持有的 pairingCode 重算。
+        // 常量时间比对 pairingCodeProof：dev 用自己持有的 pairingCode + 完整 ClientHello 重算。
+        // F1：以整条 ClientHello（除 proof 外全字段）重算——替换身份/临时公钥/deviceId 即失配被拒。
         let key = SymmetricKey(data: Data(pairingCode.utf8))
+        let proofMsg = pairingProofMessage(
+            protocolVersion: h.protocolVersion,
+            sessionId: h.sessionId,
+            ipadDeviceId: h.ipadDeviceId,
+            ipadIdentityPub: h.ipadIdentityPub,
+            ipadEphemeralPub: h.ipadEphemeralPub,
+            clientNonce: h.clientNonce)
         guard HMAC<SHA256>.isValidAuthenticationCode(h.pairingCodeProof,
-                                                      authenticating: h.clientNonce,
+                                                      authenticating: proofMsg,
                                                       using: key) else {
             throw HandshakeError.pairingCodeMismatch
         }
