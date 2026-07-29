@@ -48,8 +48,16 @@ struct ApprovalCardView: View {
             HStack {
                 Button("approval.yes") { resolve(.approve) }
                     .buttonStyle(.borderedProminent)
-                if !card.isFileChange, let prefix = card.proposedPrefix ?? defaultPrefix(card.title) {
-                    Button("approval.yesPrefix") { resolve(.approveForSessionPrefix(prefix)) }
+                // F5：前缀放行仅当服务端提供 amendment 时出现；按钮完整展示该 amendment
+                // 的实际授权前缀（非固定文案），使用户看清授权范围。
+                if let prefix = Self.prefixButtonState(card: card) {
+                    Button {
+                        resolve(.approveForSessionPrefix(prefix))
+                    } label: {
+                        Text("approval.yesPrefixLabel")
+                            + Text(" ")
+                            + Text(prefix.joined(separator: " ")).monospaced()
+                    }
                 }
                 Spacer()
                 Button("approval.no", role: .destructive) { resolve(.deny) }
@@ -76,9 +84,12 @@ struct ApprovalCardView: View {
         Task { await approvals.resolve(card: card, choice: choice) }
     }
 
-    /// 无 server 建议前缀时，用命令首 token 作前缀放行。
-    private func defaultPrefix(_ command: String) -> [String]? {
-        let toks = command.split(separator: " ").map(String.init)
-        return toks.isEmpty ? nil : [toks[0]]
+    /// F5：前缀放行仅当服务端在审批请求中提供 `proposedExecpolicyAmendment`。
+    /// MUST NOT 本地从命令推导前缀——朴素分词会把 `/bin/sh -c …`、`env FOO=bar git …`
+    /// 误放行为过宽的 `/bin/sh`、`env`。文件改动无前缀放行语义。
+    /// 无 amendment → nil → 仅提供一次性接受/拒绝。
+    static func prefixButtonState(card: ApprovalCard) -> [String]? {
+        guard !card.isFileChange else { return nil }
+        return card.proposedPrefix
     }
 }

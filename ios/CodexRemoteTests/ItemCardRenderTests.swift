@@ -34,4 +34,31 @@ final class ItemCardRenderTests: XCTestCase {
         _ = ItemCard(item: .collabAgentToolCall(id: "4")).body
         _ = ItemCard(item: .subAgentActivity(id: "5")).body
     }
+
+    // MARK: - F5（P1）会话前缀放行仅源自服务端 amendment
+
+    private func cmdCard(title: String, prefix: [String]?, isFile: Bool = false) -> ApprovalCard {
+        ApprovalCard(id: .string("c"), method: isFile ? ServerRequestMethod.fileApprovalV2 : ServerRequestMethod.cmdApprovalV2,
+                     threadId: "t", title: title, detail: "/w",
+                     proposedPrefix: prefix, isFileChange: isFile, isPermissions: false,
+                     reason: nil, requestedNetworkEnabled: nil, requestedFileSystem: nil)
+    }
+
+    /// 无服务端 amendment：不提供前缀放行、绝不从 command[0] 本地推导。
+    func test_prefix_allow_absent_without_amendment() {
+        let card = cmdCard(title: "/bin/sh -c 'rm x'", prefix: nil)
+        XCTAssertNil(ApprovalCardView.prefixButtonState(card: card))
+    }
+
+    /// 有服务端 amendment：展示实际前缀（原样返回，不做本地覆写）。
+    func test_prefix_allow_shows_actual_amendment() {
+        let card = cmdCard(title: "git status", prefix: ["git", "status"])
+        XCTAssertEqual(ApprovalCardView.prefixButtonState(card: card), ["git", "status"])
+    }
+
+    /// 文件改动无前缀放行语义：即便误带 prefix 也不提供。
+    func test_prefix_allow_absent_for_file_change() {
+        let card = cmdCard(title: "main.swift", prefix: ["should", "ignore"], isFile: true)
+        XCTAssertNil(ApprovalCardView.prefixButtonState(card: card))
+    }
 }

@@ -4608,6 +4608,22 @@
           }
         }
       }
+    },
+    "approval.yesPrefixLabel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow for session:"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本会话放行前缀："
+          }
+        }
+      }
     }
   },
   "version": "1.0"
