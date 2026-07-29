@@ -16,7 +16,7 @@ import RelayServerCore
 /// `configureRelayPipeline`;per-IP 并发/速率限流已上移到反向代理(见 DEPLOY.md)。
 
 let port = Int(ProcessInfo.processInfo.environment["RELAY_PORT"] ?? "") ?? 9000
-let host = "0.0.0.0"
+let host = RelayServerConfig.resolveHost(env: ProcessInfo.processInfo.environment)
 let rooms = RelayRooms()
 let limiter = RelayLimiter(maxTotalConnections: RelayLimits.maxTotalConnections,
                            maxRooms: RelayLimits.maxRooms)
