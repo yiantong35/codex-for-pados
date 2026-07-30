@@ -1076,7 +1076,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 **锁定决策（来自 Design Doc §八）：** `setForeground` 同步状态给 `inFlightTransport`（不止已落地 transport）；`doEstablish` 建通道与初始握手前检查/等待前台；退后台时进行中首连走**既有** attempt-token 作废 + take-and-nil 关闭路径取消，回前台重试；take-and-nil 保 exactly-once 关闭，不泄漏 transport。
 
-- [ ] **Step 1：写「首连期间退后台取消在途 transport」测试**
+- [x] **Step 1：写「首连期间退后台取消在途 transport」测试**
 
 改 `ios/CodexRemoteTests/ConnectionStoreTests.swift`，复用 `MockTransport.setBlockHandshake(true)`（握手永不完成，模拟在途首连挂起）+ `closeCount` / `inFlightTransportForTesting` 断言：
 
@@ -1105,12 +1105,12 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 > 「回前台重试成功」Scenario 由既有 `testHandshakeReachesReady` 的连接路径覆盖（回前台后重新 `connect()` 走正常握手到 `.ready`）；本 change 不改该正常路径，故不重复写整链集成，用一条断言在上面用例后追加「回前台再 connect 能 ready」即可（可选，见 Step 4 备注）。
 
-- [ ] **Step 2：跑测试确认失败**
+- [x] **Step 2：跑测试确认失败**
 
 Run: `-only-testing:CodexRemoteTests/ConnectionStoreTests/testBackgroundDuringInFlightConnectCancelsTransport`
 Expected: FAIL —— 现 `setForeground`（:257-261）只 `guard let transport`（已落地），忽略 `inFlightTransport`，故退后台不关闭在途 transport，`closeCount` 停在 0、`inFlight` 仍非 nil。
 
-- [ ] **Step 3：`setForeground` 覆盖在途首连**
+- [x] **Step 3：`setForeground` 覆盖在途首连**
 
 改 `ios/CodexRemote/Stores/ConnectionStore.swift:257-261`：
 ```swift
@@ -1130,7 +1130,7 @@ Expected: FAIL —— 现 `setForeground`（:257-261）只 `guard let transport`
 
 > 说明：`activeAttempt += 1` 使正在 `doEstablish` 的任务即便随后解挂，也因 `attempt != self.activeAttempt`（connect :184-190 / :205）而不落地、并在 catch 里因 `inFlightTransport` 已被取走（identity 不匹配）不重复 close——与既有超时兜底/新连接作废路径语义一致，保 exactly-once。
 
-- [ ] **Step 4：`doEstablish` 建通道/握手前检查前台（可选加固）**
+- [x] **Step 4：`doEstablish` 建通道/握手前检查前台（可选加固）**
 
 Design Doc §八要求「`doEstablish` 建通道与初始握手前检查/等待前台」。最小实现：在 `doEstablish`（:270-283）建 transport 前与 `awaitHandshake` 前各加一处前台快照检查，退后台则提前 fail-closed（不烧握手）：
 ```swift
@@ -1152,12 +1152,12 @@ Design Doc §八要求「`doEstablish` 建通道与初始握手前检查/等待�
         // 后台喂 initialize 响应，略——与 testHandshakeReachesReady 同构；或直接断言可再次发起 connect 不悬挂。
 ```
 
-- [ ] **Step 5：跑全量 ConnectionStore 测试确认无回归**
+- [x] **Step 5：跑全量 ConnectionStore 测试确认无回归**
 
 Run: `-only-testing:CodexRemoteTests/ConnectionStoreTests`
 Expected: 新用例 PASS；既有 `testHandshakeReachesReady` / `testConnectTimeoutClosesInFlightTransport` / `testInitializeFailureClosesTransportAndClearsInFlight` / `testDisconnectClosesTransport` / `testReconnecting...` 全部不回归（take-and-nil 竞态锚）。iOS **全量**测试跑一遍捕获跨 store 竞态（memory：全测曾捕获双关竞态）。
 
-- [ ] **Step 6：勾选并提交**
+- [x] **Step 6：勾选并提交**
 
 勾选 tasks.md 8.1/8.2/8.3。
 ```bash
@@ -1174,7 +1174,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 **对应 tasks.md：** 9.1 / 9.2 / 9.3 / 9.4 ｜ 全部 8 组完成后统一收口。
 
-- [ ] **Step 1：四个 Swift Package 测试全绿**
+- [x] **Step 1：四个 Swift Package 测试全绿**
 
 Run:
 ```bash
@@ -1185,17 +1185,17 @@ swift test --package-path packages/RelayProtocol
 （RelayDialoutCore 测试含在 relay-dialout package 内。）
 Expected: 全绿。#2 命中 `RelayDialoutCoreTests` 的 DialoutContextTrust；#8 命中 DevKeyStore。
 
-- [ ] **Step 2：iPad 模拟器全量测试全绿**
+- [x] **Step 2：iPad 模拟器全量测试全绿**
 
 Run: `xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad Pro (11-inch)'`（destination 按本机可用模拟器调整）。
 Expected: 全量绿。重点覆盖 #1 ClipboardPolicy、#3 ConversationCoalesceScheduling、#4 QRScannerLifecycle、#5 RelayE2EKeyManager、#6 ProjectsPolling、#7 ConnectionStore。
 
-- [ ] **Step 3：`xcodebuild analyze` 通过**
+- [x] **Step 3：`xcodebuild analyze` 通过**
 
 Run: `xcodebuild analyze -scheme CodexRemote -destination '...'`
 Expected: 无新增静态分析告警。
 
-- [ ] **Step 4：能耗结论静态分析 + 真机验收项写入本地清单**
+- [x] **Step 4：能耗结论静态分析 + 真机验收项写入本地清单**
 
 在 `docs/真机验收清单.md`（BACKLOG 指向的本地清单）追加本 change 的真机验收项：
 - #1：设置页「隐私」开关默认关；关闭时远端 `printf '\e]52;c;<base64>\a'` 不改剪贴板；开启且小内容能写；开启且 >64KB 拒写。
@@ -1203,7 +1203,7 @@ Expected: 无新增静态分析告警。
 - #7：真机首连握手途中切后台→再回前台，连接不空耗、能正常重连；#8：真机把 `~/.codex/...identity.key` 手动 `chmod 644` 后重启 dev，确认被收紧回 600；`chown` 到别的用户后确认 fail-closed 拒绝启动（属主校验的真机确认，补足 Task 4 单测无法覆盖的属主分支）。
 - 能耗静态结论：#3 空闲无常驻定时器（代码走查 + `test_idle_no_periodic_wakeups`）；#6 后台/不可见不轮询；#7 在途首连后台即取消不烧 20s。
 
-- [ ] **Step 5：勾选 tasks.md 9.1–9.4 并提交收口**
+- [x] **Step 5：勾选 tasks.md 9.1–9.4 并提交收口**
 
 ```bash
 git add openspec/changes/review-fixes-security-energy/tasks.md docs/真机验收清单.md
