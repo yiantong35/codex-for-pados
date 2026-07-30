@@ -45,7 +45,10 @@ struct SidebarView: View {
             await projects.attach(rpc: rpc)
             await env.attach(rpc: rpc)   // 拉 config/model-list，供 composer 服务器驱动选模型
             await projects.loadFromServer(rpc: rpc)
-            projects.startPolling()   // D5-b：列表可见即准实时轮询
+            // #6：首拉是 await——期间可能切标签/视图消失/进后台。仅在仍可见且未取消时才启动轮询，
+            // 否则会覆盖 onDisappear/scenePhase 的停止。
+            guard !Task.isCancelled, scenePhase == .active else { return }
+            projects.startPolling(isVisible: true)   // D5-b：列表可见即准实时轮询
         }
         .onDisappear { projects.stopPolling() }
         .onChange(of: scenePhase) { _, phase in

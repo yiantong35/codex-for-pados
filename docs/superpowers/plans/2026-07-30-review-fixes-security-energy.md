@@ -972,7 +972,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 **锁定决策（来自 Design Doc §七）：** `.task` 内 `startPolling` 前加 `guard !Task.isCancelled && scenePhase == .active`；`ProjectsStore.startPolling` 自身加可见性前置，双重防护。
 
-- [ ] **Step 1：写「不可见时不启动轮询」测试**
+- [x] **Step 1：写「不可见时不启动轮询」测试**
 
 改 `ios/CodexRemoteTests/ProjectsPollingTests.swift`，追加：
 
@@ -1004,12 +1004,12 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
     }
 ```
 
-- [ ] **Step 2：跑测试确认失败**
+- [x] **Step 2：跑测试确认失败**
 
 Run: `-only-testing:CodexRemoteTests/ProjectsPollingTests`
 Expected: 编译失败（`startPolling` 无 `isVisible:` 参数）。
 
-- [ ] **Step 3：`startPolling` 加可见性前置**
+- [x] **Step 3：`startPolling` 加可见性前置**
 
 改 `ios/CodexRemote/Stores/ProjectsStore.swift:99`：
 ```swift
@@ -1027,7 +1027,7 @@ Expected: 编译失败（`startPolling` 无 `isVisible:` 参数）。
 ```
 既有默认参数 `isVisible: Bool = true` 保证 `.onChange(scenePhase == .active)`（SidebarView:55）与既有测试的无参调用不受影响。
 
-- [ ] **Step 4：`SidebarView.task` 首拉后按可见性/取消再轮询**
+- [x] **Step 4：`SidebarView.task` 首拉后按可见性/取消再轮询**
 
 改 `ios/CodexRemote/Views/SidebarView.swift:42-49`：
 ```swift
@@ -1044,12 +1044,12 @@ Expected: 编译失败（`startPolling` 无 `isVisible:` 参数）。
 ```
 `.onChange(scenePhase)` 分支（:51-61）里的 `projects.startPolling()`（:55）保持无参（默认 `isVisible: true`，此分支已在 `.active` case 内，语义正确）。
 
-- [ ] **Step 5：跑测试确认通过 + 既有轮询测试不回归**
+- [x] **Step 5：跑测试确认通过 + 既有轮询测试不回归**
 
 Run: `-only-testing:CodexRemoteTests/ProjectsPollingTests`
 Expected: 新两用例 PASS；既有 `test_polling_refreshes_then_stops` / `test_startPolling_idempotent` 全绿（默认参数向后兼容）。
 
-- [ ] **Step 6：勾选并提交**
+- [x] **Step 6：勾选并提交**
 
 勾选 tasks.md 7.1/7.2/7.3。
 ```bash

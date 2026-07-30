@@ -40,9 +40,9 @@
 
 ## 7. #6 侧栏首拉后按可见性再轮询（能耗）
 
-- [ ] 7.1 `SidebarView.task` 在 `startPolling` 前 `guard !Task.isCancelled && scenePhase == .active`
-- [ ] 7.2 `ProjectsStore.startPolling` 加可见性前置
-- [ ] 7.3 单测/断言：后台或视图消失时首拉返回不重启轮询
+- [x] 7.1 `SidebarView.task` 在 `startPolling` 前 `guard !Task.isCancelled && scenePhase == .active`
+- [x] 7.2 `ProjectsStore.startPolling` 加可见性前置
+- [x] 7.3 单测/断言：后台或视图消失时首拉返回不重启轮询
 
 ## 8. #7 后台暂停在途首连（能耗）
 
