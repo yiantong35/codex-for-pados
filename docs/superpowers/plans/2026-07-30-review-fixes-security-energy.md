@@ -814,7 +814,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 **锁定决策（来自 Design Doc §六）：** `start`/`stop` 只设 `desiredRunning` 并在**单一私有串行队列**排一个「对齐实际态到目标态」的任务；`stop` **无条件排队**（不因 `isRunning == false` 早退）。保证 dismantle 后的 stop 一定排在先前 start 之后 → 最终态收敛到「停止」。模拟器无相机 → 以对齐逻辑的**状态机单测** + 真机抽验。
 
-- [ ] **Step 1：写对齐状态机测试**
+- [x] **Step 1：写对齐状态机测试**
 
 新建 `ios/CodexRemoteTests/QRScannerLifecycleTests.swift`。相机在模拟器不可用，故测**纯对齐决策**（不实际起相机）：
 
@@ -844,12 +844,12 @@ final class QRScannerLifecycleTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2：跑测试确认失败**
+- [x] **Step 2：跑测试确认失败**
 
 Run: `-only-testing:CodexRemoteTests/QRScannerLifecycleTests`
 Expected: 编译失败（`reconcile` / `CameraAction` 未定义）。
 
-- [ ] **Step 3：引入串行队列 + 目标态 + 对齐函数**
+- [x] **Step 3：引入串行队列 + 目标态 + 对齐函数**
 
 改 `ios/CodexRemote/Views/QRScannerView.swift`。`PreviewView`（:32-83）改造：
 
@@ -935,16 +935,16 @@ Expected: 编译失败（`reconcile` / `CameraAction` 未定义）。
 
 > 关键不变量（Scenario 1）：dismantle 调 `stop()` → 排入 `setDesired(false)`；它一定排在任何先前 `start()` 排入的 `setDesired(true)` 之后（同一串行队列 FIFO）。故最终 `desiredRunning == false`，对齐结果为 `.stop` 或 `.noop`，相机不残留。
 
-- [ ] **Step 4：跑测试确认通过 + 编译**
+- [x] **Step 4：跑测试确认通过 + 编译**
 
 Run: `-only-testing:CodexRemoteTests/QRScannerLifecycleTests` + 模拟器编译
 Expected: 3 用例 PASS；`QRScannerView` 编译通过（模拟器无相机路径静默）。
 
-- [ ] **Step 5：真机抽验项记入本地清单**
+- [x] **Step 5：真机抽验项记入本地清单**
 
 在 verify 阶段本地清单记：真机打开扫码页→关闭→确认相机指示灯熄灭（无残留）；快速进出扫码页多次无卡死/无残留（Scenario 2）。记入 Task 9.4。
 
-- [ ] **Step 6：勾选并提交**
+- [x] **Step 6：勾选并提交**
 
 勾选 tasks.md 6.1/6.2/6.3。
 ```bash

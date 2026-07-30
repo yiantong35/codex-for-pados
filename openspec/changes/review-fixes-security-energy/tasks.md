@@ -34,9 +34,9 @@
 
 ## 6. #4 扫码相机启停串行化（能耗/隐私）
 
-- [ ] 6.1 `QRScannerView.PreviewView` 引入私有串行 capture 队列 + `desiredRunning` 目标态
-- [ ] 6.2 `start`/`stop` 只设目标态并在串行队列排「对齐」任务，`stop` 无条件排队不早退
-- [ ] 6.3 验证：dismantle 后相机不残留运行（状态机单测 + 真机抽验）
+- [x] 6.1 `QRScannerView.PreviewView` 引入私有串行 capture 队列 + `desiredRunning` 目标态
+- [x] 6.2 `start`/`stop` 只设目标态并在串行队列排「对齐」任务，`stop` 无条件排队不早退
+- [x] 6.3 验证：dismantle 后相机不残留运行（状态机单测 + 真机抽验）
 
 ## 7. #6 侧栏首拉后按可见性再轮询（能耗）
 
