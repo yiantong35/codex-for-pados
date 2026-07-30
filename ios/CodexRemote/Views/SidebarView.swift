@@ -46,8 +46,11 @@ struct SidebarView: View {
             await env.attach(rpc: rpc)   // 拉 config/model-list，供 composer 服务器驱动选模型
             await projects.loadFromServer(rpc: rpc)
             // #6：首拉是 await——期间可能切标签/视图消失/进后台。仅在仍可见且未取消时才启动轮询，
-            // 否则会覆盖 onDisappear/scenePhase 的停止。
-            guard !Task.isCancelled, scenePhase == .active else { return }
+            // 否则会覆盖 onDisappear/scenePhase 的停止。取消检测用 Task.isCancelled（覆盖视图消失/切标签）；
+            // 前台判定读 connection.foregroundActive（app 级前后台的实时真源）而非闭包捕获的 scenePhase
+            // ——运行中的 .task 闭包持任务启动时的 View 快照，await 后再读 scenePhase 会拿到过期的 .active，
+            // 致「首拉期间进系统后台」这一场景仍误启后台轮询。foregroundActive 由 setAppForegroundAll 实时写入。
+            guard !Task.isCancelled, connection.foregroundActive else { return }
             projects.startPolling(isVisible: true)   // D5-b：列表可见即准实时轮询
         }
         .onDisappear { projects.stopPolling() }
