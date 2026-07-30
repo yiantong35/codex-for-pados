@@ -42,7 +42,7 @@ final class RelayTrustedHandshakeTests: XCTestCase {
 
         let transport = RelayTransport(
             channelFactory: { ws }, pairing:pairing(devPubB64: dev.devIdentityPubB64, code: "unused-in-trusted"),
-            ipadIdentity: e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
+            ipadIdentity: try e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
             tofu: tofu, tofuMachineKey: "machine-T",
             isTrustedReconnect: true, stableSessionStore: InMemoryStableSessionStore())
 
@@ -71,7 +71,7 @@ final class RelayTrustedHandshakeTests: XCTestCase {
 
         let transport = RelayTransport(
             channelFactory: { ws }, pairing:pairing(devPubB64: wrongDevPub, code: "x"),
-            ipadIdentity: e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
+            ipadIdentity: try e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
             tofu: InMemoryTOFUStore(), tofuMachineKey: "m",
             isTrustedReconnect: true, stableSessionStore: InMemoryStableSessionStore())
 
@@ -94,7 +94,7 @@ final class RelayTrustedHandshakeTests: XCTestCase {
 
         let transport = RelayTransport(
             channelFactory: { ws }, pairing:pairing(devPubB64: dev.devIdentityPubB64, code: "unused"),
-            ipadIdentity: e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
+            ipadIdentity: try e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
             tofu: InMemoryTOFUStore(), tofuMachineKey: "machine-S",
             isTrustedReconnect: true, stableSessionStore: store)
 
@@ -114,7 +114,7 @@ final class RelayTrustedHandshakeTests: XCTestCase {
 
         let transport = RelayTransport(
             channelFactory: { ws }, pairing:pairing(devPubB64: dev.devIdentityPubB64, code: code),
-            ipadIdentity: e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
+            ipadIdentity: try e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
             tofu: InMemoryTOFUStore(), tofuMachineKey: "machine-F",
             isTrustedReconnect: false, stableSessionStore: store)
 

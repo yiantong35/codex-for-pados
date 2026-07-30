@@ -400,7 +400,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 **锁定决策（来自 Design Doc §三，方案 A）：** **不给 `saveKey` 加 throws、不碰 SSH `KeyManager`**。改为在 `KeyStoring` 加**带默认实现**的 `saveKeyThrowing`（默认转调旧 `saveKey`，SSH `KeychainKeyStore` 继承默认实现、行为不变）；仅 `RelayE2EKeychainStore` override 为真实抛出；`RelayE2EKeyManager.identityKey()` 改 throws，仅 `saveKeyThrowing` 成功后 `cachedIdentity = k` 并返回。身份为幂等复用（已存在不重存），不触发删旧身份场景。
 
-- [ ] **Step 1：写失败测试（注入会抛错的 store）**
+- [x] **Step 1：写失败测试（注入会抛错的 store）**
 
 改 `ios/CodexRemoteTests/RelayE2EKeyManagerTests.swift`。文件顶部 `MemoryKeyStore`（:6-11）追加一个会抛错的替身，并新增用例：
 
@@ -435,12 +435,12 @@ private struct ThrowingKeyStore: KeyStoring {
 ```
 同时把既有 `testIdentityKeyIsPersistentAndIdempotent`（:17-24）与 `testE2EAccountIsolatedFromSSHAccount`（:35-52）里的 `m.identityKey()` 调用改为 `try m.identityKey()`（用例签名加 `throws`）。
 
-- [ ] **Step 2：跑测试确认失败**
+- [x] **Step 2：跑测试确认失败**
 
 Run: `-only-testing:CodexRemoteTests/RelayE2EKeyManagerTests`
 Expected: 编译失败（`saveKeyThrowing` 未定义、`identityKey()` 不 throws）。
 
-- [ ] **Step 3：`KeyStoring` 加带默认实现的 `saveKeyThrowing`**
+- [x] **Step 3：`KeyStoring` 加带默认实现的 `saveKeyThrowing`**
 
 改 `ios/CodexRemote/Security/KeyManager.swift:7-11`：
 ```swift
@@ -459,7 +459,7 @@ extension KeyStoring {
 ```
 `KeychainKeyStore`（SSH，:15-30）与 `KeyManager`（:38-112）**完全不动**（职责分离铁律）。
 
-- [ ] **Step 4：`RelayE2EKeychainStore` override 真实抛出 + `identityKey()` 改 throws**
+- [x] **Step 4：`RelayE2EKeychainStore` override 真实抛出 + `identityKey()` 改 throws**
 
 改 `ios/CodexRemote/Security/RelayE2EKeyManager.swift`。`RelayE2EKeychainStore`（:7-20）加 override：
 ```swift
@@ -488,7 +488,7 @@ extension KeyStoring {
     func identityPublicKeyRaw() throws -> Data { try identityKey().publicKey.rawRepresentation }
 ```
 
-- [ ] **Step 5：调用点改 `try`**
+- [x] **Step 5：调用点改 `try`**
 
 改 `ios/CodexRemote/App/LiveTransport.swift:56-57`。`makeRelayTransport` 是 `async throws`（见 :85 调用处 `try await`），可直接向上抛：
 ```swift
@@ -497,12 +497,12 @@ extension KeyStoring {
 ```
 确认 `identityPublicKeyRaw()` 无其它调用点（`grep` 显示仅 `LiveTransport.swift:57` 用 `identityKey()`，`identityPublicKeyRaw` 在 iOS 侧无调用者——dev 侧的同名属性属 `DevKeyStore`，不受影响）。
 
-- [ ] **Step 6：跑测试确认通过 + SSH 不回归**
+- [x] **Step 6：跑测试确认通过 + SSH 不回归**
 
 Run: `-only-testing:CodexRemoteTests/RelayE2EKeyManagerTests`
 Expected: 新旧用例全绿。特别是 `testE2EAccountIsolatedFromSSHAccount` 证明 SSH account 未被触碰（SSH 路径不受影响 Scenario）。
 
-- [ ] **Step 7：勾选并提交**
+- [x] **Step 7：勾选并提交**
 
 勾选 tasks.md 3.1/3.2/3.3。
 ```bash

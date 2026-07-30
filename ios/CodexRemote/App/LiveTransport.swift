@@ -54,7 +54,7 @@ func makeRelayTransport(payload: PairingPayload, tofuMachineKey: String,
     }
 
     let e2e = RelayE2EKeyManager()
-    let identity = e2e.identityKey()   // 持久身份，跨重连复用
+    let identity = try e2e.identityKey()   // 持久身份，跨重连复用；落盘失败则配对以明确失败告终
     let tofu = KeychainTOFUStore()
     return RelayTransport(
         channelFactory: channelFactory, pairing: payload,

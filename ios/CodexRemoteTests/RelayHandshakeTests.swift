@@ -22,7 +22,7 @@ final class RelayHandshakeTests: XCTestCase {
 
         let transport = RelayTransport(
             channelFactory: { ws }, pairing: pairing(dev: dev, code: code),
-            ipadIdentity: e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
+            ipadIdentity: try e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
             tofu: tofu, tofuMachineKey: "machine-A",
             isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore())
 
@@ -46,7 +46,7 @@ final class RelayHandshakeTests: XCTestCase {
 
         let transport = RelayTransport(
             channelFactory: { ws }, pairing: pairing(dev: dev, code: code),
-            ipadIdentity: e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
+            ipadIdentity: try e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
             tofu: InMemoryTOFUStore(), tofuMachineKey: "m",
             isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore())
 
@@ -66,7 +66,7 @@ final class RelayHandshakeTests: XCTestCase {
             do { return try dev.handle(frame) } catch { throw TransportError.channelClosed(reason: "dev 拒绝握手") }
         }
         let transport = RelayTransport(
-            channelFactory: { driver }, pairing: bad, ipadIdentity: e2e.identityKey(),
+            channelFactory: { driver }, pairing: bad, ipadIdentity: try e2e.identityKey(),
             ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() }, tofu: InMemoryTOFUStore(), tofuMachineKey: "m",
             isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore())
 
@@ -89,7 +89,7 @@ final class RelayHandshakeTests: XCTestCase {
             do { return try dev.handle(frame) } catch { throw TransportError.channelClosed(reason: "dev 拒绝握手") }
         }
         let transport = RelayTransport(
-            channelFactory: { driver }, pairing: bad, ipadIdentity: e2e.identityKey(),
+            channelFactory: { driver }, pairing: bad, ipadIdentity: try e2e.identityKey(),
             ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() }, tofu: InMemoryTOFUStore(), tofuMachineKey: "m",
             isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore())
 
@@ -117,7 +117,7 @@ final class RelayHandshakeTests: XCTestCase {
 
         let transport = RelayTransport(
             channelFactory: { ws }, pairing: pairing(dev: dev, code: code),
-            ipadIdentity: e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
+            ipadIdentity: try e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
             tofu: InMemoryTOFUStore(), tofuMachineKey: "m",
             isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore(),
             consumePairingCode: { await consumed.mark() })
@@ -140,7 +140,7 @@ final class RelayHandshakeTests: XCTestCase {
         let consumed = ConsumeFlag()
 
         let transport = RelayTransport(
-            channelFactory: { driver }, pairing: bad, ipadIdentity: e2e.identityKey(),
+            channelFactory: { driver }, pairing: bad, ipadIdentity: try e2e.identityKey(),
             ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() }, tofu: InMemoryTOFUStore(),
             tofuMachineKey: "m", isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore(),
             consumePairingCode: { await consumed.mark() })

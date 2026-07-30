@@ -16,9 +16,9 @@
 
 ## 3. #5 iPad 身份密钥落盘成功后才缓存（安全）
 
-- [ ] 3.1 `KeyStoring.saveKey` 签名改 `throws`，生产 Keychain 实现真实抛错（搜清全部调用点）
-- [ ] 3.2 `RelayE2EKeyManager.identityKey()` 仅保存成功后缓存返回；覆盖旧项用 upsert 避免先删后加丢身份
-- [ ] 3.3 单测：saveKey 失败时不缓存、配对失败而非静默成功
+- [x] 3.1 `KeyStoring.saveKey` 签名改 `throws`，生产 Keychain 实现真实抛错（搜清全部调用点）
+- [x] 3.2 `RelayE2EKeyManager.identityKey()` 仅保存成功后缓存返回；覆盖旧项用 upsert 避免先删后加丢身份
+- [x] 3.3 单测：saveKey 失败时不缓存、配对失败而非静默成功
 
 ## 4. #8 dev 加载已有私钥校验权限（安全）
 

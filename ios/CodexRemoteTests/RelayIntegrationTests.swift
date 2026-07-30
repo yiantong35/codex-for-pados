@@ -27,7 +27,7 @@ final class RelayIntegrationTests: XCTestCase {
 
         let t = RelayTransport(
             channelFactory: { ws }, pairing: pairing(devPubB64: dev.devIdentityPubB64, sid: "s", code: code),
-            ipadIdentity: e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
+            ipadIdentity: try e2e.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
             tofu: InMemoryTOFUStore(), tofuMachineKey: "m",
             isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore())
 
@@ -51,7 +51,7 @@ final class RelayIntegrationTests: XCTestCase {
         let e2e1 = RelayE2EKeyManager(store: memStore())
         let t1 = RelayTransport(
             channelFactory: { ws1 }, pairing: pairing(devPubB64: dev1.devIdentityPubB64, sid: "s1", code: "c1"),
-            ipadIdentity: e2e1.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
+            ipadIdentity: try e2e1.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
             tofu: sharedTOFU, tofuMachineKey: machineKey,
             isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore())
         _ = t1.incoming()
@@ -62,7 +62,7 @@ final class RelayIntegrationTests: XCTestCase {
         let e2e2 = RelayE2EKeyManager(store: memStore())
         let t2 = RelayTransport(
             channelFactory: { ws2 }, pairing: pairing(devPubB64: dev2.devIdentityPubB64, sid: "s2", code: "c2"),
-            ipadIdentity: e2e2.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
+            ipadIdentity: try e2e2.identityKey(), ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
             tofu: sharedTOFU, tofuMachineKey: machineKey,
             isTrustedReconnect: false, stableSessionStore: InMemoryStableSessionStore())
         _ = t2.incoming()
