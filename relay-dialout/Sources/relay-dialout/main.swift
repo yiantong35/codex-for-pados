@@ -174,7 +174,17 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             return
         }
         // 握手期：先试 ClientAuth（更晚），再试 ClientHello。
-        if context.hellos != nil, let readyFrame = try? context.handleClientAuth(data) {
+        // #2：不吞错——信任落盘失败必须冒泡，绝不因 try? 吞错而在信任未落盘时启 bridge。
+        if context.hellos != nil {
+            let readyFrame: Data
+            do {
+                readyFrame = try context.handleClientAuth(data)
+            } catch {
+                // 落盘/验签失败：不发 SecureReady、不启 bridge、不发布会话。
+                // 直接返回（不 fall through 到 ClientHello 解析）：hellos 已就绪时合法 ClientAuth 帧
+                // 不会再解成 ClientHello，与改前 try? 失败后行为等价。上层错误路径负责关连接。
+                return
+            }
             // 握手完成：先加密回传 SecureReady（稳定 sessionId），再启桥并把 proxy 输出加密回发。
             sendFrame(readyFrame, ctx: ctx)   // 只发一次
             ensureBridgeStarted()

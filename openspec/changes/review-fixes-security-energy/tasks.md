@@ -10,9 +10,9 @@
 
 ## 2. #2 dev 侧信任落盘后再发布会话（安全）
 
-- [ ] 2.1 `DialoutContext.handleClientAuth`：`trust.trust` 成功后才在锁内原子置 `_session` + `_pairingConsumed`
-- [ ] 2.2 落盘失败清握手态并向上抛；`main.swift` 调用方去掉 `try?`，失败不启 bridge
-- [ ] 2.3 单测：落盘失败时 session 不发布、后续 SecureEnvelope 不启 bridge；受信任复连幂等路径不回归
+- [x] 2.1 `DialoutContext.handleClientAuth`：`trust.trust` 成功后才在锁内原子置 `_session` + `_pairingConsumed`
+- [x] 2.2 落盘失败清握手态并向上抛；`main.swift` 调用方去掉 `try?`，失败不启 bridge
+- [x] 2.3 单测：落盘失败时 session 不发布、后续 SecureEnvelope 不启 bridge；受信任复连幂等路径不回归
 
 ## 3. #5 iPad 身份密钥落盘成功后才缓存（安全）
 
