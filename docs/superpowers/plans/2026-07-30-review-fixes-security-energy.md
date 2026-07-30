@@ -662,7 +662,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 **锁定决策（来自 Design Doc §五，按需调度）：** 去掉常驻 `while` 循环。脏 delta 入队且当前无 pending flush → 安排一次延迟 flush（33ms）。`flushCoalesced` drain 后**不自动续期**，下批脏数据到达再调度。`stopObserving` 仍强制最后一次 flush 兜底（不丢尾字）。空闲时对主线程零唤醒。
 
-- [ ] **Step 1：写按需调度测试**
+- [x] **Step 1：写按需调度测试**
 
 新建 `ios/CodexRemoteTests/ConversationCoalesceSchedulingTests.swift`。ConversationStore 需要 `JSONRPCClient`（用现成 `MockTransport`）；通过 `startObserving()` 起观察，`MockTransport.feed` 推 delta 通知，断言 state 在 ~33ms 内合并落地、且空闲后不再变化：
 
@@ -728,12 +728,12 @@ final class ConversationCoalesceSchedulingTests: XCTestCase {
 
 > 说明：delta 通知的 method/params 形状照 `StreamCoalescerTests` 里 `notif("item/agentMessage/delta", ["itemId":..., "delta":...])` 的既有约定。若 `belongsToThread` 过滤要求 params 带 `threadId`，delta 缺省全收（`ConversationStore.belongsToThread` :186-190：无 threadId 返回 true），故上面帧不带 threadId 即可被消费。
 
-- [ ] **Step 2：跑测试确认失败/或暴露常驻循环行为**
+- [x] **Step 2：跑测试确认失败/或暴露常驻循环行为**
 
 Run: `-only-testing:CodexRemoteTests/ConversationCoalesceSchedulingTests`
 Expected: `test_stopObserving_flushes_tail` 应已通过（现实现 stopObserving 已 flush）；`test_active_...` 现实现也可能通过（常驻 30Hz 循环恰好覆盖）——关键回归锚是重构后三者**同时**保持绿。先记录基线，再重构。
 
-- [ ] **Step 3：改为按需调度**
+- [x] **Step 3：改为按需调度**
 
 改 `ios/CodexRemote/Stores/ConversationStore.swift`。字段（:20-21）改名：
 ```swift
@@ -783,12 +783,12 @@ Expected: `test_stopObserving_flushes_tail` 应已通过（现实现 stopObservi
 
 > 不变量：空闲（无 delta）→ `scheduleFlushIfNeeded` 因 `coalescer.isEmpty` 早退，`flushTask` 保持 nil，主线程零唤醒。活跃流→首个 delta 安排一次 33ms flush；期间到达的 delta 因 `flushTask != nil` 不重复安排，33ms 到点一次合并（约 30Hz）；drain 后清 flushTask，下批再调度。
 
-- [ ] **Step 4：跑测试确认三者全绿**
+- [x] **Step 4：跑测试确认三者全绿**
 
 Run: `-only-testing:CodexRemoteTests/ConversationCoalesceSchedulingTests` + `-only-testing:CodexRemoteTests/StreamCoalescerTests`
 Expected: 新三用例全绿；既有 `StreamCoalescerTests`（逐字一致/多 id/fallback 陷阱）不回归。
 
-- [ ] **Step 5：勾选并提交**
+- [x] **Step 5：勾选并提交**
 
 勾选 tasks.md 5.1/5.2/5.3。
 ```bash

@@ -15,8 +15,8 @@ final class ConversationStore {
     private let rpc: JSONRPCClient
     private let reducer = ThreadReducer()
     private var observer: Task<Void, Never>?
-    /// F8：30Hz（33ms）攒批发布定时任务。随 startObserving 起、stopObserving 停。
-    private var coalesceTask: Task<Void, Never>?
+    /// #3：按需一次性延迟 flush 任务（非常驻循环）。有 pending 时不重复安排，drain 后清空。
+    private var flushTask: Task<Void, Never>?
     /// D2：最近一次发送的输入暂存，供失败重发（retryLastSend）。
     private var lastSent: (input: [UserInput], model: String?, effort: ReasoningEffort?)?
     /// D3：乐观回显临时 id 单调序号（同会话内唯一，用于与权威回显对账）。
@@ -41,7 +41,6 @@ final class ConversationStore {
     func startObserving() async {
         guard observer == nil else { return }
         let stream = await rpc.notifications()
-        startCoalesceTimer()   // F8：起 30Hz 攒批发布定时器
         observer = Task { [weak self] in
             for await n in stream {
                 await MainActor.run {
@@ -50,6 +49,7 @@ final class ConversationStore {
                     guard self.belongsToThread(n) else { return }
                     self.reducer.apply(n, to: &self.state)
                     self.drainQueueIfTurnEnded(n)
+                    self.scheduleFlushIfNeeded()   // #3：有脏 delta 才安排一次延迟 flush
                 }
             }
         }
@@ -58,25 +58,32 @@ final class ConversationStore {
     func stopObserving() {
         observer?.cancel()
         observer = nil
-        coalesceTask?.cancel()
-        coalesceTask = nil
-        flushCoalesced()   // F8：强制最后一次落地，兜底不丢尾字。
+        flushTask?.cancel()
+        flushTask = nil
+        flushCoalesced()   // #3：兜底最后一次落地，不丢尾字。
     }
 
-    // MARK: - F8：流式攒批发布（30Hz）
+    // MARK: - #3：流式攒批按需调度（约 30Hz，空闲零唤醒）
 
-    /// 30Hz（33ms）定时 drain → applyCoalesced → 一次 `state` 发布，消除每 token 全量刷新风暴。
-    /// Task 建在 @MainActor 上下文，故 flushCoalesced 与 reducer.apply 内的 drain 同在主线程、互斥安全。
-    private func startCoalesceTimer() {
-        guard coalesceTask == nil else { return }
-        coalesceTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 33_000_000)
-                if Task.isCancelled { break }
-                self?.flushCoalesced()
-            }
+    /// 有脏 delta 且当前无 pending flush 时，安排一次 33ms 后的 flush；drain 后不自动续期。
+    /// 空闲（coalescer 为空）→ 早退，flushTask 保持 nil，对主线程零唤醒。
+    /// 活跃流：首个 delta 安排一次 flush，期间到达的 delta 因 flushTask != nil 不重复安排，
+    /// 33ms 到点一次合并（约 30Hz 攒批，避免逐条 O(n²)）；drain 后清 flushTask，下批再调度。
+    private func scheduleFlushIfNeeded() {
+        guard flushTask == nil, !reducer.coalescer.isEmpty else { return }
+        flushTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 33_000_000)
+            guard let self, !Task.isCancelled else { return }
+            self.flushTask = nil        // 先清 pending 标志，再 drain：下批脏数据可重新调度
+            self.flushCoalesced()
         }
     }
+
+    #if DEBUG
+    /// 测试专用只读访问器：当前是否有已安排、尚未落地的延迟 flush。
+    /// `flushTask` 本身对生产代码保持 private；仅测试经 `@testable import` 需要可见性。
+    var hasPendingFlushForTesting: Bool { flushTask != nil }
+    #endif
 
     /// 把攒批缓冲一次性并入 state 并发布一次（无脏项则不发布）。
     private func flushCoalesced() {

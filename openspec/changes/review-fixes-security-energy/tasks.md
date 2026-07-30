@@ -28,9 +28,9 @@
 
 ## 5. #3 空闲会话按需调度攒批（能耗）
 
-- [ ] 5.1 去掉 `startCoalesceTimer` 常驻 `while` 循环，改为脏 delta 触发的一次性延迟 flush
-- [ ] 5.2 `flushCoalesced` drain 后不续期，下批脏数据重新调度；`stopObserving` 仍兜底 flush
-- [ ] 5.3 单测：无 delta 时无周期唤醒；连续 delta 仍按 ~30Hz 攒批；尾字不丢
+- [x] 5.1 去掉 `startCoalesceTimer` 常驻 `while` 循环，改为脏 delta 触发的一次性延迟 flush
+- [x] 5.2 `flushCoalesced` drain 后不续期，下批脏数据重新调度；`stopObserving` 仍兜底 flush
+- [x] 5.3 单测：无 delta 时无周期唤醒；连续 delta 仍按 ~30Hz 攒批；尾字不丢
 
 ## 6. #4 扫码相机启停串行化（能耗/隐私）
 
