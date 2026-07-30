@@ -46,9 +46,9 @@
 
 ## 8. #7 后台暂停在途首连（能耗）
 
-- [ ] 8.1 `ConnectionStore.setForeground` 同步状态给 `inFlightTransport`（不止已落地 transport）
-- [ ] 8.2 `doEstablish` 建通道与初始握手前检查/等待前台；退后台进行中首连走 attempt-token 作废 + take-and-nil 取消，回前台重试
-- [ ] 8.3 单测：首连期间退后台不继续握手/加密；回前台重试成功；不泄漏 transport
+- [x] 8.1 `ConnectionStore.setForeground` 同步状态给 `inFlightTransport`（不止已落地 transport）
+- [x] 8.2 `doEstablish` 建通道与初始握手前检查/等待前台；退后台进行中首连走 attempt-token 作废 + take-and-nil 取消，回前台重试
+- [x] 8.3 单测：首连期间退后台不继续握手/加密；回前台重试成功；不泄漏 transport
 
 ## 9. 收口验证
 

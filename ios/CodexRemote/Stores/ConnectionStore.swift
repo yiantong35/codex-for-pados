@@ -256,8 +256,21 @@ final class ConnectionStore {
     /// 非 relay transport 走默认空实现，无副作用。
     func setForeground(_ active: Bool) {
         foregroundActive = active
-        guard let transport else { return }
-        Task { await transport.setForeground(active) }
+        // 已落地 transport：转发状态（RelayTransport 后台暂停重连）。
+        if let transport { Task { await transport.setForeground(active) } }
+        // #7：在途首连（尚未落地的 inFlightTransport）也要覆盖——退后台时取消它，避免最长烧到 20s 超时。
+        // 走既有 attempt-token 作废 + take-and-nil 关闭路径（与 disconnect / 超时兜底一致，exactly-once）。
+        if !active, let inflight = inFlightTransport {
+            inFlightTransport = nil          // take-and-nil：原子取所有权，防与 doEstablish catch 双关
+            activeAttempt += 1               // 作废本次 attempt：其 establish 完成时 token 不匹配 → 忽略
+            Task { await inflight.close() }  // close() → awaitHandshake 抛出 → doEstablish 解挂并 fail-closed
+            // 必须自行落终态：作废 attempt 后，connect 的 establish catch 会因 `attempt != activeAttempt`
+            // 提前 return 而不落任何 phase（原本靠 20s 超时兜底落 .failed，此处即时取消已绕过它），
+            // phase 会永远卡在 .connecting/.initializing → UI 连接按钮转圈禁用、needsConnect/自动重连门
+            // （均要求 .disconnected）失效，回前台无从重试。退后台是**主动暂停**非连接失败，故落
+            // .disconnected（与 disconnect() 的终态一致），使回前台 needsConnect==true 可重连。
+            phase = .disconnected
+        }
     }
 
     // MARK: - 握手
@@ -269,6 +282,8 @@ final class ConnectionStore {
     /// 避免被作废的 attempt 污染 self.transport / 泄漏 transport，H2）。
     private func doEstablish(_ config: ConnectionConfig) async throws -> (JSONRPCClient, MessageTransport) {
         phase = .connecting
+        // #7 纵深防御：后台不发起首连（主取消路径是 setForeground 的 take-and-nil close）。
+        guard foregroundActive else { throw TransportError.notConnected }
         connLog.notice("doEstablish: 开始建 transport…")
         let transport = try await transportFactory(config)
         // 记录在途 transport：超时/被作废时由调用方关闭它以解挂 awaitHandshake（#1 防泄漏）。
@@ -279,6 +294,8 @@ final class ConnectionStore {
 
         do {
             connLog.notice("doEstablish: 等待 ws 握手完成…")
+            // #7 纵深防御：建 transport 到此的异步窗口内可能已退后台（退后台路径已作废 attempt 并关 transport）。
+            guard foregroundActive else { throw TransportError.notConnected }
             try await transport.awaitHandshake()
 
             phase = .initializing

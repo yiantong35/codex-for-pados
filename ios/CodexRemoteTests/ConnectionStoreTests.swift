@@ -165,6 +165,67 @@ final class ConnectionStoreTests: XCTestCase {
         XCTAssertEqual(count, 1, "超时作废在途 attempt 时应关闭 transport 恰好一次，实际 \(count)")
     }
 
+    /// #7：首连握手在途时退后台 → 在途 transport 被取消（close 恰好一次）、inFlight 清空、phase 非 .ready。
+    func testBackgroundDuringInFlightConnectCancelsTransport() async throws {
+        let mock = MockTransport()
+        await mock.setBlockHandshake(true)               // 握手永不完成 → doEstablish 挂在 awaitHandshake
+        // 用较长超时排除超时兜底干扰：本用例要证明取消来自退后台而非超时。
+        let store = await ConnectionStore(transportFactory: { _ in mock },
+                                          connectTimeoutNanos: 20_000_000_000)
+        await store.connect(config: .stub)
+        // 等 inFlightTransport 就位（doEstablish 已设 inFlightTransport 后挂起）。
+        try await waitUntil { await store.inFlightTransportForTesting != nil }
+
+        await store.setForeground(false)                 // 退后台：应取消在途首连
+
+        try await waitUntil { await mock.closeCount >= 1 }
+        let count = await mock.closeCount
+        XCTAssertEqual(count, 1, "退后台应关闭在途 transport 恰好一次，实际 \(count)")
+        let inflight = await store.inFlightTransportForTesting
+        XCTAssertNil(inflight, "退后台取消后应清空 inFlightTransport，不泄漏")
+        if case .ready = await store.phase { XCTFail("在途首连被后台取消，不应到达 .ready") }
+        // 退后台取消必须落终态 .disconnected：否则 connect 的 stale-attempt guard 提前 return，
+        // phase 卡在 .connecting → UI 转圈禁用、needsConnect/自动重连门失效，回前台无从重试。
+        let phase = await store.phase
+        XCTAssertEqual(phase, .disconnected, "退后台取消应落 .disconnected 以允许回前台重连")
+    }
+
+    /// #7：回前台重试成功 —— 首连期间退后台取消在途 transport 后，回前台再 connect() 应走正常
+    /// 握手路径到达 .ready（本 change 不改正常路径）。用二连发工厂：首个 mock 握手挂起（被后台取消），
+    /// 第二个 mock 不阻塞握手、正常喂 initialize 响应。
+    func testForegroundReturnRetryReachesReady() async throws {
+        let mock1 = MockTransport()
+        await mock1.setBlockHandshake(true)              // 首连：握手永不完成 → 挂在 awaitHandshake
+        let mock2 = MockTransport()                      // 重试：不阻塞握手
+        let factory = MockSequenceFactory(mocks: [mock1, mock2])
+        let store = await ConnectionStore(transportFactory: { _ in await factory.next() },
+                                          connectTimeoutNanos: 20_000_000_000)
+
+        // 第一次连接：等在途就位后退后台取消。
+        await store.connect(config: .stub)
+        try await waitUntil { await store.inFlightTransportForTesting != nil }
+        await store.setForeground(false)
+        try await waitUntil { await mock1.closeCount >= 1 }
+        if case .ready = await store.phase { XCTFail("在途首连被后台取消，不应到达 .ready") }
+
+        // 回前台后重试：第二个 mock 走正常握手（喂 initialize 响应）到达 .ready。
+        await store.setForeground(true)
+        Task {
+            var initId: String?
+            for _ in 0..<200 {
+                try? await Task.sleep(nanoseconds: 5_000_000)
+                if let s = await mock2.sent.first(where: { $0.contains(#""method":"initialize""#) }),
+                   let obj = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any],
+                   let id = obj["id"] as? String { initId = id; break }
+            }
+            await mock2.feed(#"{"jsonrpc":"2.0","id":"\#(initId!)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
+        }
+        await store.connect(config: .stub)
+        try await waitUntil { await store.phase == .ready }
+        let info = await store.serverInfo
+        XCTAssertEqual(info?.userAgent, "codex", "回前台重试应正常握手到达 .ready")
+    }
+
     /// 轮询条件直到为真或超时。
     private func waitUntil(timeout: TimeInterval = 3,
                           _ condition: () async -> Bool) async throws {
@@ -407,4 +468,17 @@ actor CallBox {
 actor FireBox {
     private(set) var count = 0
     func bump() { count += 1 }
+}
+
+/// 按序返回预置 mock 的工厂（用于「首连取消 → 回前台重试」多次 connect 各拿不同 transport）。
+/// 第 N 次 next() 返回第 N 个 mock，用尽后复用最后一个（防越界）。
+actor MockSequenceFactory {
+    private let mocks: [MockTransport]
+    private var index = 0
+    init(mocks: [MockTransport]) { self.mocks = mocks }
+    func next() -> MockTransport {
+        let m = mocks[min(index, mocks.count - 1)]
+        index += 1
+        return m
+    }
 }
