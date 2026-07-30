@@ -98,3 +98,29 @@ final class ThemeManager {
         colorScheme ?? system
     }
 }
+
+// MARK: - 剪贴板写门控（#1 安全）
+
+/// 远端终端 OSC 52 写系统剪贴板的门控开关。默认关闭（fail-closed）。
+/// 持久化键 "clipboard_allow_remote_write"；单次写入上限 64KB（超限拒写、不截断）。
+@Observable
+final class ClipboardPolicyStore {
+    private let store: UserDefaults
+    private static let key = "clipboard_allow_remote_write"
+    /// 单次写入字节上限：正常终端复制的命令/路径/代码远小于此。
+    static let maxWriteBytes = 64 * 1024
+
+    var allowRemoteWrite: Bool {
+        didSet { store.set(allowRemoteWrite, forKey: Self.key) }
+    }
+
+    init(store: UserDefaults = .standard) {
+        self.store = store
+        self.allowRemoteWrite = store.bool(forKey: Self.key)   // 缺省 false = 默认关闭
+    }
+
+    /// 是否允许本次写入：开关开 且 未超上限。
+    func shouldWrite(byteCount: Int) -> Bool {
+        allowRemoteWrite && byteCount <= Self.maxWriteBytes
+    }
+}

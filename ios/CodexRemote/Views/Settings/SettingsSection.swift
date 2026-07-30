@@ -5,6 +5,7 @@ import SwiftUI
 enum SettingsSection: String, CaseIterable, Identifiable {
     case account
     case appearance
+    case privacy
     case language
     case extensions
     case shortcuts
@@ -20,6 +21,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .account:    return "settings.account"
         case .appearance: return "settings.appearance"
+        case .privacy:    return "settings.privacy"
         case .language:   return "settings.language"
         case .extensions: return "settings.extensions"
         case .shortcuts:  return "settings.shortcuts"
@@ -31,6 +33,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .account:    return "person.crop.circle"
         case .appearance: return "paintbrush"
+        case .privacy:    return "hand.raised"
         case .language:   return "globe"
         case .extensions: return "puzzlepiece.extension.fill"
         case .shortcuts:  return "keyboard"
