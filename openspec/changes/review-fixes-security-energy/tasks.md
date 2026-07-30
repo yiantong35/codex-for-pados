@@ -52,7 +52,19 @@
 
 ## 9. 收口验证
 
-- [ ] 9.1 四个 Swift Package 测试全绿
-- [ ] 9.2 iPad 模拟器全量测试全绿
-- [ ] 9.3 `xcodebuild analyze` 通过
-- [ ] 9.4 能耗结论静态分析归纳，真机验收项写入本地清单
+- [x] 9.1 四个 Swift Package 测试全绿
+- [x] 9.2 iPad 模拟器全量测试全绿
+- [x] 9.3 `xcodebuild analyze` 通过
+- [x] 9.4 能耗结论静态分析归纳，真机验收项写入本地清单
+
+## 代码审查结论（2026-07-30，两路并行 reviewer）
+
+- 安全组（#1/#2/#5/#8）：**无 Critical / 无 Important**，判定 Ready to merge。3 Minor：
+  - 已修：main.swift #2 dispatch 注释「与改前 try? 等价」过强 → 收紧为仅对 ClientAuth/垃圾帧成立（提交 d1aa8f9b）。
+  - 接受不改（记录）：DevKeyStore #8 path-based TOCTOU（lstat→open 间可被换文件）——威胁模型为「迁移遗留松权限」非活跃本地竞态攻击者，用户属主目录下可接受；如未来跑共享 tmp 再上 O_NOFOLLOW+fstat/fchmod。
+  - 接受不改（记录）：#2 trust 落盘成功后 session.seal(SecureReady) 若抛错，一次性配对码已消费但 SecureReady 未达——自愈（trust 已落盘→iPad 下次走受信空 proof 复连，无需配对码），非锁死。
+- 能耗组（#3/#4/#6/#7）：无 Critical，3 Important，判定 With fixes：
+  - 已修 #6：SidebarView 轮询前台判定读实时 connection.foregroundActive 替换陈旧 scenePhase（提交 d1aa8f9b）。
+  - 已修 #7：SessionsManager.setAppForegroundAll(true) 对活跃 .disconnected 会话按需自动重连 + 2 单测（提交 d1aa8f9b）。
+  - 接受不改（记录）：#4 相机启停串行队列**序**逻辑仅 device-only 验证（模拟器无相机）——reconcile 纯函数已单测全组合，序由本地清单 E#4 真机确认；注入 seam 使序可单测列为后续优化项（非阻断）。
+  - Minor（记录，不改）：#3 非 delta 事件后可留一次空转 flush（isEmpty 守卫下 no-op，可忽略）；#7 已完成握手后退后台的既有 stale-attempt 双 close（真 transport 幂等容忍，非本 change 引入）。
