@@ -530,7 +530,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 **锁定决策（来自 Design Doc §四，fail-closed）：** 读已存在文件前：`lstat` 拒绝符号链接（防经软链读受控外文件）→ 校验属主 == 当前 uid → `chmod` 收紧文件 0600、父目录 0700。任一失败 → throw 拒绝启动，绝不在宽松权限下返回私钥。新建仍 0600 / 目录 0700（现状不变）。
 
-- [ ] **Step 1：写三态 fail-closed 失败测试**
+- [x] **Step 1：写三态 fail-closed 失败测试**
 
 改 `relay-dialout/Tests/RelayDialoutCoreTests/DevKeyStoreTests.swift`，追加：
 
@@ -570,12 +570,12 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 > 属主不符 Scenario：普通测试进程无法 `chown` 到别的 uid，无法构造「属主 != 当前 uid」的真文件而不提权。以**代码走查 + 符号链接/0644 两个可自动化用例**覆盖该分支，属主校验逻辑随 Step 3 实现并在 verify 阶段的本地清单做真机/手动确认（记入 Task 9.4）。
 
-- [ ] **Step 2：跑测试确认失败**
+- [x] **Step 2：跑测试确认失败**
 
 Run: `swift test --package-path relay-dialout --filter DevKeyStore`
 Expected: `devKeyStoreRejectsSymlink` FAIL（现实现直接 `Data(contentsOf:)` 跟随软链读成功、不抛）；`devKeyStoreTightensLoosePermissionsOnLoad` FAIL（现实现读已存在文件不 chmod，perms 仍 0644）。
 
-- [ ] **Step 3：`loadOrCreateIdentity` 加 fail-closed 校验**
+- [x] **Step 3：`loadOrCreateIdentity` 加 fail-closed 校验**
 
 改 `relay-dialout/Sources/RelayDialoutCore/DevKeyStore.swift`。错误枚举（:16-19）加一个 case：
 ```swift
@@ -630,12 +630,12 @@ Expected: `devKeyStoreRejectsSymlink` FAIL（现实现直接 `Data(contentsOf:)`
 ```
 `writeSecret`（:59-62）保持 0600 不变。
 
-- [ ] **Step 4：跑测试确认通过 + 既有不回归**
+- [x] **Step 4：跑测试确认通过 + 既有不回归**
 
 Run: `swift test --package-path relay-dialout --filter DevKeyStore`
 Expected: 新两用例 PASS；既有 `devKeyStorePersistsAndReloads` / `...0600Permissions` / `...CorruptedKeyFile` / `...UnreadableKeyFile` 全绿（注意 `...UnreadableKeyFile` 用 0o000：`validateAndTightenExisting` 的属主校验先过、chmod 到 0600 成功，随后 `Data(contentsOf:)` 仍可读——该用例原意是「不可读即抛」，0o000 chmod 后变可读会改变其语义。**执行者须核对**：若收紧后该用例读到内容不再抛，改用「目录不可读」或「删读权限后 lstat 属主校验」保持其 fail-closed 断言；优先保留既有用例的不变量，必要时同步微调其构造）。
 
-- [ ] **Step 5：勾选并提交**
+- [x] **Step 5：勾选并提交**
 
 勾选 tasks.md 4.1/4.2/4.3。
 ```bash
