@@ -168,6 +168,59 @@ final class ConversationStoreTests: XCTestCase {
                       "应对列表返回的 thread-x resume；实际：\(sent)")
     }
 
+    /// item 2 现状锁定（Design §3.3）：rejoinRunningThreads 命中当前 threadId 时，
+    /// 真正把 thread/resume 响应里携带的历史 item（turns[].items[]）ingest 进 state ——
+    /// 不是只订阅不摄入的空转。响应构造复用 testResumeIngestsHistoryFromResponse 已验证的
+    /// 真实 schema（userMessage: content[].text；agentMessage: 顶层 text），不新造协议形状。
+    /// 断言真实历史文本而非仅 threadId 不变：防止未来把 rejoin 退化为「重连但不刷新正文」。
+    func test_rejoin_ingests_history_for_current_thread() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "t1")
+        await store.startObserving()
+
+        // 后台模拟服务端：thread/loaded/list 回 {data:["t1"]}；对 t1 的 thread/resume 回带历史 turn 的响应。
+        let responder = Task { await Self.replyToRejoinWithHistory(mock, threadId: "t1") }
+
+        await store.rejoinRunningThreads()
+        responder.cancel()
+
+        XCTAssertTrue(store.state.items.contains {
+            if case .userMessage(_, let t) = $0 { return t == "历史问题" } else { return false }
+        }, "rejoin 命中当前 thread 应 ingest 历史 userMessage，实际：\(store.state.items)")
+        XCTAssertTrue(store.state.items.contains {
+            if case .agentMessage(_, let t) = $0 { return t == "历史回答" } else { return false }
+        }, "rejoin 命中当前 thread 应 ingest 历史 agentMessage，实际：\(store.state.items)")
+    }
+
+    /// 测试用模拟服务端：轮询 mock.sent，对 thread/loaded/list 回 {data:[threadId]}，
+    /// 对命中 threadId 的 thread/resume 回携带历史 turns 的响应（真实 schema，同上）。
+    private static func replyToRejoinWithHistory(_ mock: MockTransport, threadId: String) async {
+        var answeredList = false
+        var answeredResume = false
+        for _ in 0..<400 {
+            if Task.isCancelled { return }
+            let sent = await mock.sent
+            for frame in sent {
+                guard let obj = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any],
+                      let id = obj["id"] as? String,
+                      let method = obj["method"] as? String else { continue }
+                if method == "thread/loaded/list", !answeredList {
+                    answeredList = true
+                    await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"data":["\#(threadId)"],"nextCursor":null}}"#)
+                } else if method == "thread/resume", !answeredResume {
+                    let tid = (obj["params"] as? [String: Any])?["threadId"] as? String ?? ""
+                    guard tid == threadId else { continue }
+                    answeredResume = true
+                    let response = #"{"jsonrpc":"2.0","id":"\#(id)","result":{"thread":{"id":"\#(tid)","turns":[{"id":"turn-1","items":[{"type":"userMessage","id":"u1","content":[{"type":"text","text":"历史问题","text_elements":[]}]},{"type":"agentMessage","id":"a1","text":"历史回答"}]}]}}}"#
+                    await mock.feed(response)
+                }
+            }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+    }
+
     /// 测试用模拟服务端：轮询 mock.sent，对 thread/loaded/list 回注入的 ids，
     /// 对每个 thread/resume 按 id 回响应（noRolloutIds 中的 thread 回 -32600 no rollout found）。
     private static func replyToRejoin(_ mock: MockTransport,
