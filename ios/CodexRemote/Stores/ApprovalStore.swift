@@ -96,7 +96,14 @@ final class ApprovalStore {
             requestedNetworkEnabled: isPerms ? netEnabled : nil,
             requestedFileSystem: isPerms && !fsEntries.isEmpty ? fsEntries : nil,
             requestedProfile: requestedProfile)
-        cards.append(card)
+        // reconnect-resync item 1：按 requestId 幂等收敛。
+        // 命中既有卡 → 原地替换（新 card.awaitingRecovery 默认 false，等于清断线标记 + 刷新载荷）；
+        // 未命中 → 保持既有 append。断线绝不在此自动批准/丢弃。
+        if let idx = cards.firstIndex(where: { $0.id == req.id }) {
+            cards[idx] = card
+        } else {
+            cards.append(card)
+        }
         onPendingChange?(threadId, true)
     }
 
