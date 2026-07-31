@@ -21,6 +21,13 @@ final class ConversationStore {
     private var lastSent: (input: [UserInput], model: String?, effort: ReasoningEffort?)?
     /// D3：乐观回显临时 id 单调序号（同会话内唯一，用于与权威回显对账）。
     private var optimisticSeq = 0
+    /// reconnect-resync item 3：出站离线队列（连接非 .ready 时按序缓存，.ready 后 flush 补发）。
+    /// 与 queuedInputs（忙队列）语义正交：忙队列是 turn 进行中，本队列是连接未就绪。
+    /// 存 localId：入队时已乐观回显，补发时据此跳过回显、直接 fire，避免重复气泡。
+    private var pendingOutbound: [(input: [UserInput], model: String?, effort: ReasoningEffort?, localId: String)] = []
+    /// 当前连接是否 .ready 的信号源（装配时由 ConversationView 用 connection.phase 注入）。
+    /// 默认 { true }：保持既有单测「无注入即视为在线直发」语义不变。
+    var isReady: @MainActor () -> Bool = { true }
 
     init(rpc: JSONRPCClient, threadId: String) {
         self.rpc = rpc
@@ -134,6 +141,7 @@ final class ConversationStore {
     }
 
     /// 发送 prompt：发 turn/start。turn 输出经 notifications 流式回来，故发出即返回。
+    /// reconnect-resync item 3：连接非 .ready 时入 pendingOutbound + 乐观回显，不 fire；.ready 后由 flush 补发。
     func send(input: [UserInput], model: String?, effort: ReasoningEffort?) async {
         state.lastSendError = nil
         // D3：乐观回显——发送即在本端插入用户消息，不等服务器广播。
@@ -144,6 +152,16 @@ final class ConversationStore {
             reducer.upsertUserMessage(id: localId, text: text, to: &state)
         }
         lastSent = (input, model, effort)   // D2：暂存以支持失败重发
+        guard isReady() else {
+            // 断线：缓存待补发（已回显），不 fire turn/start。补发时据 localId 跳过重复回显。
+            pendingOutbound.append((input, model, effort, localId))
+            return
+        }
+        fireTurnStart(input: input, model: model, effort: effort)
+    }
+
+    /// 实际发出 turn/start（不含回显）。供 send（在线）与 flushPendingOutbound（补发）共用。
+    private func fireTurnStart(input: [UserInput], model: String?, effort: ReasoningEffort?) {
         let params = TurnStartParams(threadId: state.threadId, input: input,
                                      model: model, effort: effort, cwd: nil)
         Task { [weak self] in
@@ -152,6 +170,19 @@ final class ConversationStore {
             } catch {
                 self?.state.lastSendError = "\(error)"
             }
+        }
+    }
+
+    /// reconnect-resync item 3：连接迁移到 .ready 时按 FIFO 序补发离线队列。
+    /// 补发跳过回显（入队时已回显），仅 fire turn/start，避免重复气泡。
+    /// 由持有 phase 的层（ConversationView 的 .onChange(of: connection.phase)）在 .ready 时调用。
+    /// 能耗：事件驱动，无轮询、无常驻定时器。
+    func flushPendingOutbound() async {
+        guard isReady() else { return }
+        let batch = pendingOutbound
+        pendingOutbound.removeAll()
+        for item in batch {
+            fireTurnStart(input: item.input, model: item.model, effort: item.effort)
         }
     }
 
