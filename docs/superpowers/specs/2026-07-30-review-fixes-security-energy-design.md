@@ -2,7 +2,8 @@
 comet_change: review-fixes-security-energy
 role: technical-design
 canonical_spec: openspec
-status: draft
+status: final
+archived-with: 2026-08-01-review-fixes-security-energy
 ---
 
 # review-fixes-security-energy 技术设计（Design Doc）

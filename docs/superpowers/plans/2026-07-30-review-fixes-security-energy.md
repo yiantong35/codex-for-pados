@@ -2,6 +2,7 @@
 change: review-fixes-security-energy
 design-doc: docs/superpowers/specs/2026-07-30-review-fixes-security-energy-design.md
 base-ref: b28103cbe20e10e3dbe1f40c54292f56be99fb46
+archived-with: 2026-08-01-review-fixes-security-energy
 ---
 
 # review-fixes-security-energy 实施计划
