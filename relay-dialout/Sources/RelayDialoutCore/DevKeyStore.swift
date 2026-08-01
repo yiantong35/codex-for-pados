@@ -16,6 +16,7 @@ public final class DevKeyStore {
     public enum DevKeyStoreError: Error, Equatable {
         case unreadableKeyFile(String)
         case corruptedKeyFile(String)
+        case insecureKeyFile(String)   // #8：符号链接 / 属主不符 / 权限收紧失败
     }
 
     /// Ed25519 身份私钥，用于握手 devSignature。
@@ -29,6 +30,9 @@ public final class DevKeyStore {
         if !fm.fileExists(atPath: dir.path) {
             try fm.createDirectory(at: dir, withIntermediateDirectories: true,
                                    attributes: [.posixPermissions: 0o700])
+        } else {
+            // #8：已存在目录亦收紧到 0700（迁移/恢复可能放宽）。
+            try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dir.path)
         }
         let identityURL = dir.appendingPathComponent("identity.key")
         self.identity = try Self.loadOrCreateIdentity(at: identityURL)
@@ -42,6 +46,8 @@ public final class DevKeyStore {
     private static func loadOrCreateIdentity(at url: URL) throws -> Curve25519.Signing.PrivateKey {
         // 显式两步：文件存在则**不吞错**地读，读/解析失败即 throw，绝不覆盖旧密钥。
         if FileManager.default.fileExists(atPath: url.path) {
+            // #8 fail-closed：读前校验安全属性（拒软链、校验属主、收紧 0600），任一失败即抛。
+            try validateAndTightenExisting(at: url)
             let data: Data
             do { data = try Data(contentsOf: url) }
             catch { throw DevKeyStoreError.unreadableKeyFile(url.path) }
@@ -53,6 +59,28 @@ public final class DevKeyStore {
         let key = Curve25519.Signing.PrivateKey()
         try writeSecret(key.rawRepresentation, to: url)
         return key
+    }
+
+    /// #8：读已存在私钥前的 fail-closed 校验。
+    /// 拒绝符号链接（防经软链读受控外文件）→ 校验属主==当前 uid → 收紧文件到 0600。
+    /// 任一失败抛 `insecureKeyFile`，绝不在宽松权限/可疑路径下返回私钥。
+    private static func validateAndTightenExisting(at url: URL) throws {
+        var st = stat()
+        // lstat 不跟随软链：先判符号链接。
+        guard lstat(url.path, &st) == 0 else { throw DevKeyStoreError.insecureKeyFile(url.path) }
+        if (st.st_mode & S_IFMT) == S_IFLNK { throw DevKeyStoreError.insecureKeyFile(url.path) }
+        // 属主必须是当前用户（逻辑抽成纯函数便于单测「属主不符」分支）。
+        try validateOwner(uid: getuid(), fileUid: st.st_uid, path: url.path)
+        // 收紧到 0600。
+        do { try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path) }
+        catch { throw DevKeyStoreError.insecureKeyFile(url.path) }
+    }
+
+    /// #8：属主校验纯函数——文件属主必须等于当前进程 uid，否则抛 `insecureKeyFile`。
+    /// 单独抽出：测试进程无法 `chown` 到别的 uid 构造真「属主不符」文件而不提权，
+    /// 故以此纯函数直接注入合成 uid 覆盖 fail-closed 分支。
+    static func validateOwner(uid: uid_t, fileUid: uid_t, path: String) throws {
+        guard fileUid == uid else { throw DevKeyStoreError.insecureKeyFile(path) }
     }
 
     /// 以 0600 权限原子写入密钥字节。

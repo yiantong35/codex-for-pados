@@ -96,7 +96,8 @@ final class ProjectsStore {
     /// 启动周期轮询（D5-b）：列表可见时调用。幂等——已在轮询则忽略。
     /// intervalNanos 默认 4s（3–5s 区间取中）。列表不可见/后台时须调 stopPolling。
     /// 先 sleep 后 fetch，避免与首次 `.task` 的 loadFromServer 重复即时拉取。
-    func startPolling(intervalNanos: UInt64 = 4_000_000_000) {
+    func startPolling(intervalNanos: UInt64 = 4_000_000_000, isVisible: Bool = true) {
+        guard isVisible else { return }             // #6：不可见/后台不启动（双重防护）
         guard pollTask == nil, let rpc else { return }
         pollTask = Task { [weak self] in
             while !Task.isCancelled {

@@ -294,6 +294,7 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(LocaleManager())
             .environment(TerminalSession())
             .environment(makeConnection())
+            .environment(ClipboardPolicyStore())          // #1：远端剪贴板写门控存储
             .frame(width: 800, height: 260)
         snapshot(view, size: CGSize(width: 800, height: 260),
                  name: "bottom-panel", dir: "/tmp/workspace")
@@ -432,6 +433,7 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(TerminalSession())
             .environment(ShortcutStore())                 // T10
             .environment(makeSessions(machineCount: 2))   // T10：快捷键层读 SessionsManager
+            .environment(ClipboardPolicyStore())          // #1：下栏含终端，读远端剪贴板写门控存储
         snapshot(view, size: landscape, name: "workspace-all-open", dir: "/tmp/workspace")
     }
 

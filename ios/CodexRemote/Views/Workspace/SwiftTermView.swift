@@ -23,9 +23,10 @@ final class TerminalBridge {
 /// Coordinator 实现 TerminalViewDelegate 桥接 TerminalSession，并订阅 session.onBytes feed 输出。
 struct SwiftTermView: UIViewRepresentable {
     let session: TerminalSession
+    let clipboardPolicy: ClipboardPolicyStore
     @Environment(\.colorScheme) private var colorScheme
 
-    func makeCoordinator() -> Coordinator { Coordinator(session: session) }
+    func makeCoordinator() -> Coordinator { Coordinator(session: session, clipboardPolicy: clipboardPolicy) }
 
     /// 按当前深浅色给 TerminalView 设高对比配色。
     /// 深色：亮前景 + 暗背景；浅色：暗前景 + 亮背景。
@@ -74,11 +75,13 @@ struct SwiftTermView: UIViewRepresentable {
     final class Coordinator: NSObject, TerminalViewDelegate {
         let session: TerminalSession
         let bridge: TerminalBridge
+        let clipboardPolicy: ClipboardPolicyStore
         weak var terminalView: TerminalView?
 
-        init(session: TerminalSession) {
+        init(session: TerminalSession, clipboardPolicy: ClipboardPolicyStore) {
             self.session = session
             self.bridge = TerminalBridge(session: session)
+            self.clipboardPolicy = clipboardPolicy
         }
 
         // TerminalViewDelegate 非 @MainActor；SwiftTerm 在主线程回调，故用 assumeIsolated 桥回主 actor。
@@ -99,6 +102,8 @@ struct SwiftTermView: UIViewRepresentable {
         nonisolated func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
         nonisolated func clipboardCopy(source: TerminalView, content: Data) {
             MainActor.assumeIsolated {
+                // #1：默认 fail-closed。开关关 → 静默丢弃；开 → 校验单次 ≤64KB（超限拒写、不截断）。
+                guard clipboardPolicy.shouldWrite(byteCount: content.count) else { return }
                 UIPasteboard.general.string = String(decoding: content, as: UTF8.self)
             }
         }

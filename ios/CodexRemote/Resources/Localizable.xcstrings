@@ -3057,6 +3057,54 @@
         }
       }
     },
+    "settings.privacy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐私"
+          }
+        }
+      }
+    },
+    "settings.privacy.allowRemoteClipboardWrite": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow remote clipboard write"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许远端写入剪贴板"
+          }
+        }
+      }
+    },
+    "settings.privacy.allowRemoteClipboardWrite.footer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When off, the remote terminal cannot overwrite the iPad system clipboard (prevents command/credential paste hijacking). When on, a single write is capped at 64KB."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭时，远端终端无法覆盖 iPad 系统剪贴板（防命令/凭据粘贴劫持）。开启后单次写入上限 64KB。"
+          }
+        }
+      }
+    },
     "settings.skills.dependencies": {
       "localizations": {
         "en": {

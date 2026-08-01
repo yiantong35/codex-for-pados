@@ -13,6 +13,8 @@ struct CodexRemoteApp: App {
     @State private var themeManager = ThemeManager()
     // T10：全局快捷键注册中心（设置页与主界面共享同一实例）。
     @State private var shortcuts = ShortcutStore()
+    // #1：远端终端 OSC 52 写剪贴板门控（默认关闭，fail-closed）。根持有并注入，设置页与终端共享。
+    @State private var clipboardPolicy = ClipboardPolicyStore()
 
     var body: some Scene {
         WindowGroup {
@@ -21,6 +23,7 @@ struct CodexRemoteApp: App {
                 .environment(localeManager)
                 .environment(themeManager)
                 .environment(shortcuts)
+                .environment(clipboardPolicy)
                 // 运行时换语言：注入选定 locale，所有 Text(LocalizedStringKey) 跟随刷新。
                 .environment(\.locale, localeManager.locale)
                 // 运行时换主题：nil = 跟随系统。

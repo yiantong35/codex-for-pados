@@ -10,17 +10,42 @@ private final class MemoryKeyStore: KeyStoring {
     func deleteKey() { data = nil }
 }
 
+/// 保存必失败的 store：验证 identityKey() 落盘失败时抛错、不缓存。
+private struct ThrowingKeyStore: KeyStoring {
+    struct WriteFailed: Error {}
+    func saveKey(_ value: Data) {}                    // 默认实现不该被 identityKey 走到
+    func saveKeyThrowing(_ value: Data) throws { throw WriteFailed() }
+    func loadKey() -> Data? { nil }
+    func deleteKey() {}
+}
+
 @MainActor
 final class RelayE2EKeyManagerTests: XCTestCase {
 
     /// 身份密钥幂等：同一 store 下两个 manager 拿到同一身份公钥（重启不丢身份）。
-    func testIdentityKeyIsPersistentAndIdempotent() {
+    func testIdentityKeyIsPersistentAndIdempotent() throws {
         let store = MemoryKeyStore()
         let m1 = RelayE2EKeyManager(store: store)
-        let pub1 = m1.identityKey().publicKey.rawRepresentation
+        let pub1 = try m1.identityKey().publicKey.rawRepresentation
         let m2 = RelayE2EKeyManager(store: store)   // 从同一 store 重建
-        let pub2 = m2.identityKey().publicKey.rawRepresentation
+        let pub2 = try m2.identityKey().publicKey.rawRepresentation
         XCTAssertEqual(pub1, pub2, "身份密钥应持久幂等复用")
+    }
+
+    /// Keychain 写失败 → identityKey() 抛错、不缓存该密钥、配对以失败告终而非静默成功。
+    func testIdentityKeyThrowsAndDoesNotCacheOnSaveFailure() {
+        let m = RelayE2EKeyManager(store: ThrowingKeyStore())
+        XCTAssertThrowsError(try m.identityKey())         // 落盘失败必抛
+        XCTAssertThrowsError(try m.identityKey())         // 未缓存 → 再次仍抛（不会返回上次的“成功”密钥）
+    }
+
+    /// 落盘成功 → 缓存并幂等复用（重启从同一 store 重建拿同一身份）。
+    func testIdentityKeyCachesAfterSuccessfulSave() throws {
+        let store = MemoryKeyStore()
+        let m1 = RelayE2EKeyManager(store: store)
+        let pub1 = try m1.identityKey().publicKey.rawRepresentation
+        let pub2 = try RelayE2EKeyManager(store: store).identityKey().publicKey.rawRepresentation
+        XCTAssertEqual(pub1, pub2)
     }
 
     /// 交换密钥每次新生成（前向保密），不持久。
@@ -41,7 +66,7 @@ final class RelayE2EKeyManagerTests: XCTestCase {
         try keychain.save(Data("ssh-secret".utf8).base64EncodedString(), for: "ssh-ed25519-private-key")
         // E2E 侧生成身份。
         let m = RelayE2EKeyManager(store: RelayE2EKeychainStore(keychain: keychain))
-        _ = m.identityKey()
+        _ = try m.identityKey()
 
         let sshRaw = try XCTUnwrap(try keychain.load("ssh-ed25519-private-key"))
         XCTAssertEqual(Data(base64Encoded: sshRaw), Data("ssh-secret".utf8), "E2E 不得覆盖 SSH account")

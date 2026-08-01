@@ -12,6 +12,10 @@ struct RelayE2EKeychainStore: KeyStoring {
     func saveKey(_ value: Data) {
         try? keychain.save(value.base64EncodedString(), for: account)
     }
+    /// #5：relay 身份写 Keychain 真实抛错（不吞），供 identityKey() 落盘确认。
+    func saveKeyThrowing(_ value: Data) throws {
+        try keychain.save(value.base64EncodedString(), for: account)
+    }
     func loadKey() -> Data? {
         guard let s = (try? keychain.load(account)) ?? nil, let d = Data(base64Encoded: s) else { return nil }
         return d
@@ -41,18 +45,18 @@ final class RelayE2EKeyManager {
         self.init(store: RelayE2EKeychainStore(keychain: KeychainStore(service: service)))
     }
 
-    /// 身份私钥：无则生成并持久化，已有则复用（幂等）。供握手签名与 ClientHello 身份公钥。
+    /// 身份私钥：无则生成并**确认持久化成功后**才缓存复用（幂等）。落盘失败抛错、不缓存、不参与配对。
     @discardableResult
-    func identityKey() -> Curve25519.Signing.PrivateKey {
+    func identityKey() throws -> Curve25519.Signing.PrivateKey {
         if let k = cachedIdentity { return k }
         let k = Curve25519.Signing.PrivateKey()
-        store.saveKey(k.rawRepresentation)
+        try store.saveKeyThrowing(k.rawRepresentation)   // 落盘失败 → 抛出，cachedIdentity 保持 nil
         cachedIdentity = k
         return k
     }
 
     /// 身份公钥 raw（供 ClientHello）。
-    func identityPublicKeyRaw() -> Data { identityKey().publicKey.rawRepresentation }
+    func identityPublicKeyRaw() throws -> Data { try identityKey().publicKey.rawRepresentation }
 
     /// 每会话新生成的 X25519 交换私钥（前向保密，不持久）。供 KeySchedule 派生。
     func newEphemeralKey() -> Curve25519.KeyAgreement.PrivateKey {

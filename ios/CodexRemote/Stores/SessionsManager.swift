@@ -108,8 +108,13 @@ final class SessionsManager {
     /// app 级前后台广播（D1）：遍历**全部缓存 Session**（不止当前活跃 tab）转发 app 级前后台，
     /// 使每个连接的 transport 在 app 后台暂停重连/握手、回前台恢复。与 tab 级切换（setActive
     /// 的轮询开关）正交，不改任何 tab 的 isForeground / 轮询。
+    /// #7：回前台时，若**当前活跃** Session 的首连曾在后台被取消而落 .disconnected/.failed
+    /// （setForeground(false) 主动暂停在途首连的终态），此处按需重连——与 setActive 的懒连同构
+    /// （`shouldAutoConnect` 真才连：连接中/已就绪不重复触发，主动 disconnect 的终态不在此路径），
+    /// 仅限活跃 tab 一条连接（能耗 D4，不批量唤醒后台 tab）。使 spec「回前台重试成功」真正自动生效。
     func setAppForegroundAll(_ active: Bool) {
         for s in cache.values { s.setAppForeground(active) }
+        if active, let s = activeSession, s.shouldAutoConnect { s.connect() }
     }
 
     // MARK: - T7 UI 依赖桩（数据源/表单接线在 T11/T8 补）
