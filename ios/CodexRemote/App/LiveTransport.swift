@@ -2,20 +2,6 @@ import Foundation
 import Crypto
 import RelayProtocol
 
-/// 生产 transport 工厂：经 SSH(ed25519) withExec `codex app-server proxy --sock`
-/// 接入共享 daemon control socket，通道内做 ws 握手 + 帧编解码（ProxyChannel）。
-/// 密钥不进 `ConnectionConfig`，由调用方（CodexRemoteApp 的 transportFactory 闭包）捕获 KeyManager 传入。
-@MainActor
-func makeSharedDaemonTransport(_ config: ConnectionConfig,
-                              key: Curve25519.Signing.PrivateKey) async throws -> MessageTransport {
-    let channel = try await SSHClientWrapper.connect(
-        host: config.host, sshPort: config.sshPort,
-        auth: .ed25519Key(user: config.user, key: key),
-        controlSockPath: config.controlSockPath,
-        machineKey: "\(config.user)@\(config.host):\(config.sshPort)")
-    return channel   // ProxyChannel 已在 connect() 内 start()
-}
-
 /// relay 房间 + 模式判定：已持久化 stableSessionId → 受信任复连（房间用 stableSessionId）；
 /// 否则首配（房间用配对载荷 sessionId）。撮合标签决定 relay 房间号，与握手模式一体。
 func relayRoomDecision(store: StableSessionStoring, machineKey: String, payloadSessionId: String)
@@ -26,7 +12,7 @@ func relayRoomDecision(store: StableSessionStoring, machineKey: String, payloadS
 
 /// relay transport 工厂：收已构造配对载荷 → 构造真 ws（URLSessionRelayWSChannel）+ 注入 E2E 密钥/TOFU 的 RelayTransport。
 /// `tofuMachineKey` 为该机器的稳定 TOFU 键（MachineConfig id）。
-/// 真握手（4 消息）由 RelayTransport 在 doEstablish 的 `awaitHandshake()` 内驱动，与 SSH 共用握手等待链。
+/// 真握手（4 消息）由 RelayTransport 在 doEstablish 的 `awaitHandshake()` 内驱动。
 @MainActor
 func makeRelayTransport(payload: PairingPayload, tofuMachineKey: String,
                         consumePairingCode: @escaping @Sendable () async -> Void = {}) async throws -> MessageTransport {
@@ -65,29 +51,26 @@ func makeRelayTransport(payload: PairingPayload, tofuMachineKey: String,
         consumePairingCode: consumePairingCode)
 }
 
-/// 生产工厂闭包（注入 ConnectionStore.transportFactory）：按连接类型分派——
-/// `.relay`（config.isRelay）→ RelayTransport；否则 → 从 KeyManager 取私钥建 SSH+proxy transport。
-/// 密钥取法以 KeyManager 实际 API 为准（`privateKey()`）；缺密钥抛 `sshAuthFailed`。
+/// 生产工厂闭包（注入 ConnectionStore.transportFactory）：relay-only → RelayTransport。
+/// fail-closed：缺 relay 配置（relayURL 为 nil）即配置错误，结构性 throw，绝不回退 SSH/明文。
 @MainActor
 func liveTransportFactory(_ config: ConnectionConfig) async throws -> MessageTransport {
-    if let relayURL = config.relayURL {
-        let machineId = config.relayTOFUKey.flatMap { UUID(uuidString: $0) }
-        // 建连前 peek（不删）：失败可用同一 pc 直接重试不重扫（D3）。受信任复连无 pc → nil → 空 proof。
-        let pc = machineId.flatMap { PendingPairingStore.shared.peek(for: $0) } ?? ""
-        let payload = PairingPayload(relayURL: relayURL, sessionId: config.relaySessionId,
-                                     devIdentityPubB64: config.relayDevIdentityPubB64,
-                                     pairingCode: pc, expiresAt: 0)
-        // 握手成功（收 SecureReady）后由 RelayTransport 回调消费（跳 MainActor 调 take；对已删键幂等返回 nil）。
-        let consume: @Sendable () async -> Void = {
-            guard let id = machineId else { return }
-            await MainActor.run { _ = PendingPairingStore.shared.take(for: id) }
-        }
-        return try await makeRelayTransport(payload: payload,
-                                            tofuMachineKey: config.relayTOFUKey ?? relayURL,
-                                            consumePairingCode: consume)
+    guard let relayURL = config.relayURL else {
+        // fail-closed：仅支持 relay，缺 relay 配置即配置错误，绝不回退 SSH/明文。
+        throw TransportError.proxyFailed("缺少 relay 配置：仅支持 relay 连接")
     }
-    guard let key = KeyManager().privateKey() else {
-        throw TransportError.sshAuthFailed("缺少本机密钥")
+    let machineId = config.relayTOFUKey.flatMap { UUID(uuidString: $0) }
+    // 建连前 peek（不删）：失败可用同一 pc 直接重试不重扫（D3）。受信任复连无 pc → nil → 空 proof。
+    let pc = machineId.flatMap { PendingPairingStore.shared.peek(for: $0) } ?? ""
+    let payload = PairingPayload(relayURL: relayURL, sessionId: config.relaySessionId,
+                                 devIdentityPubB64: config.relayDevIdentityPubB64,
+                                 pairingCode: pc, expiresAt: 0)
+    // 握手成功（收 SecureReady）后由 RelayTransport 回调消费（跳 MainActor 调 take；对已删键幂等返回 nil）。
+    let consume: @Sendable () async -> Void = {
+        guard let id = machineId else { return }
+        await MainActor.run { _ = PendingPairingStore.shared.take(for: id) }
     }
-    return try await makeSharedDaemonTransport(config, key: key)
+    return try await makeRelayTransport(payload: payload,
+                                        tofuMachineKey: config.relayTOFUKey ?? relayURL,
+                                        consumePairingCode: consume)
 }
