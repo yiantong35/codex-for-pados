@@ -14,6 +14,8 @@ protocol MessageTransport: Sendable {
     func control() -> AsyncStream<TransportControlEvent>
     /// 前台/后台状态钩子（能耗）：后台可暂停重连等高耗操作，回前台恢复。有默认空实现。
     func setForeground(_ active: Bool) async
+    /// 心跳判死后主动触发一次内部有界重连（默认无重连能力的 transport 为 no-op）。
+    func triggerReconnect() async
 }
 
 extension MessageTransport {
@@ -29,4 +31,8 @@ extension MessageTransport {
     /// 默认：无重连能耗管理的 transport（MockTransport / ProxyChannel）忽略前台/后台切换。
     /// 具备物理重连能力的 transport（RelayTransport）可覆写以在后台暂停重连。
     func setForeground(_ active: Bool) async { }
+
+    /// 默认：无内部重连能力的 transport（MockTransport / ProxyChannel）为 no-op。
+    /// 具备有界重连的 transport（RelayTransport）可覆写以主动丢弃当前通道触发重连。
+    func triggerReconnect() async { }
 }

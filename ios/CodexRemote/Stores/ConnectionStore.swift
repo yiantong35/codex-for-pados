@@ -368,6 +368,11 @@ final class ConnectionStore {
                     // 其它连接问题（含开发机未开）走 .connectionFailed，不误报信任撤销。
                     self.phase = .failed("已被开发机移除信任，请重新配对")
                     self.needsRePairing = true
+                case .peerLeft:
+                    // relay「对端离开」提示 = 非判决：不改 phase、不断开、不重连。
+                    // 真正的核实（补发一次端到端心跳）由任务 6 集成 HeartbeatMonitor 后接入；
+                    // 此处先保持连接态不变，避免恶意 relay 凭空判死（防降级）。
+                    break
                 }
             }
         }
