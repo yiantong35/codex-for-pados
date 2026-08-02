@@ -49,7 +49,7 @@ struct RelayReconnectPolicy: Sendable {
     }
 }
 
-/// Relay 传输实现：与 `ProxyChannel` 同实现 `MessageTransport` seam，对上层（JSONRPCClient/
+/// Relay 传输实现：实现 `MessageTransport` seam，对上层（JSONRPCClient/
 /// ConversationStore/UI）就是「又一个 transport」——上层零改。区别在于本 transport 内部做
 /// **端到端加解密**：明文 JSON-RPC 帧 seal 成 `SecureEnvelope` 密文才出线，收到的密文 open
 /// 回明文才 yield 给上层。中继服务器只见密文信封（header 明文仅供路由/防重放）。

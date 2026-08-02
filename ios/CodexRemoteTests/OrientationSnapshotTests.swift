@@ -71,8 +71,8 @@ final class OrientationSnapshotTests: XCTestCase {
     // MARK: - mock 装配
 
     private func makeConnection() -> ConnectionStore {
-        // disconnected 态即可：ConnectionConfigView 显示连接表单；
-        // RootSplitView 的 SidebarView .task 在 phase != .ready 时直接 return，不影响三栏布局。
+        // disconnected 态即可：RootSplitView 的 SidebarView .task 在 phase != .ready 时
+        // 直接 return，不影响三栏布局。
         ConnectionStore(transportFactory: { _ in MockTransport() })
     }
 
@@ -110,24 +110,6 @@ final class OrientationSnapshotTests: XCTestCase {
         return ThreadSummary(id: id, sessionId: "s-\(id)", preview: "预览 \(id)", modelProvider: "openai",
                              createdAt: now - ago, updatedAt: now - ago, cwd: cwd, cliVersion: "0.1.0",
                              name: name, gitInfo: nil)
-    }
-
-    // MARK: - 场景 1：ConnectionConfigView（连接表单 + 右上角齿轮）
-
-    func testConnectionConfigPortrait() {
-        let view = NavigationStack { ConnectionConfigView() }
-            .environment(makeConnection())
-            .environment(LocaleManager())
-            .environment(ThemeManager())
-        snapshot(view, size: portrait, name: "connection-portrait")
-    }
-
-    func testConnectionConfigLandscape() {
-        let view = NavigationStack { ConnectionConfigView() }
-            .environment(makeConnection())
-            .environment(LocaleManager())
-            .environment(ThemeManager())
-        snapshot(view, size: landscape, name: "connection-landscape")
     }
 
     // MARK: - 场景 2：RootSplitView 三栏（左栏项目树有内容）
@@ -457,7 +439,8 @@ final class OrientationSnapshotTests: XCTestCase {
         let d = UserDefaults(suiteName: "snap.\(UUID().uuidString)")!
         let store = MachineStore(defaults: d)
         for i in 0..<machineCount {
-            store.add(MachineConfig(displayName: "机器\(i + 1)", host: "h\(i)", user: "u\(i)"))
+            store.add(MachineConfig(displayName: "机器\(i + 1)", relayURL: "wss://h\(i)",
+                                    sessionId: "s\(i)", devIdentityPubB64: "pk\(i)"))
         }
         let mgr = SessionsManager(machineStore: store,
                                   transportFactory: { _ in MockTransport() })

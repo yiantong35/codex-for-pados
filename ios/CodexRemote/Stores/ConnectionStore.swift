@@ -9,41 +9,25 @@ struct ConnectionTimeoutError: LocalizedError {
     var errorDescription: String? { "连接超时（连接或握手在 20 秒内未完成）" }
 }
 
-/// 连接配置（共享 daemon：SSH host/user + 远端 control socket 路径）。`.stub` 供测试使用。
-/// 鉴权由 SSH（ed25519，密钥在 Keychain，由 KeyManager 管）承担，配置本身不含敏感字段。
+/// 连接配置（relay-only：非密的 relay 配对载荷 + TOFU 稳定键）。`.stub` 供测试使用。
+/// 鉴权由 relay 的 E2E（Ed25519 身份 + X25519 前向保密 + TOFU）承担，配置本身不含敏感字段。
+/// 配对码（pc）绝不进这里，只驻内存 PendingPairingStore，由 liveTransportFactory 现取现用。
 struct ConnectionConfig: Sendable {
-    var host: String              // macmini SSH host
-    var user: String              // SSH 用户名
-    var sshPort: Int = 22
-    var controlSockPath: String   // 远端 ~/.codex/app-server-control/app-server-control.sock
-    /// relay 连接的非密字段（relayURL 非 nil 表示走 RelayTransport 而非 SSH+proxy；
-    /// 此时 host/user/controlSockPath 不适用，transportFactory 按此分派）。
-    /// 配对码（pc）绝不进这里，只驻内存 PendingPairingStore，由 liveTransportFactory 现取现用。
+    /// relay 服务地址。为 nil 视为配置缺失，transportFactory fail-closed throw（绝不回退明文）。
     var relayURL: String? = nil
     var relaySessionId: String = ""
     var relayDevIdentityPubB64: String = ""
-    /// relay 连接的 TOFU 稳定键（= MachineConfig id 字符串）。SSH 连接为 nil。
+    /// relay 连接的 TOFU 稳定键（= MachineConfig id 字符串）。
     var relayTOFUKey: String? = nil
 
-    /// relay 连接构造：带结构化非密字段 + TOFU 稳定键，SSH 字段留空。
+    /// relay 连接构造：带结构化非密字段 + TOFU 稳定键。
     init(relayURL: String, relaySessionId: String, relayDevIdentityPubB64: String, relayTOFUKey: String? = nil) {
-        self.host = ""; self.user = ""; self.sshPort = 0; self.controlSockPath = ""
         self.relayURL = relayURL; self.relaySessionId = relaySessionId
         self.relayDevIdentityPubB64 = relayDevIdentityPubB64; self.relayTOFUKey = relayTOFUKey
     }
 
-    /// SSH 连接构造（保持既有调用点签名不变）。
-    init(host: String, user: String, sshPort: Int = 22, controlSockPath: String) {
-        self.host = host; self.user = user; self.sshPort = sshPort
-        self.controlSockPath = controlSockPath
-        self.relayURL = nil
-    }
-
-    /// 是否 relay 连接。
-    var isRelay: Bool { relayURL != nil }
-
     static var stub: ConnectionConfig {
-        .init(host: "x", user: "u", sshPort: 22, controlSockPath: "/tmp/s.sock")
+        .init(relayURL: "wss://stub.invalid", relaySessionId: "stub", relayDevIdentityPubB64: "")
     }
 }
 
@@ -67,16 +51,16 @@ enum ConnectionPhase: Equatable {
 
 /// 连接状态层：驱动 ws 连接 → JSON-RPC initialize 握手，
 /// 订阅 transport 控制信号驱动 UI 重连指示与会话 resume。
-/// 注：当前共享 daemon 走 SSH+proxy（ProxyChannel），其 control() 为协议默认空流——
-/// SSH 通道断线重连属本 change 范围外（Phase 5），故 observeControl 暂收不到 .reconnecting/.ready。
+/// relay-only：底层 transport 为 RelayTransport，其 control() 会发 .reconnecting/.ready/
+/// .connectionFailed/.trustRevoked，由 observeControl 消费驱动 UI 与会话恢复。
 ///
 /// initialize 语义（spike 2026-06-24 实测坐实）：官方 ws app-server 的 initialize 是**连接级**
 /// （per-connection）——每个 ws 连接各自发 initialize 并各自成功返回 InitializeResponse，互不影响，
 /// 不存在「进程级单次」语义，自己的连接绝不会拿 -32600 Already initialized。故无「Already initialized
 /// 容忍」逻辑：initialize 失败即握手失败，正常落 .failed。
 ///
-/// `transportFactory` 注入便于测试 mock：生产环境传捕获 KeyManager 的闭包
-/// （经 SSH+proxy 接共享 daemon 的 ProxyChannel），测试传返回 MockTransport 的闭包。
+/// `transportFactory` 注入便于测试 mock：生产环境传 liveTransportFactory（relay-only，
+/// 构造 RelayTransport），测试传返回 MockTransport 的闭包。
 @Observable
 @MainActor
 final class ConnectionStore {
@@ -93,7 +77,7 @@ final class ConnectionStore {
     private var config: ConnectionConfig?
     private var transport: MessageTransport?
     /// 当前 attempt 正在构建、尚未落地的 transport。超时/被新连接或 disconnect 作废时须关闭它，
-    /// 触发其 close() → ProxyChannel 标记握手失败 → awaitHandshake 抛出 → doEstablish 解挂（#1 防泄漏）。
+    /// 触发其 close() → transport 标记握手失败 → awaitHandshake 抛出 → doEstablish 解挂（#1 防泄漏）。
     private var inFlightTransport: MessageTransport?
     private var resumeHandler: (@Sendable () async -> Void)?
     private var controlObserver: Task<Void, Never>?
@@ -141,25 +125,12 @@ final class ConnectionStore {
     /// 新连接立即把 phase 置为 connecting → 自动清除上一次的 .failed 错误。
     /// 含 20s 硬超时：建连/握手卡住时强制转 .failed 并作废后台残留任务。
     func connect(config: ConnectionConfig) {
-        if config.isRelay {
-            // relay：只需配对载荷非空；SSH host/user/sock 与本机 SSH 密钥前置不适用。
-            // 真握手由 RelayTransport 在 doEstablish 的 awaitHandshake() 内驱动（先握手后收loop）。
-            guard !(config.relayURL ?? "").isEmpty else {
-                connLog.error("connect 拒绝：relay 配对载荷为空")
-                phase = .failed("relay 配对信息缺失")
-                return
-            }
-        } else {
-            guard !config.host.isEmpty, !config.user.isEmpty, !config.controlSockPath.isEmpty else {
-                connLog.error("connect 拒绝：host/user/sock 路径不完整")
-                phase = .failed("请先填写主机、用户名与 control socket 路径")
-                return
-            }
-            guard KeyManager().hasKey else {
-                connLog.error("connect 拒绝：本机密钥缺失")
-                phase = .failed("缺少本机密钥，请在设置中生成并把公钥加入 authorized_keys")
-                return
-            }
+        // relay-only：只需配对载荷非空。真握手由 RelayTransport 在 doEstablish 的
+        // awaitHandshake() 内驱动（先握手后收loop）。
+        guard !(config.relayURL ?? "").isEmpty else {
+            connLog.error("connect 拒绝：relay 配对载荷为空")
+            phase = .failed("relay 配对信息缺失")
+            return
         }
         self.config = config
         // 新连接作废上一次仍在途的 transport（若上次卡在握手未落地也未超时）：关闭之避免泄漏（#1）。
@@ -174,7 +145,7 @@ final class ConnectionStore {
         didInitialRejoin = false
         isReady = false
         needsRePairing = false   // 新连接清除上一次的信任撤销引导标记
-        connLog.info("connect 开始 host=\(config.host, privacy: .public):\(config.sshPort) attempt=\(attempt)")
+        connLog.info("connect 开始 relay session=\(config.relaySessionId, privacy: .public) attempt=\(attempt)")
 
         // 建连 + 握手任务。仅当仍是当前 attempt 时才落地 phase。
         Task { [weak self] in
@@ -224,8 +195,8 @@ final class ConnectionStore {
             connLog.error("connect 超时 attempt=\(attempt)")
             self.phase = .failed(ConnectionTimeoutError().errorDescription ?? "连接超时")
             self.activeAttempt += 1   // 作废仍在后台跑的 establish（其完成时 token 不匹配 → 忽略）
-            // #1：关闭本 attempt 仍在构建的在途 transport，令其 close() 运行（ProxyChannel 标记
-            // 握手失败 → awaitHandshake 抛出 → doEstablish 解挂），避免 SSH 连接 + 挂起任务泄漏。
+            // #1：关闭本 attempt 仍在构建的在途 transport，令其 close() 运行（transport 标记
+            // 握手失败 → awaitHandshake 抛出 → doEstablish 解挂），避免传输连接 + 挂起任务泄漏。
             let inflight = self.inFlightTransport
             self.inFlightTransport = nil
             await inflight?.close()
@@ -243,7 +214,7 @@ final class ConnectionStore {
         // （旧 WSTransport 不 close 会自动重连一个 UI 已丢弃的连接并继续 yield，H2）。
         if let transport { await transport.close() }
         transport = nil
-        // 作废任何仍在握手途中、尚未落地的 transport，避免其 SSH 连接 + 挂起任务泄漏（#1）。
+        // 作废任何仍在握手途中、尚未落地的 transport，避免其传输连接 + 挂起任务泄漏（#1）。
         // take-and-nil：先原子取所有权再 close，避免与在途 establish 的失败清理路径双关同一 transport。
         if let inflight = inFlightTransport { inFlightTransport = nil; await inflight.close() }
         isReady = false
@@ -253,7 +224,6 @@ final class ConnectionStore {
 
     /// app 生命周期 → 传输层能耗钩子（4.5）：转发前台/后台状态给当前活跃 transport。
     /// 后台时 RelayTransport 挂起重连循环不烧电；回前台恢复。记录状态以便新建 transport 时同步。
-    /// 非 relay transport 走默认空实现，无副作用。
     func setForeground(_ active: Bool) {
         foregroundActive = active
         // 已落地 transport：转发状态（RelayTransport 后台暂停重连）。
@@ -339,8 +309,7 @@ final class ConnectionStore {
     /// 重连成功（.ready）后经 resumeHandler 触发会话恢复（§5：thread/loaded/list + thread/resume rejoin）。
     /// 注意：首连成功走 connect 里直接落 .ready（不经此处），其首连恢复由 connect 落 .ready /
     /// setResumeHandler 经 triggerInitialRejoinIfReady 触发（恰好一次）。
-    /// 当前 ProxyChannel(SSH+proxy) 的 control() 是协议默认空流——SSH 通道断线重连属本 change
-    /// 范围外（Phase 5），故此处暂收不到事件；待 Phase 5 实现 SSH 重连后再经此分支触发物理重连恢复。
+    /// relay-only：RelayTransport 的 control() 在物理断线/重连时发事件，经此分支驱动物理重连恢复。
     private func observeControl(_ transport: MessageTransport) {
         controlObserver?.cancel()
         controlObserver = Task { [weak self] in
@@ -380,7 +349,6 @@ final class ConnectionStore {
             case .proxyFailed(let m):    return "通道建立失败：\(m)"
             case .channelClosed(let r):  return "连接通道关闭：\(r ?? "未知原因")"
             case .notConnected:          return "未连接"
-            case .sshAuthFailed(let m):  return "SSH 鉴权失败：\(m)"
             case .handshakeFailed(let m): return "WebSocket 握手失败：\(m)"
             case .trustRevoked:          return "已被开发机移除信任，请重新配对"
             }

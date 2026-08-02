@@ -4,13 +4,8 @@ import RelayProtocol
 @testable import CodexRemote
 
 final class ConnectionStoreTests: XCTestCase {
-    /// connect() 现含「本机密钥已生成」前置校验（KeyManager.hasKey）。
-    /// 走 mock transport 的握手/重连测试与密钥无关，故先确保 Keychain 里存在密钥，
-    /// 让 .stub 连接能越过前置校验进入注入的 mock 工厂。
-    override func setUp() async throws {
-        try await super.setUp()
-        await MainActor.run { KeyManager().generateIfNeeded() }
-    }
+    // relay-only：connect() 前置校验只看 relay 配对载荷非空（relayURL），
+    // 与本机密钥无关，故 .stub 连接直接进入注入的 mock 工厂，无需 setUp 预置密钥。
 
     func testHandshakeReachesReady() async throws {
         let mock = MockTransport()
@@ -93,7 +88,7 @@ final class ConnectionStoreTests: XCTestCase {
         XCTAssertNil(inFlight, "initialize 失败应清空 inFlightTransport，避免泄漏")
     }
 
-    /// 必填项缺失（host/user/sock 路径任一为空）时 connect 不调 transportFactory，直接落 .failed。
+    /// relay 配对载荷缺失（relayURL 为空）时 connect 不调 transportFactory，直接落 .failed。
     @MainActor
     func testIncompleteConfigDoesNotConnect() async throws {
         let calledBox = CallBox()
@@ -101,8 +96,8 @@ final class ConnectionStoreTests: XCTestCase {
             await calledBox.mark()
             throw TransportError.notConnected
         })
-        // sock 路径为空 → 前置校验拒绝，不应进入工厂。
-        store.connect(config: .init(host: "h", user: "u", sshPort: 22, controlSockPath: ""))
+        // relayURL 为空 → 前置校验拒绝，不应进入工厂。
+        store.connect(config: .init(relayURL: "", relaySessionId: "", relayDevIdentityPubB64: ""))
         try await Task.sleep(nanoseconds: 100_000_000)
         let called = await calledBox.value
         XCTAssertFalse(called, "必填项缺失不应调用 transportFactory")

@@ -16,6 +16,10 @@ struct CodexRemoteApp: App {
     // #1：远端终端 OSC 52 写剪贴板门控（默认关闭，fail-closed）。根持有并注入，设置页与终端共享。
     @State private var clipboardPolicy = ClipboardPolicyStore()
 
+    init() {
+        Self.purgeLegacySSHKeyOnce()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()
@@ -30,6 +34,18 @@ struct CodexRemoteApp: App {
                 .preferredColorScheme(themeManager.colorScheme)
                 // 冷启动只连上次活跃机器（D7）；其余懒连。
                 .task { sessions.bootstrapAutoConnect() }
+        }
+    }
+
+    /// 一次性清理旧 SSH 私钥（SSH 传输层已移除）。幂等、非阻断：
+    /// KeychainStore.delete 对 not-found 已按成功处理；仅真正 OSStatus 错误进 catch，
+    /// 只记日志不 fail-closed 阻断启动（清理失败不比保留现状更差）。
+    /// account/service 精确 scoped，绝不误删 relay 密钥（relay 用独立 service com.codexremote.relay-e2e）。
+    private static func purgeLegacySSHKeyOnce() {
+        do {
+            try KeychainStore(service: "com.codexremote.ssh").delete("ssh-ed25519-private-key")
+        } catch {
+            NSLog("purgeLegacySSHKey: %@", String(describing: error))
         }
     }
 }

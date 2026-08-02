@@ -11,6 +11,12 @@ final class SessionsManagerTests: XCTestCase {
         return SessionsManager(machineStore: store, transportFactory: { _ in MockTransport() })
     }
 
+    /// relay-only 机器构造 helper（displayName 兼作用例内标识）。
+    private func relayMC(_ name: String) -> MachineConfig {
+        MachineConfig(displayName: name, relayURL: "wss://\(name)",
+                      sessionId: "s-\(name)", devIdentityPubB64: "pk-\(name)")
+    }
+
     /// 根接线（Task 5 方案②）：RootView 只依赖 SessionsManager，不再读旧全局散 store。
     /// 空机器 → 渲染引导占位而不崩溃（旧 RootView 读未注入的 ConnectionStore/ProjectsStore/
     /// ApprovalStore 会在渲染时崩溃 → RED；改造后仅读 SessionsManager → GREEN）。
@@ -36,7 +42,7 @@ final class SessionsManagerTests: XCTestCase {
 
     func test_sessionCachedAndReusedPerMachine() {
         let m = mgr()
-        let mc = MachineConfig(host: "h", user: "u")
+        let mc = relayMC("h")
         m.machineStore.add(mc)
         let s1 = m.session(for: mc.id)
         let s2 = m.session(for: mc.id)
@@ -45,8 +51,8 @@ final class SessionsManagerTests: XCTestCase {
 
     func test_activeSessionFollowsActiveMachine() {
         let m = mgr()
-        let a = MachineConfig(host: "a", user: "u"); m.machineStore.add(a)
-        let b = MachineConfig(host: "b", user: "u"); m.machineStore.add(b)
+        let a = relayMC("a"); m.machineStore.add(a)
+        let b = relayMC("b"); m.machineStore.add(b)
         m.setActive(a.id)
         XCTAssertEqual(m.activeSession?.id, a.id)
         m.setActive(b.id)
@@ -55,7 +61,7 @@ final class SessionsManagerTests: XCTestCase {
 
     func test_removeDropsSessionAndMachine() {
         let m = mgr()
-        let mc = MachineConfig(host: "h", user: "u"); m.machineStore.add(mc)
+        let mc = relayMC("h"); m.machineStore.add(mc)
         _ = m.session(for: mc.id)
         m.removeMachine(id: mc.id)
         XCTAssertTrue(m.machineStore.machines.isEmpty)
@@ -70,10 +76,10 @@ final class SessionsManagerTests: XCTestCase {
     /// phase 拉回 .disconnected。buggy 版本断连不发生 → phase 卡在 .failed → RED。
     func test_removeMachineDisconnectsCachedSession() async {
         let m = mgr()
-        let mc = MachineConfig(host: "h", user: "u"); m.machineStore.add(mc)
+        let mc = relayMC("h"); m.machineStore.add(mc)
         let s = m.session(for: mc.id)!
-        // 空 host → connect 守卫同步落 .failed（无后台 Task，确定性推离 .disconnected）。
-        s.connection.connect(config: ConnectionConfig(host: "", user: "u", controlSockPath: "/tmp/s.sock"))
+        // 空 relayURL → connect 守卫同步落 .failed（无后台 Task，确定性推离 .disconnected）。
+        s.connection.connect(config: ConnectionConfig(relayURL: "", relaySessionId: "", relayDevIdentityPubB64: ""))
         XCTAssertNotEqual(s.connection.phase, .disconnected, "前置：无效 connect 应同步落 .failed")
 
         m.removeMachine(id: mc.id)
@@ -94,8 +100,7 @@ final class SessionsManagerTests: XCTestCase {
         let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
         let m = SessionsManager(machineStore: store, transportFactory: { _ in mock })
         // 用 relay 机器：connect 守卫只需 relayURL 非空，绕开 SSH 的本机密钥前置（与 #7 的 relay 语境一致）。
-        let mc = MachineConfig(displayName: "r",
-                               connection: .relay(relayURL: "wss://x", sessionId: "s", devIdentityPubB64: "p"))
+        let mc = MachineConfig(displayName: "r", relayURL: "wss://x", sessionId: "s", devIdentityPubB64: "p")
         store.add(mc)
         m.setActive(mc.id)                          // 建活跃 Session 并懒连（phase → .connecting）
         let s = m.activeSession!
@@ -121,8 +126,7 @@ final class SessionsManagerTests: XCTestCase {
         await mock.setBlockHandshake(true)
         let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
         let m = SessionsManager(machineStore: store, transportFactory: { _ in mock })
-        let mc = MachineConfig(displayName: "r",
-                               connection: .relay(relayURL: "wss://x", sessionId: "s", devIdentityPubB64: "p"))
+        let mc = MachineConfig(displayName: "r", relayURL: "wss://x", sessionId: "s", devIdentityPubB64: "p")
         store.add(mc)
         m.setActive(mc.id)
         let s = m.activeSession!
@@ -140,7 +144,7 @@ final class SessionsManagerTests: XCTestCase {
     /// 12 个均为非可选 let，故以 ObjectIdentifier 收集去重断言全部存在且互为独立实例。
     func test_activeSessionHasAllTwelveStoresWired() {
         let m = mgr()
-        let mc = MachineConfig(host: "h", user: "u"); m.machineStore.add(mc)
+        let mc = relayMC("h"); m.machineStore.add(mc)
         m.setActive(mc.id)
         guard let s = m.activeSession else {
             return XCTFail("非空机器时 activeSession 不应为 nil")
@@ -207,8 +211,8 @@ final class SessionsManagerTests: XCTestCase {
     /// 后台 = stopPolling 降频；前台 = startPolling + refreshNow 补最终态（rpc 未注入时均为幂等 no-op）。
     func test_setActiveMovesOldToBackgroundNewToForeground() {
         let m = mgr()
-        let a = MachineConfig(host: "a", user: "u"); m.machineStore.add(a)
-        let b = MachineConfig(host: "b", user: "u"); m.machineStore.add(b)
+        let a = relayMC("a"); m.machineStore.add(a)
+        let b = relayMC("b"); m.machineStore.add(b)
         let sa = m.session(for: a.id)!
         let sb = m.session(for: b.id)!
 
@@ -228,10 +232,9 @@ final class SessionsManagerTests: XCTestCase {
     /// 修复后 setActive 对未连接 Session 调 connect() → phase 离开 .disconnected
     ///（有密钥走握手→.connecting；无密钥同步落 .failed；两者都证明 connect 确被调用）。
     func test_setActiveTriggersConnectForDisconnectedSession() async {
-        await MainActor.run { KeyManager().generateIfNeeded() }   // 越过 connect 的密钥前置校验，稳定走 .connecting
         let m = mgr()
-        let a = MachineConfig(host: "a", user: "u"); m.machineStore.add(a)
-        let b = MachineConfig(host: "b", user: "u"); m.machineStore.add(b)
+        let a = relayMC("a"); m.machineStore.add(a)
+        let b = relayMC("b"); m.machineStore.add(b)
         let sa = m.session(for: a.id)!                            // 建实例，phase == .disconnected
         XCTAssertEqual(sa.connection.phase, .disconnected, "前置：新建 Session 应为 .disconnected")
 
@@ -245,7 +248,7 @@ final class SessionsManagerTests: XCTestCase {
     /// 连接中/就绪态的「不重复」由 test_setActiveDoesNotReconnect 覆盖行为。
     func test_shouldAutoConnect_trueWhenDisconnected() {
         let m = mgr()
-        let mc = MachineConfig(host: "a", user: "u"); m.machineStore.add(mc)
+        let mc = relayMC("a"); m.machineStore.add(mc)
         let s = m.session(for: mc.id)!
         XCTAssertEqual(s.connection.phase, .disconnected)
         XCTAssertTrue(s.shouldAutoConnect, "未连接 Session 应可（重）连")
@@ -254,11 +257,10 @@ final class SessionsManagerTests: XCTestCase {
     /// C1：已连接（.ready）的 tab 再 setActive 不应重复 connect（shouldAutoConnect=false）。
     /// 先驱动握手到 .ready，再 setActive，验证不发生新连接（phase 仍稳定 .ready）。
     func test_setActiveDoesNotReconnectReadySession() async {
-        await MainActor.run { KeyManager().generateIfNeeded() }
         let mock = MockTransport()
         let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
         let m = SessionsManager(machineStore: store, transportFactory: { _ in mock })
-        let mc = MachineConfig(host: "a", user: "u"); store.add(mc)
+        let mc = relayMC("a"); store.add(mc)
         let s = m.session(for: mc.id)!
 
         // 后台模拟服务端：收到 initialize 后回响应使握手到 .ready。
@@ -288,7 +290,7 @@ final class SessionsManagerTests: XCTestCase {
     /// C1：未 session(for:) 的机器 canConnect(id) == true（可从 tab 菜单发起首连）。
     func test_canConnect_trueForUnbuiltSession() {
         let m = mgr()
-        let mc = MachineConfig(host: "a", user: "u"); m.machineStore.add(mc)
+        let mc = relayMC("a"); m.machineStore.add(mc)
         // 刻意不建 Session：cache 无该 Session → canConnect 应回退 true。
         XCTAssertTrue(m.canConnect(id: mc.id), "未建 Session 的机器应可连（canConnect=true）")
     }
@@ -296,7 +298,7 @@ final class SessionsManagerTests: XCTestCase {
     /// D7 冷启动只连上次活跃：被连的那台就是启动前台 tab，应置前台。
     func test_bootstrapSetsActiveSessionForeground() {
         let m = mgr()
-        let mc = MachineConfig(host: "a", user: "u"); m.machineStore.add(mc)
+        let mc = relayMC("a"); m.machineStore.add(mc)
         m.bootstrapAutoConnect()
         let s = m.session(for: mc.id)!
         XCTAssertTrue(s.isForeground, "冷启动被连的活跃 tab 应为前台")
@@ -305,7 +307,7 @@ final class SessionsManagerTests: XCTestCase {
     /// 圆点数据源：未建 Session（懒连未连）→ 无点（indicator 不应假连接）。
     func test_indicatorNoneForUnconnectedSession() {
         let m = mgr()
-        let mc = MachineConfig(host: "a", user: "u"); m.machineStore.add(mc)
+        let mc = relayMC("a"); m.machineStore.add(mc)
         // 刻意不调用 session(for:)：cache 无该 Session。
         XCTAssertEqual(m.indicator(for: mc.id), .none, "未建 Session 的 tab 应无圆点")
     }
@@ -314,11 +316,10 @@ final class SessionsManagerTests: XCTestCase {
     /// 需驱动握手到 .ready（TabIndicator.resolve 未连接一律 .none），再经 ingest + handleStatusChanged
     /// 注入一个活跃会话状态，验证 indicator 从 projects 真实聚合而非桩恒 .none。
     func test_indicatorReflectsStatus() async throws {
-        await MainActor.run { KeyManager().generateIfNeeded() }   // 越过 connect 的密钥前置校验
         let mock = MockTransport()
         let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
         let m = SessionsManager(machineStore: store, transportFactory: { _ in mock })
-        let mc = MachineConfig(host: "a", user: "u"); store.add(mc)
+        let mc = relayMC("a"); store.add(mc)
         let s = m.session(for: mc.id)!
 
         // 后台模拟服务端：收到 initialize 后按其唯一 id 回响应，使握手到达 .ready。
@@ -359,8 +360,8 @@ final class SessionsManagerTests: XCTestCase {
     /// - a.session.projects !== b.session.projects（各机器 store 隔离，切 tab 数据不互串）。
     func test_switchTabDoesNotBleedState() {
         let m = mgr()
-        let a = MachineConfig(host: "a", user: "u"); m.machineStore.add(a)
-        let b = MachineConfig(host: "b", user: "u"); m.machineStore.add(b)
+        let a = relayMC("a"); m.machineStore.add(a)
+        let b = relayMC("b"); m.machineStore.add(b)
 
         let sa = m.session(for: a.id)!
         let sb = m.session(for: b.id)!
@@ -380,8 +381,8 @@ final class SessionsManagerTests: XCTestCase {
 
     func test_setAppForegroundAll_broadcastsToAllCachedSessions() {
         let m = mgr()
-        let a = MachineConfig(host: "a", user: "u"); m.machineStore.add(a)
-        let b = MachineConfig(host: "b", user: "u"); m.machineStore.add(b)
+        let a = relayMC("a"); m.machineStore.add(a)
+        let b = relayMC("b"); m.machineStore.add(b)
         let sa = m.session(for: a.id)!
         let sb = m.session(for: b.id)!
         m.setActive(a.id)
@@ -397,8 +398,8 @@ final class SessionsManagerTests: XCTestCase {
 
     func test_setAppForegroundAll_doesNotTouchTabForeground() {
         let m = mgr()
-        let a = MachineConfig(host: "a", user: "u"); m.machineStore.add(a)
-        let b = MachineConfig(host: "b", user: "u"); m.machineStore.add(b)
+        let a = relayMC("a"); m.machineStore.add(a)
+        let b = relayMC("b"); m.machineStore.add(b)
         let sa = m.session(for: a.id)!
         let sb = m.session(for: b.id)!
         m.setActive(a.id)
@@ -416,13 +417,12 @@ final class SessionsManagerTests: XCTestCase {
     }
 
     func test_addMachineAndConnect_invokesFactoryExactlyOnce() async {
-        await MainActor.run { KeyManager().generateIfNeeded() }   // 越过 connect 密钥前置校验
         let counter = FactoryCounter()
         let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
         let m = SessionsManager(machineStore: store,
                                 transportFactory: { _ in await counter.bump(); return MockTransport() })
 
-        let mc = MachineConfig(host: "a", user: "u")
+        let mc = relayMC("a")
         m.addMachineAndConnect(mc)
 
         // 等第一次建连触发 factory（异步：connect → Task doEstablish → factory）。内联轮询。

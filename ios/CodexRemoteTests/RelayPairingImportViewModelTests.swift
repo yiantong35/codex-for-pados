@@ -9,14 +9,10 @@ final class RelayPairingImportViewModelTests: XCTestCase {
         let vm = RelayPairingImportViewModel()
         vm.pasted = "codexrelay://pair?relay=wss://x&sid=s&pk=QQ&pc=c&exp=9999999999"
         let (cfg, pc) = try vm.makeMachineConfig(now: 1)
-        // 5.4：断言 connection 为结构化 relay 且三字段非空，pc 单独非空返回（不进 config）。
-        if case .relay(let url, let sid, let pub) = cfg.connection {
-            XCTAssertFalse(url.isEmpty)
-            XCTAssertFalse(sid.isEmpty)
-            XCTAssertFalse(pub.isEmpty)
-        } else {
-            XCTFail("expected .relay connection")
-        }
+        // 5.4：断言 relay 结构化三字段非空，pc 单独非空返回（不进 config）。
+        XCTAssertFalse(cfg.relayURL.isEmpty)
+        XCTAssertFalse(cfg.sessionId.isEmpty)
+        XCTAssertFalse(cfg.devIdentityPubB64.isEmpty)
         XCTAssertFalse(pc.isEmpty)
     }
 
@@ -67,7 +63,7 @@ final class RelayPairingImportViewModelTests: XCTestCase {
         let scanned = "codexrelay://pair?relay=wss://x&sid=s&pk=QQ&pc=c&exp=9999999999"
         vm.pasted = scanned
         let (cfg, _) = try vm.makeMachineConfig(now: 1)
-        if case .relay = cfg.connection {} else { XCTFail("expected .relay connection") }
+        XCTAssertFalse(cfg.relayURL.isEmpty, "扫码解析应产出非空 relay 载荷")
     }
 
     /// 扫到过期二维码字符串 → makeMachineConfig 抛 .expired。
