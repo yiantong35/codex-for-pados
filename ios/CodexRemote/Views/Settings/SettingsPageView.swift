@@ -40,6 +40,7 @@ struct SettingsPageView: View {
             switch selection ?? .default {
             case .account:    AccountSettingsSectionView()
             case .appearance: AppearanceSettingsSectionView()
+            case .privacy:    PrivacySettingsSectionView()
             case .language:   LanguageSettingsSectionView()
             case .extensions: ExtensionsSectionView()
             case .shortcuts:  ShortcutsSettingsSectionView()

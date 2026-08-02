@@ -3,8 +3,8 @@ import SwiftUI
 @testable import CodexRemote
 
 struct SettingsSectionTests {
-    @Test func allCasesOrderIsAccountAppearanceLanguageExtensionsShortcuts() {
-        #expect(SettingsSection.allCases == [.account, .appearance, .language, .extensions, .shortcuts])
+    @Test func allCasesOrderIsAccountAppearancePrivacyLanguageExtensionsShortcuts() {
+        #expect(SettingsSection.allCases == [.account, .appearance, .privacy, .language, .extensions, .shortcuts])
     }
 
     @Test func shortcutsSectionHasIcon() {
@@ -18,6 +18,7 @@ struct SettingsSectionTests {
     @Test func eachCaseHasIcon() {
         #expect(SettingsSection.account.icon == "person.crop.circle")
         #expect(SettingsSection.appearance.icon == "paintbrush")
+        #expect(SettingsSection.privacy.icon == "hand.raised")
         #expect(SettingsSection.language.icon == "globe")
         #expect(SettingsSection.extensions.icon == "puzzlepiece.extension.fill")
         #expect(SettingsSection.shortcuts.icon == "keyboard")

@@ -6,6 +6,7 @@ struct BottomPanelView: View {
     @Binding var height: CGFloat
     @Environment(TerminalSession.self) private var terminal
     @Environment(ConnectionStore.self) private var connection
+    @Environment(ClipboardPolicyStore.self) private var clipboardPolicy
     var cwd: String? = nil
     @State private var hovering = false
     @State private var dragging = false
@@ -16,7 +17,7 @@ struct BottomPanelView: View {
     var body: some View {
         VStack(spacing: 0) {
             dragHandle
-            SwiftTermView(session: terminal)
+            SwiftTermView(session: terminal, clipboardPolicy: clipboardPolicy)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(height: height)

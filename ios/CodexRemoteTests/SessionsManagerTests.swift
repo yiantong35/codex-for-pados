@@ -83,7 +83,59 @@ final class SessionsManagerTests: XCTestCase {
                       "removeMachine 应断连缓存 session（disconnect() 真的被调用 → phase == .disconnected）")
     }
 
-    /// Minor#4 兜底：非空机器时能取到 activeSession，且其 12 个功能 store 均已装配
+    /// #7 回前台自动重连（review 追加）：活跃 Session 的首连曾在后台被取消而落 .disconnected 后，
+    /// app 回前台（setAppForegroundAll(true)）应按需重连该活跃 tab——phase 离开 .disconnected。
+    /// 用 blockHandshake 的 MockTransport：connect() 起后台 establish Task 挂在握手，phase → .connecting；
+    /// setForeground(false) 走 #7 路径取消在途首连并落 .disconnected（复现被后台取消的终态）；
+    /// 再 setAppForegroundAll(true) → shouldAutoConnect(.disconnected)==true → connect() → 离开 .disconnected。
+    func test_appForegroundReconnectsActiveDisconnectedSession() async {
+        let mock = MockTransport()
+        await mock.setBlockHandshake(true)
+        let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
+        let m = SessionsManager(machineStore: store, transportFactory: { _ in mock })
+        // 用 relay 机器：connect 守卫只需 relayURL 非空，绕开 SSH 的本机密钥前置（与 #7 的 relay 语境一致）。
+        let mc = MachineConfig(displayName: "r",
+                               connection: .relay(relayURL: "wss://x", sessionId: "s", devIdentityPubB64: "p"))
+        store.add(mc)
+        m.setActive(mc.id)                          // 建活跃 Session 并懒连（phase → .connecting）
+        let s = m.activeSession!
+        // 等在途 transport 就位再退后台：phase 早于 inFlightTransport 赋值置 .connecting，
+        // 若在 inFlightTransport==nil 窗口退后台，#7 取消分支不触发（与 ConnectionStoreTests 同）。
+        _ = await waitUntil { s.connection.inFlightTransportForTesting != nil }
+
+        s.connection.setForeground(false)           // #7：取消在途首连 → 落 .disconnected
+        let landed = await waitUntil { s.connection.phase == .disconnected }
+        XCTAssertTrue(landed, "前置：后台取消在途首连应落 .disconnected")
+
+        m.setAppForegroundAll(true)                 // 回前台：应对活跃 tab 按需重连
+        let reconnecting = await waitUntil { s.connection.phase != .disconnected }
+        XCTAssertTrue(reconnecting,
+                      "#7：回前台应对活跃 .disconnected 会话自动重连（离开 .disconnected）")
+    }
+
+    /// #7 边界：回前台**不得**对已就绪/连接中的活跃会话重复触发 connect（shouldAutoConnect==false）。
+    /// 也不因回前台批量唤醒——此处以「连接中(.connecting)」为例：setAppForegroundAll(true) 不应改其 phase
+    /// 或重发 connect（既有在途 establish 继续，不叠加新一次）。
+    func test_appForegroundDoesNotReconnectActiveConnectingSession() async {
+        let mock = MockTransport()
+        await mock.setBlockHandshake(true)
+        let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
+        let m = SessionsManager(machineStore: store, transportFactory: { _ in mock })
+        let mc = MachineConfig(displayName: "r",
+                               connection: .relay(relayURL: "wss://x", sessionId: "s", devIdentityPubB64: "p"))
+        store.add(mc)
+        m.setActive(mc.id)
+        let s = m.activeSession!
+        _ = await waitUntil { s.connection.phase == .connecting }
+
+        m.setAppForegroundAll(true)                 // 已在连接中：shouldAutoConnect==false，不重连
+        // 给潜在的误触发一点调度窗口，随后仍应停在 .connecting（未被作废重来、未落 .disconnected）。
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        XCTAssertEqual(s.connection.phase, .connecting,
+                       "#7：连接中的会话回前台不应被重复 connect 或改变 phase")
+    }
+
+
     /// （间接保证 workspace(for:) 注入路径依赖的 store 都存在，防未来漏注入）。
     /// 12 个均为非可选 let，故以 ObjectIdentifier 收集去重断言全部存在且互为独立实例。
     func test_activeSessionHasAllTwelveStoresWired() {

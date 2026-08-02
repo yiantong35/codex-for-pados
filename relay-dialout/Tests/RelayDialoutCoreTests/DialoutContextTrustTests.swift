@@ -259,6 +259,69 @@ private func driveHandshake(context: DialoutContext, hello: ClientHello,
     #expect(context.session == nil)
 }
 
+// MARK: - #2：dev 侧信任落盘成功后才发布会话 / 消费口令
+
+/// #2：信任落盘失败时，handleClientAuth 必须向上抛错、不发布 _session、不消费口令、清握手临时态。
+/// 用一个指向随后被设为只读目录的 TrustStore，令首配路径的 trust.trust 落盘（原子写）失败。
+@Test func trustPersistFailureDoesNotPublishSession() throws {
+    let h = try DialoutTrustHarness()
+    let trust = try TrustStore(dir: h.trustDir)   // init 时目录以 0700 建好，文件尚不存在
+    // 把信任目录设为不可写（0500），使 persist() 的原子写（在目录内建临时文件）失败。
+    try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: h.trustDir.path)
+    defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: h.trustDir.path) }
+
+    let context = DialoutContext(keyStore: h.devKeyStore, devDeviceId: h.devDeviceId,
+                                 pairingCode: h.pairingCode, expiresAt: h.expiresAt, trust: trust)
+    let clientNonce = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+    let hello = Handshake.makeClientHello(
+        sessionId: "room-1", ipadDeviceId: "ipad-1",
+        ipadIdentityPub: h.ipadIdentity.publicKey.rawRepresentation,
+        ipadEphemeralPub: h.ipadEphemeral.publicKey.rawRepresentation,
+        clientNonce: clientNonce, pairingCode: h.pairingCode)
+    let shData = try context.handleClientHello(JSONEncoder().encode(hello))
+    let sh = try JSONDecoder().decode(ServerHello.self, from: shData)
+    let auth = try Handshake.verifyServerHelloAndMakeClientAuth(
+        clientHello: hello, serverHello: sh,
+        devIdentityPub: h.devKeyStore.identityPublicKeyRaw, ipadIdentity: h.ipadIdentity)
+
+    // 落盘失败 → handleClientAuth 向上抛错。
+    #expect(throws: (any Error).self) {
+        _ = try context.handleClientAuth(JSONEncoder().encode(auth))
+    }
+    // 关键 fail-closed 见证：session 未发布、一次性口令未消费（可重试，不被误标已用）。
+    #expect(context.session == nil)
+    #expect(context.pairingConsumed == false)
+}
+
+/// #2 回归：受信任复连（trusted 分支）语义不变——落盘成功即幂等发布会话、不消费一次性口令。
+/// 用同一 context 连续两次受信任握手，均建 session、stableSessionId 幂等，且 pairingConsumed 保持 false。
+@Test func trustedReconnectPublishAndConsumeSemanticsUnchanged() throws {
+    let h = try DialoutTrustHarness()
+    let trust = try TrustStore(dir: h.trustDir)
+    try trust.trust(ipadPubB64: h.ipadPubB64, stableSessionId: "stable-fixed", label: nil)  // 预置信任
+    let context = DialoutContext(keyStore: h.devKeyStore, devDeviceId: h.devDeviceId,
+                                 pairingCode: h.pairingCode, expiresAt: h.expiresAt, trust: trust)
+
+    func reconnect(_ sessionId: String) throws -> SecureReady {
+        let ephemeral = Curve25519.KeyAgreement.PrivateKey()
+        let hello = buildHello(sessionId: sessionId, ipadIdentity: h.ipadIdentity,
+                               ipadEphemeral: ephemeral, pairingCode: "unused", emptyProof: true)
+        let (frame, ipadSession) = try driveHandshake(
+            context: context, hello: hello, ipadIdentity: h.ipadIdentity,
+            ipadEphemeral: ephemeral, devIdentityPubRaw: h.devKeyStore.identityPublicKeyRaw)
+        return try JSONDecoder().decode(SecureReady.self, from: try ipadSession.open(try SecureEnvelope(decoding: frame)))
+    }
+
+    let first = try reconnect("room-a")
+    #expect(context.session != nil)              // 落盘成功后已发布会话
+    #expect(context.pairingConsumed == false)    // 受信任复连不消费一次性口令
+    let second = try reconnect("room-b")          // 同一 context 再握手仍成功（幂等）
+    #expect(first.stableSessionId == "stable-fixed")
+    #expect(second.stableSessionId == "stable-fixed")
+    #expect(context.pairingConsumed == false)    // 仍不消费
+    #expect(trust.all().count == 1)              // 不新增信任记录
+}
+
 /// 首配仍一次性：pairingCode 被首配消费后，另一台未受信任 iPad 用同一 code 二次首配握手被 pairingConsumed 挡。
 @Test func firstPairingCodeRemainsOneTimeAgainstAnotherIpad() throws {
     let h = try DialoutTrustHarness()

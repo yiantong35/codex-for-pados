@@ -53,27 +53,66 @@ import Crypto
 
 @Test func devKeyStoreThrowsOnUnreadableKeyFileInsteadOfOverwriting() throws {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    defer {
-        // 清理前恢复权限，否则 removeItem 也删不掉。
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600],
-                                               ofItemAtPath: dir.appendingPathComponent("identity.key").path)
-        try? FileManager.default.removeItem(at: dir)
-    }
+    defer { try? FileManager.default.removeItem(at: dir) }
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    // 预置一把合法密钥，然后把文件设为不可读（模拟权限损坏 / IO 故障）。
+    // #8：现在加载前会 chmod 收紧到 0600，0o000 会被收紧成可读而不再触发不可读分支；
+    // 改用「identity.key 处放一个目录」构造仍然可读失败的场景——
+    //   lstat 非软链、属主==当前 uid、chmod 目录成功，但 `Data(contentsOf:)` 对目录读失败。
+    // 依旧验证 fail-closed 不变量：存在但读失败 → throw，绝不当"不存在"用新密钥覆盖。
     let identityURL = dir.appendingPathComponent("identity.key")
-    let realKey = Curve25519.Signing.PrivateKey().rawRepresentation
-    try realKey.write(to: identityURL)
-    try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: identityURL.path)
+    try FileManager.default.createDirectory(at: identityURL, withIntermediateDirectories: true)
 
-    // 文件存在但读失败 → 必须 throw，绝不当"不存在"用新密钥覆盖。
+    // 存在但读失败 → 必须 throw，绝不覆盖。
     #expect(throws: (any Error).self) {
         _ = try DevKeyStore(dir: dir)
     }
-    // 恢复权限读回：内容仍是原密钥，未被覆盖。
-    try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: identityURL.path)
-    let after = try Data(contentsOf: identityURL)
-    #expect(after == realKey)
+    // 该路径仍是目录（未被新密钥文件覆盖）。
+    var isDir: ObjCBool = false
+    #expect(FileManager.default.fileExists(atPath: identityURL.path, isDirectory: &isDir))
+    #expect(isDir.boolValue)
+}
+
+/// #8：加载 0644（对其他本机用户可读）的已存在私钥——加载前收紧为 0600（本用例验证收紧成功路径）。
+@Test func devKeyStoreTightensLoosePermissionsOnLoad() throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let s1 = try DevKeyStore(dir: dir)                   // 首次创建（0600）
+    let idPub = s1.identityPublicKeyRaw
+    let identityURL = dir.appendingPathComponent("identity.key")
+    // 人为放宽为 0644，模拟迁移/恢复。
+    try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: identityURL.path)
+
+    let s2 = try DevKeyStore(dir: dir)                   // 再加载：应收紧且复用同一身份
+    #expect(s2.identityPublicKeyRaw == idPub)
+    let perms = (try FileManager.default.attributesOfItem(atPath: identityURL.path)[.posixPermissions] as? NSNumber)?.intValue
+    #expect(perms == 0o600)                              // 已收紧
+}
+
+/// #8：私钥路径是符号链接 → fail-closed 抛错，不经软链读目标文件。
+@Test func devKeyStoreRejectsSymlink() throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true,
+                                            attributes: [.posixPermissions: 0o700])
+    // 目标文件放到 dir 外；identity.key 是指向它的软链。
+    let target = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".key")
+    try Curve25519.Signing.PrivateKey().rawRepresentation.write(to: target)
+    defer { try? FileManager.default.removeItem(at: target) }
+    let identityURL = dir.appendingPathComponent("identity.key")
+    try FileManager.default.createSymbolicLink(at: identityURL, withDestinationURL: target)
+
+    #expect(throws: (any Error).self) { _ = try DevKeyStore(dir: dir) }
+}
+
+/// #8：属主不符 fail-closed。普通测试进程无法 `chown` 到别的 uid 而不提权，
+/// 故直接对抽出的纯函数 `validateOwner` 注入合成的「文件属主 != 当前 uid」验证抛错。
+@Test func devKeyStoreRejectsOwnerMismatch() throws {
+    // 属主一致：不抛。
+    try DevKeyStore.validateOwner(uid: 501, fileUid: 501, path: "/tmp/identity.key")
+    // 属主不符：抛 insecureKeyFile。
+    #expect(throws: DevKeyStore.DevKeyStoreError.insecureKeyFile("/tmp/identity.key")) {
+        try DevKeyStore.validateOwner(uid: 501, fileUid: 0, path: "/tmp/identity.key")
+    }
 }
 
 @Test func devKeyStoreWritesFilesWith0600Permissions() throws {

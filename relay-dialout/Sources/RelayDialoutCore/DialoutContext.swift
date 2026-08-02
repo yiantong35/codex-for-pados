@@ -158,17 +158,26 @@ public final class DialoutContext: @unchecked Sendable {
             lock.lock(); _eph = nil; lock.unlock()
             throw error
         }
+        // 稳定 sessionId：已受信任的 iPad 复用其记录值；首次配对新生成。每台 iPad 各一个。
+        let ipadPub = hello.ipadIdentityPub.base64EncodedString()
+        let stable = trust.record(forPubB64: ipadPub)?.stableSessionId ?? randomStableToken()
+
+        // #2 事务性：先把信任落盘成功，之后才在锁内原子发布 _session + 消费一次性口令。
+        // 落盘失败（IO/权限）→ 清握手态（_eph 释放，_session 保持 nil）、向上抛，
+        // 绝不发布「已建通道但信任未落盘」的会话（防 fail-open）。
+        do {
+            // 自动记信任（首次写入、幂等更新，无额外交互确认）。
+            try trust.trust(ipadPubB64: ipadPub, stableSessionId: stable, label: nil)
+        } catch {
+            lock.lock(); _eph = nil; lock.unlock()   // 与验签失败路径一致：释放交换私钥，_session/口令不动
+            throw error
+        }
+
         lock.lock()
         _session = session
         _eph = nil                                 // 握手完成即释放交换私钥
         if !trusted { _pairingConsumed = true }   // 仅首配消费一次性口令；受信任复连不置
         lock.unlock()
-
-        // 稳定 sessionId：已受信任的 iPad 复用其记录值；首次配对新生成。每台 iPad 各一个。
-        let ipadPub = hello.ipadIdentityPub.base64EncodedString()
-        let stable = trust.record(forPubB64: ipadPub)?.stableSessionId ?? randomStableToken()
-        // 自动记信任（首次写入、幂等更新，无额外交互确认）。
-        try trust.trust(ipadPubB64: ipadPub, stableSessionId: stable, label: nil)
 
         // 构造并加密 SecureReady（走已建通道回传稳定 sessionId）。
         let ready = SecureReady(sessionId: hello.sessionId, keyEpoch: 0,
