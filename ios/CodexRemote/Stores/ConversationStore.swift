@@ -9,22 +9,21 @@ import Observation
 @MainActor
 final class ConversationStore {
     private(set) var state: ConversationState
-    /// Task 17 排队用：turn 进行中收到的输入暂存，turn 结束后自动出队发送。
-    var queuedInputs: [[UserInput]] = []
 
     private let rpc: JSONRPCClient
     private let reducer = ThreadReducer()
     private var observer: Task<Void, Never>?
     /// F8：30Hz（33ms）攒批发布定时任务。随 startObserving 起、stopObserving 停。
     private var coalesceTask: Task<Void, Never>?
-    /// D2：最近一次发送的输入暂存，供失败重发（retryLastSend）。
-    private var lastSent: (input: [UserInput], model: String?, effort: ReasoningEffort?)?
     /// D3：乐观回显临时 id 单调序号（同会话内唯一，用于与权威回显对账）。
     private var optimisticSeq = 0
-    /// reconnect-resync item 3：出站离线队列（连接非 .ready 时按序缓存，.ready 后 flush 补发）。
-    /// 与 queuedInputs（忙队列）语义正交：忙队列是 turn 进行中，本队列是连接未就绪。
-    /// 存 localId：入队时已乐观回显，补发时据此跳过回显、直接 fire，避免重复气泡。
-    private var pendingOutbound: [(input: [UserInput], model: String?, effort: ReasoningEffort?, localId: String)] = []
+    /// 统一出站队列：合并原「忙队列 queuedInputs」与「离线队列 pendingOutbound」。二者本质同一件事
+    /// 「发不出去先攒，能发时按序逐条发」，仅触发条件不同（忙=turn 占用 / 离线=未 .ready）。合成一条 +
+    /// 单一 drain，消除两队列边界组合的 bug。每条入队即乐观回显（带 localId），drain 只 fire 不再回显。
+    private(set) var outbox: [(input: [UserInput], model: String?, effort: ReasoningEffort?, localId: String)] = []
+    /// drain fire 后、turn/started 到达前的并发窗口守卫：置真则 drain 不发下一条，
+    /// 由 turn/started（此后被 isTurnRunning 挡住）或 turn/completed 清零。防「一次 fire 多条」。
+    private var sendInFlight = false
     /// 当前连接是否 .ready 的信号源（装配时由 ConversationView 用 connection.phase 注入）。
     /// 默认 { true }：保持既有单测「无注入即视为在线直发」语义不变。
     var isReady: @MainActor () -> Bool = { true }
@@ -56,7 +55,7 @@ final class ConversationStore {
                     // 仅消费属于本线程的事件（按 params.threadId 过滤，缺省全收）。
                     guard self.belongsToThread(n) else { return }
                     self.reducer.apply(n, to: &self.state)
-                    self.drainQueueIfTurnEnded(n)
+                    self.handleOutboxTriggers(n)
                 }
             }
         }
@@ -140,8 +139,10 @@ final class ConversationStore {
         return ForkResult(threadId: resp.thread.id, forkedFromId: resp.thread.forkedFromId)
     }
 
-    /// 发送 prompt：发 turn/start。turn 输出经 notifications 流式回来，故发出即返回。
-    /// reconnect-resync item 3：连接非 .ready 时入 pendingOutbound + 乐观回显，不 fire；.ready 后由 flush 补发。
+    /// 发送 prompt：唯一用户输入入口（三态统一——在线直发/忙队列/离线队列本质同一件事）。
+    /// 入队即乐观回显（D3），然后交给 drainOutbox 决定是否能立即 fire：
+    /// isReady()=false（未连接）或 isTurnRunning（turn 占用）或 sendInFlight（上一条尚未拿到
+    /// turn/started）时留在 outbox 里，之后按序逐条补发（reconnect-resync item 3 + Task 17 排队）。
     func send(input: [UserInput], model: String?, effort: ReasoningEffort?) async {
         state.lastSendError = nil
         // D3：乐观回显——发送即在本端插入用户消息，不等服务器广播。
@@ -151,46 +152,50 @@ final class ConversationStore {
         if !text.isEmpty {
             reducer.upsertUserMessage(id: localId, text: text, to: &state)
         }
-        lastSent = (input, model, effort)   // D2：暂存以支持失败重发
-        guard isReady() else {
-            // 断线：缓存待补发（已回显），不 fire turn/start。补发时据 localId 跳过重复回显。
-            pendingOutbound.append((input, model, effort, localId))
-            return
-        }
-        fireTurnStart(input: input, model: model, effort: effort)
+        outbox.append((input, model, effort, localId))
+        drainOutbox()
     }
 
-    /// 实际发出 turn/start（不含回显）。供 send（在线）与 flushPendingOutbound（补发）共用。
-    private func fireTurnStart(input: [UserInput], model: String?, effort: ReasoningEffort?) {
-        let params = TurnStartParams(threadId: state.threadId, input: input,
-                                     model: model, effort: effort, cwd: nil)
+    /// 出站队列 drain：一次只发一条，发出后靠 turn/started 建立的 sendInFlight 守卫 +
+    /// isTurnRunning 天然串行化，等 turn/completed 才发下一条（daemon 同一 session 同时只跑一轮
+    /// turn，并发 fire 会被 steer 合并/塌缩或丢弃——故绝不可一次性 fire 多条）。
+    /// internal（非 private）供 View（.ready 触发）与测试直接调用。
+    func drainOutbox() {
+        guard isReady(), !sendInFlight, !state.isTurnRunning, let next = outbox.first else { return }
+        outbox.removeFirst()
+        sendInFlight = true
+        let params = TurnStartParams(threadId: state.threadId, input: next.input,
+                                     model: next.model, effort: next.effort, cwd: nil)
         Task { [weak self] in
             do {
                 _ = try await self?.call(RPCMethod.turnStart, params)
+                // 成功：sendInFlight 由 turn/started / turn/completed 通知清零。
             } catch {
-                self?.state.lastSendError = "\(error)"
+                guard let self else { return }
+                self.outbox.insert(next, at: 0)   // 原样退回队首（已回显，不重复 upsert）
+                self.sendInFlight = false
+                self.state.lastSendError = "\(error)"
             }
         }
     }
 
-    /// reconnect-resync item 3：连接迁移到 .ready 时按 FIFO 序补发离线队列。
-    /// 补发跳过回显（入队时已回显），仅 fire turn/start，避免重复气泡。
-    /// 由持有 phase 的层（ConversationView 的 .onChange(of: connection.phase)）在 .ready 时调用。
-    /// 能耗：事件驱动，无轮询、无常驻定时器。
-    func flushPendingOutbound() async {
-        guard isReady() else { return }
-        let batch = pendingOutbound
-        pendingOutbound.removeAll()
-        for item in batch {
-            fireTurnStart(input: item.input, model: item.model, effort: item.effort)
+    /// reconnect-resync item 3 + Task 17：turn/started 到达即解除并发窗口守卫（后续 drain 被
+    /// isTurnRunning 挡住，天然串行）；turn/completed 到达即清零守卫并 drain 下一条。
+    private func handleOutboxTriggers(_ n: JSONRPCNotification) {
+        switch n.method {
+        case ServerNotificationMethod.turnStarted:
+            sendInFlight = false
+        case ServerNotificationMethod.turnCompleted:
+            sendInFlight = false
+            drainOutbox()
+        default:
+            break
         }
     }
 
-    /// D2：重发最近一次发送（失败后由 UI 错误条触发）；无暂存则无操作。
-    func retryLastSend() async {
-        guard let last = lastSent else { return }
-        await send(input: last.input, model: last.model, effort: last.effort)
-    }
+    /// D2：失败重发（失败项已原样留在 outbox 头且已回显）——重发即再 drain 一次，
+    /// 不再二次回显、不再二次入队（#2 修复：旧实现经 send() 重发会重复 upsert 用户消息）。
+    func retryLastSend() async { drainOutbox() }
 
     /// 重连/连接后经官方权威列表恢复（设计 D3）：
     /// 1) thread/loaded/list 拿当前 app-server 内存中运行的 thread ids（不依赖本地 threadId 作唯一依据）；
@@ -209,6 +214,9 @@ final class ConversationStore {
                   let dict = r.value as? [String: Any] else { continue }   // no rollout 等单个失败：跳过
             if tid == state.threadId { reducer.ingest(resumeResult: dict, to: &state) }
         }
+        // 重连刷新拿到权威 activeTurnId 后，若断线期间那轮已在 Mac 跑完、漏收 turn/completed
+        // 致本地 isTurnRunning「假的真」卡住 outbox，此处解锁补发（item 2 咬合）。
+        drainOutbox()
     }
 
     // MARK: - private
@@ -218,13 +226,6 @@ final class ConversationStore {
         guard let p = n.params?.value as? [String: Any],
               let tid = p["threadId"] as? String else { return true }
         return tid == state.threadId
-    }
-
-    private func drainQueueIfTurnEnded(_ n: JSONRPCNotification) {
-        guard n.method == ServerNotificationMethod.turnCompleted,
-              !queuedInputs.isEmpty else { return }
-        let next = queuedInputs.removeFirst()
-        Task { await send(input: next, model: nil, effort: nil) }
     }
 
     /// Encodable 参数 → AnyCodable → rpc.send。桥接模式同 ConnectionStore。
@@ -297,9 +298,10 @@ extension ConversationStore {
         return true
     }
 
-    /// 排队后续输入：turn 进行中时暂存，turn/completed 后由 drainQueueIfTurnEnded 自动出队发送。
-    func enqueue(input: [UserInput]) {
-        queuedInputs.append(input)
+    /// 排队后续输入：经统一 send 入 outbox（入队即回显、保留 model/effort）。
+    /// turn 进行中时 drainOutbox 被 isTurnRunning 挡住，turn/completed 后自动出队发送。
+    func enqueue(input: [UserInput], model: String? = nil, effort: ReasoningEffort? = nil) async {
+        await send(input: input, model: model, effort: effort)
     }
 
     /// 中断进行中的 turn：发 turn/interrupt（threadId）。

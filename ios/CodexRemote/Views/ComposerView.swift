@@ -102,7 +102,7 @@ struct ComposerView: View {
                     Menu {
                         Button("composer.steer") { Task { await trySteer() } }
                             .disabled(store.state.activeTurnKind != nil)
-                        Button("composer.enqueue") { enqueueCurrent() }
+                        Button("composer.enqueue") { Task { await enqueueCurrent() } }
                         if let kind = store.state.activeTurnKind {
                             Text("composer.noSteer \(kind.rawValue)")
                         }
@@ -212,11 +212,11 @@ struct ComposerView: View {
         if ok { clearComposer() }
     }
 
-    /// 排队：turn 结束后由 store 自动出队发送。
-    private func enqueueCurrent() {
+    /// 排队：走统一 outbox（turn 进行中时 drain 被 isTurnRunning 挡住，turn 结束后自动出队发送）。
+    private func enqueueCurrent() async {
         let input = currentInput()
         guard !input.isEmpty else { return }
-        store.enqueue(input: input)
+        await store.send(input: input, model: effectiveModel, effort: effectiveEffort)
         clearComposer()
     }
 }

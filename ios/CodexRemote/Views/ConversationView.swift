@@ -49,8 +49,8 @@ struct ConversationView: View {
             activeConversation.state = newValue
         }
         .onChange(of: connection.phase) { _, newPhase in
-            // reconnect-resync item 3：连接迁移到 .ready → 补发离线期间缓存的 pendingOutbound。
-            if newPhase == .ready { Task { await store?.flushPendingOutbound() } }
+            // reconnect-resync item 3：连接迁移到 .ready → drain 出站队列（补发离线期间缓存的输入）。
+            if newPhase == .ready { store?.drainOutbox() }
         }
         .onDisappear {
             store?.stopObserving()
