@@ -7,7 +7,10 @@ final class TabBarViewTests: XCTestCase {
     private func mgr(machines: Int = 0) -> SessionsManager {
         let d = UserDefaults(suiteName: "test.\(UUID().uuidString)")!
         let store = MachineStore(defaults: d)
-        for i in 0..<machines { store.add(MachineConfig(displayName: "m\(i)", host: "h\(i)", user: "u")) }
+        for i in 0..<machines {
+            store.add(MachineConfig(displayName: "m\(i)", relayURL: "wss://h\(i)",
+                                    sessionId: "s\(i)", devIdentityPubB64: "pk\(i)"))
+        }
         return SessionsManager(machineStore: store, transportFactory: { _ in MockTransport() })
     }
 

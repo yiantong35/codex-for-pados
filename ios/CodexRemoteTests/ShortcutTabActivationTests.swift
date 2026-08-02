@@ -7,7 +7,8 @@ final class ShortcutTabActivationTests: XCTestCase {
         let d = UserDefaults(suiteName: "test.tabkeys.\(UUID().uuidString)")!
         let store = MachineStore(defaults: d)
         for i in 0..<count {
-            store.add(MachineConfig(displayName: "机器\(i+1)", host: "h\(i)", user: "u\(i)"))
+            store.add(MachineConfig(displayName: "机器\(i+1)", relayURL: "wss://h\(i)",
+                                    sessionId: "s\(i)", devIdentityPubB64: "pk\(i)"))
         }
         return SessionsManager(machineStore: store, transportFactory: { _ in MockTransport() })
     }

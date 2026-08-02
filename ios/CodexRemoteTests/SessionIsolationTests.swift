@@ -4,8 +4,8 @@ import XCTest
 @MainActor
 final class SessionIsolationTests: XCTestCase {
     func test_twoSessionsHaveDistinctStores() {
-        let m1 = MachineConfig(host: "h1", user: "u1")
-        let m2 = MachineConfig(host: "h2", user: "u2")
+        let m1 = MachineConfig(displayName: "h1", relayURL: "wss://h1", sessionId: "s1", devIdentityPubB64: "p1")
+        let m2 = MachineConfig(displayName: "h2", relayURL: "wss://h2", sessionId: "s2", devIdentityPubB64: "p2")
         let s1 = Session(machine: m1, transportFactory: { _ in MockTransport() })
         let s2 = Session(machine: m2, transportFactory: { _ in MockTransport() })
         XCTAssertFalse(s1.projects === s2.projects)
@@ -14,9 +14,9 @@ final class SessionIsolationTests: XCTestCase {
     }
 
     func test_sessionExposesMachineIdentity() {
-        let m = MachineConfig(host: "h", user: "u")
+        let m = MachineConfig(displayName: "h", relayURL: "wss://h", sessionId: "s", devIdentityPubB64: "p")
         let s = Session(machine: m, transportFactory: { _ in MockTransport() })
         XCTAssertEqual(s.id, m.id)
-        XCTAssertEqual(s.machine.host, "h")
+        XCTAssertEqual(s.machine.displayName, "h")
     }
 }
