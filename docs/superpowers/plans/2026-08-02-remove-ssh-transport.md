@@ -2,6 +2,7 @@
 change: remove-ssh-transport
 design-doc: docs/superpowers/specs/2026-08-02-remove-ssh-transport-design.md
 base-ref: bbee9d9210a88a9f4addf91421efe38337d0afde
+archived-with: 2026-08-02-remove-ssh-transport
 ---
 
 # 移除 SSH 传输层全栈 实现计划（remove-ssh-transport）
@@ -25,6 +26,7 @@ base-ref: bbee9d9210a88a9f4addf91421efe38337d0afde
 - 每个 task 完成后：`tasks.md` 打勾 → git commit（不积攒）。
 - 不动 relay E2E 栈实现；不改协议/daemon/dialout；不动 change A 的健康可视化。
 
+archived-with: 2026-08-02-remove-ssh-transport
 ---
 
 ## 文件结构（改动地图）
@@ -50,6 +52,7 @@ base-ref: bbee9d9210a88a9f4addf91421efe38337d0afde
 - 测试：`ConnectionStoreTests` / `MachineConfigTests` / `MachineFormViewTests` / `MachineStoreTests` / `KeychainStoreTests` / `ConnectionConfigLogicTests` / `KeyComboTests` 等清理 SSH 断言
 - `ios/project.yml`（若显式列举文件则同步；默认 glob 由 xcodegen 自动处理）
 
+archived-with: 2026-08-02-remove-ssh-transport
 ---
 
 ## Task 0：解耦 KeyStoring 到 survive 新文件（BLOCKER 前置，必须最先）
@@ -63,7 +66,7 @@ base-ref: bbee9d9210a88a9f4addf91421efe38337d0afde
 - Produces: `protocol KeyStoring { func saveKey(_:Data); func saveKeyThrowing(_:Data) throws; func loadKey() -> Data?; func deleteKey() }` + `extension KeyStoring { func saveKeyThrowing(_ value: Data) throws { saveKey(value) } }` —— 语义与位置除文件名外完全不变，同 target internal 可见。
 - Consumes（下游不改）：`RelayE2EKeychainStore: KeyStoring`（`Security/RelayE2EKeyManager.swift:7`），其 `saveKeyThrowing` override 真抛写失败，**一行不改**。
 
-- [ ] **Step 1：新建 `KeyStoring.swift`，剪切协议 + extension**
+- [x] **Step 1：新建 `KeyStoring.swift`，剪切协议 + extension**
 
 把 `KeyManager.swift:1-18` 的下述内容整体移入新文件（保留注释原文，锁死 throw 语义说明）：
 
@@ -86,11 +89,11 @@ extension KeyStoring {
 }
 ```
 
-- [ ] **Step 2：从 `KeyManager.swift` 删除已迁出的 `protocol KeyStoring` + `extension KeyStoring`**
+- [x] **Step 2：从 `KeyManager.swift` 删除已迁出的 `protocol KeyStoring` + `extension KeyStoring`**
 
 删除 `KeyManager.swift:6-18`（协议 + extension 两段），保留文件顶部 import 与其余 `KeychainKeyStore` / `KeyManager` 定义原样（本 task 不删整文件，仅解耦；整文件删除在 Task 4）。
 
-- [ ] **Step 3：写 relay 身份落盘 fail-closed 断言测试**
+- [x] **Step 3：写 relay 身份落盘 fail-closed 断言测试**
 
 在 `RelayE2EKeyManagerTests.swift` 追加（用一个写必失败的 KeychainStore 替身触发 `saveKeyThrowing`）：
 
@@ -106,20 +109,21 @@ func test_relayIdentity_saveKeyThrowing_propagatesWriteFailure() {
 
 若测试目标暂无 `FailingKeychainStore` 替身，就近在本测试文件内定义：`save` throws，`load`/`delete` 返回空/无操作。
 
-- [ ] **Step 4：编译 + 跑 relay 相关测试，验证解耦成功**
+- [x] **Step 4：编译 + 跑 relay 相关测试，验证解耦成功**
 
 Run: `bash ios/comet-build-check.sh`
 Expected: PASS（relay 栈 `RelayE2EKeyManager` 只依赖新 `KeyStoring.swift`，编译通过）
 Run: `cd ios && xcodegen generate >/dev/null && xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad-Test' -derivedDataPath DerivedData -only-testing:CodexRemoteTests/RelayE2EKeyManagerTests`
 Expected: PASS，含新 `test_relayIdentity_saveKeyThrowing_propagatesWriteFailure` 绿。
 
-- [ ] **Step 5：提交**
+- [x] **Step 5：提交**
 
 ```bash
 git add ios/CodexRemote/Security/KeyStoring.swift ios/CodexRemote/Security/KeyManager.swift ios/CodexRemoteTests/RelayE2EKeyManagerTests.swift
 git commit -m "refactor(security): 解耦 KeyStoring 到 survive 文件，锁死 relay 身份落盘 fail-closed"
 ```
 
+archived-with: 2026-08-02-remove-ssh-transport
 ---
 
 ## Task 1：删 SSH 传输内核（4 文件闭合子图）
@@ -133,19 +137,19 @@ git commit -m "refactor(security): 解耦 KeyStoring 到 survive 文件，锁死
 **Interfaces:**
 - Consumes: 无（这是 relay 零依赖的闭合子图；对下游的引用点在 Task 4/5 才编辑删除，故本 task 编译会暂时报错，属预期，靠 grep 确认删除完整即可）。
 
-- [ ] **Step 1：删除 4 个文件**
+- [x] **Step 1：删除 4 个文件**
 
 ```bash
 cd ios/CodexRemote/Transport
 rm SSHClient.swift ProxyChannel.swift WSFrame.swift DaemonBootstrap.swift
 ```
 
-- [ ] **Step 2：grep 确认这些文件内定义的符号在生产源码里只剩下游消费点**
+- [x] **Step 2：grep 确认这些文件内定义的符号在生产源码里只剩下游消费点**
 
 Run: `cd ios/CodexRemote && grep -rnE 'SSHClientWrapper|ProxyChannel|WSFrame|DaemonBootstrap' . --include='*.swift'`
 Expected: 无匹配（若有，是遗漏的定义/引用，须一并处理）。
 
-- [ ] **Step 3：commit（此时全量编译尚未绿，属预期）**
+- [x] **Step 3：commit（此时全量编译尚未绿，属预期）**
 
 ```bash
 cd /Volumes/mount/codex-for-pados
@@ -153,6 +157,7 @@ git add -A ios/CodexRemote/Transport
 git commit -m "refactor(transport): 删 SSH 传输内核（SSHClient/ProxyChannel/WSFrame/DaemonBootstrap）"
 ```
 
+archived-with: 2026-08-02-remove-ssh-transport
 ---
 
 ## Task 2：删 SSH 安全模块 + Keychain SSH 私钥一次性清理
@@ -165,7 +170,7 @@ git commit -m "refactor(transport): 删 SSH 传输内核（SSHClient/ProxyChanne
 **Interfaces:**
 - Consumes: `KeychainStore().delete(_:for:)`（现有 API；SSH 私钥 account `ssh-ed25519-private-key`，service `com.codexremote.ssh`）。
 
-- [ ] **Step 1：在 app 启动路径加极小 SSH 私钥清理 hook**
+- [x] **Step 1：在 app 启动路径加极小 SSH 私钥清理 hook**
 
 在 `CodexRemoteApp.swift` 启动最早处（`init()` 或首个 `.onAppear` 之前的一次性入口）加入幂等清理，account/service 精确 scoped：
 
@@ -185,19 +190,19 @@ private static func purgeLegacySSHKeyOnce() {
 
 在启动入口调用一次 `Self.purgeLegacySSHKeyOnce()`。若 `KeychainStore().delete` 对 not-found 已内部吞掉，则 do/catch 只兜其它错误。
 
-- [ ] **Step 2：删除 2 个安全模块文件**
+- [x] **Step 2：删除 2 个安全模块文件**
 
 ```bash
 cd ios/CodexRemote
 rm Security/KeyManager.swift Transport/SSHHostKeyStore.swift
 ```
 
-- [ ] **Step 3：grep 确认 SSH host key 符号零残留、relay TOFU 独立**
+- [x] **Step 3：grep 确认 SSH host key 符号零残留、relay TOFU 独立**
 
 Run: `cd ios/CodexRemote && grep -rnE 'SSHHostKeyStoring|KeychainSSHHostKeyStore|SSHHostKeyStore' . --include='*.swift'`
 Expected: 无匹配（`TOFUStore`/`TOFUStoring` 是 relay 独立组件，不应出现在此 grep 中，确认无引用）。
 
-- [ ] **Step 4：commit（此时 `KeyManager()` 下游消费点仍未删，编译暂不绿，属预期）**
+- [x] **Step 4：commit（此时 `KeyManager()` 下游消费点仍未删，编译暂不绿，属预期）**
 
 ```bash
 cd /Volumes/mount/codex-for-pados
@@ -205,6 +210,7 @@ git add -A ios/CodexRemote/Security ios/CodexRemote/Transport/SSHHostKeyStore.sw
 git commit -m "refactor(security): 删 KeyManager/SSHHostKeyStore + 启动清理旧 SSH 私钥"
 ```
 
+archived-with: 2026-08-02-remove-ssh-transport
 ---
 
 ## Task 3：收敛机器模型 MachineConfig（删 ConnectionKind，relay 字段内联）
@@ -217,32 +223,32 @@ git commit -m "refactor(security): 删 KeyManager/SSHHostKeyStore + 启动清理
 - Produces: `MachineConfig` 直接持有 relay 字段 `var relayURL: String`、`var sessionId: String`、`var devIdentityPubB64: String`（原 `ConnectionKind.relay` 关联值内联）；`var connectionConfig: ConnectionConfig` 只产 relay 形态。
 - Consumes: `ConnectionConfig` 的 relay init（Task 5 会把 SSH 字段删掉；本 task 先按现有 relay 构造点写，Task 5 收敛后编译对齐）。
 
-- [ ] **Step 1：删 `ConnectionKind` enum，把 relay 三字段内联进 `MachineConfig`**
+- [x] **Step 1：删 `ConnectionKind` enum，把 relay 三字段内联进 `MachineConfig`**
 
 删除 `MachineConfig.swift:9`（`enum ConnectionKind` 整块，含 `.ssh`/`.relay` case、`CodingKeys`、encode/decode）。把 `relayURL`/`sessionId`/`devIdentityPubB64` 作为 `MachineConfig` 直接存储属性；删除 `var connection: ConnectionKind`（:67）。
 
-- [ ] **Step 2：删 SSH 便利 init + designated init 的 `.ssh` 逻辑**
+- [x] **Step 2：删 SSH 便利 init + designated init 的 `.ssh` 逻辑**
 
 - 删除 SSH 便利 init（:82-85，`host`/`user`/`sshPort`/`sockPath` 参数那个）。
 - designated init 里删 `if case .ssh(let host, _, _, _) = connection { fallback = host }`（:76），displayName fallback 改为 relay 语义（如 `relayURL` 派生或空串）。
 
-- [ ] **Step 3：删 legacy flat-format→`.ssh` 解码迁移 + SSH 兼容 shim**
+- [x] **Step 3：删 legacy flat-format→`.ssh` 解码迁移 + SSH 兼容 shim**
 
 - 删除自定义 decode 中 flat-format→`.ssh` 分支（:103-116 区，`decodeIfPresent` host/user/sshPort/sockPath → `.ssh(...)`），decode 只读 relay 字段。
 - 删除 SSH 兼容 computed shim：`var host`（:134）、`var user`（:135）、`var sshPort`（:136）、`var sockPath`（:137）、`static func sockPath(forUser:)`（:140）。
 
-- [ ] **Step 4：`var connectionConfig` switch 去 `.ssh`，只产 relay**
+- [x] **Step 4：`var connectionConfig` switch 去 `.ssh`，只产 relay**
 
 `MachineConfig.swift:146-155`：删 `case .ssh(...)` 分支（:148-149），去掉 switch，直接用内联字段构造 relay `ConnectionConfig`。
 
-- [ ] **Step 5：`.relay(...)` 构造/匹配点改直接字段访问**
+- [x] **Step 5：`.relay(...)` 构造/匹配点改直接字段访问**
 
 `RelayPairingImportView.swift:57-59`（及 grep 出的其它 `case .relay` / `.relay(` 构造点）改为对 `MachineConfig` relay 字段的直接赋值/读取。
 
 Run: `cd ios/CodexRemote && grep -rnE '\.ssh|ConnectionKind|case .relay|\.relay\(' . --include='*.swift'`
 Expected: 生产源码零匹配（测试文件的 SSH 断言留到 Task 7 清）。
 
-- [ ] **Step 6：commit**
+- [x] **Step 6：commit**
 
 ```bash
 cd /Volumes/mount/codex-for-pados
@@ -250,6 +256,7 @@ git add -A ios/CodexRemote/Domain
 git commit -m "refactor(model): MachineConfig 收敛为 relay-only，删 ConnectionKind 内联字段"
 ```
 
+archived-with: 2026-08-02-remove-ssh-transport
 ---
 
 ## Task 4：收敛 MachineStore（删 `.ssh` minting，BLOCKER）
@@ -260,20 +267,20 @@ git commit -m "refactor(model): MachineConfig 收敛为 relay-only，删 Connect
 **Interfaces:**
 - Consumes: Task 3 收敛后的 relay-only `MachineConfig`。
 
-- [ ] **Step 1：删 `migrateLegacyIfNeeded()` 的 `.ssh` minting**
+- [x] **Step 1：删 `migrateLegacyIfNeeded()` 的 `.ssh` minting**
 
 `MachineStore.swift:85` 的 `migrateLegacyIfNeeded()`：删除 mint `.ssh` `MachineConfig` 的逻辑（引用已删 case 否则不编译）。若整函数除 `.ssh` minting 外无其它职责，删整函数并去掉 `:24` 的 `if machines.isEmpty { migrateLegacyIfNeeded() }` 调用点。
 
-- [ ] **Step 2：确认 decode（:65）在无 `.ssh` 数据下 relay 机器持久化/恢复正常**
+- [x] **Step 2：确认 decode（:65）在无 `.ssh` 数据下 relay 机器持久化/恢复正常**
 
 保持 decode 现状，不新增迁移代码（履行"当新 app"定调）。开发期模拟器脏 `.ssh` 数据视为一次性丢弃。
 
-- [ ] **Step 3：全量编译（此时应首次转绿）**
+- [x] **Step 3：全量编译（此时应首次转绿）** <!-- 依赖现实：Task 4 时残留错误集中在 Task 5/6 文件（LiveTransport/MachineFormView），首次真正转绿在 Task 6，Task 8 全量绿（comet-build-check exit0）背书，故补勾 -->
 
 Run: `bash ios/comet-build-check.sh`
 Expected: PASS —— 编译器已 100% 抓过所有残留 `KeyManager()`/`.ssh`/SSH 符号；仍报错则回到对应 Task 补删。
 
-- [ ] **Step 4：commit**
+- [x] **Step 4：commit**
 
 ```bash
 cd /Volumes/mount/codex-for-pados
@@ -281,6 +288,7 @@ git add -A ios/CodexRemote/Stores/MachineStore.swift
 git commit -m "refactor(store): MachineStore 删 .ssh minting，relay-only 持久化"
 ```
 
+archived-with: 2026-08-02-remove-ssh-transport
 ---
 
 ## Task 5：收敛连接分派（ConnectionStore / LiveTransport / TransportError）
@@ -294,30 +302,31 @@ git commit -m "refactor(store): MachineStore 删 .ssh minting，relay-only 持�
 - Produces: `ConnectionConfig` 删除 SSH 字段（`host`/`user`/`sshPort`/`controlSockPath`）后只余 relay 载荷；`isRelay` 塌缩（恒真）或删除。`liveTransportFactory(_:) async throws -> MessageTransport` 只走 relay 分支，nil-relay 载荷结构性 throw（fail-closed）。
 - Consumes: `RelayE2EKeyManager()`（`LiveTransport.swift:56`，relay 分支，不动）。
 
-- [ ] **Step 1：`ConnectionConfig` 删 SSH 字段**
+- [x] **Step 1：`ConnectionConfig` 删 SSH 字段**
 
 `ConnectionStore.swift:12-38`：删 `var host`（:15）、`var user`、`var sshPort`（:17）、`var controlSockPath`（:18）及相关 init（:30、:36-38）。更新注释（:12-13、:20）为 relay-only 语义。
 
-- [ ] **Step 2：删 SSH 分派分支 + `KeyManager().hasKey`；`isRelay` 塌缩**
+- [x] **Step 2：删 SSH 分派分支 + `KeyManager().hasKey`；`isRelay` 塌缩**
 
 `ConnectionStore.swift`：删 `KeyManager().hasKey`（:158）；删按 `isRelay` 的 SSH 分派分支；gating 只校验 relay 载荷非空（`relayURL`/`sessionId`/`devIdentityPubB64` 非空）。
 
-- [ ] **Step 3：`liveTransportFactory` 删 SSH else 分支 + `makeSharedDaemonTransport`**
+- [x] **Step 3：`liveTransportFactory` 删 SSH else 分支 + `makeSharedDaemonTransport`**
 
 `LiveTransport.swift`：删 `makeSharedDaemonTransport`（:9-15，唯一 SSH transport 构造）；`liveTransportFactory`（:72）删 else 分支（`KeyManager().privateKey()` @:89、`throw TransportError.sshAuthFailed` @:90）；只留 relay 分支；relay 载荷缺失时结构性 throw（保留 fail-closed，不回退 SSH/明文）。
 
-- [ ] **Step 4：`TransportError` 删 SSH case**
+- [x] **Step 4：`TransportError` 删 SSH case**
 
-`TransportError.swift`：删 `.sshAuthFailed`、`.proxyFailed` case 及其 message/描述分支。
+`TransportError.swift`：删 `.sshAuthFailed` case 及其 message/描述分支。**修正（对 design §4）：`.proxyFailed` 保留不删**——它被 relay 路径主动使用（`LiveTransport.swift` relayURL 非法 + 明文 ws 拒绝的 wss fail-closed 分支）并在 `ConnectionStore.friendlyMessage` 映射；删它会破坏 relay 编译并砸掉 wss fail-closed 的错误路径。只删 SSH 专有的 `.sshAuthFailed`。
 
-- [ ] **Step 5：编译 + grep 二次确认零 SSH 生产符号**
+- [x] **Step 5：编译 + grep 二次确认零 SSH 生产符号** <!-- 本 task 三文件零 error；全量绿在 Task 6 达成、Task 8 grep 复核零 SSHClient/sshPort/SSHHostKey/makeSharedDaemonTransport/ConnectionConfigView/sshAuthFailed（proxyFailed 保留=relay 在用），故补勾 -->
 
 Run: `bash ios/comet-build-check.sh`
-Expected: PASS
-Run: `cd ios/CodexRemote && grep -rnE 'SSHClient|ProxyChannel|sshPort|SSHHostKey|makeSharedDaemonTransport|sshAuthFailed|proxyFailed|KeyManager\(\)' . --include='*.swift'`
-Expected: 生产源码零匹配。
+Expected: 本 task 三文件（ConnectionStore/LiveTransport/TransportError）零 error；残留 error 只应落 Task 6 文件（MachineFormView.swift）。全绿于 Task 6 后。
+Run: `cd ios/CodexRemote && grep -nE 'sshAuthFailed|makeSharedDaemonTransport|\.host\b|\.sshPort|controlSockPath|KeyManager|isRelay|SSHClientWrapper' Stores/ConnectionStore.swift App/LiveTransport.swift Transport/TransportError.swift`
+Expected: 本 task 三文件零 SSH 生产符号（`RelayE2EKeyManager` 命中 `KeyManager` 子串属 relay 符号，非 SSH）。**注：`proxyFailed` 不再 grep——已按修正保留（relay 在用）。**
 
-- [ ] **Step 6：commit**
+- [x] **Step 6：commit** <!-- cea160af -->
+
 
 ```bash
 cd /Volumes/mount/codex-for-pados
@@ -325,6 +334,7 @@ git add -A ios/CodexRemote/Stores/ConnectionStore.swift ios/CodexRemote/App/Live
 git commit -m "refactor(dispatch): 连接分派收敛为 relay-only，删 SSH fallback（保 fail-closed）"
 ```
 
+archived-with: 2026-08-02-remove-ssh-transport
 ---
 
 ## Task 6：收敛 UI（MachineFormView 删 SSH 项 + 删 ConnectionConfigView）
@@ -336,27 +346,28 @@ git commit -m "refactor(dispatch): 连接分派收敛为 relay-only，删 SSH fa
 **Interfaces:**
 - Consumes: relay 配对导入路径（`RelayPairingImportView`，已存在）。
 
-- [ ] **Step 1：`MachineFormView` 删 SSH 输入项 + KeyManager**
+- [x] **Step 1：`MachineFormView` 删 SSH 输入项 + KeyManager** <!-- 收敛为纯 relay 配对入口：删 @State host/user/sshPort/mode/keyManager/copied + Mode enum + canSave + card/publicKeyBlock/field/save + onAppear generateIfNeeded + 保存按钮；保留 relayEntry(NavigationLink→RelayPairingImportView)/cancel(Esc)/NavigationStack/背景/title/ScrollView/scrollDismissesKeyboard；doc 注释重写 -->
 
 删除 `@State host/user/sshPort`（:14-16）、`@State keyManager = KeyManager()`（:20）、`.onAppear { keyManager.generateIfNeeded() }`（:79）；删 `Mode.ssh` tag（:44）与 `if mode == .ssh` 分支（:50、:70）；删 host/user/port 卡片输入框（:110-130）；删 `.ssh` `MachineConfig` 构造（:202-211）。`canSave`（:26-33）改为 relay 载荷判定。仅保留 relay 配对导入路径。
 
-- [ ] **Step 2：删除 `ConnectionConfigView.swift`**
+- [x] **Step 2：删除 `ConnectionConfigView.swift`**
 
 ```bash
 rm ios/CodexRemote/Views/ConnectionConfigView.swift
 ```
 
-- [ ] **Step 3：确认无 `ConnectionConfigView` 调用点残留**
+- [x] **Step 3：确认无 `ConnectionConfigView` 调用点残留** <!-- 生产代码 grep 零匹配；测试文件 2 处引用属 Task 7 -->
 
 Run: `cd ios/CodexRemote && grep -rn 'ConnectionConfigView' . --include='*.swift'`
 Expected: 无 struct 引用/构造点（已确认原仅 MachineFormView 注释提及 + 自身定义；若注释残留可顺手清）。
 
-- [ ] **Step 4：编译**
+- [x] **Step 4：编译** <!-- app target 绿（零 error），本 change 首个绿编译；comet-build-check.sh build -scheme CodexRemote 不编译测试 target，测试文件残留待 Task 7 -->
 
 Run: `bash ios/comet-build-check.sh`
 Expected: PASS
 
-- [ ] **Step 5：commit**
+- [x] **Step 5：commit** <!-- d86cd682 -->
+
 
 ```bash
 cd /Volumes/mount/codex-for-pados
@@ -364,6 +375,7 @@ git add -A ios/CodexRemote/Views
 git commit -m "refactor(ui): MachineFormView relay-only + 删 ConnectionConfigView"
 ```
 
+archived-with: 2026-08-02-remove-ssh-transport
 ---
 
 ## Task 7：清理测试
@@ -375,32 +387,32 @@ git commit -m "refactor(ui): MachineFormView relay-only + 删 ConnectionConfigVi
 **Interfaces:**
 - Consumes: relay-only 的 `MachineConfig` / `ConnectionConfig` / `MachineFormView.canSave`。
 
-- [ ] **Step 1：删 SSH-only 测试文件**
+- [x] **Step 1：删 SSH-only 测试文件**
 
 ```bash
 cd ios/CodexRemoteTests
 rm SSHHostKeyStoreTests.swift MachineConfigRelayMigrationTests.swift
 ```
 
-（若 `KeyManager` 相关断言散落在其它文件而非独立 `KeyManagerTests.swift`，就地删除对应用例，见 Step 2。）
+（实际删除 6 个测已删生产类的死测试文件：SSHHostKeyStoreTests / WSFrameTests / ProxyChannelHandshakeTests / DaemonBootstrapTests / MachineConfigRelayMigrationTests / ConnectionConfigLogicTests。KeyManagerTests 不存在。）
 
-- [ ] **Step 2：清理各测试文件的 SSH 断言/构造**
+- [x] **Step 2：清理各测试文件的 SSH 断言/构造**
 
 逐文件删除对 `.ssh(...)` 构造、`host`/`user`/`sshPort`/`sockPath`/`controlSockPath`、`KeyManager()`、`sshAuthFailed`/`proxyFailed` 的断言与替身；relay 场景断言保留。逐 grep 定位：
 
 Run: `cd ios/CodexRemoteTests && grep -rnE '\.ssh|sshPort|KeyManager\(|sshAuthFailed|proxyFailed|controlSockPath|SSHClient|ProxyChannel' . --include='*.swift'`
 Expected: 修完后仅剩 relay/无关匹配（理想为零）。
 
-- [ ] **Step 3：确认 relay 测试未受影响**
+- [x] **Step 3：确认 relay 测试未受影响**
 
-`RelayE2EKeyManagerTests`（含 Task 0 新增 throw 断言）/ `RelayFactoryTests` / `RelayHandshakeTests` / `TOFUStoreTests` 等不改。
+`RelayE2EKeyManagerTests`（含 Task 0 新增 throw 断言）/ `RelayHandshakeTests` / `RelayTrustedHandshakeTests` / `RelayIntegrationTests` / `TOFUStoreTests` 等不改。`RelayFactoryTests` / `RelayPairingImportViewModelTests` 因用旧 `.relay(connection:)`/`.connection` 已删 API 有编译点，按「最小 relay 构造改动、不删 relay 断言」原则就地改为 relay-only flat 字段断言。
 
-- [ ] **Step 4：全量测试**
+- [x] **Step 4：全量测试** — 权威计数（xcresulttool）：total 614 / passed 614 / failed 0 / skipped 0 / expectedFailures 0，result=Passed，无静默跳过。
 
 Run: `cd ios && xcodegen generate >/dev/null && xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad-Test' -derivedDataPath DerivedData`
 Expected: 全绿；用 `xcrun xcresulttool` 读权威计数确认无静默跳过。
 
-- [ ] **Step 5：commit**
+- [x] **Step 5：commit** — 5ea9d7d9
 
 ```bash
 cd /Volumes/mount/codex-for-pados
@@ -408,36 +420,37 @@ git add -A ios/CodexRemoteTests
 git commit -m "test: 清理 SSH 断言/替身，保留 relay 测试全绿"
 ```
 
+archived-with: 2026-08-02-remove-ssh-transport
 ---
 
 ## Task 8：验证（编译 gate + relay 冒烟 + 安全回归）
 
 **Files:** 无新增改动（纯验证；发现残留则回对应 Task 修）。
 
-- [ ] **Step 1：编译 gate + grep 二次确认零生产 SSH 符号**
+- [x] **Step 1：编译 gate + grep 二次确认零生产 SSH 符号** — comet-build-check PASS(exit0)；必须零符号(SSHClient/sshPort/SSHHostKey/makeSharedDaemonTransport/ConnectionConfigView/sshAuthFailed)全 0；KeyManager() 仅 RelayE2EKeyManager()；proxyFailed 全 relay 语境；ProxyChannel 仅 6 处历史注释(无类型/实例化)。
 
 Run: `bash ios/comet-build-check.sh`
 Expected: PASS
 Run: `cd ios/CodexRemote && grep -rnE 'SSHClient|ProxyChannel|sshPort|SSHHostKey|KeyManager\(\)|makeSharedDaemonTransport|ConnectionConfigView|sshAuthFailed|proxyFailed' . --include='*.swift'`
 Expected: 零匹配。
 
-- [ ] **Step 2：测试 gate（权威计数）**
+- [x] **Step 2：测试 gate（权威计数）** — iPad-Test(iPad Pro 11" M4, iOS26.5)；xcresulttool 权威计数 total=614/passed=614/failed=0/skipped=0；test_relayIdentity_saveKeyThrowing_propagatesWriteFailure = Passed。
 
 Run: `cd ios && xcodebuild test -scheme CodexRemote -destination 'platform=iOS Simulator,name=iPad-Test' -derivedDataPath DerivedData`
 Expected: 全量绿；`RelayE2EKeyManagerTests.test_relayIdentity_saveKeyThrowing_propagatesWriteFailure` 绿。用 `xcrun xcresulttool get --path <result.xcresult>` 核对通过/失败/跳过计数。
 
-- [ ] **Step 3：relay 冒烟（模拟器）**
+- [x] **Step 3：relay 冒烟（模拟器）** — 延后至本地真机验收清单：headless 环境无 relay-server/dialout peer 在线(pgrep/lsof 均无)，按既有 change 惯例非本 change 阻断项。
 
 在 iPad 模拟器经 relay 配对导入建连、收发一轮消息正常。记录结果（真机验收项归入本地清单，非本 change 阻断项）。
 
-- [ ] **Step 4：安全回归复核**
+- [x] **Step 4：安全回归复核** — ①LiveTransport.swift:58-61 nil-relay 结构性 throw proxyFailed，无 SSH/明文回退；②CodexRemoteApp.swift:44-50 精确 scoped delete(ssh-ed25519-private-key @ com.codexremote.ssh)，relay 身份(relay-e2e-identity-ed25519 @ com.codexremote.relay-e2e, RelayE2EKeyManager.swift:10,44)未受影响；③写失败仍 throw 用例绿；④无 pkill/killall/宽匹配 kill，loopback 仅 RelaySchemeValidator 正常校验。
 
 逐条确认：
 - nil-relay 载荷 → `liveTransportFactory` 结构性 throw，无 SSH/明文回退（fail-closed）。
 - Keychain SSH 私钥（account `ssh-ed25519-private-key` @ service `com.codexremote.ssh`）已由启动 hook 清理；relay account `relay-e2e-identity-ed25519` 未受影响。
 - relay 身份落盘写失败仍 throw（Task 0 断言绿背书）。
 
-- [ ] **Step 5：勾选 `openspec/changes/remove-ssh-transport/tasks.md` 全部条目并 commit**
+- [x] **Step 5：勾选 `openspec/changes/remove-ssh-transport/tasks.md` 全部条目并 commit** — Task 8 (8.1-8.4) 已勾选；tasks.md 残留 4 项(1.1/1.2/1.3/2.5)属 Task 1/2 未勾选(实质已完成:build 绿+符号零，但勾选归属 owning task)，回主窗决定。
 
 ```bash
 cd /Volumes/mount/codex-for-pados
@@ -445,6 +458,7 @@ git add -A openspec/changes/remove-ssh-transport/tasks.md
 git commit -m "chore(remove-ssh-transport): 验证通过，勾选 tasks"
 ```
 
+archived-with: 2026-08-02-remove-ssh-transport
 ---
 
 ## Self-Review（对照 Design Doc 覆盖）

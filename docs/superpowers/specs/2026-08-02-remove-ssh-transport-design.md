@@ -2,6 +2,8 @@
 comet_change: remove-ssh-transport
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-08-02-remove-ssh-transport
+status: final
 ---
 
 # Design Doc — remove-ssh-transport
