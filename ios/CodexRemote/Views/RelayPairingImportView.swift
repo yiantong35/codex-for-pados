@@ -28,7 +28,7 @@ enum PairingImportError: LocalizedError, Equatable {
 final class RelayPairingImportViewModel {
     var pasted: String = ""
 
-    /// 从粘贴串解析并校验，成功返回结构化 `.relay(...)` 的 MachineConfig + 单独的配对码。
+    /// 从粘贴串解析并校验，成功返回 relay-only 的 MachineConfig + 单独的配对码。
     /// - 空/纯空白 → `.empty`
     /// - 解析失败（scheme/host/缺字段）→ `.badFormat`
     /// - 已过期 → `.expired`
@@ -55,8 +55,8 @@ final class RelayPairingImportViewModel {
         // displayName 回落到 relayURL 的 host（无则用 relayURL 原串），保证 MachineConfig 非空显示名。
         let name = url.host ?? payload.relayURL
         let config = MachineConfig(displayName: name.isEmpty ? nil : name,
-            connection: .relay(relayURL: payload.relayURL, sessionId: payload.sessionId,
-                               devIdentityPubB64: payload.devIdentityPubB64))
+            relayURL: payload.relayURL, sessionId: payload.sessionId,
+            devIdentityPubB64: payload.devIdentityPubB64)
         return (config, payload.pairingCode)   // pc 单独返回，绝不进 MachineConfig 持久化
     }
 }
