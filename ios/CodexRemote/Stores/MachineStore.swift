@@ -1,8 +1,8 @@
 import Foundation
 import Observation
 
-/// 机器列表持久化（替换旧单组 UserDefaults key）+ 旧配置一次性迁移 + 上限 10。
-/// 密钥不在此管（Keychain / KeyManager，一把公钥通用）。
+/// 机器列表持久化（relay-only）+ 上限 10。
+/// 凭据不在此管（relay pairing 串仅驻内存、编码时剥离，见 load()/persist()）。
 @Observable
 @MainActor
 final class MachineStore {
@@ -11,7 +11,6 @@ final class MachineStore {
     private let defaults: UserDefaults
     private static let machinesKey = "machines"
     private static let activeKey = "activeMachineId"
-    private static let legacyHost = "host", legacyUser = "sshUser", legacyPort = "sshPort"
 
     private(set) var machines: [MachineConfig] = []
     var activeMachineId: UUID?
@@ -21,7 +20,6 @@ final class MachineStore {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         load()
-        if machines.isEmpty { migrateLegacyIfNeeded() }
         if activeMachineId == nil { activeMachineId = machines.first?.id }
     }
 
@@ -79,16 +77,5 @@ final class MachineStore {
             defaults.set(data, forKey: Self.machinesKey)
         }
         defaults.set(activeMachineId?.uuidString, forKey: Self.activeKey)
-    }
-
-    /// 旧单组配置 → 机器列表首项（仅当 machines 为空时）。旧 key 不删。
-    private func migrateLegacyIfNeeded() {
-        guard let host = defaults.string(forKey: Self.legacyHost), !host.isEmpty else { return }
-        let user = defaults.string(forKey: Self.legacyUser) ?? ""
-        let port = Int(defaults.string(forKey: Self.legacyPort) ?? "22") ?? 22
-        let m = MachineConfig(host: host, user: user, sshPort: port)
-        machines = [m]
-        activeMachineId = m.id
-        persist()
     }
 }
