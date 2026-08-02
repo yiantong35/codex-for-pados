@@ -52,6 +52,14 @@ actor ProxyChannel: MessageTransport {
     private let clientBox: UncheckedBox<Citadel.SSHClient>
     private let command: String
 
+    /// 控制信号流：finishIncoming（非主动掉线）发 .connectionFailed → ConnectionStore phase .failed。
+    /// stream 值 init 后不可变，nonisolated 暴露给 control() 满足非 async 协议要求。
+    private var controlContinuation: AsyncStream<TransportControlEvent>.Continuation?
+    private nonisolated let controlStream: AsyncStream<TransportControlEvent>
+
+    /// 用户主动 close() 置位（在最前）：区分意外掉线（发 .connectionFailed）与主动断开（静默）。
+    private var activeClose = false
+
     private var execTask: Task<Void, Never>?
     private var didStart = false
 
@@ -72,6 +80,10 @@ actor ProxyChannel: MessageTransport {
         var inCont: AsyncThrowingStream<String, Error>.Continuation!
         self.incomingStream = AsyncThrowingStream<String, Error>(bufferingPolicy: .unbounded) { inCont = $0 }
         self.incomingContinuation = inCont
+
+        var ctlCont: AsyncStream<TransportControlEvent>.Continuation!
+        self.controlStream = AsyncStream<TransportControlEvent>(bufferingPolicy: .unbounded) { ctlCont = $0 }
+        self.controlContinuation = ctlCont
     }
 
     /// 启动长驻 exec 通道。幂等：重复调用无副作用。
@@ -181,6 +193,15 @@ actor ProxyChannel: MessageTransport {
         incomingContinuation?.yield(line)
     }
 
+    /// 控制信号流：具备物理连接的 ProxyChannel 覆写默认空流，以在意外掉线时上报 .connectionFailed。
+    nonisolated func control() -> AsyncStream<TransportControlEvent> {
+        controlStream
+    }
+
+    private func emitControl(_ ev: TransportControlEvent) {
+        controlContinuation?.yield(ev)
+    }
+
     /// 阻塞直到 ws 握手完成：done 立即返回、failed 抛错、pending 挂起于 continuation。
     func awaitHandshake() async throws {
         switch handshakeState {
@@ -210,6 +231,11 @@ actor ProxyChannel: MessageTransport {
     }
 
     private func finishIncoming(_ error: Error?) {
+        // 非主动掉线（exec 意外结束）不再静默 → 发 .connectionFailed（→ phase .failed：横幅 + 灰点）。
+        // 用户主动 close() 已置 activeClose，此处静默（不重连，SSH 由独立 change 移除）。
+        if !activeClose {
+            emitControl(.connectionFailed)
+        }
         if case .pending = handshakeState {
             markHandshakeFailed(TransportError.channelClosed(reason: error.map { "\($0)" } ?? "通道在握手完成前关闭"))
         }
@@ -232,12 +258,15 @@ actor ProxyChannel: MessageTransport {
     }
 
     func close() async {
+        activeClose = true           // 最前置位：随后 execTask 取消触发的 finishIncoming 静默，不发 .connectionFailed
         stdinContinuation.finish()   // write loop 退出 → withExec 闭包返回 → 通道 close
         if case .pending = handshakeState {
             markHandshakeFailed(TransportError.channelClosed(reason: "连接主动关闭"))
         }
         incomingContinuation?.finish()
         incomingContinuation = nil
+        controlContinuation?.finish()
+        controlContinuation = nil
         execTask?.cancel()
     }
 
@@ -256,8 +285,13 @@ actor ProxyChannel: MessageTransport {
         var inCont: AsyncThrowingStream<String, Error>.Continuation!
         self.incomingStream = AsyncThrowingStream<String, Error>(bufferingPolicy: .unbounded) { inCont = $0 }
         self.incomingContinuation = inCont
+        var ctlCont: AsyncStream<TransportControlEvent>.Continuation!
+        self.controlStream = AsyncStream<TransportControlEvent>(bufferingPolicy: .unbounded) { ctlCont = $0 }
+        self.controlContinuation = ctlCont
     }
     func markHandshakeDoneForTesting() { markHandshakeDone() }
     func markHandshakeFailedForTesting(_ e: Error) { markHandshakeFailed(e) }
+    /// 模拟 exec 通道结束（onFinish → finishIncoming），驱动非主动掉线路径。
+    func finishIncomingForTesting(_ error: Error?) { finishIncoming(error) }
     #endif
 }
