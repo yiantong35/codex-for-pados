@@ -47,6 +47,12 @@ struct ConnectionConfig: Sendable {
     }
 }
 
+/// 心跳判死回调的可逃逸包装：把 ConnectionStore 构造的 onUnhealthy 传入 heartbeatFactory。
+/// （函数类型参数位置的裸闭包默认非逃逸，而结构体存储属性天然逃逸，供 HeartbeatMonitor.init 的 @escaping 形参消费。）
+struct HeartbeatUnhealthy: Sendable {
+    let run: @Sendable () async -> Void
+}
+
 /// 连接生命周期状态机（设计 §7）。
 enum ConnectionPhase: Equatable {
     case disconnected
@@ -91,6 +97,13 @@ final class ConnectionStore {
     /// 建连/握手硬超时（纳秒）。默认 20s；测试可注入更短值以快速复现超时失效路径。
     private let connectTimeoutNanos: UInt64
     private var config: ConnectionConfig?
+    /// 上次成功发起的连接配置：横幅「重新连接」按钮据此以原配置重连。
+    private var lastConfig: ConnectionConfig?
+    /// app 级端到端心跳：`.ready` 时创建并 start，离开 `.ready`/断开时 stop（缺口 1）。
+    private var heartbeat: HeartbeatMonitor?
+    /// 心跳工厂注入点（可选）：默认用真探针（getAuthStatus 竞速 10s）构造；
+    /// 测试注入脚本化 monitor。参数为 onUnhealthy 判死回调（包装以逃逸）。
+    private let injectedHeartbeatFactory: (@MainActor (HeartbeatUnhealthy) -> HeartbeatMonitor)?
     private var transport: MessageTransport?
     /// 当前 attempt 正在构建、尚未落地的 transport。超时/被新连接或 disconnect 作废时须关闭它，
     /// 触发其 close() → ProxyChannel 标记握手失败 → awaitHandshake 抛出 → doEstablish 解挂（#1 防泄漏）。
@@ -115,9 +128,11 @@ final class ConnectionStore {
     #endif
 
     init(transportFactory: @escaping @Sendable (ConnectionConfig) async throws -> MessageTransport,
-         connectTimeoutNanos: UInt64 = 20_000_000_000) {
+         connectTimeoutNanos: UInt64 = 20_000_000_000,
+         heartbeatFactory: (@MainActor (HeartbeatUnhealthy) -> HeartbeatMonitor)? = nil) {
         self.transportFactory = transportFactory
         self.connectTimeoutNanos = connectTimeoutNanos
+        self.injectedHeartbeatFactory = heartbeatFactory
     }
 
     /// 注入「重连后会话恢复」的回调（§5 接 thread/loaded/list + resume）。
@@ -162,6 +177,7 @@ final class ConnectionStore {
             }
         }
         self.config = config
+        self.lastConfig = config   // 记录以供横幅「重新连接」入口复用
         // 新连接作废上一次仍在途的 transport（若上次卡在握手未落地也未超时）：关闭之避免泄漏（#1）。
         if let stale = inFlightTransport {
             inFlightTransport = nil
@@ -193,6 +209,7 @@ final class ConnectionStore {
                 self.inFlightTransport = nil    // 已落地为 self.transport，不再算「在途」
                 self.phase = .ready
                 self.isReady = true
+                self.startHeartbeat()   // 缺口 1：首连成功即启动端到端心跳
                 self.observeControl(newTransport)
                 // 把当前前台/后台状态同步给新 transport（能耗：后台连接不应持续重连）。
                 await newTransport.setForeground(self.foregroundActive)
@@ -235,6 +252,7 @@ final class ConnectionStore {
     /// 主动断开（停止控制信号观察 + 关闭 RPC + 关闭底层 transport）。
     func disconnect() async {
         activeAttempt += 1                // 作废任何在途连接
+        stopHeartbeat()                   // 主动断开：停心跳（终态不探活）
         controlObserver?.cancel()
         controlObserver = nil
         if let rpc { await rpc.stop() }
@@ -269,8 +287,11 @@ final class ConnectionStore {
             // phase 会永远卡在 .connecting/.initializing → UI 连接按钮转圈禁用、needsConnect/自动重连门
             // （均要求 .disconnected）失效，回前台无从重试。退后台是**主动暂停**非连接失败，故落
             // .disconnected（与 disconnect() 的终态一致），使回前台 needsConnect==true 可重连。
+            stopHeartbeat()                  // 主动暂停到 .disconnected：停心跳
             phase = .disconnected
         }
+        // 前后台转发给心跳（能耗铁律：后台暂停探活，回前台立即补发一次）。
+        heartbeat?.setForeground(active)
     }
 
     // MARK: - 握手
@@ -333,6 +354,52 @@ final class ConnectionStore {
         }
     }
 
+    // MARK: - 端到端心跳（缺口 1）
+
+    /// 横幅「重新连接」按钮用：以上次成功发起的配置重连。
+    func reconnect() {
+        if let c = lastConfig { connect(config: c) }
+    }
+
+    /// 端到端探针：发 `getAuthStatus` 并与 10s 超时竞速；先返回者胜。
+    /// 判活只看「有无 JSON-RPC 回响」不看内容——收到回响=true，超时/抛错=false（天然跨登录方式）。
+    private func sendHeartbeatProbe() async -> Bool {
+        guard let rpc else { return false }
+        guard let empty = try? JSONDecoder().decode(AnyCodable.self, from: Data("{}".utf8)) else { return false }
+        return await withTaskGroup(of: Bool.self) { group in
+            group.addTask { (try? await rpc.send(method: RPCMethod.getAuthStatus, params: empty)) != nil }
+            group.addTask { try? await Task.sleep(nanoseconds: 10_000_000_000); return false }
+            let first = await group.next() ?? false
+            group.cancelAll()
+            return first
+        }
+    }
+
+    /// 默认真探针心跳：探针捕获 self.rpc 发 getAuthStatus，判死回调由调用方注入。
+    private func makeRealHeartbeat(onUnhealthy: @escaping @Sendable () async -> Void) -> HeartbeatMonitor {
+        HeartbeatMonitor(probe: { [weak self] in await self?.sendHeartbeatProbe() ?? false },
+                         onUnhealthy: onUnhealthy)
+    }
+
+    /// 启动心跳（幂等）：判死回调 = 主动触发一次内部有界重连（复用既有 .reconnecting→.ready/.failed 链路）。
+    private func startHeartbeat() {
+        heartbeat?.stop()
+        let onUnhealthy: @Sendable () async -> Void = { [weak self] in
+            await self?.transport?.triggerReconnect()   // 判死 → 有界重连（沿用既有退避封顶）
+        }
+        let m = injectedHeartbeatFactory?(HeartbeatUnhealthy(run: onUnhealthy))
+            ?? makeRealHeartbeat(onUnhealthy: onUnhealthy)
+        m.setForeground(foregroundActive)   // 后台不空转
+        m.start()
+        heartbeat = m
+    }
+
+    /// 停止并释放心跳。
+    private func stopHeartbeat() {
+        heartbeat?.stop()
+        heartbeat = nil
+    }
+
     // MARK: - 控制信号观察
 
     /// 订阅 transport 控制信号：reconnecting/ready 驱动 UI 重连指示。
@@ -349,6 +416,7 @@ final class ConnectionStore {
                 switch ev {
                 case .reconnecting:
                     self.phase = .reconnecting
+                    self.stopHeartbeat()   // 离开 .ready：停心跳，重连成功后再起
                     // 物理断线：失败断线瞬间已发出、仍等响应的在途请求，避免其永久挂起（H1）。
                     // 响应不会在新通道重放；失败后调用方/UI 可重试。control() 单消费者由本处独占，
                     // 故由 ConnectionStore（同时持 rpc 与控制流）触发，而非让 JSONRPCClient 抢消费控制流。
@@ -357,22 +425,25 @@ final class ConnectionStore {
                     }
                 case .ready:
                     self.phase = .ready
+                    self.startHeartbeat()   // 物理重连成功：重启心跳
                     if let h = self.resumeHandler { await h() }   // 重连成功 → 经官方列表恢复并重新订阅
                 case .connectionFailed:
                     // 重连退避耗尽（终态，4.3）：落 .failed 提示可手动重连。
                     // **保留机器配置**（不清 config、不 disconnect）——用户可再次 connect() 手动重连。
+                    self.stopHeartbeat()
                     self.phase = .failed("连接失败，请稍后重试")
                 case .trustRevoked:
                     // 收到 RejectHello = 开发机移除信任（终态，4.4）：落 .failed 并置位 needsRePairing，
                     // 由 UI 据此导航回配对入口（RelayPairingImportView）。仅此路径要求重新配对，
                     // 其它连接问题（含开发机未开）走 .connectionFailed，不误报信任撤销。
+                    self.stopHeartbeat()
                     self.phase = .failed("已被开发机移除信任，请重新配对")
                     self.needsRePairing = true
                 case .peerLeft:
-                    // relay「对端离开」提示 = 非判决：不改 phase、不断开、不重连。
-                    // 真正的核实（补发一次端到端心跳）由任务 6 集成 HeartbeatMonitor 后接入；
-                    // 此处先保持连接态不变，避免恶意 relay 凭空判死（防降级）。
-                    break
+                    // relay「对端离开」提示 = 非判决（防降级红线）：不直接改 phase、不断开、不重连，
+                    // 而是补发一次端到端心跳核实。探针 miss → probeOnce 内 onUnhealthy → triggerReconnect；
+                    // 探针有回响 → 忽略，连接保持 .ready（恶意 relay 不得凭空杀健康连接）。
+                    if let hb = self.heartbeat { Task { await hb.probeOnce() } }
                 }
             }
         }

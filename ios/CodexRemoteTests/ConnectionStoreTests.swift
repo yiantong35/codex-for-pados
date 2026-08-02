@@ -397,6 +397,61 @@ final class ConnectionStoreTests: XCTestCase {
         }
     }
 
+    // 任务 6 缺口 1：心跳判死 → 触发 transport.triggerReconnect（判死→有界重连）。
+    // 注入永远 miss 的探针 + yield sleep，加速连续 2 次错过判死。
+    func test_heartbeatDeath_triggersReconnect() async throws {
+        let mock = ControlEmittingTransport()
+        let store = await ConnectionStore(
+            transportFactory: { _ in mock },
+            heartbeatFactory: { cb in
+                HeartbeatMonitor(config: .init(interval: .milliseconds(1), missThreshold: 2),
+                                 probe: { false }, onUnhealthy: cb.run,
+                                 sleep: { _ in await Task.yield() }) })
+        await feedInitializeResponse(mock)
+        await store.connect(config: .stub)
+        try await waitUntil { if case .ready = await store.phase { return true }; return false }
+        try await waitUntil { await mock.triggerReconnectCount >= 1 }
+        let count = await mock.triggerReconnectCount
+        XCTAssertGreaterThanOrEqual(count, 1, "连续错过 2 次应触发一次有界重连")
+    }
+
+    // peer-left：收到通知 → 补发一次探针；探针 miss → triggerReconnect（判死）。
+    func test_peerLeft_probeMiss_triggersReconnect() async throws {
+        let mock = ControlEmittingTransport()
+        let store = await ConnectionStore(
+            transportFactory: { _ in mock },
+            heartbeatFactory: { cb in
+                HeartbeatMonitor(config: .init(interval: .milliseconds(1), missThreshold: 2),
+                                 probe: { false }, onUnhealthy: cb.run,
+                                 sleep: { _ in await Task.yield() }) })
+        await feedInitializeResponse(mock)
+        await store.connect(config: .stub)
+        try await waitUntil { if case .ready = await store.phase { return true }; return false }
+        await mock.emitControl(.peerLeft)
+        try await waitUntil { await mock.triggerReconnectCount >= 1 }
+        let count = await mock.triggerReconnectCount
+        XCTAssertGreaterThanOrEqual(count, 1, "peer-left 后探针 miss 应判死并触发重连")
+    }
+
+    // peer-left：探针有回响 → 忽略，连接保持 .ready（防伪造降级红线）。
+    func test_peerLeft_probeHit_ignored_staysReady() async throws {
+        let mock = ControlEmittingTransport()
+        let store = await ConnectionStore(
+            transportFactory: { _ in mock },
+            heartbeatFactory: { cb in
+                HeartbeatMonitor(config: .init(interval: .milliseconds(1), missThreshold: 2),
+                                 probe: { true }, onUnhealthy: cb.run,
+                                 sleep: { _ in await Task.yield() }) })
+        await feedInitializeResponse(mock)
+        await store.connect(config: .stub)
+        try await waitUntil { if case .ready = await store.phase { return true }; return false }
+        await mock.emitControl(.peerLeft)
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        let count = await mock.triggerReconnectCount
+        XCTAssertEqual(count, 0, "健康时收到伪造 peer-left 不得判死")
+        if case .ready = await store.phase {} else { XCTFail("应保持 .ready，实际 \(await store.phase)") }
+    }
+
     /// 后台回一条 initialize 响应，使握手到达 .ready（复用于多测试）。
     private func feedInitializeResponse(_ ctrl: ControlEmittingTransport) async {
         Task {
@@ -432,6 +487,8 @@ actor CloseSpyTransport: MessageTransport {
 /// 可发控制事件的 transport：用于驱动 ConnectionStore 的 .reconnecting → failInflight 接线测试。
 actor ControlEmittingTransport: MessageTransport {
     private(set) var sent: [String] = []
+    private(set) var triggerReconnectCount = 0
+    func triggerReconnect() async { triggerReconnectCount += 1 }
     private var inCont: AsyncThrowingStream<String, Error>.Continuation?
     private nonisolated let inStream: AsyncThrowingStream<String, Error>
     private var ctlCont: AsyncStream<TransportControlEvent>.Continuation?
