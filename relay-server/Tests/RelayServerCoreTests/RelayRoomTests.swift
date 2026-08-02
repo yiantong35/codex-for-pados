@@ -45,3 +45,44 @@ import RelayProtocol
     #expect(bRx == 1 && aRx == 0)   // B 槽保留、收到转发；A 不受影响
     _ = bId
 }
+
+// 缺口 2：一端离开 → 通知仍在的对端（连接层 peer-left 信号）。
+@Test func leaveNotifiesRemainingPeer() throws {
+    let rooms = RelayRooms()
+    var ipadRx: [String] = [], devRx: [String] = []
+    guard case let .joined(devId) = rooms.join(sessionId: "s", role: .devMachine, sink: { devRx.append($0) }),
+          case .joined = rooms.join(sessionId: "s", role: .iPad, sink: { ipadRx.append($0) }) else {
+        return #expect(Bool(false))
+    }
+    rooms.leave(sessionId: "s", role: .devMachine, connId: devId)   // dev 离开
+    #expect(ipadRx.count == 1)                                      // iPad 收到 peer-left
+    let sig = try RelaySignal(decoding: Data(ipadRx[0].utf8))
+    #expect(sig.kind == RelaySignal.peerLeftKind && sig.sessionId == "s")
+    #expect(devRx.isEmpty)                                          // 离开端不收
+}
+
+// 对称：iPad 离开 → 通知 dev。
+@Test func leaveNotifiesDevWhenIpadLeaves() throws {
+    let rooms = RelayRooms()
+    var devRx: [String] = []
+    rooms.join(sessionId: "s", role: .devMachine) { devRx.append($0) }
+    guard case let .joined(ipadId) = rooms.join(sessionId: "s", role: .iPad, sink: { _ in }) else {
+        return #expect(Bool(false))
+    }
+    rooms.leave(sessionId: "s", role: .iPad, connId: ipadId)
+    #expect(devRx.count == 1)
+    #expect((try RelaySignal(decoding: Data(devRx[0].utf8))).kind == RelaySignal.peerLeftKind)
+}
+
+// 幂等：旧 connId 的迟到 leave 未清任何槽 → 不发通知（防抖 + 不误清后已在文档，见 staleLeaveByOldConnIdDoesNotEvictNewer）。
+@Test func staleLeaveDoesNotNotify() {
+    let rooms = RelayRooms()
+    var devRx: [String] = []
+    rooms.join(sessionId: "s", role: .devMachine) { devRx.append($0) }
+    guard case let .joined(ipadId) = rooms.join(sessionId: "s", role: .iPad, sink: { _ in }) else {
+        return #expect(Bool(false))
+    }
+    rooms.leave(sessionId: "s", role: .iPad, connId: ipadId)   // 真离开：dev 收 1 条
+    rooms.leave(sessionId: "s", role: .iPad, connId: ipadId)   // 迟到重复：槽已空，不再通知
+    #expect(devRx.count == 1)
+}

@@ -173,6 +173,10 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             }
             return
         }
+        // 连接层信号（如 relay 的 peer-left）：dev 侧不据此动作，静默忽略，避免误入握手解析。
+        if let sig = try? RelaySignal(decoding: data), sig.kind == RelaySignal.peerLeftKind {
+            return
+        }
         // 握手期：先试 ClientAuth（更晚），再试 ClientHello。
         // #2：不吞错——信任落盘失败必须冒泡，绝不因 try? 吞错而在信任未落盘时启 bridge。
         if context.hellos != nil {
