@@ -56,6 +56,42 @@ final class HeartbeatMonitorTests: XCTestCase {
         XCTAssertEqual(unhealthy, 0)
     }
 
+    // 判死后 start() 必须真正重启循环（loopTask 在判死退出后须置 nil，
+    // 否则 restartLoopIfNeeded 的 loopTask==nil 门控永远为假，恢复静默失效）。
+    func test_afterDeath_start_resumesLoop() async throws {
+        let results = ResultScript(Array(repeating: false, count: 200))  // 恒 miss
+        let m = HeartbeatMonitor(config: .init(interval: .seconds(10), missThreshold: 2),
+                                 probe: { await results.next() },
+                                 onUnhealthy: {}, sleep: { _ in await Task.yield() })
+        m.start()
+        try await waitUntil { await results.consumed >= 2 }   // 连续 2 次 miss → 判死，循环退出
+        let atDeath = await results.consumed
+        m.start()                                             // 判死后重启
+        try await waitUntil { await results.consumed > atDeath }  // 循环须真正恢复消耗探针
+        m.stop()
+        let resumed = await results.consumed
+        XCTAssertGreaterThan(resumed, atDeath, "判死后 start() 应重启探测循环")
+    }
+
+    // setForeground(true)：从后台恢复须重启循环并立即补发一次 probeOnce。
+    func test_foregroundResume_restartsLoopAndProbesOnce() async throws {
+        let results = ResultScript(Array(repeating: true, count: 200))
+        let m = HeartbeatMonitor(config: .init(interval: .seconds(10), missThreshold: 2),
+                                 probe: { await results.next() },
+                                 onUnhealthy: {}, sleep: { _ in await Task.yield() })
+        m.start()
+        try await waitUntil { await results.consumed >= 1 }
+        m.setForeground(false)
+        try? await Task.sleep(for: .milliseconds(20))
+        let paused = await results.consumed
+        m.setForeground(true)                                // 恢复 + 立即补发
+        try await waitUntil { await results.consumed > paused }
+        m.stop()
+        let afterResume = await results.consumed
+        XCTAssertGreaterThan(afterResume, paused, "回前台应恢复循环并补发探针")
+    }
+
+
     /// 轮询条件直到为真或超时。（复用 ConnectionStoreTests.swift 内实现）
     private func waitUntil(timeout: TimeInterval = 3,
                           _ condition: () async -> Bool) async throws {

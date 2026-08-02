@@ -73,6 +73,7 @@ final class HeartbeatMonitor {
                     self.consecutiveMisses += 1
                     if self.consecutiveMisses >= self.config.missThreshold {
                         self.consecutiveMisses = 0
+                        self.loopTask = nil   // 释放句柄，使 start()/回前台可经 restartLoopIfNeeded 重启
                         await self.onUnhealthy()
                         return   // 判死后停循环，交由 ConnectionStore 走重连；恢复由 start() 重启
                     }
