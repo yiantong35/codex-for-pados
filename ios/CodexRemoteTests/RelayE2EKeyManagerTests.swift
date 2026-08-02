@@ -19,6 +19,16 @@ private struct ThrowingKeyStore: KeyStoring {
     func deleteKey() {}
 }
 
+/// 底层 keychain 写失败的替身：`saveKeyThrowing` 恒抛（模拟 keychain 写盘失败）。
+/// 用于锁死 relay 身份落盘 fail-closed —— 写失败必须继续 throw、绝不回退为吞掉的 fail-open。
+private struct FailingKeychainStore: KeyStoring {
+    struct WriteFailed: Error {}
+    func saveKey(_ value: Data) {}
+    func saveKeyThrowing(_ value: Data) throws { throw WriteFailed() }
+    func loadKey() -> Data? { nil }
+    func deleteKey() {}
+}
+
 @MainActor
 final class RelayE2EKeyManagerTests: XCTestCase {
 
@@ -37,6 +47,18 @@ final class RelayE2EKeyManagerTests: XCTestCase {
         let m = RelayE2EKeyManager(store: ThrowingKeyStore())
         XCTAssertThrowsError(try m.identityKey())         // 落盘失败必抛
         XCTAssertThrowsError(try m.identityKey())         // 未缓存 → 再次仍抛（不会返回上次的“成功”密钥）
+    }
+
+    /// 底层 keychain 写盘失败时，relay 身份落盘路径（`saveKeyThrowing`）必须继续 throw、绝不吞掉。
+    /// 锁死 relay 身份持久化 fail-closed，防未来回归为 fail-open（静默成功但实际未落盘）。
+    /// 经真实注入 seam `RelayE2EKeyManager(store:)` → `identityKey()` → `store.saveKeyThrowing` 验证。
+    func test_relayIdentity_saveKeyThrowing_propagatesWriteFailure() {
+        let failing = FailingKeychainStore()             // saveKeyThrowing 恒抛（模拟 keychain 写盘失败）
+        let m = RelayE2EKeyManager(store: failing)
+        XCTAssertThrowsError(try m.identityKey()) { error in
+            XCTAssertTrue(error is FailingKeychainStore.WriteFailed,
+                          "写失败应原样传播、不被吞掉为 fail-open")
+        }
     }
 
     /// 落盘成功 → 缓存并幂等复用（重启从同一 store 重建拿同一身份）。
