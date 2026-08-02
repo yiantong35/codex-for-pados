@@ -46,7 +46,6 @@
 		27C11FFD572F6EB3E333175B /* TurnDiffStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9164D6EECFD1ED77AC8C6411 /* TurnDiffStats.swift */; };
 		289A717B1B9C54F8C292F4A1 /* PrivacySettingsSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0BBF79B45ABAEB063158ED2 /* PrivacySettingsSectionView.swift */; };
 		29756517ABA6664CC3AA61CA /* RelaySchemeValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDEDD34B93B84FFE3F7BD3B0 /* RelaySchemeValidator.swift */; };
-		2D322EE14909CDF6A7041FF6 /* ConnectionConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B894142E63413C7F50ACF58 /* ConnectionConfigView.swift */; };
 		2D8BF04A246C60A34DEC58C1 /* AccountSettingsSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FED3F0DE30E4B891F51D1B1A /* AccountSettingsSectionView.swift */; };
 		2DFB2CAF97BD2AB649FA006C /* ConnectionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB4E24CD7D089598C083CD03 /* ConnectionStore.swift */; };
 		2E22F5B05273F39AC264E778 /* ProtocolTypesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFD990BEF80BA894D65E3CC8 /* ProtocolTypesTests.swift */; };
@@ -351,7 +350,6 @@
 		99616A4BE43A7944EC073310 /* WorkspaceMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceMetrics.swift; sourceTree = "<group>"; };
 		99A9FA53DC2DFA3F7E44AD28 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		99F655DD85E105FE65CF9AE9 /* OrientationSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrientationSnapshotTests.swift; sourceTree = "<group>"; };
-		9B894142E63413C7F50ACF58 /* ConnectionConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionConfigView.swift; sourceTree = "<group>"; };
 		9D25848DEEC9BB5B48C3516B /* HookTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookTypes.swift; sourceTree = "<group>"; };
 		9D26DCBD5544E3BF101581D9 /* ExtensionCountTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionCountTests.swift; sourceTree = "<group>"; };
 		9DC1E8FE94E8A15D040ECBA7 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
@@ -545,7 +543,6 @@
 				9DC1E8FE94E8A15D040ECBA7 /* .gitkeep */,
 				DB846AD2F27716658BCDC96E /* ApprovalCardView.swift */,
 				AAA0FE80258221769494D174 /* ComposerView.swift */,
-				9B894142E63413C7F50ACF58 /* ConnectionConfigView.swift */,
 				D9267A14CDE31BC18019A9A4 /* ConversationView.swift */,
 				B28B55394161516599E51420 /* EnvironmentPanelView.swift */,
 				F739862A665E7A7C169F4704 /* InspectorView.swift */,
@@ -948,7 +945,6 @@
 				00D035F4CCE176BD3E53D4F1 /* CodexRemoteApp.swift in Sources */,
 				21A48E36A65B616146137A97 /* ColumnWidthStore.swift in Sources */,
 				E49F3B1FD0579B617A8365B0 /* ComposerView.swift in Sources */,
-				2D322EE14909CDF6A7041FF6 /* ConnectionConfigView.swift in Sources */,
 				2DFB2CAF97BD2AB649FA006C /* ConnectionStore.swift in Sources */,
 				A5E3135117192215A58A0725 /* ConversationModels.swift in Sources */,
 				A0657FFE6724B05B96DEEF24 /* ConversationStore.swift in Sources */,
