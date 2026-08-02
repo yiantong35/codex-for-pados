@@ -48,6 +48,10 @@ struct ConversationView: View {
         .onChange(of: store?.state) { _, newValue in
             activeConversation.state = newValue
         }
+        .onChange(of: connection.phase) { _, newPhase in
+            // reconnect-resync item 3：连接迁移到 .ready → drain 出站队列（补发离线期间缓存的输入）。
+            if newPhase == .ready { store?.drainOutbox() }
+        }
         .onDisappear {
             store?.stopObserving()
             activeConversation.state = nil; activeConversation.fetchFullDiff = nil; activeConversation.startReview = nil
@@ -80,6 +84,8 @@ struct ConversationView: View {
         .task(id: threadId) {
             guard let rpc = connection.rpc else { return }
             let s = ConversationStore(rpc: rpc, threadId: threadId)
+            // reconnect-resync item 3：注入连接就绪信号，供 send 判定在线/离线分支。
+            s.isReady = { [weak connection] in connection?.phase == .ready }
             await s.startObserving()   // 先完成订阅注册（async），再 resume，避免漏掉随后到达的事件
             await s.resume()        // session-management：恢复已有会话历史
             store = s

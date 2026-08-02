@@ -47,11 +47,11 @@ final class MidTurnControlTests: XCTestCase {
         XCTAssertFalse(ok)
     }
 
-    /// 排队：turn 进行中 enqueue 仅暂存，不立即发 turn/start。
+    /// 排队：turn 进行中 enqueue 仅暂存，不立即发 turn/start（drain 被 isTurnRunning 挡住）。
     func testEnqueueBuffersWhenRunning() async throws {
         let (store, mock) = await runningStore()
-        store.enqueue(input: [.text("later")])
-        XCTAssertEqual(store.queuedInputs.count, 1)
+        await store.enqueue(input: [.text("later")])
+        XCTAssertEqual(store.outbox.count, 1)
         // 没有新的 turn/start（注意排除 turn/started 通知，那是服务端帧不是 sent）
         let hasTurnStart = await mock.sent.contains { $0.contains("turn/start") }
         XCTAssertFalse(hasTurnStart)
@@ -60,10 +60,10 @@ final class MidTurnControlTests: XCTestCase {
     /// 排队后收到 turn/completed → 自动出队发 turn/start。
     func testEnqueueDrainsOnTurnCompleted() async throws {
         let (store, mock) = await runningStore()
-        store.enqueue(input: [.text("later")])
-        await mock.feed(#"{"jsonrpc":"2.0","method":"turn/completed","params":{}}"#)
+        await store.enqueue(input: [.text("later")])
+        await mock.feed(#"{"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"t1"}}"#)
         try await waitUntil { await mock.sent.contains { $0.contains("turn/start") } }
-        XCTAssertTrue(store.queuedInputs.isEmpty)
+        XCTAssertTrue(store.outbox.isEmpty)
     }
 
     /// interrupt：发 turn/interrupt + threadId。

@@ -193,6 +193,64 @@ final class ApprovalStoreTests: XCTestCase {
         XCTAssertNil(perms["fileSystem"], "未请求 fileSystem 却授予了 fileSystem 访问（过授）")
     }
 
+    // MARK: - reconnect-resync item 1：重放幂等去重
+
+    /// 断线标记 awaitingRecovery → 同 requestId 重放 → 只剩一张卡且标记已清。
+    func test_reconnect_replay_same_request_id_dedups_and_clears_recovery() {
+        let store = ApprovalStore()
+        let req = JSONRPCRequest(id: .string("r1"),
+            method: ServerRequestMethod.cmdApprovalV2,
+            params: AnyCodable(["threadId": "t1", "command": "rm -rf x"]))
+        store.handle(request: req)
+        XCTAssertEqual(store.cards.count, 1)
+
+        store.handleConnectionLost()
+        XCTAssertEqual(store.cards.first?.awaitingRecovery, true, "断线应标记待恢复")
+
+        // 重连后 server 用原始 requestId 重放同一审批
+        store.handle(request: req)
+        XCTAssertEqual(store.cards.count, 1, "同 requestId 重放不得产生第二张卡")
+        XCTAssertEqual(store.cards.first?.awaitingRecovery, false, "重放原地替换应清除断线标记")
+    }
+
+    /// 不同 requestId → 两张卡（不误合并）。
+    func test_distinct_request_ids_keep_separate_cards() {
+        let store = ApprovalStore()
+        store.handle(request: JSONRPCRequest(id: .string("r1"),
+            method: ServerRequestMethod.cmdApprovalV2,
+            params: AnyCodable(["threadId": "t1", "command": "a"])))
+        store.handle(request: JSONRPCRequest(id: .string("r2"),
+            method: ServerRequestMethod.cmdApprovalV2,
+            params: AnyCodable(["threadId": "t1", "command": "b"])))
+        XCTAssertEqual(store.cards.count, 2)
+    }
+
+    /// 同 id 重放载荷变化（diff 更新）→ 原地替换取新载荷。
+    func test_replay_same_id_updates_payload() {
+        let store = ApprovalStore()
+        store.handle(request: JSONRPCRequest(id: .string("f1"),
+            method: ServerRequestMethod.fileApprovalV2,
+            params: AnyCodable(["threadId": "t1", "file": "main.swift", "diff": "+ old"])))
+        store.handle(request: JSONRPCRequest(id: .string("f1"),
+            method: ServerRequestMethod.fileApprovalV2,
+            params: AnyCodable(["threadId": "t1", "file": "main.swift", "diff": "+ new"])))
+        XCTAssertEqual(store.cards.count, 1)
+        XCTAssertEqual(store.cards.first?.detail, "+ new", "同 id 重放应刷新为新载荷")
+    }
+
+    /// 边界回归：断线只标记，绝不自动批准（不调用 resolver）。
+    func test_connection_lost_never_auto_approves() {
+        let store = ApprovalStore()
+        var resolverCalled = false
+        store.resolver = { _, _ in resolverCalled = true }
+        store.handle(request: JSONRPCRequest(id: .string("r1"),
+            method: ServerRequestMethod.cmdApprovalV2,
+            params: AnyCodable(["threadId": "t1", "command": "rm"])))
+        store.handleConnectionLost()
+        XCTAssertFalse(resolverCalled, "断线绝不自动批准")
+        XCTAssertEqual(store.cards.count, 1, "断线不移除卡片")
+    }
+
     // 辅助：轮询直到条件满足或超时。
     private func waitUntil(timeout: TimeInterval = 2,
                            _ cond: @escaping () async -> Bool) async throws {
