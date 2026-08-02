@@ -477,3 +477,35 @@ final class ConnectionStore {
         return try JSONDecoder().decode(t, from: data)
     }
 }
+
+/// 连接异常横幅态（缺口 3、4）。隐藏为 `nil`。
+/// 信任撤销（`needsRePairing`）优先于普通 `failed`：撤销需引导重新配对，failed 只需重连。
+enum ConnectionBannerState: Equatable {
+    case reconnecting   // 黄，无按钮：ws 抖动内部重连中
+    case failed         // 红 +「重新连接」：终态可手动重连
+    case trustRevoked   // 红 +「重新配对」：开发机撤销信任，需回配对入口
+}
+
+extension ConnectionStore {
+    /// phase / needsRePairing → 横幅态映射（隐藏为 nil）。
+    /// needsRePairing 为真 → `.trustRevoked`（优先于普通 failed）；
+    /// 否则 `.reconnecting`→`.reconnecting`、`.failed`→`.failed`、
+    /// 其余（`.ready`/`.initializing`/`.connecting`/`.disconnected`）→ nil（隐藏）。
+    var bannerState: ConnectionBannerState? {
+        if needsRePairing { return .trustRevoked }
+        switch phase {
+        case .reconnecting: return .reconnecting
+        case .failed:       return .failed
+        default:            return nil
+        }
+    }
+}
+
+#if DEBUG
+extension ConnectionStore {
+    /// 测试钩子：直接置 phase（`phase` 为 private(set)，仅测试经 @testable import 写入）。
+    func _test_setPhase(_ p: ConnectionPhase) { phase = p }
+    /// 测试钩子：模拟信任撤销终态（needsRePairing=true + phase=.failed）。
+    func _test_setTrustRevoked() { phase = .failed("trust"); needsRePairing = true }
+}
+#endif

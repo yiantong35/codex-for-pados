@@ -25,6 +25,7 @@
 		10A1C58C4166B18E6FC2A98C /* TOFUStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0999A9679BAAF2E1025AF139 /* TOFUStoreTests.swift */; };
 		11231A3D1912AE0AFB4B1764 /* ProxyChannelHandshakeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EA28631762E53EE736EF206 /* ProxyChannelHandshakeTests.swift */; };
 		123F9BDEDD1CADB7A435CB82 /* ConnectionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5B0B06C966AB8B15879FD39 /* ConnectionStoreTests.swift */; };
+		AABB01CC02DD03EE04FF0501 /* ConnectionBannerStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB01CC02DD03EE04FF0502 /* ConnectionBannerStateTests.swift */; };
 		124FCC4A0263929DB468A220 /* SessionsManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FF61393064B1C493E29C2C1 /* SessionsManagerTests.swift */; };
 		13472DEE88E768A9DEF5651A /* MockTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0BD4E81945814B56FD25C0 /* MockTransport.swift */; };
 		142D103FF649F0A64E61AA5B /* TabIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 736E98A7EB71F45039360A2F /* TabIndicator.swift */; };
@@ -452,6 +453,7 @@
 		F547E588BB81CCBE715381AD /* PluginsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginsStoreTests.swift; sourceTree = "<group>"; };
 		F59BCD443AF36F312C9CA334 /* ApprovalCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalCoordinator.swift; sourceTree = "<group>"; };
 		F5B0B06C966AB8B15879FD39 /* ConnectionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStoreTests.swift; sourceTree = "<group>"; };
+		AABB01CC02DD03EE04FF0502 /* ConnectionBannerStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionBannerStateTests.swift; sourceTree = "<group>"; };
 		F6C01C7EC77E19B927C5E72B /* CodexRemoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexRemoteApp.swift; sourceTree = "<group>"; };
 		F6E051CE764D3EE15E6642FC /* PendingPairingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingPairingStore.swift; sourceTree = "<group>"; };
 		F739862A665E7A7C169F4704 /* InspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorView.swift; sourceTree = "<group>"; };
@@ -751,6 +753,7 @@
 				161566406F96EB16EABE135F /* ColumnWidthStoreTests.swift */,
 				4F754E4C6FFCD98511A018C7 /* ConnectionConfigLogicTests.swift */,
 				F5B0B06C966AB8B15879FD39 /* ConnectionStoreTests.swift */,
+				AABB01CC02DD03EE04FF0502 /* ConnectionBannerStateTests.swift */,
 				571F13286F5DC954B383D3E6 /* ConversationCoalesceSchedulingTests.swift */,
 				BED69C1A4C21EDC189C91549 /* ConversationSendTests.swift */,
 				89C550C754DB48091C44F7E5 /* ConversationStoreTests.swift */,
@@ -1090,6 +1093,7 @@
 				B1B3F3C51EF2A1510BB314BF /* ColumnWidthStoreTests.swift in Sources */,
 				F5F9A7DF65AACB67852B1BE4 /* ConnectionConfigLogicTests.swift in Sources */,
 				123F9BDEDD1CADB7A435CB82 /* ConnectionStoreTests.swift in Sources */,
+				AABB01CC02DD03EE04FF0501 /* ConnectionBannerStateTests.swift in Sources */,
 				032F1CAB7CA522F27E5C65F6 /* ConversationCoalesceSchedulingTests.swift in Sources */,
 				FE6A974BE19F86D1C57CB9AB /* ConversationSendTests.swift in Sources */,
 				BC80BF4355D7BC31B80A49D8 /* ConversationStoreTests.swift in Sources */,
