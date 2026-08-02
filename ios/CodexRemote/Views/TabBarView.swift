@@ -115,6 +115,7 @@ struct DotView: View {
             case .running: dot(.green)
             case .attention: dot(.orange)
             case .error: dot(.red)
+            case .disconnected: dot(.gray)   // 连接异常灰点，非闪烁
             }
         }
         .opacity(indicator.isBlinking && dim ? 0.25 : 1)

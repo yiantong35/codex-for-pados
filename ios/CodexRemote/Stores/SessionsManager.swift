@@ -123,11 +123,13 @@ final class SessionsManager {
     /// 未建 Session（懒连未连）→ .none（符合「未连接无点」）。
     /// isSelected 传 false：tab 级聚合不针对单个选中会话。
     func indicator(for id: UUID) -> TabIndicator {
-        guard let s = cache[id] else { return .none }   // 未建 Session（未连）→ 无点
-        let connected = s.connection.phase == .ready
+        guard let s = cache[id] else { return .none }   // 未建 Session（懒连未连）→ 无点
+        // 已建但连接非就绪 → 灰点（disconnected）。红灰正交：灰点在此上层给出，
+        // resolve 仅在 .ready 前提下评估会话状态（红点仅由 systemError 在已连接时触发）。
+        guard s.connection.phase == .ready else { return .disconnected }
         let statuses = s.projects.allThreadsSorted.compactMap { s.projects.status(of: $0.id) }
         let hasUnread = s.projects.allThreadsSorted.contains { s.projects.hasUnread($0, isSelected: false) }
-        return TabIndicator.resolve(isConnected: connected, statuses: statuses, hasUnread: hasUnread)
+        return TabIndicator.resolve(isConnected: true, statuses: statuses, hasUnread: hasUnread)
     }
 
     /// 添加机器表单呈现标志。T8 接表单 sheet（@Observable 类里普通存储属性自动可观察）。
