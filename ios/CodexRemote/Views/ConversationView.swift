@@ -96,7 +96,7 @@ struct ConversationView: View {
             activeConversation.startReview = { [weak s] mode in await s?.startReview(mode: mode) ?? false }
             // 首连/重连成功（.ready）→ 经官方 thread/loaded/list +
             // thread/resume(rejoin) 重建并重新订阅全部活跃 thread（§5），不依赖本地 seq/threadId。
-            // 注：SSH 通道物理重连属 Phase 5，当前 ProxyChannel 的 control() 为空流。
+            // 注：物理重连属 Phase 5，当前 relay transport 的 control() 为空流。
             connection.setResumeHandler { [weak s] in await s?.rejoinRunningThreads() }
             // D2：保持本任务存活，把正文订阅生命周期绑定到 threadId。threadId 变化 / 视图消失时
             // SwiftUI 取消本 .task → Task.sleep 抛出 → defer 停止**本** store 的订阅，避免旧 observer

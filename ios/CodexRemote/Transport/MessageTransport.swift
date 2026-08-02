@@ -17,7 +17,7 @@ protocol MessageTransport: Sendable {
 }
 
 extension MessageTransport {
-    /// 控制信号通道默认实现：无控制信号的 transport（如 MockTransport / 当前 ProxyChannel）返回空流。
+    /// 控制信号通道默认实现：无控制信号的 transport（如 MockTransport）返回空流。
     /// 具备物理重连能力的 transport 可覆写以上报 reconnecting/ready（SSH 重连属 Phase 5）。
     func control() -> AsyncStream<TransportControlEvent> {
         AsyncStream { $0.finish() }
@@ -26,7 +26,7 @@ extension MessageTransport {
     /// 默认：无独立 ws 握手阶段的 transport 立即返回。
     func awaitHandshake() async throws { }
 
-    /// 默认：无重连能耗管理的 transport（MockTransport / ProxyChannel）忽略前台/后台切换。
+    /// 默认：无重连能耗管理的 transport（MockTransport）忽略前台/后台切换。
     /// 具备物理重连能力的 transport（RelayTransport）可覆写以在后台暂停重连。
     func setForeground(_ active: Bool) async { }
 }

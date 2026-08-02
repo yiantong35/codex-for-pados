@@ -77,7 +77,7 @@ final class ConnectionStore {
     private var config: ConnectionConfig?
     private var transport: MessageTransport?
     /// 当前 attempt 正在构建、尚未落地的 transport。超时/被新连接或 disconnect 作废时须关闭它，
-    /// 触发其 close() → ProxyChannel 标记握手失败 → awaitHandshake 抛出 → doEstablish 解挂（#1 防泄漏）。
+    /// 触发其 close() → transport 标记握手失败 → awaitHandshake 抛出 → doEstablish 解挂（#1 防泄漏）。
     private var inFlightTransport: MessageTransport?
     private var resumeHandler: (@Sendable () async -> Void)?
     private var controlObserver: Task<Void, Never>?
@@ -195,7 +195,7 @@ final class ConnectionStore {
             connLog.error("connect 超时 attempt=\(attempt)")
             self.phase = .failed(ConnectionTimeoutError().errorDescription ?? "连接超时")
             self.activeAttempt += 1   // 作废仍在后台跑的 establish（其完成时 token 不匹配 → 忽略）
-            // #1：关闭本 attempt 仍在构建的在途 transport，令其 close() 运行（ProxyChannel 标记
+            // #1：关闭本 attempt 仍在构建的在途 transport，令其 close() 运行（transport 标记
             // 握手失败 → awaitHandshake 抛出 → doEstablish 解挂），避免传输连接 + 挂起任务泄漏。
             let inflight = self.inFlightTransport
             self.inFlightTransport = nil
