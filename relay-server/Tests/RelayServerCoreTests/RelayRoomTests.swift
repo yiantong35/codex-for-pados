@@ -28,6 +28,23 @@ import RelayProtocol
     #expect(first == 1 && second == 0)   // 先到收到转发，后到从未接管
 }
 
+// ⑥d：对端未加入时 forward 的帧被缓冲，对端 join 后按原序全部投递。
+@Test func framesBufferedUntilPeerJoinsThenDeliveredInOrder() {
+    let rooms = RelayRooms()
+    var devRx: [String] = []
+    // iPad 先 join 并连发 3 帧；dev 尚未加入 → 缓冲。
+    rooms.join(sessionId: "s", role: .iPad) { _ in }
+    rooms.forward(sessionId: "s", from: .iPad, frame: "a")
+    rooms.forward(sessionId: "s", from: .iPad, frame: "b")
+    rooms.forward(sessionId: "s", from: .iPad, frame: "c")
+    #expect(devRx.isEmpty)                       // 对端未加入 → 尚未投递
+    rooms.join(sessionId: "s", role: .devMachine) { devRx.append($0) }
+    #expect(devRx == ["a", "b", "c"])            // dev 加入后按原序全投
+    // 其后实时转发衔接在 flush 之后。
+    rooms.forward(sessionId: "s", from: .iPad, frame: "d")
+    #expect(devRx == ["a", "b", "c", "d"])
+}
+
 // D4/3.3：旧 connId 的迟到/重复 leave 不得误清已在槽内的较新连接。
 @Test func staleLeaveByOldConnIdDoesNotEvictNewer() {
     let rooms = RelayRooms()
