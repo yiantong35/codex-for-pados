@@ -19,7 +19,8 @@ import RelayDialoutCore
 //     bridge.incoming 明文 → session.seal → env.encoded() → ws 发 relay。
 //  5. pairingCode 用过一次即失效（握手成功后置内存标记）。
 //
-// 本 task 求编译通过 + 逻辑正确；端到端由 Task 13/真机验证。ws 接线复杂处标注 TODO。
+// ws 客户端拨出 relay 已落地（DialoutWSHandler 收发 + 帧分发已由 RelayDialoutCore 测试覆盖）；
+// 端到端拨号由真机验收。
 
 // MARK: 配置（环境变量 / 默认）
 let env = ProcessInfo.processInfo.environment
@@ -125,14 +126,13 @@ let context = DialoutContext(keyStore: keyStore, devDeviceId: devDeviceId,
 
 // MARK: 2/3. NIO ws 客户端拨出 relay + 帧分发（wss 前置 TLS，ws 明文保留本地测试）
 //
-// TODO(Task 13/集成): 下面为 ws 客户端拨出骨架。关键点：
+// ws 客户端拨出 relay 的实现（已落地）：
 //   - ClientBootstrap 连到 relayURL 的 host:port，addHTTPClientHandlers，
 //     NIOWebSocketClientUpgrader 发 GET /relay/{sessionId} + header x-role: devMachine。
 //   - upgradePipelineHandler 里装 DialoutWSHandler，按帧分发到上面的 handshake 函数；
 //     建通道后收 SecureEnvelope → session.open → bridge.write，
 //     bridge.incoming 明文 → session.seal → env.encoded() → 写 ws text frame。
 //   - 断线/过期清理：调用 bridge.terminate() 只停自己 spawn 的 proxy 子进程。
-// 端到端拨号编排靠集成阶段落地；此处先固化握手/桥接主干逻辑与类型。
 
 /// ws 帧处理器：把 relay 收到的帧路由到握手/桥接逻辑，把 proxy 输出加密回发。
 final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
@@ -166,6 +166,8 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
     private func handlePayload(_ data: Data, ctx: ChannelHandlerContext) {
         if let session = context.session, let env = try? SecureEnvelope(decoding: data) {
             // 建通道后：密文 → 解密 → 写 proxy stdin。
+            // dev 侧只期望 iPad 发来的应用数据帧；非预期 kind（如 secureReady）fail-closed 丢弃，不静默放行。
+            guard env.kind == .appData else { return }
             guard let plaintext = try? session.open(env) else { return }
             ensureBridgeStarted()
             if let s = String(data: plaintext, encoding: .utf8) {
@@ -221,7 +223,7 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
         Task {
             for await line in bridge.incoming {
                 guard let session = ctxRef.session,
-                      let env = try? session.seal(Data(line.utf8)),
+                      let env = try? session.seal(Data(line.utf8), kind: .appData),
                       let encoded = try? env.encoded() else { continue }
                 channel.eventLoop.execute {
                     var buf = channel.allocator.buffer(capacity: encoded.count)
@@ -241,7 +243,7 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
     }
 }
 
-// MARK: ws 拨出骨架
+// MARK: ws 拨出
 let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
 let bridge = ProxyBridge(codexPath: codexPath, sockPath: sockPath)
 
@@ -253,7 +255,7 @@ let isTLS = url.scheme == "wss"
 let port = url.port ?? (isTLS ? 443 : 80)
 let uri = "/relay/\(sessionId)"
 
-// MARK: ws 拨出骨架（wss：前置客户端 TLS；ws：明文，仅本地测试）
+// MARK: ws 拨出（wss：前置客户端 TLS；ws：明文，仅本地测试）
 let bootstrap = ClientBootstrap(group: group)
     .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
     .channelInitializer { channel in

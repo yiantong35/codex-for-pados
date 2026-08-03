@@ -145,23 +145,6 @@ actor RelayTransport: MessageTransport {
         self.controlContinuation = ctlCont
     }
 
-    /// 占位构造路径：仅给定 ws、无握手输入、无工厂。真 ws 连接与握手编排尚未接入的调用方用它构造；
-    /// `awaitHandshake` 会因缺输入落 `.failed`。
-    init(ws: RelayWSChannel) {
-        self.session = nil
-        self.ws = ws
-        self.channelFactory = nil
-        self.handshakeState = .pending
-        self.handshakeInputs = nil
-        self.reconnect = RelayReconnectPolicy()
-        var inCont: AsyncThrowingStream<String, Error>.Continuation!
-        self.incomingStream = AsyncThrowingStream<String, Error>(bufferingPolicy: .unbounded) { inCont = $0 }
-        self.incomingContinuation = inCont
-        var ctlCont: AsyncStream<TransportControlEvent>.Continuation!
-        self.controlStream = AsyncStream<TransportControlEvent>(bufferingPolicy: .unbounded) { ctlCont = $0 }
-        self.controlContinuation = ctlCont
-    }
-
     /// 真握手 + 断线重连构造路径：注入 channel factory + 配对载荷 + iPad 身份 + ephemeral 工厂 + TOFU。
     /// `awaitHandshake()` 触发 `performHandshake()`：调 `channelFactory()` 造通道 → 编排 4 消息握手建
     /// SecureSession。read loop 检测瞬断即调工厂造新通道重握手（退避 + 上限，见 `reconnect`）。
@@ -228,7 +211,13 @@ actor RelayTransport: MessageTransport {
                 }
                 let env = try SecureEnvelope(decoding: Data(frame.utf8))
                 let plaintext = try session.open(env)
-                emit(String(decoding: plaintext, as: UTF8.self))
+                switch env.kind {
+                case .appData:
+                    emit(String(decoding: plaintext, as: UTF8.self))
+                case .secureReady:
+                    // 业务 read loop 不期望再收 SecureReady（握手期已消费）；fail-closed 忽略，不误当应用数据 emit。
+                    rtLog.error("read loop 收到意外 SecureReady 帧，忽略")
+                }
             }
         } catch {
             rtLog.error("read loop 退出/抛错: \(String(describing: error), privacy: .public)")
@@ -479,6 +468,10 @@ actor RelayTransport: MessageTransport {
             throw TransportError.channelClosed(reason: "握手中连接关闭（等 SecureReady）")
         }
         let readyEnv = try SecureEnvelope(decoding: Data(readyText.utf8))
+        guard readyEnv.kind == .secureReady else {
+            // 握手期只接受 SecureReady 帧；非预期 kind fail-closed 拒绝，不误当业务/其它帧处理。
+            throw TransportError.channelClosed(reason: "握手期期望 SecureReady 帧，实际 kind=\(readyEnv.kind)")
+        }
         let readyPlain = try secure.open(readyEnv)
         let secureReady = try JSONDecoder().decode(SecureReady.self, from: readyPlain)
         inputs.stableSessionStore.save(machineKey: inputs.tofuMachineKey,
@@ -494,7 +487,7 @@ actor RelayTransport: MessageTransport {
 
     func send(_ text: String) async throws {
         guard let session, let ws else { throw TransportError.notConnected }
-        let env = try session.seal(Data(text.utf8))
+        let env = try session.seal(Data(text.utf8), kind: .appData)
         let frame = String(decoding: try env.encoded(), as: UTF8.self)
         try await ws.sendText(frame)
     }

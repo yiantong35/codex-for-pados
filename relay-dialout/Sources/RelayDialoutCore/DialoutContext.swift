@@ -182,7 +182,7 @@ public final class DialoutContext: @unchecked Sendable {
         // 构造并加密 SecureReady（走已建通道回传稳定 sessionId）。
         let ready = SecureReady(sessionId: hello.sessionId, keyEpoch: 0,
                                 devDeviceId: devDeviceId, stableSessionId: stable)
-        let env = try session.seal(JSONEncoder().encode(ready))
+        let env = try session.seal(JSONEncoder().encode(ready), kind: .secureReady)
         return try env.encoded()
     }
 }

@@ -17,7 +17,7 @@ public final class SecureSession: @unchecked Sendable {
     private var lastInbound: UInt64 = 0
     private let lock = NSLock()
 
-    public init(role: RelayPeer, keys: KeySchedule.DirectionalKeys, sessionId: String, keyEpoch: UInt32) {
+    init(role: RelayPeer, keys: KeySchedule.DirectionalKeys, sessionId: String, keyEpoch: UInt32) {
         self.role = role; self.keys = keys; self.sessionId = sessionId; self.keyEpoch = keyEpoch
     }
 
@@ -33,15 +33,18 @@ public final class SecureSession: @unchecked Sendable {
         return try! AES.GCM.Nonce(data: Data(bytes))
     }
 
-    public func seal(_ plaintext: Data) throws -> SecureEnvelope {
+    public func seal(_ plaintext: Data, kind: RelayFrameKind) throws -> SecureEnvelope {
         lock.lock(); defer { lock.unlock() }
         outboundCounter += 1
         let counter = outboundCounter
         let key = keys.sendKey(as: role)
         let nonce = Self.nonce(sender: role, counter: counter)
-        let box = try AES.GCM.seal(plaintext, using: key, nonce: nonce)
+        let aad = SecureEnvelope.headerAAD(v: RelayProtocolVersion.wire, keyEpoch: keyEpoch,
+                                           sessionId: sessionId, sender: role, counter: counter, kind: kind)
+        let box = try AES.GCM.seal(plaintext, using: key, nonce: nonce, authenticating: aad)
         return SecureEnvelope(v: RelayProtocolVersion.wire, sessionId: sessionId, keyEpoch: keyEpoch,
-                              sender: role, counter: counter, ciphertext: box.ciphertext, tag: box.tag)
+                              sender: role, counter: counter, kind: kind,
+                              ciphertext: box.ciphertext, tag: box.tag)
     }
 
     public func open(_ env: SecureEnvelope) throws -> Data {
@@ -52,7 +55,8 @@ public final class SecureSession: @unchecked Sendable {
         let nonce = Self.nonce(sender: env.sender, counter: env.counter)
         do {
             let box = try AES.GCM.SealedBox(nonce: nonce, ciphertext: env.ciphertext, tag: env.tag)
-            let pt = try AES.GCM.open(box, using: key)
+            // AAD = 整个明文 header 的规范编码；篡改任一 header 字段（含 kind）→ tag 失配 → 抛错。
+            let pt = try AES.GCM.open(box, using: key, authenticating: env.aad())
             lastInbound = env.counter
             return pt
         } catch { throw SecureSessionError.decryptFailed }

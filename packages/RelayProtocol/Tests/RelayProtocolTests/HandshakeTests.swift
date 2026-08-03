@@ -93,7 +93,7 @@ private struct HandshakeHarness {
     let h = HandshakeHarness(pairingCode: "PAIR-OK")
     let session = try h.run(ipadPresentsCode: "PAIR-OK")
     #expect(session.ipad != nil && session.dev != nil)
-    let env = try session.ipad!.seal(Data("ping".utf8))
+    let env = try session.ipad!.seal(Data("ping".utf8), kind: .appData)
     #expect(try session.dev!.open(env) == Data("ping".utf8))
 }
 
@@ -318,7 +318,7 @@ private struct HandshakeHarness {
         ipadEphemeral: ipadEphemeral, devIdentityPub: devIdentity.publicKey.rawRepresentation)
 
     // 双向认证会话建立成功且加密通道可用。
-    let env = try ipadSession.seal(Data("ping".utf8))
+    let env = try ipadSession.seal(Data("ping".utf8), kind: .appData)
     #expect(try devSession.open(env) == Data("ping".utf8))
 }
 

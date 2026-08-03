@@ -70,6 +70,9 @@ func liveTransportFactory(_ config: ConnectionConfig) async throws -> MessageTra
         guard let id = machineId else { return }
         await MainActor.run { _ = PendingPairingStore.shared.take(for: id) }
     }
+    // 不变量：正常路径 relayTOFUKey 恒非空（MachineConfig 构造置 id.uuidString）；?? relayURL 仅为
+    // 类型收尾兜底，正常路径不可达。assert 固化契约、防未来回归误走兜底（release 下空操作，不改行为）。
+    assert(config.relayTOFUKey != nil, "relayTOFUKey 恒应非空；走 ?? relayURL 兜底说明上游契约被破坏")
     return try await makeRelayTransport(payload: payload,
                                         tofuMachineKey: config.relayTOFUKey ?? relayURL,
                                         consumePairingCode: consume)

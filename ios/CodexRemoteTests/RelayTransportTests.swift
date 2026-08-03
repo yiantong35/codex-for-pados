@@ -1,7 +1,7 @@
 import XCTest
 import Foundation
 import Crypto
-import RelayProtocol
+@testable import RelayProtocol
 @testable import CodexRemote
 
 /// RelayTransport 的加解密数据流单测。
@@ -44,6 +44,7 @@ final class RelayTransportTests: XCTestCase {
 
         // dev 解出的应是原始明文。
         let env = try SecureEnvelope(decoding: Data(frame.utf8))
+        XCTAssertEqual(env.kind, .appData, "send 出的应用数据帧应标记 .appData")
         let opened = try dev.open(env)
         XCTAssertEqual(String(decoding: opened, as: UTF8.self), "hello")
     }
@@ -56,7 +57,7 @@ final class RelayTransportTests: XCTestCase {
         let transport = RelayTransport(session: ipad, ws: ws)
 
         // dev 侧封一条 "world"，编码成 ws text frame 注入 mock ws。
-        let env = try dev.seal(Data("world".utf8))
+        let env = try dev.seal(Data("world".utf8), kind: .appData)
         let frame = String(decoding: try env.encoded(), as: UTF8.self)
 
         var iter = transport.incoming().makeAsyncIterator()
