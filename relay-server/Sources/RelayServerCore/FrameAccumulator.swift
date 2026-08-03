@@ -17,6 +17,11 @@ public enum RelayLimits {
     public static let maxTotalConnections = 2000
     /// 房间（sessionId）总数上限。
     public static let maxRooms = 500
+    /// ⑥d：每房间每方向「对端缺席待投递」缓冲的帧数上限。达上限 reject-newest（O(1) 拒新，无 memmove）。
+    public static let maxRoomBufferedFrames = 64
+    /// ⑥d：每房间每方向待投递缓冲的总字节上限（512 KiB）。达上限 reject-newest。
+    /// worst-case 内存 = maxRooms(500) × 512 KiB ≈ 256 MiB，有界可接受。
+    public static let maxRoomBufferedBytes = 512 * 1024
 }
 
 /// 分片文本帧累积器：累积到 fin 才产出整消息；超上限即 overflow（调用方须关连接）。
