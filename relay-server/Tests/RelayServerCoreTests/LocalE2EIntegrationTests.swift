@@ -99,14 +99,14 @@ private func makeHandshakePair(sessionId: String, pairingCode: String) throws ->
 
     // ---- 正向：iPad -> relay -> dev ----
     let requestText = "initialize request"
-    let reqEnv = try ipadSession.seal(Data(requestText.utf8))
+    let reqEnv = try ipadSession.seal(Data(requestText.utf8), kind: .appData)
     let reqFrame = String(decoding: try reqEnv.encoded(), as: UTF8.self)
     rooms.forward(sessionId: sessionId, from: .iPad, frame: reqFrame)
     #expect(devReceived == [requestText])
 
     // ---- 反向：dev -> relay -> iPad ----
     let responseText = "initialize response"
-    let respEnv = try devSession.seal(Data(responseText.utf8))
+    let respEnv = try devSession.seal(Data(responseText.utf8), kind: .appData)
     let respFrame = String(decoding: try respEnv.encoded(), as: UTF8.self)
     rooms.forward(sessionId: sessionId, from: .devMachine, frame: respFrame)
     #expect(ipadReceived == [responseText])

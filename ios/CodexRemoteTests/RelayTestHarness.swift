@@ -34,7 +34,7 @@ final class DevResponder: @unchecked Sendable {
         let data = Data(frame.utf8)
         if let session = _session, let env = try? SecureEnvelope(decoding: data) {
             let plaintext = try session.open(env)
-            let reply = try session.seal(plaintext + Data("-echo".utf8))
+            let reply = try session.seal(plaintext + Data("-echo".utf8), kind: .appData)
             return String(decoding: try reply.encoded(), as: UTF8.self)
         }
         if _clientHello == nil, let hello = try? JSONDecoder().decode(ClientHello.self, from: data) {
@@ -63,7 +63,7 @@ final class DevResponder: @unchecked Sendable {
             // 首配与复连都回发加密 SecureReady（msg 4），带 stableSessionId 供 iPad 持久化。
             let ready = SecureReady(sessionId: h.sessionId, keyEpoch: 0,
                                     devDeviceId: devDeviceId, stableSessionId: stableSessionId)
-            let env = try session.seal(JSONEncoder().encode(ready))
+            let env = try session.seal(JSONEncoder().encode(ready), kind: .secureReady)
             return String(decoding: try env.encoded(), as: UTF8.self)
         }
         return nil

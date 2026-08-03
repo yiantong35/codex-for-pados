@@ -211,7 +211,13 @@ actor RelayTransport: MessageTransport {
                 }
                 let env = try SecureEnvelope(decoding: Data(frame.utf8))
                 let plaintext = try session.open(env)
-                emit(String(decoding: plaintext, as: UTF8.self))
+                switch env.kind {
+                case .appData:
+                    emit(String(decoding: plaintext, as: UTF8.self))
+                case .secureReady:
+                    // 业务 read loop 不期望再收 SecureReady（握手期已消费）；fail-closed 忽略，不误当应用数据 emit。
+                    rtLog.error("read loop 收到意外 SecureReady 帧，忽略")
+                }
             }
         } catch {
             rtLog.error("read loop 退出/抛错: \(String(describing: error), privacy: .public)")
@@ -462,6 +468,10 @@ actor RelayTransport: MessageTransport {
             throw TransportError.channelClosed(reason: "握手中连接关闭（等 SecureReady）")
         }
         let readyEnv = try SecureEnvelope(decoding: Data(readyText.utf8))
+        guard readyEnv.kind == .secureReady else {
+            // 握手期只接受 SecureReady 帧；非预期 kind fail-closed 拒绝，不误当业务/其它帧处理。
+            throw TransportError.channelClosed(reason: "握手期期望 SecureReady 帧，实际 kind=\(readyEnv.kind)")
+        }
         let readyPlain = try secure.open(readyEnv)
         let secureReady = try JSONDecoder().decode(SecureReady.self, from: readyPlain)
         inputs.stableSessionStore.save(machineKey: inputs.tofuMachineKey,
@@ -477,7 +487,7 @@ actor RelayTransport: MessageTransport {
 
     func send(_ text: String) async throws {
         guard let session, let ws else { throw TransportError.notConnected }
-        let env = try session.seal(Data(text.utf8))
+        let env = try session.seal(Data(text.utf8), kind: .appData)
         let frame = String(decoding: try env.encoded(), as: UTF8.self)
         try await ws.sendText(frame)
     }

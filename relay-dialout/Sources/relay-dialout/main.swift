@@ -166,6 +166,8 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
     private func handlePayload(_ data: Data, ctx: ChannelHandlerContext) {
         if let session = context.session, let env = try? SecureEnvelope(decoding: data) {
             // 建通道后：密文 → 解密 → 写 proxy stdin。
+            // dev 侧只期望 iPad 发来的应用数据帧；非预期 kind（如 secureReady）fail-closed 丢弃，不静默放行。
+            guard env.kind == .appData else { return }
             guard let plaintext = try? session.open(env) else { return }
             ensureBridgeStarted()
             if let s = String(data: plaintext, encoding: .utf8) {
@@ -221,7 +223,7 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
         Task {
             for await line in bridge.incoming {
                 guard let session = ctxRef.session,
-                      let env = try? session.seal(Data(line.utf8)),
+                      let env = try? session.seal(Data(line.utf8), kind: .appData),
                       let encoded = try? env.encoded() else { continue }
                 channel.eventLoop.execute {
                     var buf = channel.allocator.buffer(capacity: encoded.count)
