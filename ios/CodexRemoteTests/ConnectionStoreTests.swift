@@ -392,6 +392,62 @@ final class ConnectionStoreTests: XCTestCase {
         }
     }
 
+    /// 4.1 心跳判死：注入恒 miss（probe 恒 false）的心跳，连续错过 missThreshold 次后
+    /// 应经 onUnhealthy → transport.triggerReconnect() 触发一次有界重连。
+    func test_heartbeatDeath_triggersReconnect() async throws {
+        let mock = ControlEmittingTransport()
+        let store = await ConnectionStore(
+            transportFactory: { _ in mock },
+            heartbeatFactory: { cb in
+                HeartbeatMonitor(config: .init(interval: .milliseconds(1), missThreshold: 2),
+                                 probe: { false }, onUnhealthy: cb.run,
+                                 sleep: { _ in await Task.yield() }) })
+        await feedInitializeResponse(mock)
+        await store.connect(config: .stub)
+        try await waitUntil { if case .ready = await store.phase { return true }; return false }
+        try await waitUntil { await mock.triggerReconnectCount >= 1 }
+        let count = await mock.triggerReconnectCount
+        XCTAssertGreaterThanOrEqual(count, 1, "连续错过 2 次应触发一次有界重连")
+    }
+
+    /// 4.1 peer-left 提示 + 探针 miss：收到 peer-left 后补发 probeOnce，探针未回响 → 判死 → 触发重连。
+    func test_peerLeft_probeMiss_triggersReconnect() async throws {
+        let mock = ControlEmittingTransport()
+        let store = await ConnectionStore(
+            transportFactory: { _ in mock },
+            heartbeatFactory: { cb in
+                HeartbeatMonitor(config: .init(interval: .milliseconds(1), missThreshold: 2),
+                                 probe: { false }, onUnhealthy: cb.run,
+                                 sleep: { _ in await Task.yield() }) })
+        await feedInitializeResponse(mock)
+        await store.connect(config: .stub)
+        try await waitUntil { if case .ready = await store.phase { return true }; return false }
+        await mock.emitControl(.peerLeft)
+        try await waitUntil { await mock.triggerReconnectCount >= 1 }
+        let count = await mock.triggerReconnectCount
+        XCTAssertGreaterThanOrEqual(count, 1, "peer-left 后探针 miss 应判死并触发重连")
+    }
+
+    /// 4.1 防降级红线：peer-left 是提示非判决。健康时（探针恒 hit）收到伪造 peer-left
+    /// 不得改 phase、不得断开、不得重连——判死权只在端到端心跳。
+    func test_peerLeft_probeHit_ignored_staysReady() async throws {
+        let mock = ControlEmittingTransport()
+        let store = await ConnectionStore(
+            transportFactory: { _ in mock },
+            heartbeatFactory: { cb in
+                HeartbeatMonitor(config: .init(interval: .milliseconds(1), missThreshold: 2),
+                                 probe: { true }, onUnhealthy: cb.run,
+                                 sleep: { _ in await Task.yield() }) })
+        await feedInitializeResponse(mock)
+        await store.connect(config: .stub)
+        try await waitUntil { if case .ready = await store.phase { return true }; return false }
+        await mock.emitControl(.peerLeft)
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        let count = await mock.triggerReconnectCount
+        XCTAssertEqual(count, 0, "健康时收到伪造 peer-left 不得判死")
+        if case .ready = await store.phase {} else { XCTFail("应保持 .ready，实际 \(await store.phase)") }
+    }
+
     /// 后台回一条 initialize 响应，使握手到达 .ready（复用于多测试）。
     private func feedInitializeResponse(_ ctrl: ControlEmittingTransport) async {
         Task {
@@ -439,12 +495,14 @@ actor ControlEmittingTransport: MessageTransport {
         ctlStream = AsyncStream(bufferingPolicy: .unbounded) { cc = $0 }
         ctlCont = cc
     }
+    private(set) var triggerReconnectCount = 0
     func send(_ text: String) async throws { sent.append(text) }
     nonisolated func incoming() -> AsyncThrowingStream<String, Error> { inStream }
     nonisolated func control() -> AsyncStream<TransportControlEvent> { ctlStream }
     func close() async { inCont?.finish(); inCont = nil; ctlCont?.finish(); ctlCont = nil }
     func feed(_ json: String) { inCont?.yield(json) }
     func emitControl(_ ev: TransportControlEvent) { ctlCont?.yield(ev) }
+    func triggerReconnect() async { triggerReconnectCount += 1 }
 }
 
 /// 记录在途请求是否失败。
