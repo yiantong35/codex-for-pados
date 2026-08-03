@@ -22,6 +22,7 @@
 		0CECD2284CA5919671590D15 /* FileContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76CCCCB25128A6A92F45ECA0 /* FileContent.swift */; };
 		0D779937FAD9F552AAECEFF9 /* TransportControlEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C73D50DE0A51AB89EF6CC7 /* TransportControlEvent.swift */; };
 		10A1C58C4166B18E6FC2A98C /* TOFUStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0999A9679BAAF2E1025AF139 /* TOFUStoreTests.swift */; };
+		AE01B1CB0000000000000002 /* ConnectionBannerStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE01B1CB0000000000000001 /* ConnectionBannerStateTests.swift */; };
 		123F9BDEDD1CADB7A435CB82 /* ConnectionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5B0B06C966AB8B15879FD39 /* ConnectionStoreTests.swift */; };
 		AE2000000000000000000002 /* HeartbeatMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2000000000000000000001 /* HeartbeatMonitorTests.swift */; };
 		AE2000000000000000000012 /* JSONRPCClientHeartbeatCorrelationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2000000000000000000011 /* JSONRPCClientHeartbeatCorrelationTests.swift */; };
@@ -425,6 +426,7 @@
 		F48B2463CDAE1D3D8004395D /* RelayE2EKeyManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayE2EKeyManagerTests.swift; sourceTree = "<group>"; };
 		F547E588BB81CCBE715381AD /* PluginsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginsStoreTests.swift; sourceTree = "<group>"; };
 		F59BCD443AF36F312C9CA334 /* ApprovalCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalCoordinator.swift; sourceTree = "<group>"; };
+		AE01B1CB0000000000000001 /* ConnectionBannerStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionBannerStateTests.swift; sourceTree = "<group>"; };
 		F5B0B06C966AB8B15879FD39 /* ConnectionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStoreTests.swift; sourceTree = "<group>"; };
 		AE2000000000000000000001 /* HeartbeatMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeartbeatMonitorTests.swift; sourceTree = "<group>"; };
 		AE2000000000000000000011 /* JSONRPCClientHeartbeatCorrelationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONRPCClientHeartbeatCorrelationTests.swift; sourceTree = "<group>"; };
@@ -719,6 +721,7 @@
 				5431DDA9E5219EC7FAC0F80B /* ClipboardPolicyTests.swift */,
 				4D2197F6A2B7E899050437AB /* CodexRemoteTests.swift */,
 				161566406F96EB16EABE135F /* ColumnWidthStoreTests.swift */,
+				AE01B1CB0000000000000001 /* ConnectionBannerStateTests.swift */,
 				F5B0B06C966AB8B15879FD39 /* ConnectionStoreTests.swift */,
 				AE2000000000000000000001 /* HeartbeatMonitorTests.swift */,
 				AE2000000000000000000011 /* JSONRPCClientHeartbeatCorrelationTests.swift */,
@@ -1046,6 +1049,7 @@
 				6E1238599AAD2527FCD396D5 /* ClipboardPolicyTests.swift in Sources */,
 				C2F8DADF2BC6D387BDF605C0 /* CodexRemoteTests.swift in Sources */,
 				B1B3F3C51EF2A1510BB314BF /* ColumnWidthStoreTests.swift in Sources */,
+				AE01B1CB0000000000000002 /* ConnectionBannerStateTests.swift in Sources */,
 				123F9BDEDD1CADB7A435CB82 /* ConnectionStoreTests.swift in Sources */,
 				AE2000000000000000000002 /* HeartbeatMonitorTests.swift in Sources */,
 				AE2000000000000000000012 /* JSONRPCClientHeartbeatCorrelationTests.swift in Sources */,
