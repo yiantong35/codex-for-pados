@@ -112,3 +112,27 @@ private func pairedSessions() throws -> (ipad: SecureSession, dev: SecureSession
     var e3 = try ipad3.seal(Data("x".utf8), kind: .appData); e3.sessionId = e3.sessionId + "!"
     #expect(throws: SecureSessionError.decryptFailed) { _ = try dev3.open(e3) }
 }
+
+// MARK: - ⑥a 未知帧类型 decode 层 fail-closed + 每种 kind 加密不变量（Task 10）
+
+/// 未定义 kind raw value(99) 的信封 JSON 解码应抛错（decode 层 fail-closed 第一层），
+/// 绝不 fall through 到任一已知分支。
+@Test func unknownFrameKindRawValueRejectedAtDecode() throws {
+    let json = """
+    {"v":1,"sessionId":"s","keyEpoch":0,"sender":"iPad","counter":1,"kind":99,\
+    "ciphertext":"AAAA","tag":"AAAAAAAAAAAAAAAAAAAAAA=="}
+    """
+    #expect(throws: (any Error).self) {
+        _ = try SecureEnvelope(decoding: Data(json.utf8))
+    }
+}
+
+/// 方向绑定/重放防护对 .secureReady 与 .appData 一致生效（不因引入 kind/AAD 而弱化）。
+@Test func directionBindingAndReplayHoldForSecureReadyKind() throws {
+    let (ipad, dev) = try pairedSessions()
+    let env = try dev.seal(Data("ready".utf8), kind: .secureReady)   // dev 发
+    #expect(env.kind == .secureReady)
+    #expect(try ipad.open(env) == Data("ready".utf8))                // iPad 收，方向正确
+    #expect(throws: SecureSessionError.wrongSender) { _ = try dev.open(env) }        // 同侧不能开自己发的
+    #expect(throws: SecureSessionError.replayOrOutOfOrder) { _ = try ipad.open(env) } // 重放拒
+}
