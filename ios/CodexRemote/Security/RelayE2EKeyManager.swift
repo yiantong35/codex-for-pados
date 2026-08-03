@@ -3,7 +3,7 @@ import Crypto
 import Observation
 
 /// E2E 身份密钥的 Keychain 适配：独立 account，与 SSH（`ssh-ed25519-private-key`）严格分离。
-/// 复用 KeyManager.swift 定义的 `KeyStoring` 协议（同 target，internal 可见）。
+/// 复用 KeyStoring.swift 定义的 `KeyStoring` 协议（同 target，internal 可见）。
 struct RelayE2EKeychainStore: KeyStoring {
     let keychain: KeychainStore
     /// 与 SSH account 严格分离，绝不覆盖。
