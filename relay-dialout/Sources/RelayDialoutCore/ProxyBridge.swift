@@ -12,24 +12,31 @@ import Foundation
 public final class ProxyBridge {
     private let codexPath: String
     private let sockPath: String
+    private let overrideArguments: [String]?
     private let process = Process()
     private let stdinPipe = Pipe()
     private let stdoutPipe = Pipe()
 
     /// - Parameters:
     ///   - codexPath: 可执行路径，允许注入便于测试用无害 stub（默认 "codex"）。
+    ///   - arguments: 子进程参数，默认 nil→生产固定为 `["app-server","proxy","--sock",sockPath]`；
+    ///     仅测试可注入长驻无害 stub 参数（如 `/bin/sleep 300`）验证 terminate 回收，**不改生产调用路径**。
     ///   - sockPath: control-socket 路径。
-    public init(codexPath: String = "codex", sockPath: String) {
+    public init(codexPath: String = "codex", arguments: [String]? = nil, sockPath: String) {
         self.codexPath = codexPath
+        self.overrideArguments = arguments
         self.sockPath = sockPath
     }
 
     /// 我方 spawn 的子进程 PID（仅在 start 后有效），用于确认只管自己这一个。
     public var pid: Int32 { process.processIdentifier }
 
+    /// 自己持有的这个子进程是否仍在运行（仅反映自身 `process` 句柄，非按名查找）。
+    public var isRunning: Bool { process.isRunning }
+
     public func start() throws {
         process.executableURL = URL(fileURLWithPath: codexPath)
-        process.arguments = ["app-server", "proxy", "--sock", sockPath]
+        process.arguments = overrideArguments ?? ["app-server", "proxy", "--sock", sockPath]
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
         try process.run()
@@ -80,9 +87,12 @@ public final class ProxyBridge {
     }
 
     /// 只停自己 spawn 的这个子进程（精确 PID），绝不 pkill。
+    /// terminate 后同步等待其退出以回收（防僵尸）——仅等自己这一个 process 句柄，
+    /// 是终止收尾的一次性同步等待（非轮询、非常驻线程；进程已被请求退出，等待即刻返回）。
     public func terminate() {
         if process.isRunning {
             process.terminate()
+            process.waitUntilExit()
         }
     }
 }
