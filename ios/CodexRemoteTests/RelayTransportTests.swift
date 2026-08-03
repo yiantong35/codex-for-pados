@@ -1,7 +1,7 @@
 import XCTest
 import Foundation
 import Crypto
-import RelayProtocol
+@testable import RelayProtocol
 @testable import CodexRemote
 
 /// RelayTransport 的加解密数据流单测。

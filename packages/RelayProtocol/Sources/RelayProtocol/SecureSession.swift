@@ -17,7 +17,7 @@ public final class SecureSession: @unchecked Sendable {
     private var lastInbound: UInt64 = 0
     private let lock = NSLock()
 
-    public init(role: RelayPeer, keys: KeySchedule.DirectionalKeys, sessionId: String, keyEpoch: UInt32) {
+    init(role: RelayPeer, keys: KeySchedule.DirectionalKeys, sessionId: String, keyEpoch: UInt32) {
         self.role = role; self.keys = keys; self.sessionId = sessionId; self.keyEpoch = keyEpoch
     }
 
