@@ -102,17 +102,32 @@ public final class RelayRooms: @unchecked Sendable {
 
     /// 清除某 role 的槽(连接断开时用)。
     /// **仅当槽 connId 与传入一致才清**(修复「较旧连接断开误清较新连接」)。两端都空则回收房间。
+    ///
+    /// 6.1/6.2：某槽被实际清除(connId 匹配)且另一槽仍在时，向仍在的对端下发
+    /// `RelaySignal(peer-left)` 连接层信令(零知识:仅 kind+sessionId,不含任何会话内容)。
+    /// **锁纪律**:锁内只判定并记录 `notifySink`,**解锁后**再回调 sink(sink 内部会 hop 到
+    /// eventLoop,不能在持锁时同步重入 `rooms`)。旧 connId 迟到 leave 未清槽 → 不通知(幂等)。
     public func leave(sessionId: String, role: RelayPeer, connId: UUID) {
-        lock.lock(); defer { lock.unlock() }
-        guard var room = rooms[sessionId] else { return }
-        switch role {
-        case .iPad: if room.ipad?.connId == connId { room.ipad = nil }
-        case .devMachine: if room.dev?.connId == connId { room.dev = nil }
+        lock.lock()
+        var notifySink: Sink? = nil
+        if var room = rooms[sessionId] {
+            var removed = false
+            switch role {
+            case .iPad: if room.ipad?.connId == connId { room.ipad = nil; removed = true }
+            case .devMachine: if room.dev?.connId == connId { room.dev = nil; removed = true }
+            }
+            if room.ipad == nil && room.dev == nil {
+                rooms[sessionId] = nil
+            } else {
+                rooms[sessionId] = room
+                if removed { notifySink = room.ipad?.sink ?? room.dev?.sink }   // 仍在的对端
+            }
         }
-        if room.ipad == nil && room.dev == nil {
-            rooms[sessionId] = nil
-        } else {
-            rooms[sessionId] = room
+        lock.unlock()
+        if let sink = notifySink,
+           let json = try? String(decoding: RelaySignal(kind: RelaySignal.peerLeftKind,
+                                                         sessionId: sessionId).encoded(), as: UTF8.self) {
+            sink(json)
         }
     }
 }
