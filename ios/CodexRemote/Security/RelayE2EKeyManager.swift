@@ -55,9 +55,6 @@ final class RelayE2EKeyManager {
         return k
     }
 
-    /// 身份公钥 raw（供 ClientHello）。
-    func identityPublicKeyRaw() throws -> Data { try identityKey().publicKey.rawRepresentation }
-
     /// 每会话新生成的 X25519 交换私钥（前向保密，不持久）。供 KeySchedule 派生。
     func newEphemeralKey() -> Curve25519.KeyAgreement.PrivateKey {
         Curve25519.KeyAgreement.PrivateKey()
