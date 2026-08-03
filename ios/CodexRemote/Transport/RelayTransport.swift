@@ -205,6 +205,14 @@ actor RelayTransport: MessageTransport {
                     await handleDisconnect(nil)   // ws 关闭（可能瞬断，可能主动）
                     return
                 }
+                // 连接层信号（relay peer-left）：不解密、不断开、不重连，仅上报提示事件。
+                // 靠 `kind` 字段与无 `kind` 的 SecureEnvelope 试解歧义（业务密文帧无 kind，解不成 RelaySignal）。
+                // 安全红线：peer-left 是提示非判决，判死权只在上层心跳；本层绝不据此断开/重连/改状态。
+                if let sig = try? RelaySignal(decoding: Data(frame.utf8)),
+                   sig.kind == RelaySignal.peerLeftKind {
+                    emitControl(.peerLeft)
+                    continue
+                }
                 guard let session else {
                     // 握手未完成前不该有业务帧；防御性丢弃。
                     continue
@@ -500,6 +508,13 @@ actor RelayTransport: MessageTransport {
 
     nonisolated func control() -> AsyncStream<TransportControlEvent> {
         controlStream
+    }
+
+    /// 心跳判死后主动触发一次内部有界重连：丢弃当前 ws 通道使读循环 receiveText() 返回 nil，
+    /// 因**未置** activeClose 且 channelFactory != nil，handleDisconnect(nil) 会走 reconnectLoop()
+    /// （发 .reconnecting → 复用既有退避/上限路径），与自然瞬断走同一链路。不新增无界重试。
+    func triggerReconnect() async {
+        await ws?.close()
     }
 
     func awaitHandshake() async throws {

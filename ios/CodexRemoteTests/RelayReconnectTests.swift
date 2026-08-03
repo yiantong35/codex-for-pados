@@ -313,4 +313,56 @@ final class RelayReconnectTests: XCTestCase {
 
         await transport.close()
     }
+
+    // MARK: 缺口 2 消费——peer-left 提示 + 主动重连
+
+    /// relay 下发 peer-left 明文帧 → RelayTransport 发 .peerLeft 控制事件，且不断开、不进重连。
+    func testPeerLeftFrameEmitsPeerLeftControlWithoutDisconnect() async throws {
+        let script = ReconnectScript([.succeed])
+        let policy = RelayReconnectPolicy(maxAttempts: 6, baseDelaySeconds: 0.0, maxDelaySeconds: 0.0,
+                                          sleep: { _ in })
+        let transport = makeTransport(script, policy: policy)
+
+        var iter = transport.incoming().makeAsyncIterator()
+        var ctrl = transport.control().makeAsyncIterator()
+        try await transport.awaitHandshake()
+        XCTAssertEqual(script.connectCount, 1)
+
+        let sig = try RelaySignal(kind: RelaySignal.peerLeftKind, sessionId: "sess-reconnect").encoded()
+        await script.currentChannel?.inject(String(decoding: sig, as: UTF8.self))
+
+        let ev = await ctrl.next()
+        XCTAssertEqual(ev, .peerLeft, "peer-left 应发 .peerLeft 控制事件")
+        XCTAssertNotEqual(ev, .reconnecting, "peer-left 不得触发重连")
+        XCTAssertNotEqual(ev, .connectionFailed)
+
+        try await transport.send("a")
+        let a = try await iter.next()
+        XCTAssertEqual(a, "a-echo")
+        XCTAssertEqual(script.connectCount, 1, "peer-left 不得触发重连（factory 不再被调用）")
+
+        await transport.close()
+    }
+
+    /// triggerReconnect 主动丢弃当前 ws → 走既有内部有界重连（先 .reconnecting、再 .ready），不置 activeClose。
+    func testTriggerReconnectStartsBoundedReconnect() async throws {
+        let script = ReconnectScript([.succeed, .succeed])
+        let policy = RelayReconnectPolicy(maxAttempts: 6, baseDelaySeconds: 0.0, maxDelaySeconds: 0.0,
+                                          sleep: { _ in })
+        let transport = makeTransport(script, policy: policy)
+
+        var ctrl = transport.control().makeAsyncIterator()
+        try await transport.awaitHandshake()
+        XCTAssertEqual(script.connectCount, 1)
+
+        await transport.triggerReconnect()
+
+        let e1 = await ctrl.next()
+        XCTAssertEqual(e1, .reconnecting, "triggerReconnect 应启动内部有界重连")
+        let e2 = await ctrl.next()
+        XCTAssertEqual(e2, .ready)
+        XCTAssertEqual(script.connectCount, 2, "重连复用既有 channelFactory 有界路径")
+
+        await transport.close()
+    }
 }
