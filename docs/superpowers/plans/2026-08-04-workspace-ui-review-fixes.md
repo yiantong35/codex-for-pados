@@ -408,7 +408,7 @@ git commit -m "feat(ipad): ConversationView resume 改 add/remove 配对，主�
 - Consumes: `RightPanelTab.allCases`（`:4`，三 tab review/files/sideChat）、`RightPanelContainerView()`（既有无参可构造，`OrientationSnapshotTests:256` 已示范其环境注入组合）。
 - Produces: `tabBar` 改为可容纳全部入口——标签不再各请求无限宽独占；尾部全屏入口固定占位、不参与 tab 等分、不挤占 tab 命中区。
 
-- [ ] **Step 1: 写失败测试** — 新建 `RightPanelTabsLayoutTests.swift`，断言 320pt 宽下三 tab 与全屏入口均可挂载渲染，且用「无 `maxWidth:.infinity` 独占」的结构性判定（用 `ViewInspector` 若项目已用；否则用 hosting + 布局后子视图 frame 断言最简可行版本）。项目现有 `TabBarViewTests` 用 `UIHostingController` + layout 后断状态的范式，照此写结构断言：
+- [x] **Step 1: 写失败测试** — 新建 `RightPanelTabsLayoutTests.swift`，断言 320pt 宽下三 tab 与全屏入口均可挂载渲染，且用「无 `maxWidth:.infinity` 独占」的结构性判定（用 `ViewInspector` 若项目已用；否则用 hosting + 布局后子视图 frame 断言最简可行版本）。项目现有 `TabBarViewTests` 用 `UIHostingController` + layout 后断状态的范式，照此写结构断言：
 
 ```swift
 import XCTest
@@ -465,9 +465,9 @@ final class RightPanelTabsLayoutTests: XCTestCase {
 
 > 若该 hosting 遍历在 CI 上不稳定（SwiftUI 内部视图树易变），退化为最小可判定断言：容器可在 320pt 挂载渲染不崩溃 + `RightPanelTab.allCases.count == 3`（编译期入口完整性）+ 手工走读确认无 `maxWidth:.infinity` 独占。保留「命中区 maxX ≤ 容器宽」这条溢出断言为核心。
 
-- [ ] **Step 2: 运行确认失败** — `xcodebuild test -only-testing:CodexRemoteTests/RightPanelTabsLayoutTests`。预期：FAIL（当前首标签 `maxWidth:.infinity` 独占 → 后两 tab 命中区宽 ≈ 0 或溢出，命中区计数 < 4）。
+- [x] **Step 2: 运行确认失败** — `xcodebuild test -only-testing:CodexRemoteTests/RightPanelTabsLayoutTests`。预期：FAIL（当前首标签 `maxWidth:.infinity` 独占 → 后两 tab 命中区宽 ≈ 0 或溢出，命中区计数 < 4）。
 
-- [ ] **Step 3: 最小实现** — 改 `tabBar`（`:130-160`）：去掉标签的 `.frame(maxWidth: .infinity)` 独占，改等分压缩 + 文字降级；尾部全屏入口固定占位。
+- [x] **Step 3: 最小实现** — 改 `tabBar`（`:130-160`）：去掉标签的 `.frame(maxWidth: .infinity)` 独占，改等分压缩 + 文字降级；尾部全屏入口固定占位。
 
 ```swift
     private var tabBar: some View {
@@ -511,9 +511,9 @@ final class RightPanelTabsLayoutTests: XCTestCase {
 
 > 关键差异：原实现只有 **每个** 标签 `maxWidth:.infinity`，但尾部全屏按钮不定宽 → 在极窄宽下 SwiftUI 会让首个 infinity 吞掉剩余空间、后续被裁。新实现三标签均分 + 全屏入口 `fixedSize()` 定宽退出竞争，三 tab 恒有等分命中区。若 320pt 三 tab 文字仍拥挤，`minimumScaleFactor(0.7)` 兜底缩字；如需进一步可将 `HStack` 包一层 `ScrollView(.horizontal)`——但当前三个短标签等分已够，避免过度设计。
 
-- [ ] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/RightPanelTabsLayoutTests`。预期：PASS（≥4 命中区，均 maxX ≤ 320）。
+- [x] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/RightPanelTabsLayoutTests`。预期：PASS（≥4 命中区，均 maxX ≤ 320）。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Views/Workspace/RightPanelContainerView.swift ios/CodexRemoteTests/RightPanelTabsLayoutTests.swift

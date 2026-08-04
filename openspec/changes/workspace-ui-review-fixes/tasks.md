@@ -5,8 +5,8 @@
 - [x] 1.3 D2 `ConnectionStore` resumeHandler 单一属性 → token 订阅表；`addResumeHandler`(返回 token，保留首连恰一次补触发，订阅者维度化 `didInitialRejoin`) / `removeResumeHandler(token)`；物理重连 `.ready` 遍历触发全部
 - [x] 1.4 D2 迁移调用点：`ConversationView` `.task` 用 add→（onDisappear/defer）remove 配对；`setResumeHandler` 保留为薄封装或全量迁移
 - [x] 1.5 D2 单测：多订阅者互不覆盖；首连对已 ready 的新订阅者补触发恰一次；重连遍历触发全部；注销后不再触发
-- [ ] 1.6 D3 `RightPanelContainerView` tab 条去每标签 `maxWidth:.infinity` 独占，改等分压缩 + 极窄降级（图标/横向滚动）；尾部全屏入口不挤占 tab 命中区
-- [ ] 1.7 D3+D9 测试：断言三 tab（review/files/sideChat）在 320pt 宽下全部可见且可命中；升级 `OrientationSnapshotTests:254` 由「PNG 非空」为结构断言
+- [x] 1.6 D3 `RightPanelContainerView` tab 条去每标签 `maxWidth:.infinity` 独占，改等分压缩 + 极窄降级（图标/横向滚动）；尾部全屏入口不挤占 tab 命中区
+- [x] 1.7 D3+D9 测试：断言三 tab（review/files/sideChat）在 320pt 宽下全部可见且可命中；升级 `OrientationSnapshotTests:254` 由「PNG 非空」为结构断言
 
 ## 2. 批2 — P2
 
