@@ -860,7 +860,7 @@ git commit -m "feat(ipad): 动态标签（tab/审查模式名）跟随注入 loc
 - Consumes: `SessionsManager.canConnect(id:)`（`:62`，`shouldAutoConnect ?? true`）、`removeMachine(id:)`（`:76`）、`connectMachine(id:)`（`:56`）、`disconnect(id:)`（`:95`）。
 - Produces: `TabBarView` 新增 `@State private var removeTarget: UUID?`（非空即弹 `confirmationDialog`，`role: .destructive` 的确认按钮才调 `removeMachine`）；管理菜单把「连接」「断开」由「连接条件渲染 + 断开无条件渲染」（现状 `:69-72` 两者可同现）改为 `if canConnect { 连接 } else { 断开 }` 互斥。
 
-- [ ] **Step 1: 写失败测试** — `TabBarViewTests.swift` 追加：断言 `canConnect` 决定互斥（逻辑层）、移除走确认（结构层挂载不崩溃 + 逻辑：未确认不删）。因 `confirmationDialog` 交互难在单测点按，核心断言落在 `SessionsManager` 未连接态 `canConnect == true`、已就绪态 `canConnect == false` 的互斥判定 + 「直接调 removeMachine 之外必须经确认」的接线（用 `removeTarget` 状态存在性 + 手工走读）。
+- [x] **Step 1: 写失败测试** — `TabBarViewTests.swift` 追加：断言 `canConnect` 决定互斥（逻辑层）、移除走确认（结构层挂载不崩溃 + 逻辑：未确认不删）。因 `confirmationDialog` 交互难在单测点按，核心断言落在 `SessionsManager` 未连接态 `canConnect == true`、已就绪态 `canConnect == false` 的互斥判定 + 「直接调 removeMachine 之外必须经确认」的接线（用 `removeTarget` 状态存在性 + 手工走读）。
 
 ```swift
     /// D6：连接互斥判定——未连接态可连（应只显示「连接」），已就绪态不可连（应只显示「断开」）。
@@ -884,9 +884,9 @@ git commit -m "feat(ipad): 动态标签（tab/审查模式名）跟随注入 loc
 
 > 已就绪态 `canConnect == false` 的断言需驱动一条连接到 ready，成本高；本任务以「未连接可连」+ 互斥渲染的代码结构（`if/else`）+ 模拟器自验收（4.4）覆盖已连接态。
 
-- [ ] **Step 2: 运行确认失败/现状** — `xcodebuild test -only-testing:CodexRemoteTests/TabBarViewTests`。预期：新断言可编译并 PASS（`canConnect` 已存在），但 `test_tabBar_mountsWithRemoveConfirmation` 只验挂载；真正 RED 是「菜单同现连接+断开」与「无确认直删」的结构——通过下一步实现改正并保持测试绿。
+- [x] **Step 2: 运行确认失败/现状** — `xcodebuild test -only-testing:CodexRemoteTests/TabBarViewTests`。预期：新断言可编译并 PASS（`canConnect` 已存在），但 `test_tabBar_mountsWithRemoveConfirmation` 只验挂载；真正 RED 是「菜单同现连接+断开」与「无确认直删」的结构——通过下一步实现改正并保持测试绿。
 
-- [ ] **Step 3: 最小实现** — 改 `TabBarView.swift`：
+- [x] **Step 3: 最小实现** — 改 `TabBarView.swift`：
 
 加状态字段（`:10` 附近）：
 
@@ -936,9 +936,9 @@ git commit -m "feat(ipad): 动态标签（tab/审查模式名）跟随注入 loc
 
 在 `Localizable.xcstrings` 补 `tab.remove.confirm.title` / `tab.remove.confirm.message` / `tab.remove.confirm.action` 的 en + zh。
 
-- [ ] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/TabBarViewTests`；`xcodebuild build`。预期：PASS。
+- [x] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/TabBarViewTests`；`xcodebuild build`。预期：PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Views/TabBarView.swift ios/CodexRemote/Resources/Localizable.xcstrings ios/CodexRemoteTests/TabBarViewTests.swift
