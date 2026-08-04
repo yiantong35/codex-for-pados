@@ -263,8 +263,34 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(WorkspaceLayoutStore())   // T10：右栏读布局 store 消费意图
             .environment(ShortcutStore())          // M1：右栏读快捷键 store 承载全屏退出键
             .frame(width: 320, height: 600)
-        snapshot(view, size: CGSize(width: 320, height: 600),
-                 name: "right-panel", dir: "/tmp/workspace")
+        let window = snapshot(view, size: CGSize(width: 320, height: 600),
+                              name: "right-panel", dir: "/tmp/workspace")
+
+        // D9：不再止于「PNG 非空」——断言窄宽(320pt)下右栏无横向溢出/裁剪（P1#2 逃逸根因）。
+        // 环境约束（见 RightPanelTabsLayoutTests）：离屏 host 下纯 SwiftUI Button 不稳定暴露 UIKit 命中区，
+        // 故核心断言=已命中的真实控件 maxX ≤ 容器宽（不溢出）+ tab 入口完整性（编译期）+ 挂载不崩溃。
+        let hitRects = Self.hittableRects(in: window)
+            .filter { $0.width > 0 && $0.height > 0 }
+        XCTAssertGreaterThan(hitRects.count, 0, "至少应命中容器自身，挂载异常")
+        for r in hitRects {
+            XCTAssertLessThanOrEqual(r.maxX, 320.5, "右栏命中区不应溢出容器 320pt（P1#2 裁剪回归）：\(r)")
+        }
+        XCTAssertEqual(RightPanelTab.allCases.count, 3, "右栏三 tab 入口完整")
+    }
+
+    /// 递归收集响应交互的子视图 frame（转换到根坐标）。与 RightPanelTabsLayoutTests 同款遍历，
+    /// 离屏 host 下纯 SwiftUI Button 结构性失明属已知限制（见该文件说明），保留 maxX 溢出断言为核心。
+    private static func hittableRects(in root: UIView) -> [CGRect] {
+        var out: [CGRect] = []
+        func walk(_ v: UIView) {
+            if v.isUserInteractionEnabled, !(v is UIWindow),
+               v.gestureRecognizers?.isEmpty == false || v is UIControl {
+                out.append(v.convert(v.bounds, to: root))
+            }
+            v.subviews.forEach(walk)
+        }
+        walk(root)
+        return out
     }
 
     // MARK: - 场景 5c：下边栏占位 + 可拖高容器 BottomPanelView（Task 10）

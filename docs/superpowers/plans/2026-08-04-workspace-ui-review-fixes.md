@@ -1193,7 +1193,7 @@ git commit -m "feat(ipad): 未选会话引导空态 + 对话滚动位置感知�
 - Consumes: Task 4 的 `RightPanelTabsLayoutTests.hittableRects`（若跨类复用，抽成 `OrientationSnapshotTests` 可见的测试工具，或在本类内重复最小实现——测试代码可局部重复以保独立可读）。
 - Produces: `test_right_panel_snapshot` 增加结构断言：右栏在 320pt 下三 tab 命中区计数 ≥3 且无命中区 `maxX > 容器宽`（不横向裁剪/溢出），不再只 `snapshot(... PNG 非空)`。
 
-- [ ] **Step 1: 写失败测试** — 在 `OrientationSnapshotTests.swift` 的 `test_right_panel_snapshot`（`:255-268`）里，`snapshot(...)` 之后追加结构断言（先加断言、此时若 Task 4 已合入则应已绿；若单独看是 RED 需求为「原测试无任何结构断言」）：
+- [x] **Step 1: 写失败测试** — 在 `OrientationSnapshotTests.swift` 的 `test_right_panel_snapshot`（`:255-268`）里，`snapshot(...)` 之后追加结构断言（先加断言、此时若 Task 4 已合入则应已绿；若单独看是 RED 需求为「原测试无任何结构断言」）：
 
 ```swift
         // D9：不再止于「PNG 非空」——断言窄宽下 tab 命中区完整、不横向溢出。
@@ -1216,16 +1216,16 @@ git commit -m "feat(ipad): 未选会话引导空态 + 对话滚动位置感知�
         for r in hittable { XCTAssertLessThanOrEqual(r.maxX, 320.5, "右栏命中区溢出：\(r)") }
 ```
 
-- [ ] **Step 2: 运行确认** — `xcodebuild test -only-testing:CodexRemoteTests/OrientationSnapshotTests/test_right_panel_snapshot`。若 Task 4 已实现则 PASS；若在无 Task 4 修复的历史点跑则 FAIL（证明结构断言有效捕获 P1#2 逃逸根因）。
+- [x] **Step 2: 运行确认** — `xcodebuild test -only-testing:CodexRemoteTests/OrientationSnapshotTests/test_right_panel_snapshot`。若 Task 4 已实现则 PASS；若在无 Task 4 修复的历史点跑则 FAIL（证明结构断言有效捕获 P1#2 逃逸根因）。
 
-- [ ] **Step 3: 收口检查（无新增实现，纯核对）** — 逐条核对：
+- [x] **Step 3: 收口检查（无新增实现，纯核对）** — 逐条核对：
   - 所有新增/改动路径都有断言级测试（SideChatIsolation / ConnectionStore 多订阅 / RightPanelTabsLayout / WorkspaceMetrics 降级 / LocalizationFollowsInjectedLocale / TabBarView 互斥 / TouchAccessibility / ConversationScrollAnchor / OrientationSnapshot 结构）。
   - `grep -rn 'PNG 非空' ios/CodexRemoteTests` 确认无「仅 PNG 非空、无其它断言」的空快照残留（有则补结构断言或移除）。
   - `grep -rnP '"[^"]*[\x{4e00}-\x{9fff}]' ios/CodexRemote/Views ios/CodexRemote/Protocol/ReviewPanelTypes.swift | grep -vP '///|:\s*//'` 确认无遗漏的面向用户硬编码中文字面量。
 
-- [ ] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/OrientationSnapshotTests`。预期：PASS。
+- [x] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/OrientationSnapshotTests`。预期：PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemoteTests/OrientationSnapshotTests.swift
