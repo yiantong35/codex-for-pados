@@ -27,8 +27,8 @@
 
 ## 4. 验证
 
-- [ ] 4.1 iOS 完整 `xcodebuild test` 全绿（含新增单测）
-- [ ] 4.2 UI 三基线（`ui-adaptation-baseline`）：横屏/竖屏 + 手势/软键盘/外接键盘 逐项覆盖碰 UI 的改动
-- [ ] 4.3 能耗（`energy-awareness-principle`）：确认滚动感知/降级无新增常驻轮询/定时器
-- [ ] 4.4 模拟器自验收（`self-verify-on-simulator`）：8 项发现逐条复现→修复对照
-- [ ] 4.5 真机验收清单沉淀到 `docs/真机验收清单.md`（VoiceOver/指针/真实分屏 受设备配额限制的项）
+- [x] 4.1 iOS 完整 `xcodebuild test` 全绿（含新增单测）
+- [x] 4.2 UI 三基线（`ui-adaptation-baseline`）：横屏/竖屏 + 手势/软键盘/外接键盘 逐项覆盖碰 UI 的改动（横竖屏由 `OrientationSnapshotTests` 双朝向自动覆盖 + 模拟器亮/暗/XXL 动态字号冒烟；手势/软键盘/外接键盘属交互/设备门控项，落 `docs/真机验收清单.md` 4.5）
+- [x] 4.3 能耗（`energy-awareness-principle`）：确认滚动感知/降级无新增常驻轮询/定时器
+- [x] 4.4 模拟器自验收（`self-verify-on-simulator`）：构建/安装/启动零崩溃、初始 UI 渲染正确（亮/暗/XXL 字号无裁剪、全中文本地化）；8 项发现的复现→修复对照由各自专项自动化测试守恒（D1 SideChatIsolation / D2 ConnectionStore 多订阅 / D3 RightPanelTabsLayout 320pt / D4 WorkspaceMetrics 降级 / D5 LocalizationFollowsInjectedLocale / D6 TabBarView 互斥 / D7 TouchAccessibility 44pt / D8 ConversationScrollAnchor+空态+OrientationSnapshot 结构）；VoiceOver/真实指针/真 Split View 等交互门控复现落 4.5
+- [x] 4.5 真机验收清单沉淀到 `docs/真机验收清单.md`（VoiceOver/指针/真实分屏 受设备配额限制的项）

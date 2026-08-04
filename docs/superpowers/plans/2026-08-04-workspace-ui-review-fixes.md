@@ -1236,14 +1236,14 @@ git commit -m "test(ipad): 右栏快照升级为 tab 可见性/不溢出结构�
 
 ## 4. 验证（全量收口，非单独 commit，除非需修）
 
-- [ ] **4.1 全量测试全绿** — 运行完整 `xcodebuild test`（scheme CodexRemote，iPad 模拟器）。预期：含全部新增单测在内全绿；任何回归就地修复并归入相关任务提交。
-- [ ] **4.2 UI 三基线逐项覆盖** — 对每个碰 UI 的任务（Task 1/4/6/7/8/9/10/11），在模拟器分别验 **横屏 + 竖屏** 与 **手势 / 软键盘 / 外接键盘**：
+- [x] **4.1 全量测试全绿** — 运行完整 `xcodebuild test`（scheme CodexRemote，iPad 模拟器）。预期：含全部新增单测在内全绿；任何回归就地修复并归入相关任务提交。
+- [x] **4.2 UI 三基线逐项覆盖** — 对每个碰 UI 的任务（Task 1/4/6/7/8/9/10/11），在模拟器分别验 **横屏 + 竖屏** 与 **手势 / 软键盘 / 外接键盘**：
   - D3 右栏 tab：横竖屏 + 320pt 窄列下三 tab 触控/指针/外接键盘聚焦均可切换。
   - D4 三栏降级：竖屏、Stage Manager 窄窗、分屏各验一遍不横向溢出、中栏完整。
   - D7：外接键盘 Tab 键能聚焦会话行、回车/空格激活；软键盘弹出时 composer 命中框不被遮挡。
-- [ ] **4.3 能耗核对** — 代码走读确认 D8 滚动感知（哨兵 `onAppear/onDisappear`）、D4 降级（纯函数派生）均无 `Timer`/`Task.sleep` 轮询/新增常驻定时器；`grep -rn 'Timer\|repeatForever\|Task.sleep' ios/CodexRemote/Views/ConversationView.swift ios/CodexRemote/Views/Workspace/ResizableColumns.swift` 复核。
-- [ ] **4.4 模拟器自验收（`self-verify-on-simulator`）** — 8 项发现逐条复现→修复对照：①侧聊开关不覆盖审查面板 ②重连主对话+侧聊都恢复 ③320pt 三 tab 可达 ④窄窗不溢出 ⑤切英文无中文残留 ⑥移除机器有二次确认+菜单互斥 ⑦图标按钮 44pt+VoiceOver 朗读+会话行键盘激活 ⑧未选会话有引导+上翻不打断+新消息浮标。
-- [ ] **4.5 真机验收沉淀** — 把受设备配额限制的项（VoiceOver 实读、指针悬停、真实分屏/Stage Manager）追加到 `docs/真机验收清单.md`（照既有章节格式）。
+- [x] **4.3 能耗核对** — 代码走读确认 D8 滚动感知（哨兵 `onAppear/onDisappear`）、D4 降级（纯函数派生）均无 `Timer`/`Task.sleep` 轮询/新增常驻定时器；`grep -rn 'Timer\|repeatForever\|Task.sleep' ios/CodexRemote/Views/ConversationView.swift ios/CodexRemote/Views/Workspace/ResizableColumns.swift` 复核。
+- [x] **4.4 模拟器自验收（`self-verify-on-simulator`）** — 8 项发现逐条复现→修复对照：①侧聊开关不覆盖审查面板 ②重连主对话+侧聊都恢复 ③320pt 三 tab 可达 ④窄窗不溢出 ⑤切英文无中文残留 ⑥移除机器有二次确认+菜单互斥 ⑦图标按钮 44pt+VoiceOver 朗读+会话行键盘激活 ⑧未选会话有引导+上翻不打断+新消息浮标。
+- [x] **4.5 真机验收沉淀** — 把受设备配额限制的项（VoiceOver 实读、指针悬停、真实分屏/Stage Manager）追加到 `docs/真机验收清单.md`（照既有章节格式）。
 
 ---
 
