@@ -3,7 +3,7 @@
 - [x] 1.1 D1 侧聊状态隔离：`ConversationView` 增 `bindsWorkspaceState`（默认 true），五处写点（state onChange / fetchFullDiff / startReview / onDisappear 清空 / setResumeHandler 归属）统一 gate；`SideChatView.swift:72` 挂载传 false
 - [x] 1.2 D1 单测：侧聊实例（bindsWorkspaceState=false）对 `ActiveConversationHolder` 零写入；主对话实例正常写入；侧聊开/关不清空主对话 state/fetchFullDiff/startReview
 - [x] 1.3 D2 `ConnectionStore` resumeHandler 单一属性 → token 订阅表；`addResumeHandler`(返回 token，保留首连恰一次补触发，订阅者维度化 `didInitialRejoin`) / `removeResumeHandler(token)`；物理重连 `.ready` 遍历触发全部
-- [ ] 1.4 D2 迁移调用点：`ConversationView` `.task` 用 add→（onDisappear/defer）remove 配对；`setResumeHandler` 保留为薄封装或全量迁移
+- [x] 1.4 D2 迁移调用点：`ConversationView` `.task` 用 add→（onDisappear/defer）remove 配对；`setResumeHandler` 保留为薄封装或全量迁移
 - [x] 1.5 D2 单测：多订阅者互不覆盖；首连对已 ready 的新订阅者补触发恰一次；重连遍历触发全部；注销后不再触发
 - [ ] 1.6 D3 `RightPanelContainerView` tab 条去每标签 `maxWidth:.infinity` 独占，改等分压缩 + 极窄降级（图标/横向滚动）；尾部全屏入口不挤占 tab 命中区
 - [ ] 1.7 D3+D9 测试：断言三 tab（review/files/sideChat）在 320pt 宽下全部可见且可命中；升级 `OrientationSnapshotTests:254` 由「PNG 非空」为结构断言

@@ -354,7 +354,7 @@ git commit -m "feat(ipad): resume 回调单属性改 token 订阅表，支持多
 - Consumes: Task 2 的 `addResumeHandler(_:) -> ResumeToken` / `removeResumeHandler(_:)`；Task 1 的 `bindsWorkspaceState`。
 - Produces: `.task` 生命周期承载 `add → remove` 精确配对（主对话与每个侧聊各自 thread 的 rejoin 都需要，故走多订阅）。
 
-- [ ] **Step 1: 写失败测试** — 复用 Task 2 的多订阅能力，加一个「视图消失注销」的行为断言。实际上 `.task` 生命周期难在单测直接驱动 SwiftUI，故本任务的验收以 **Task 2 已建的 `test_removeResumeHandler_removesOnlyThatSubscriber` 语义 + 编译期接线正确性** 为准；新增一条轻量断言：`ConversationView` 侧聊实例（`bindsWorkspaceState=false`）**仍** 注册自己的 rejoin（侧聊 thread 也需重连恢复），只是不写 holder。
+- [x] **Step 1: 写失败测试** — 复用 Task 2 的多订阅能力，加一个「视图消失注销」的行为断言。实际上 `.task` 生命周期难在单测直接驱动 SwiftUI，故本任务的验收以 **Task 2 已建的 `test_removeResumeHandler_removesOnlyThatSubscriber` 语义 + 编译期接线正确性** 为准；新增一条轻量断言：`ConversationView` 侧聊实例（`bindsWorkspaceState=false`）**仍** 注册自己的 rejoin（侧聊 thread 也需重连恢复），只是不写 holder。
 
 在 `SideChatIsolationTests.swift` 追加：
 
@@ -376,9 +376,9 @@ git commit -m "feat(ipad): resume 回调单属性改 token 订阅表，支持多
 
 > 若引入 DEBUG 订阅者计数访问器不划算，则本步以「编译通过 + Task 2 注销用例绿 + 手工代码走读」验收，删去 count 断言，保留 holder 不污染断言即可。
 
-- [ ] **Step 2: 运行确认失败/现状** — 运行 `SideChatIsolationTests`，确认现有接线（`setResumeHandler` 单属性调用）编译仍绿但语义未迁移。
+- [x] **Step 2: 运行确认失败/现状** — 运行 `SideChatIsolationTests`，确认现有接线（`setResumeHandler` 单属性调用）编译仍绿但语义未迁移。
 
-- [ ] **Step 3: 最小实现** — `ConversationView.swift` `.task` 内把 `:100` 的 `connection.setResumeHandler {...}` 改为 add + defer remove（注意 `bindsWorkspaceState` 现在 **不** 再 gate resume——主对话与侧聊各自 thread 都需 rejoin；D1 的 gate 只管 holder 写入）：
+- [x] **Step 3: 最小实现** — `ConversationView.swift` `.task` 内把 `:100` 的 `connection.setResumeHandler {...}` 改为 add + defer remove（注意 `bindsWorkspaceState` 现在 **不** 再 gate resume——主对话与侧聊各自 thread 都需 rejoin；D1 的 gate 只管 holder 写入）：
 
 ```swift
             let resumeToken = connection.addResumeHandler { [weak s] in await s?.rejoinRunningThreads() }
@@ -387,9 +387,9 @@ git commit -m "feat(ipad): resume 回调单属性改 token 订阅表，支持多
 
 将该两行放在原 `setResumeHandler` 位置；`defer` 与既有 `defer { s.stopObserving() }`（`:92`）并存（两个 defer 均在 `.task` 结束/取消时执行）。
 
-- [ ] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/SideChatIsolationTests -only-testing:CodexRemoteTests/ConnectionStoreTests`。预期：全 PASS。
+- [x] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/SideChatIsolationTests -only-testing:CodexRemoteTests/ConnectionStoreTests`。预期：全 PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Views/ConversationView.swift ios/CodexRemoteTests/SideChatIsolationTests.swift

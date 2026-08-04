@@ -95,16 +95,16 @@ struct ConversationView: View {
             await s.resume()        // session-management：恢复已有会话历史
             store = s
             defer { s.stopObserving() }   // D2：任务结束（threadId 变化/视图消失取消）即停本 store 订阅
+            // D2：resume 注册不再受 bindsWorkspaceState 限制——主对话与每个侧聊各自 thread
+            // 都需在重连后 rejoin 恢复；改 add/remove 精确配对，.task 结束/取消时注销自己的订阅，
+            // 与 s.stopObserving() 两个 defer 并存。多订阅互不覆盖（Task 2 能力）。
+            let resumeToken = connection.addResumeHandler { [weak s] in await s?.rejoinRunningThreads() }
+            defer { connection.removeResumeHandler(resumeToken) }
             if bindsWorkspaceState {
                 // 审查面板「全量」数据源：注入拉取回调（gitDiffToRemote），供右栏按 cwd 拉全量 diff。
                 activeConversation.fetchFullDiff = { [weak s] cwd in await s?.fetchFullDiff(cwd: cwd) }
                 // 审查 tab AI 审查发起：注入 review/start 回调（设计 D4，对齐 fetchFullDiff 注入）。
                 activeConversation.startReview = { [weak s] mode in await s?.startReview(mode: mode) ?? false }
-                // 首连/重连成功（.ready）→ 经官方 thread/loaded/list +
-                // thread/resume(rejoin) 重建并重新订阅全部活跃 thread（§5），不依赖本地 seq/threadId。
-                // 注：物理重连属 Phase 5，当前 relay transport 的 control() 为空流。
-                // D1：仅主对话注册 resume，避免侧聊也覆盖 handler（Task 4 迁移为 add/remove）。
-                connection.setResumeHandler { [weak s] in await s?.rejoinRunningThreads() }
             }
             // D2：保持本任务存活，把正文订阅生命周期绑定到 threadId。threadId 变化 / 视图消失时
             // SwiftUI 取消本 .task → Task.sleep 抛出 → defer 停止**本** store 的订阅，避免旧 observer

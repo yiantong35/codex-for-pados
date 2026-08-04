@@ -32,6 +32,21 @@ final class SideChatIsolationTests: XCTestCase {
         XCTAssertNotNil(holder.startReview, "侧聊不应清空主对话 startReview")
     }
 
+    /// D2：侧聊实例也注册 resume（自己的 thread 需重连恢复），但不写 holder。
+    /// 结构断言：侧聊挂载后不崩溃且不污染 holder（无 DEBUG 订阅者计数访问器，
+    /// 按计划回退：以 Task 2 注销用例 + 编译期接线 + holder 不污染断言为准）。
+    func test_sideChat_registersOwnResumeButNotHolder() {
+        let holder = ActiveConversationHolder()
+        let conn = ConnectionStore(transportFactory: { _ in MockTransport() })
+        let view = ConversationView(threadId: "side", bindsWorkspaceState: false)
+            .environment(holder).environment(ApprovalStore()).environment(conn)
+        let hc = UIHostingController(rootView: view)
+        hc.view.frame = CGRect(x: 0, y: 0, width: 320, height: 600)
+        hc.view.setNeedsLayout(); hc.view.layoutIfNeeded()
+        // holder 未被侧聊写入（与 Task 1 一致）。此处仅确保侧聊挂载不崩溃且不污染 holder。
+        XCTAssertNil(holder.startReview)
+    }
+
     private func makeIsolatedConnection() -> ConnectionStore {
         ConnectionStore(transportFactory: { _ in MockTransport() })
     }
