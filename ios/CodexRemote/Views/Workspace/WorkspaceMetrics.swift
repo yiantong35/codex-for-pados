@@ -46,6 +46,36 @@ enum WorkspaceMetrics {
     /// 分隔线命中区宽（手感关键：够宽才好抓；也是视觉线所在的透明命中带宽）。
     static let resizableDividerHitWidth: CGFloat = 14
 
+    /// D4：三栏全开所需最低宽 = 左min + 中min + 右min + 两分隔线（由常量算出，不写死）。
+    static let threeColumnMinTotalWidth: CGFloat =
+        leftColumnMinWidth + centerColumnMinWidth + rightColumnMinWidth
+        + resizableDividerHitWidth * 2
+
+    /// D4：窄窗降级决策结果——哪些侧栏应显示（中栏永远完整可见，不含在内）。
+    struct ColumnVisibilityPlan: Equatable { let showLeft: Bool; let showRight: Bool }
+
+    /// D4 纯函数：给定容器宽 + 用户展开意图，算出实际应显示哪些侧栏，
+    /// 保证被显示栏最小宽之和 ≤ 容器宽、中栏永远完整。断点用物理下界，恢复用同一阈值（不抖动）。
+    /// 收起顺序：先收右栏，仍不足再收左栏。
+    static func columnVisibilityPlan(total: CGFloat, wantLeft: Bool, wantRight: Bool) -> ColumnVisibilityPlan {
+        // 充足：尊重用户意图，原样。
+        if total >= threeColumnMinTotalWidth {
+            return ColumnVisibilityPlan(showLeft: wantLeft, showRight: wantRight)
+        }
+        // 尝试保留「左 + 中」（收右栏）：需容纳 左min + 中min + 1 分隔线。
+        let leftPlusCenter = leftColumnMinWidth + centerColumnMinWidth + resizableDividerHitWidth
+        if wantLeft, total >= leftPlusCenter {
+            return ColumnVisibilityPlan(showLeft: true, showRight: false)
+        }
+        // 若用户只想要右栏（不要左栏），尝试保留「中 + 右」。
+        let centerPlusRight = centerColumnMinWidth + rightColumnMinWidth + resizableDividerHitWidth
+        if !wantLeft, wantRight, total >= centerPlusRight {
+            return ColumnVisibilityPlan(showLeft: false, showRight: true)
+        }
+        // 极窄：仅中栏。
+        return ColumnVisibilityPlan(showLeft: false, showRight: false)
+    }
+
     /// VoiceOver `accessibilityAdjustableAction` 每次增减的列宽步长（D8）。
     static let columnResizeAccessibilityStep: CGFloat = 40
 
