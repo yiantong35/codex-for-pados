@@ -35,4 +35,20 @@ final class LocalizationFollowsInjectedLocaleTests: XCTestCase {
                            "en 文案含中文残留：\(key)=\(e)")
         }
     }
+
+    /// 动态标签（审查模式名、右栏 tab 名）按注入 locale 解析，en 无中文残留。
+    func test_dynamicLabels_followInjectedLocale() {
+        let en = Locale(identifier: "en")
+        for mode in ReviewSourceMode.allCases {
+            let s = mode.label(locale: en)
+            XCTAssertFalse(s.isEmpty)
+            XCTAssertFalse(s.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) },
+                           "审查模式名 en 含中文残留：\(s)")
+        }
+        for tab in RightPanelTab.allCases {
+            let s = tab.label(locale: en)
+            XCTAssertFalse(s.isEmpty)
+            XCTAssertFalse(s.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) })
+        }
+    }
 }

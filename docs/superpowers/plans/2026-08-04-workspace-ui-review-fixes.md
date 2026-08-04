@@ -811,7 +811,7 @@ git commit -m "feat(ipad): 抽共享 locale 查表 helper，静态硬编码中�
   - `RightPanelTab.label(locale:)` — 同理，`String(localized: "rightPanel.tab.review")` 改 `L10n.string("rightPanel.tab.review", locale:)`。
   - 两处调用点从 `@Environment(\.locale)` 取 locale 传入。
 
-- [ ] **Step 1: 写失败测试** — 在 `LocalizationFollowsInjectedLocaleTests.swift` 追加：
+- [x] **Step 1: 写失败测试** — 在 `LocalizationFollowsInjectedLocaleTests.swift` 追加：
 
 ```swift
     /// 动态标签（审查模式名、右栏 tab 名）按注入 locale 解析，en 无中文残留。
@@ -831,16 +831,16 @@ git commit -m "feat(ipad): 抽共享 locale 查表 helper，静态硬编码中�
     }
 ```
 
-- [ ] **Step 2: 运行确认失败** — `xcodebuild test -only-testing:CodexRemoteTests/LocalizationFollowsInjectedLocaleTests`。预期：编译失败（`label` 无 `locale:` 形参）。
+- [x] **Step 2: 运行确认失败** — `xcodebuild test -only-testing:CodexRemoteTests/LocalizationFollowsInjectedLocaleTests`。预期：编译失败（`label` 无 `locale:` 形参）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 - `ReviewPanelTypes.swift:16-20`：把 `var label: String { self == .turn ? "本轮" : "全量" }` 改为 `func label(locale: Locale) -> String { L10n.string(self == .turn ? "review.mode.turn" : "review.mode.full", locale: locale) }`（保留 `id`）。`ReviewPanelTypes.swift` 需 `import Foundation`（已有）；`L10n` 同 target 可见。同步改 `resolve(...)` 里 `label: mode.label`（`:26-27`）——它用 label 作数据源标签，改传 locale 会污染纯数据结构。**取舍**：`ReviewDiffSource.label` 是展示用字符串，改 `resolve(mode:turnDiff:fullDiff:locale:)` 接 locale，或让 `label` 存 key 字符串、由视图解析。最小改动：给 `resolve` 加 `locale: Locale` 形参传入 `mode.label(locale:)`；调用点（搜索 `ReviewDiffSource.resolve`）补传 `@Environment(\.locale)`。
 - `ReviewTabView.swift:32-34`：`Text(m.label)` → `Text(m.label(locale: locale))`，并在该视图加 `@Environment(\.locale) private var locale`（若无）。
 - `RightPanelContainerView.swift:4-14`：`RightPanelTab.label` 由计算属性改 `func label(locale:)`（内部 `L10n.string`）；`tabBar`（Task 4 已改）里 `Text(tab.label)` → `Text(tab.label(locale: locale))`（容器已有 `@Environment(\.locale) private var locale`，`:32`）。
 
-- [ ] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/LocalizationFollowsInjectedLocaleTests -only-testing:CodexRemoteTests/RightPanelTabsLayoutTests`；`xcodebuild build`。预期：PASS 且既有引用编译通过。
+- [x] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/LocalizationFollowsInjectedLocaleTests -only-testing:CodexRemoteTests/RightPanelTabsLayoutTests`；`xcodebuild build`。预期：PASS 且既有引用编译通过。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Protocol/ReviewPanelTypes.swift ios/CodexRemote/Views/Workspace/ReviewTabView.swift ios/CodexRemote/Views/Workspace/RightPanelContainerView.swift ios/CodexRemoteTests/LocalizationFollowsInjectedLocaleTests.swift

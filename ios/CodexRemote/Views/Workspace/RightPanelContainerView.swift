@@ -4,11 +4,12 @@ import SwiftUI
 enum RightPanelTab: CaseIterable, Identifiable {
     case review, files, sideChat
     var id: Self { self }
-    var label: String {
+    /// D5：tab 名跟随注入 locale（不用 `String(localized:)`，它忽略应用内注入 locale）。
+    func label(locale: Locale) -> String {
         switch self {
-        case .review:   return String(localized: "rightPanel.tab.review")
-        case .files:    return String(localized: "rightPanel.tab.files")
-        case .sideChat: return String(localized: "rightPanel.tab.sideChat")
+        case .review:   return L10n.string("rightPanel.tab.review", locale: locale)
+        case .files:    return L10n.string("rightPanel.tab.files", locale: locale)
+        case .sideChat: return L10n.string("rightPanel.tab.sideChat", locale: locale)
         }
     }
 }
@@ -136,7 +137,7 @@ struct RightPanelContainerView: View {
                 Button {
                     selectedTab = tab
                 } label: {
-                    Text(tab.label)
+                    Text(tab.label(locale: locale))
                         .font(.subheadline)
                         .fontWeight(selectedTab == tab ? .semibold : .regular)
                         .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)

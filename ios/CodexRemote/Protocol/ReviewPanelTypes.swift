@@ -16,15 +16,18 @@ struct ReviewDiffSource: Equatable {
 enum ReviewSourceMode: CaseIterable, Identifiable {
     case turn, full
     var id: Self { self }
-    var label: String { self == .turn ? "本轮" : "全量" }
+    /// D5：模式名跟随注入 locale（不用 `String(localized:)`，它忽略应用内注入 locale）。
+    func label(locale: Locale) -> String {
+        L10n.string(self == .turn ? "review.mode.turn" : "review.mode.full", locale: locale)
+    }
 }
 
 extension ReviewDiffSource {
     /// 按模式把「本轮」与「全量」两份 diff 映射成面板数据源。全量未拉取(nil)→空 diff(面板显示空态)。
-    static func resolve(mode: ReviewSourceMode, turnDiff: String, fullDiff: String?) -> ReviewDiffSource {
+    static func resolve(mode: ReviewSourceMode, turnDiff: String, fullDiff: String?, locale: Locale) -> ReviewDiffSource {
         switch mode {
-        case .turn: return ReviewDiffSource(diff: turnDiff, label: mode.label, cwd: nil)
-        case .full: return ReviewDiffSource(diff: fullDiff ?? "", label: mode.label, cwd: nil)
+        case .turn: return ReviewDiffSource(diff: turnDiff, label: mode.label(locale: locale), cwd: nil)
+        case .full: return ReviewDiffSource(diff: fullDiff ?? "", label: mode.label(locale: locale), cwd: nil)
         }
     }
 }

@@ -106,11 +106,12 @@ struct ReviewPanelTests {
     @Test func sourceModeResolve() {
         let turn = "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n"
         let full = "diff --git a/y b/y\n--- a/y\n+++ b/y\n@@ -1 +1 @@\n-c\n+d\n"
-        #expect(ReviewDiffSource.resolve(mode: .turn, turnDiff: turn, fullDiff: full).label == "本轮")
-        #expect(ReviewDiffSource.resolve(mode: .turn, turnDiff: turn, fullDiff: full).files.first?.path == "x")
-        #expect(ReviewDiffSource.resolve(mode: .full, turnDiff: turn, fullDiff: full).files.first?.path == "y")
+        let zh = Locale(identifier: "zh-Hans")
+        #expect(ReviewDiffSource.resolve(mode: .turn, turnDiff: turn, fullDiff: full, locale: zh).label == "本轮")
+        #expect(ReviewDiffSource.resolve(mode: .turn, turnDiff: turn, fullDiff: full, locale: zh).files.first?.path == "x")
+        #expect(ReviewDiffSource.resolve(mode: .full, turnDiff: turn, fullDiff: full, locale: zh).files.first?.path == "y")
         // 全量未拉取(nil)→空,面板显示空态
-        #expect(ReviewDiffSource.resolve(mode: .full, turnDiff: turn, fullDiff: nil).isEmpty)
+        #expect(ReviewDiffSource.resolve(mode: .full, turnDiff: turn, fullDiff: nil, locale: zh).isEmpty)
     }
     @MainActor @Test func fetchFullDiffCallsGitDiffToRemote() async throws {
         let mock = MockTransport()
