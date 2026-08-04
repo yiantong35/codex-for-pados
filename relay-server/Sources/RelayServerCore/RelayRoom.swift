@@ -50,8 +50,12 @@ public final class RelayRooms: @unchecked Sendable {
         case .iPad:
             if room.ipad != nil { lock.unlock(); return .rejectedRoleOccupied }
             room.ipad = Slot(connId: connId, sink: sink)
-            flush = room.pendingForIpad                       // 快照本方向缓冲
-            room.pendingForIpad = []; room.pendingForIpadBytes = 0   // 清空
+            // #2 reset-on-rejoin（仅 iPad 入向，不对称）：**丢弃 pendingForIpad，不 flush**。
+            // pendingForIpad 里若有帧，说明 iPad 之前缺席过(断线重连)——那是 dev 用**旧会话密钥**
+            // seal 的 appData 密文,重连 iPad 的 ephemeral 已重生、必然解不开 → 真 stale,必丢。
+            // 首次 join 时 pendingForIpad 天然为空,丢弃无害 → iPad 侧无条件丢弃即可,无需时序标记。
+            // 零知识不变:仅按方向清连接层缓冲,不解析帧内容。dev 入向(pendingForDev)保持 flush(见下)。
+            room.pendingForIpad = []; room.pendingForIpadBytes = 0   // 丢弃 stale 旧密钥密文(不 flush)
         case .devMachine:
             if room.dev != nil { lock.unlock(); return .rejectedRoleOccupied }
             room.dev = Slot(connId: connId, sink: sink)
