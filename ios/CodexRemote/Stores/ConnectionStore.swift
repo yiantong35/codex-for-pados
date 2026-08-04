@@ -37,6 +37,9 @@ struct HeartbeatUnhealthy: Sendable {
     let run: @Sendable () async -> Void
 }
 
+/// D2：resume 订阅者的轻量唯一标识。
+struct ResumeToken: Hashable, Sendable { let raw: UInt64 }
+
 /// 连接生命周期状态机（设计 §7）。
 enum ConnectionPhase: Equatable {
     case disconnected
@@ -91,11 +94,13 @@ final class ConnectionStore {
     /// 当前 attempt 正在构建、尚未落地的 transport。超时/被新连接或 disconnect 作废时须关闭它，
     /// 触发其 close() → transport 标记握手失败 → awaitHandshake 抛出 → doEstablish 解挂（#1 防泄漏）。
     private var inFlightTransport: MessageTransport?
-    private var resumeHandler: (@Sendable () async -> Void)?
+    /// D2：resume 回调订阅表（主对话 + 每个侧聊各一）。单属性会被后注册者覆盖，故改多订阅。
+    private var resumeHandlers: [ResumeToken: @Sendable () async -> Void] = [:]
+    /// 已首连补触发过的订阅者集合（订阅者维度化的 didInitialRejoin）：新订阅者不漏、老订阅者不重。
+    /// 每次新 connect()/disconnect() 清空。物理重连走 observeControl 的 .ready，与此独立。
+    private var rejoinedTokens: Set<ResumeToken> = []
+    private var nextResumeTokenRaw: UInt64 = 0
     private var controlObserver: Task<Void, Never>?
-    /// 本次连接是否已触发过「首连恢复」（rejoinRunningThreads），保证恰好一次。
-    /// 每次新 connect()/disconnect() 重置。物理重连走 observeControl 的 .ready，与此独立。
-    private var didInitialRejoin = false
     /// 当前连接是否已就绪（phase=.ready），用于在 handler 晚于 .ready 注册时补触发首连恢复。
     private var isReady = false
     /// 当前连接尝试序号：每次新连接 +1；超时也 +1 以作废仍在后台跑的旧 establish。
@@ -118,21 +123,42 @@ final class ConnectionStore {
         self.injectedHeartbeatFactory = heartbeatFactory
     }
 
-    /// 注入「重连后会话恢复」的回调（§5 接 thread/loaded/list + resume）。
+    /// D2：登记一个「重连后会话恢复」回调，返回轻量唯一 token 供精确注销。
     /// 真实接线中 ConversationView 在 rpc 就绪后才注册，可能晚于首连 .ready——
-    /// 故注册时若连接已就绪且尚未做过首连恢复，立即补触发一次（对齐「连上自动订阅全部活跃 thread」）。
-    func setResumeHandler(_ h: @escaping @Sendable () async -> Void) {
-        resumeHandler = h
-        triggerInitialRejoinIfReady()
+    /// 故注册时若连接已就绪且该 token 尚未首连触发过，立即补触发恰一次
+    /// （对齐「连上自动订阅全部活跃 thread」）。主对话与每个侧聊各自订阅、互不覆盖。
+    @discardableResult
+    func addResumeHandler(_ h: @escaping @Sendable () async -> Void) -> ResumeToken {
+        let token = ResumeToken(raw: nextResumeTokenRaw); nextResumeTokenRaw &+= 1
+        resumeHandlers[token] = h
+        // 已就绪且本 token 尚未首连触发过 → 立即补触发恰一次（对齐既有 setResumeHandler 语义）。
+        if isReady, !rejoinedTokens.contains(token) {
+            rejoinedTokens.insert(token)
+            Task { await h() }
+        }
+        return token
     }
 
-    /// 首连恢复触发器：当「已就绪」且「handler 已注册」且「本次连接尚未做过首连恢复」三者满足时，
-    /// 触发恰好一次 resumeHandler。connect 落 .ready 与 setResumeHandler 谁后到都能触发，且不重复。
+    /// D2：精确注销单个订阅者，不影响其它订阅者。
+    func removeResumeHandler(_ token: ResumeToken) {
+        resumeHandlers[token] = nil
+        rejoinedTokens.remove(token)
+    }
+
+    /// 薄封装：保留旧调用点/旧测试。忽略返回 token（无法精确注销，仅供不需注销的场景）。
+    func setResumeHandler(_ h: @escaping @Sendable () async -> Void) {
+        _ = addResumeHandler(h)
+    }
+
+    /// 首连恢复触发器：对「已就绪」但「尚未首连触发过」的每个订阅者各触发恰一次。
+    /// connect 落 .ready 与 addResumeHandler 谁后到都能触发，且不重复。
     /// 物理重连的恢复由 observeControl 的 .ready 分支独立负责，不经此处。
     private func triggerInitialRejoinIfReady() {
-        guard isReady, !didInitialRejoin, let h = resumeHandler else { return }
-        didInitialRejoin = true
-        Task { await h() }
+        guard isReady else { return }
+        for (token, h) in resumeHandlers where !rejoinedTokens.contains(token) {
+            rejoinedTokens.insert(token)
+            Task { await h() }
+        }
     }
 
     /// 发起连接（fire-and-forget，结果经 `phase` 反映给 UI）。
@@ -157,7 +183,7 @@ final class ConnectionStore {
         let attempt = activeAttempt
         phase = .connecting
         // 新连接：重置首连恢复状态（上一次连接的 rejoin 不应抑制本次）。
-        didInitialRejoin = false
+        rejoinedTokens.removeAll()
         isReady = false
         needsRePairing = false   // 新连接清除上一次的信任撤销引导标记
         connLog.info("connect 开始 relay session=\(config.relaySessionId, privacy: .public) attempt=\(attempt)")
@@ -235,7 +261,7 @@ final class ConnectionStore {
         // take-and-nil：先原子取所有权再 close，避免与在途 establish 的失败清理路径双关同一 transport。
         if let inflight = inFlightTransport { inFlightTransport = nil; await inflight.close() }
         isReady = false
-        didInitialRejoin = false
+        rejoinedTokens.removeAll()
         phase = .disconnected
     }
 
@@ -397,7 +423,8 @@ final class ConnectionStore {
                 case .ready:
                     self.phase = .ready
                     self.startHeartbeat()   // 物理重连成功：重启端到端心跳
-                    if let h = self.resumeHandler { await h() }   // 重连成功 → 经官方列表恢复并重新订阅
+                    // 物理重连成功 → 遍历触发全部订阅者（主对话 + 每个侧聊各自 rejoin）。
+                    for h in self.resumeHandlers.values { Task { await h() } }
                 case .connectionFailed:
                     // 重连退避耗尽（终态，4.3）：落 .failed 提示可手动重连。
                     // **保留机器配置**（不清 config、不 disconnect）——用户可再次 connect() 手动重连。

@@ -187,7 +187,7 @@ git commit -m "feat(ipad): 侧聊状态隔离，ConversationView 增 bindsWorksp
   - `func setResumeHandler(_ h:)` — 保留为薄封装（内部 `_ = addResumeHandler(h)`，忽略返回 token），维持既有调用点与既有测试 `testInitialConnectAlsoRejoins` / `testReconnectReadyControlTriggersResync` 绿。
 - Consumes: `MockTransport`、`FireBox`（`ConnectionStoreTests.swift:521`）、`waitUntil`（`ConnectionStoreTests.swift:225`）。
 
-- [ ] **Step 1: 写失败测试** — 在 `ConnectionStoreTests.swift` 末尾（`actor FireBox` 定义之前的类内）新增三个用例：多订阅互不覆盖、注销后不再触发、已 ready 时新订阅补触发恰一次。
+- [x] **Step 1: 写失败测试** — 在 `ConnectionStoreTests.swift` 末尾（`actor FireBox` 定义之前的类内）新增三个用例：多订阅互不覆盖、注销后不再触发、已 ready 时新订阅补触发恰一次。
 
 ```swift
     /// D2：主对话与侧聊各自注册恢复回调，物理重连 .ready 时两者都被触发（后者不覆盖前者）。
@@ -253,9 +253,9 @@ git commit -m "feat(ipad): 侧聊状态隔离，ConversationView 增 bindsWorksp
 
 > 说明：`driveToReady(store:mock:)` 与 `mock.emitControl(_:)` 若 `ConnectionStoreTests.swift` / `MockTransport.swift` 尚无等价物，则本步一并添加最小 helper——复用既有 `testInitialConnectAlsoRejoins`（`:115-141`）里「后台喂 initialize 响应 + waitUntil ready」的写法抽成私有 `driveToReady`；`emitControl` 走 `MockTransport` 既有的 control 事件注入通道（`testReconnectReadyControlTriggersResync :295` 已用同类机制，照其模式复用，不新造协议）。
 
-- [ ] **Step 2: 运行确认失败** — `xcodebuild test -only-testing:CodexRemoteTests/ConnectionStoreTests`。预期：编译失败（无 `addResumeHandler`/`removeResumeHandler`/`ResumeToken`）。
+- [x] **Step 2: 运行确认失败** — `xcodebuild test -only-testing:CodexRemoteTests/ConnectionStoreTests`。预期：编译失败（无 `addResumeHandler`/`removeResumeHandler`/`ResumeToken`）。
 
-- [ ] **Step 3: 最小实现** — 把单属性改订阅表。
+- [x] **Step 3: 最小实现** — 把单属性改订阅表。
 
 `ConnectionStore.swift` 顶部（`ConnectionStore` 之外或内部）加 token 类型：
 
@@ -334,9 +334,9 @@ struct ResumeToken: Hashable, Sendable { let raw: UInt64 }
 
 （`connect()` 首连成功路径 `:189` 仍调 `self.triggerInitialRejoinIfReady()`，语义不变。）
 
-- [ ] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/ConnectionStoreTests`。预期：新用例 + 既有 `testInitialConnectAlsoRejoins`/`testReconnectReadyControlTriggersResync` 全 PASS。
+- [x] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/ConnectionStoreTests`。预期：新用例 + 既有 `testInitialConnectAlsoRejoins`/`testReconnectReadyControlTriggersResync` 全 PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Stores/ConnectionStore.swift ios/CodexRemoteTests/ConnectionStoreTests.swift ios/CodexRemoteTests/MockTransport.swift
