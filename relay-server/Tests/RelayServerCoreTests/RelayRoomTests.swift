@@ -115,3 +115,47 @@ import RelayProtocol
     rooms.join(sessionId: "s", role: .devMachine) { devRx.append($0) }
     #expect(devRx == [opaque])   // 原样投递，未被解析/改写
 }
+
+// 6.1/6.2：dev 离开 → 通知仍在的 iPad；离开者自己不收到。
+@Test func leaveNotifiesRemainingPeer() throws {
+    let rooms = RelayRooms()
+    var ipadRx: [String] = []
+    var devRx: [String] = []
+    guard case let .joined(devId) = rooms.join(sessionId: "s", role: .devMachine, sink: { devRx.append($0) }) else {
+        return #expect(Bool(false))
+    }
+    guard case .joined = rooms.join(sessionId: "s", role: .iPad, sink: { ipadRx.append($0) }) else {
+        return #expect(Bool(false))
+    }
+    rooms.leave(sessionId: "s", role: .devMachine, connId: devId)
+    #expect(ipadRx.count == 1)
+    let sig = try RelaySignal(decoding: Data(ipadRx[0].utf8))
+    #expect(sig.kind == RelaySignal.peerLeftKind && sig.sessionId == "s")
+    #expect(devRx.isEmpty)   // 离开者自己不收到
+}
+
+// 6.1/6.2：对称——iPad 离开 → 通知仍在的 dev。
+@Test func leaveNotifiesDevWhenIpadLeaves() throws {
+    let rooms = RelayRooms()
+    var devRx: [String] = []
+    rooms.join(sessionId: "s", role: .devMachine) { devRx.append($0) }
+    guard case let .joined(ipadId) = rooms.join(sessionId: "s", role: .iPad, sink: { _ in }) else {
+        return #expect(Bool(false))
+    }
+    rooms.leave(sessionId: "s", role: .iPad, connId: ipadId)
+    #expect(devRx.count == 1)
+    #expect((try RelaySignal(decoding: Data(devRx[0].utf8))).kind == RelaySignal.peerLeftKind)
+}
+
+// 6.1/6.2：幂等——旧 connId 的迟到 leave 未清任何槽 → 不重复通知。
+@Test func staleLeaveDoesNotNotify() {
+    let rooms = RelayRooms()
+    var devRx: [String] = []
+    rooms.join(sessionId: "s", role: .devMachine) { devRx.append($0) }
+    guard case let .joined(ipadId) = rooms.join(sessionId: "s", role: .iPad, sink: { _ in }) else {
+        return #expect(Bool(false))
+    }
+    rooms.leave(sessionId: "s", role: .iPad, connId: ipadId)
+    rooms.leave(sessionId: "s", role: .iPad, connId: ipadId)   // 迟到重复：槽已空
+    #expect(devRx.count == 1)
+}

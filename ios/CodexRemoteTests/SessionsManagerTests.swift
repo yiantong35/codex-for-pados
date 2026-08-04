@@ -312,6 +312,20 @@ final class SessionsManagerTests: XCTestCase {
         XCTAssertEqual(m.indicator(for: mc.id), .none, "未建 Session 的 tab 应无圆点")
     }
 
+    /// Task 9：已建 Session 但连接非就绪（phase != .ready）→ 灰点 .disconnected（红灰严格正交）。
+    /// 新建 Session 默认 phase == .disconnected（非 .ready）。旧实现 resolve(isConnected:false) 恒 .none；
+    /// 叠加「非 .ready → .disconnected」语义后应返回灰点，而非无点。
+    /// 与 test_indicatorNoneForUnconnectedSession 区分：那条是**未建** Session（cache 空）→ .none；
+    /// 这条是**已建**但连接异常 → .disconnected。
+    func test_indicator_builtButNotReady_isDisconnected() {
+        let m = mgr()
+        let mc = relayMC("a"); m.machineStore.add(mc)
+        let s = m.session(for: mc.id)!               // 建 Session，phase == .disconnected（非 .ready）
+        XCTAssertNotEqual(s.connection.phase, .ready, "前置：新建 Session 应为非就绪")
+        XCTAssertEqual(m.indicator(for: mc.id), .disconnected,
+                       "已建但连接非就绪 → 灰点 .disconnected（红灰正交，非 .none）")
+    }
+
     /// 圆点数据源（真实聚合）：已连接 Session 内有「待批准」活跃会话 → indicator 反映 .attention。
     /// 需驱动握手到 .ready（TabIndicator.resolve 未连接一律 .none），再经 ingest + handleStatusChanged
     /// 注入一个活跃会话状态，验证 indicator 从 projects 真实聚合而非桩恒 .none。

@@ -22,7 +22,10 @@
 		0CECD2284CA5919671590D15 /* FileContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76CCCCB25128A6A92F45ECA0 /* FileContent.swift */; };
 		0D779937FAD9F552AAECEFF9 /* TransportControlEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C73D50DE0A51AB89EF6CC7 /* TransportControlEvent.swift */; };
 		10A1C58C4166B18E6FC2A98C /* TOFUStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0999A9679BAAF2E1025AF139 /* TOFUStoreTests.swift */; };
+		AE01B1CB0000000000000002 /* ConnectionBannerStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE01B1CB0000000000000001 /* ConnectionBannerStateTests.swift */; };
 		123F9BDEDD1CADB7A435CB82 /* ConnectionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5B0B06C966AB8B15879FD39 /* ConnectionStoreTests.swift */; };
+		AE2000000000000000000002 /* HeartbeatMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2000000000000000000001 /* HeartbeatMonitorTests.swift */; };
+		AE2000000000000000000012 /* JSONRPCClientHeartbeatCorrelationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2000000000000000000011 /* JSONRPCClientHeartbeatCorrelationTests.swift */; };
 		124FCC4A0263929DB468A220 /* SessionsManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FF61393064B1C493E29C2C1 /* SessionsManagerTests.swift */; };
 		13472DEE88E768A9DEF5651A /* MockTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0BD4E81945814B56FD25C0 /* MockTransport.swift */; };
 		142D103FF649F0A64E61AA5B /* TabIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 736E98A7EB71F45039360A2F /* TabIndicator.swift */; };
@@ -44,6 +47,7 @@
 		29756517ABA6664CC3AA61CA /* RelaySchemeValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDEDD34B93B84FFE3F7BD3B0 /* RelaySchemeValidator.swift */; };
 		2D8BF04A246C60A34DEC58C1 /* AccountSettingsSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FED3F0DE30E4B891F51D1B1A /* AccountSettingsSectionView.swift */; };
 		2DFB2CAF97BD2AB649FA006C /* ConnectionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB4E24CD7D089598C083CD03 /* ConnectionStore.swift */; };
+		AE1000000000000000000002 /* HeartbeatMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE1000000000000000000001 /* HeartbeatMonitor.swift */; };
 		2E22F5B05273F39AC264E778 /* ProtocolTypesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFD990BEF80BA894D65E3CC8 /* ProtocolTypesTests.swift */; };
 		2ECEF967A2DCD5967A2D7F58 /* SidebarCollapseStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E2FC2BAB94125D5C1A15DCC /* SidebarCollapseStore.swift */; };
 		2F372F0551B06241156F9BD4 /* TOFUStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 953469EB670B10C7C8C93527 /* TOFUStore.swift */; };
@@ -408,6 +412,7 @@
 		EAE2C5B99FC08141E9BA12DE /* WorkspaceSummaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceSummaryTests.swift; sourceTree = "<group>"; };
 		EB0423A12391FFC9C188F1C0 /* ThreadCreationAvailableTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadCreationAvailableTests.swift; sourceTree = "<group>"; };
 		EB4E24CD7D089598C083CD03 /* ConnectionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStore.swift; sourceTree = "<group>"; };
+		AE1000000000000000000001 /* HeartbeatMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeartbeatMonitor.swift; sourceTree = "<group>"; };
 		EBAC148C13A780E90A52DC03 /* ShortcutTabActivationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutTabActivationTests.swift; sourceTree = "<group>"; };
 		EC1BCECEBA909E475EC3AD31 /* StreamCoalescerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamCoalescerTests.swift; sourceTree = "<group>"; };
 		EC9844EBDF04B12BCCC87B1E /* ReconnectOutboundQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReconnectOutboundQueueTests.swift; sourceTree = "<group>"; };
@@ -421,7 +426,10 @@
 		F48B2463CDAE1D3D8004395D /* RelayE2EKeyManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayE2EKeyManagerTests.swift; sourceTree = "<group>"; };
 		F547E588BB81CCBE715381AD /* PluginsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginsStoreTests.swift; sourceTree = "<group>"; };
 		F59BCD443AF36F312C9CA334 /* ApprovalCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalCoordinator.swift; sourceTree = "<group>"; };
+		AE01B1CB0000000000000001 /* ConnectionBannerStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionBannerStateTests.swift; sourceTree = "<group>"; };
 		F5B0B06C966AB8B15879FD39 /* ConnectionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStoreTests.swift; sourceTree = "<group>"; };
+		AE2000000000000000000001 /* HeartbeatMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeartbeatMonitorTests.swift; sourceTree = "<group>"; };
+		AE2000000000000000000011 /* JSONRPCClientHeartbeatCorrelationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONRPCClientHeartbeatCorrelationTests.swift; sourceTree = "<group>"; };
 		F6C01C7EC77E19B927C5E72B /* CodexRemoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexRemoteApp.swift; sourceTree = "<group>"; };
 		F6E051CE764D3EE15E6642FC /* PendingPairingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingPairingStore.swift; sourceTree = "<group>"; };
 		F739862A665E7A7C169F4704 /* InspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorView.swift; sourceTree = "<group>"; };
@@ -501,6 +509,7 @@
 				299CE3AF94910F633856C075 /* ApprovalStore.swift */,
 				995486B654B5E062B102534B /* ColumnWidthStore.swift */,
 				EB4E24CD7D089598C083CD03 /* ConnectionStore.swift */,
+				AE1000000000000000000001 /* HeartbeatMonitor.swift */,
 				3EB7C9E83303FF08058487D8 /* ConversationStore.swift */,
 				EDF45B41996E136FC0ED72F4 /* EnvironmentInspectorModel.swift */,
 				B42F263C5E94D350518B7536 /* EnvironmentStore.swift */,
@@ -712,7 +721,10 @@
 				5431DDA9E5219EC7FAC0F80B /* ClipboardPolicyTests.swift */,
 				4D2197F6A2B7E899050437AB /* CodexRemoteTests.swift */,
 				161566406F96EB16EABE135F /* ColumnWidthStoreTests.swift */,
+				AE01B1CB0000000000000001 /* ConnectionBannerStateTests.swift */,
 				F5B0B06C966AB8B15879FD39 /* ConnectionStoreTests.swift */,
+				AE2000000000000000000001 /* HeartbeatMonitorTests.swift */,
+				AE2000000000000000000011 /* JSONRPCClientHeartbeatCorrelationTests.swift */,
 				571F13286F5DC954B383D3E6 /* ConversationCoalesceSchedulingTests.swift */,
 				BED69C1A4C21EDC189C91549 /* ConversationSendTests.swift */,
 				89C550C754DB48091C44F7E5 /* ConversationStoreTests.swift */,
@@ -928,6 +940,7 @@
 				21A48E36A65B616146137A97 /* ColumnWidthStore.swift in Sources */,
 				E49F3B1FD0579B617A8365B0 /* ComposerView.swift in Sources */,
 				2DFB2CAF97BD2AB649FA006C /* ConnectionStore.swift in Sources */,
+				AE1000000000000000000002 /* HeartbeatMonitor.swift in Sources */,
 				A5E3135117192215A58A0725 /* ConversationModels.swift in Sources */,
 				A0657FFE6724B05B96DEEF24 /* ConversationStore.swift in Sources */,
 				CF8F6B2441D5F2864FF029F2 /* ConversationView.swift in Sources */,
@@ -1036,7 +1049,10 @@
 				6E1238599AAD2527FCD396D5 /* ClipboardPolicyTests.swift in Sources */,
 				C2F8DADF2BC6D387BDF605C0 /* CodexRemoteTests.swift in Sources */,
 				B1B3F3C51EF2A1510BB314BF /* ColumnWidthStoreTests.swift in Sources */,
+				AE01B1CB0000000000000002 /* ConnectionBannerStateTests.swift in Sources */,
 				123F9BDEDD1CADB7A435CB82 /* ConnectionStoreTests.swift in Sources */,
+				AE2000000000000000000002 /* HeartbeatMonitorTests.swift in Sources */,
+				AE2000000000000000000012 /* JSONRPCClientHeartbeatCorrelationTests.swift in Sources */,
 				032F1CAB7CA522F27E5C65F6 /* ConversationCoalesceSchedulingTests.swift in Sources */,
 				FE6A974BE19F86D1C57CB9AB /* ConversationSendTests.swift in Sources */,
 				BC80BF4355D7BC31B80A49D8 /* ConversationStoreTests.swift in Sources */,

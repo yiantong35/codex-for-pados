@@ -31,6 +31,12 @@ struct ConnectionConfig: Sendable {
     }
 }
 
+/// 心跳判死回调的逃逸包装（Sendable）：封装 `onUnhealthy`，供注入的 heartbeatFactory 构造
+/// 脚本化 HeartbeatMonitor 时复用同一份「判死 → 有界重连」副作用。
+struct HeartbeatUnhealthy: Sendable {
+    let run: @Sendable () async -> Void
+}
+
 /// 连接生命周期状态机（设计 §7）。
 enum ConnectionPhase: Equatable {
     case disconnected
@@ -75,6 +81,12 @@ final class ConnectionStore {
     /// 建连/握手硬超时（纳秒）。默认 20s；测试可注入更短值以快速复现超时失效路径。
     private let connectTimeoutNanos: UInt64
     private var config: ConnectionConfig?
+    /// 最近一次 connect 的配置：心跳判死后经 reconnect() 复用它重连（保留机器配置）。
+    private var lastConfig: ConnectionConfig?
+    /// 端到端心跳调度器（探穿段 B）。仅在 .ready 期间存活；离开 .ready / 断开 / 退后台停止。
+    private var heartbeat: HeartbeatMonitor?
+    /// 注入的心跳工厂（测试脚本化 probe/onUnhealthy）；生产为 nil，走 makeRealHeartbeat。
+    private let injectedHeartbeatFactory: (@MainActor (HeartbeatUnhealthy) -> HeartbeatMonitor)?
     private var transport: MessageTransport?
     /// 当前 attempt 正在构建、尚未落地的 transport。超时/被新连接或 disconnect 作废时须关闭它，
     /// 触发其 close() → transport 标记握手失败 → awaitHandshake 抛出 → doEstablish 解挂（#1 防泄漏）。
@@ -99,9 +111,11 @@ final class ConnectionStore {
     #endif
 
     init(transportFactory: @escaping @Sendable (ConnectionConfig) async throws -> MessageTransport,
-         connectTimeoutNanos: UInt64 = 20_000_000_000) {
+         connectTimeoutNanos: UInt64 = 20_000_000_000,
+         heartbeatFactory: (@MainActor (HeartbeatUnhealthy) -> HeartbeatMonitor)? = nil) {
         self.transportFactory = transportFactory
         self.connectTimeoutNanos = connectTimeoutNanos
+        self.injectedHeartbeatFactory = heartbeatFactory
     }
 
     /// 注入「重连后会话恢复」的回调（§5 接 thread/loaded/list + resume）。
@@ -133,6 +147,7 @@ final class ConnectionStore {
             return
         }
         self.config = config
+        self.lastConfig = config    // 记录以供心跳判死后 reconnect() 复用（保留机器配置）
         // 新连接作废上一次仍在途的 transport（若上次卡在握手未落地也未超时）：关闭之避免泄漏（#1）。
         if let stale = inFlightTransport {
             inFlightTransport = nil
@@ -164,6 +179,7 @@ final class ConnectionStore {
                 self.inFlightTransport = nil    // 已落地为 self.transport，不再算「在途」
                 self.phase = .ready
                 self.isReady = true
+                self.startHeartbeat()   // 首连就绪：起端到端心跳探穿段 B
                 self.observeControl(newTransport)
                 // 把当前前台/后台状态同步给新 transport（能耗：后台连接不应持续重连）。
                 await newTransport.setForeground(self.foregroundActive)
@@ -206,6 +222,7 @@ final class ConnectionStore {
     /// 主动断开（停止控制信号观察 + 关闭 RPC + 关闭底层 transport）。
     func disconnect() async {
         activeAttempt += 1                // 作废任何在途连接
+        stopHeartbeat()                   // 主动断开：停心跳（终态不重连）
         controlObserver?.cancel()
         controlObserver = nil
         if let rpc { await rpc.stop() }
@@ -239,8 +256,11 @@ final class ConnectionStore {
             // phase 会永远卡在 .connecting/.initializing → UI 连接按钮转圈禁用、needsConnect/自动重连门
             // （均要求 .disconnected）失效，回前台无从重试。退后台是**主动暂停**非连接失败，故落
             // .disconnected（与 disconnect() 的终态一致），使回前台 needsConnect==true 可重连。
+            stopHeartbeat()   // 退后台取消在途首连并落终态：一并停心跳
             phase = .disconnected
         }
+        // 能耗：心跳前后台门控——后台暂停探针循环，回前台恢复并立即补发一次探活。
+        heartbeat?.setForeground(active)
     }
 
     // MARK: - 握手
@@ -303,6 +323,55 @@ final class ConnectionStore {
         }
     }
 
+    // MARK: - 端到端心跳（探穿段 B：iPad→relay→Mac subprocess）
+
+    /// 心跳判死 / peer-left 探针 miss 后触发的重连：复用最近一次机器配置重连（保留配置）。
+    /// 注意：真实重连由底层 transport 的有界退避承担（onUnhealthy → transport.triggerReconnect）；
+    /// 此方法供 UI「手动重连」按钮（Task 9/横幅）显式复连时调用。
+    func reconnect() {
+        if let c = lastConfig { connect(config: c) }
+    }
+
+    /// 心跳探针本体：一次 getAuthStatus 往返 vs 10s 超时竞速。只看「有无回响」不看内容——
+    /// 天然跨登录方式（账号/API 都回响应即视为活）。超时或抛错即视为 miss。
+    private func sendHeartbeatProbe() async -> Bool {
+        guard let rpc else { return false }
+        guard let empty = try? JSONDecoder().decode(AnyCodable.self, from: Data("{}".utf8)) else { return false }
+        return await withTaskGroup(of: Bool.self) { group in
+            group.addTask { (try? await rpc.send(method: RPCMethod.getAuthStatus, params: empty)) != nil }
+            group.addTask { try? await Task.sleep(nanoseconds: 10_000_000_000); return false }
+            let first = await group.next() ?? false
+            group.cancelAll()
+            return first
+        }
+    }
+
+    /// 生产心跳：默认 10s 间隔 / 连续错过 2 次判死，探针走 sendHeartbeatProbe。
+    private func makeRealHeartbeat(onUnhealthy: @escaping @Sendable () async -> Void) -> HeartbeatMonitor {
+        HeartbeatMonitor(probe: { [weak self] in await self?.sendHeartbeatProbe() ?? false },
+                         onUnhealthy: onUnhealthy)
+    }
+
+    /// 起心跳（进入 .ready 时调用）：判死回调触发底层 transport 有界重连。测试可经 injectedHeartbeatFactory
+    /// 注入脚本化 monitor 复用同一 onUnhealthy。前后台状态即时同步（后台不空转）。
+    private func startHeartbeat() {
+        heartbeat?.stop()
+        let onUnhealthy: @Sendable () async -> Void = { [weak self] in
+            await self?.transport?.triggerReconnect()
+        }
+        let m = injectedHeartbeatFactory?(HeartbeatUnhealthy(run: onUnhealthy))
+            ?? makeRealHeartbeat(onUnhealthy: onUnhealthy)
+        m.setForeground(foregroundActive)
+        m.start()
+        heartbeat = m
+    }
+
+    /// 停心跳（离开 .ready / 断开 / 退后台取消在途首连）。
+    private func stopHeartbeat() {
+        heartbeat?.stop()
+        heartbeat = nil
+    }
+
     // MARK: - 控制信号观察
 
     /// 订阅 transport 控制信号：reconnecting/ready 驱动 UI 重连指示。
@@ -318,6 +387,7 @@ final class ConnectionStore {
                 switch ev {
                 case .reconnecting:
                     self.phase = .reconnecting
+                    self.stopHeartbeat()   // 离开 .ready：停心跳，物理重连成功（.ready）后再起
                     // 物理断线：失败断线瞬间已发出、仍等响应的在途请求，避免其永久挂起（H1）。
                     // 响应不会在新通道重放；失败后调用方/UI 可重试。control() 单消费者由本处独占，
                     // 故由 ConnectionStore（同时持 rpc 与控制流）触发，而非让 JSONRPCClient 抢消费控制流。
@@ -326,17 +396,25 @@ final class ConnectionStore {
                     }
                 case .ready:
                     self.phase = .ready
+                    self.startHeartbeat()   // 物理重连成功：重启端到端心跳
                     if let h = self.resumeHandler { await h() }   // 重连成功 → 经官方列表恢复并重新订阅
                 case .connectionFailed:
                     // 重连退避耗尽（终态，4.3）：落 .failed 提示可手动重连。
                     // **保留机器配置**（不清 config、不 disconnect）——用户可再次 connect() 手动重连。
+                    self.stopHeartbeat()
                     self.phase = .failed("连接失败，请稍后重试")
                 case .trustRevoked:
                     // 收到 RejectHello = 开发机移除信任（终态，4.4）：落 .failed 并置位 needsRePairing，
                     // 由 UI 据此导航回配对入口（RelayPairingImportView）。仅此路径要求重新配对，
                     // 其它连接问题（含开发机未开）走 .connectionFailed，不误报信任撤销。
+                    self.stopHeartbeat()
                     self.phase = .failed("已被开发机移除信任，请重新配对")
                     self.needsRePairing = true
+                case .peerLeft:
+                    // 非判决（防降级红线）：relay 连接层「对端已离开」只是**提示**，不是判死依据。
+                    // 恶意/误报 relay 不能凭空杀健康连接——不改 phase、不断开、不重连，
+                    // 只带外补发一次心跳探针核实：探针 miss 才由心跳判死走有界重连；探针 hit 则忽略。
+                    if let hb = self.heartbeat { Task { await hb.probeOnce() } }
                 }
             }
         }
@@ -369,3 +447,29 @@ final class ConnectionStore {
         return try JSONDecoder().decode(t, from: data)
     }
 }
+
+/// 连接异常横幅态（缺口 3、4）。隐藏为 nil。
+/// 信任撤销（needsRePairing）优先于普通 failed。
+enum ConnectionBannerState: Equatable {
+    case reconnecting
+    case failed
+    case trustRevoked
+}
+
+extension ConnectionStore {
+    var bannerState: ConnectionBannerState? {
+        if needsRePairing { return .trustRevoked }
+        switch phase {
+        case .reconnecting: return .reconnecting
+        case .failed:       return .failed
+        default:            return nil
+        }
+    }
+}
+
+#if DEBUG
+extension ConnectionStore {
+    func _test_setPhase(_ p: ConnectionPhase) { phase = p }
+    func _test_setTrustRevoked() { phase = .failed("trust"); needsRePairing = true }
+}
+#endif

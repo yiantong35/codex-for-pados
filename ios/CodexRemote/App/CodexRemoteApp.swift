@@ -117,12 +117,17 @@ private struct WorkspaceHost: View {
     @Environment(ProjectsStore.self) private var projects
     @Environment(ApprovalStore.self) private var approvals
     @State private var coordinator: ApprovalCoordinator?
+    // 信任失效横幅「重新配对」入口：弹配对导入 sheet（fail-closed 引导重配，非静默降级）。
+    @State private var showRePairing = false
 
     var body: some View {
         // TabBarView 已上提到 RootView（`.id(s.id)` 外层，常驻不重建）；本视图只承接
         // RootSplitView + 重连横幅 + coordinator 接线。切 tab 由外层 `.id(s.id)` 重建本子树。
         RootSplitView()
             .overlay(alignment: .top) { reconnectBanner }
+            .sheet(isPresented: $showRePairing) {
+                NavigationStack { RelayPairingImportView() }
+            }
             // 连接就绪/重连成功后把审批层接到当前 rpc；断线（reconnecting）时标记待恢复（绝不自动批准）。
             // 用 `.task(id:)` 而非 `.onChange`：`.id(s.id)` 重建 WorkspaceHost 时 @State coordinator 归 nil，
             // 若切到已连接的缓存 Session，rpcIdentity 初值即为该 rpc id（无变化）→ onChange 不触发 →
@@ -146,12 +151,33 @@ private struct WorkspaceHost: View {
     }
 
     @ViewBuilder private var reconnectBanner: some View {
-        if connection.phase == .reconnecting {
-            Text("root.reconnecting")
-                .font(.callout)
-                .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(.yellow.opacity(0.3), in: Capsule())
-                .padding(.top, 8)
+        switch connection.bannerState {
+        case .reconnecting:
+            bannerLabel("root.reconnecting", tint: .yellow)
+        case .failed:
+            HStack(spacing: 8) {
+                bannerLabel("connection.disconnected", tint: .red)
+                Button("connection.reconnect") { connection.reconnect() }
+                    .font(.callout.bold())
+            }
+            .padding(.top, 8)
+        case .trustRevoked:
+            HStack(spacing: 8) {
+                bannerLabel("connection.trustRevoked", tint: .red)
+                Button("connection.rePair") { showRePairing = true }
+                    .font(.callout.bold())
+            }
+            .padding(.top, 8)
+        case .none:
+            EmptyView()
         }
+    }
+
+    private func bannerLabel(_ key: LocalizedStringKey, tint: Color) -> some View {
+        Text(key)
+            .font(.callout)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(tint.opacity(0.3), in: Capsule())
+            .padding(.top, 8)
     }
 }

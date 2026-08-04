@@ -3,8 +3,9 @@ import Foundation
 /// tab 圆点聚合状态（D10）。优先级：error > attention > running > unread > none。
 /// 颜色由 View 层映射：error 红闪 / attention 橙闪 / running 绿常亮 / unread 蓝常亮。
 enum TabIndicator: Equatable {
-    case none, unread, running, attention, error
+    case none, unread, running, attention, error, disconnected
 
+    // disconnected（灰点，连接异常）非闪烁：与 error/attention（红橙闪）严格正交。
     var isBlinking: Bool { self == .attention || self == .error }
 
     /// 聚合一个 Session 内所有会话状态 + 未读，取最高优先级。未连接一律 .none。

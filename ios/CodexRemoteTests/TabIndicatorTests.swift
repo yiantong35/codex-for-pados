@@ -37,4 +37,15 @@ final class TabIndicatorTests: XCTestCase {
         XCTAssertFalse(TabIndicator.unread.isBlinking)
         XCTAssertFalse(TabIndicator.none.isBlinking)
     }
+    // 灰点 disconnected 非闪烁（与 error/attention 红橙闪严格区分）。
+    func test_disconnectedCaseNotBlinking() {
+        XCTAssertFalse(TabIndicator.disconnected.isBlinking)
+    }
+    // 红灰正交：resolve 仅在 connected 时判 systemError；未连接不产生红点。
+    func test_notConnected_resolveStillNone_grayIsLayeredAbove() {
+        XCTAssertEqual(TabIndicator.resolve(isConnected: false, statuses: [.systemError]), .none)
+    }
+    func test_connectedSystemError_red() {
+        XCTAssertEqual(TabIndicator.resolve(isConnected: true, statuses: [.systemError]), .error)
+    }
 }
