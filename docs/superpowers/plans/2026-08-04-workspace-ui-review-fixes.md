@@ -1063,7 +1063,7 @@ git commit -m "feat(ipad): 图标按钮 44pt 命中框+语义标签，会话行�
   - `ConversationView` 增近底判定纯状态：`@State private var isNearBottom = true`、`@State private var hasNewBelow = false`；仅 `isNearBottom` 时新内容 `onChange` 自动滚；否则不滚 + 显「新消息」浮标（`safeAreaInset` 或 overlay），点按 `scrollToBottom` 并复位 `hasNewBelow=false`。近底判定用 `GeometryReader` 底部哨兵可见性（纯 UI、事件驱动，无轮询/定时器）。
 - Consumes: `split.selectConversation` 键（`Localizable.xcstrings:4052`，已存在）。
 
-- [ ] **Step 1: 写失败测试** — 滚动位置感知的核心是 UI 手势，难在纯单测驱动。把可判定逻辑抽成纯函数并单测它；视图行为交模拟器自验收（4.4）。
+- [x] **Step 1: 写失败测试** — 滚动位置感知的核心是 UI 手势，难在纯单测驱动。把可判定逻辑抽成纯函数并单测它；视图行为交模拟器自验收（4.4）。
 
 新建 `ConversationScrollAnchorTests.swift`，测「是否自动滚」的决策纯函数：
 
@@ -1094,9 +1094,9 @@ final class ConversationScrollAnchorTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败** — `xcodebuild test -only-testing:CodexRemoteTests/ConversationScrollAnchorTests`。预期：编译失败（无 `ScrollAnchorPolicy`）。
+- [x] **Step 2: 运行确认失败** — `xcodebuild test -only-testing:CodexRemoteTests/ConversationScrollAnchorTests`。预期：编译失败（无 `ScrollAnchorPolicy`）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 在 `ConversationView.swift`（文件内或同目录新建小文件）加纯策略：
 
@@ -1173,9 +1173,9 @@ enum ScrollAnchorPolicy {
 
 > 能耗守则：近底态切换纯靠哨兵 `onAppear/onDisappear`（滚动事件驱动），无 `Timer`/无轮询。
 
-- [ ] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/ConversationScrollAnchorTests`；`xcodebuild build`。预期：PASS。
+- [x] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/ConversationScrollAnchorTests`；`xcodebuild build`。预期：PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Views/ConversationView.swift ios/CodexRemote/Views/RootSplitView.swift ios/CodexRemote/Resources/Localizable.xcstrings ios/CodexRemoteTests/ConversationScrollAnchorTests.swift

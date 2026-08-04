@@ -1,5 +1,16 @@
 import SwiftUI
 
+/// D8：对话滚动位置感知的纯决策（可单测，无 UI 依赖）。
+enum ScrollAnchorPolicy {
+    static func isNearBottom(distanceToBottom: CGFloat, threshold: CGFloat = 120) -> Bool {
+        distanceToBottom <= threshold
+    }
+    static func shouldAutoScroll(isNearBottom: Bool) -> Bool { isNearBottom }
+    static func shouldShowNewBelow(isNearBottom: Bool, contentDidGrow: Bool) -> Bool {
+        !isNearBottom && contentDidGrow
+    }
+}
+
 /// 中栏对话流（设计 §3）：渲染选中 thread 的 ConversationState.items 流，
 /// 含 agent 正文 / 命令执行卡 / 文件 diff 卡 / 用户消息气泡 / turn 状态指示。
 /// 选中对话时用 connection.rpc 装配 ConversationStore，并 startObserving + resume。
@@ -13,6 +24,9 @@ struct ConversationView: View {
     /// 中栏主对话传 true（默认）；侧聊实例传 false，完全不碰 holder，隔离审查状态。
     var bindsWorkspaceState: Bool = true
     @State private var store: ConversationStore?
+    /// D8：滚动位置感知（哨兵事件驱动，无轮询/定时器）。
+    @State private var isNearBottom = true
+    @State private var showNewBelow = false
 
     /// 属于当前线程的待处理审批卡（内联在对话流末尾）。
     private var threadApprovals: [ApprovalCard] {
@@ -38,14 +52,35 @@ struct ConversationView: View {
                     if store?.state.isTurnRunning == true {
                         turnRunningIndicator.id(Self.turnIndicatorID)
                     }
+                    // 底部哨兵：进入/离开可视区切换近底态（事件驱动，无轮询/定时器）。
+                    Color.clear.frame(height: 1).id(Self.bottomSentinelID)
+                        .onAppear { isNearBottom = true; showNewBelow = false }
+                        .onDisappear { isNearBottom = false }
                 }
                 .padding()
             }
             .onChange(of: store?.state.items.count) { _, _ in
-                scrollToBottom(proxy)
+                if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: isNearBottom) {
+                    scrollToBottom(proxy)
+                } else {
+                    showNewBelow = true
+                }
             }
             .onChange(of: store?.state.isTurnRunning) { _, _ in
-                scrollToBottom(proxy)
+                if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: isNearBottom) { scrollToBottom(proxy) }
+            }
+            .overlay(alignment: .bottom) {
+                if showNewBelow {
+                    Button {
+                        withAnimation { scrollToBottom(proxy); showNewBelow = false }
+                    } label: {
+                        Label("conv.newMessages", systemImage: "arrow.down.circle.fill")
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(.regularMaterial, in: Capsule())
+                    }
+                    .padding(.bottom, 8)
+                    .accessibilityLabel(Text("conv.newMessages"))
+                }
             }
         }
         .onChange(of: store?.state) { _, newValue in
@@ -117,6 +152,7 @@ struct ConversationView: View {
     // MARK: - 子视图
 
     private static let turnIndicatorID = "__turn_running_indicator__"
+    private static let bottomSentinelID = "__bottom_sentinel__"
 
     private var turnRunningIndicator: some View {
         HStack(spacing: 8) {

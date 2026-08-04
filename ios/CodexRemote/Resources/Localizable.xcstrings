@@ -1201,6 +1201,22 @@
         }
       }
     },
+    "conv.newMessages": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New messages"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新消息"
+          }
+        }
+      }
+    },
     "conv.reasoning.thinking": {
       "localizations": {
         "en": {

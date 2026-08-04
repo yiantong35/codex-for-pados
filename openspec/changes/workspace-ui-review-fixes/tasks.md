@@ -20,9 +20,9 @@
 
 ## 3. 批3 — P3 + 收口
 
-- [ ] 3.1 D8 `RootSplitView` detail 未选会话渲染 `split.selectConversation` 引导空态
-- [ ] 3.2 D8 `ConversationView` 滚动位置感知：`ScrollViewReader` + 近底判定，仅近底自动滚，否则显「新消息」浮标点按到底；无新增轮询/定时器
-- [ ] 3.3 D8 单测：近底时新消息自动滚；远离底部时不自动滚且出现「新消息」入口
+- [x] 3.1 D8 `RootSplitView` detail 未选会话渲染 `split.selectConversation` 引导空态
+- [x] 3.2 D8 `ConversationView` 滚动位置感知：`ScrollViewReader` + 近底判定，仅近底自动滚，否则显「新消息」浮标点按到底；无新增轮询/定时器
+- [x] 3.3 D8 单测：近底时新消息自动滚；远离底部时不自动滚且出现「新消息」入口
 - [ ] 3.4 D9 收口检查：所有新增/改动路径有断言级测试；无仅「PNG 非空」的空快照断言残留
 
 ## 4. 验证
