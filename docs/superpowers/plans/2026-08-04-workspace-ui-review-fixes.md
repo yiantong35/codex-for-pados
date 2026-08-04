@@ -959,7 +959,7 @@ git commit -m "feat(ipad): 移除机器加二次确认，管理菜单连接/断�
 - Produces: ComposerView 四类图标按钮统一 `.frame(minWidth: 44, minHeight: 44)` + `.contentShape(Rectangle())` + `.accessibilityLabel(Text("<key>"))`；SidebarView `threadRow` 的 `.onTapGesture`（`:137`）改为整行 `Button`（获 button trait + 键盘激活），保留既有视觉（左缘橙条 + 橙标题），`contextMenu`（`:141`）保留。
 - Consumes: 无跨任务依赖。
 
-- [ ] **Step 1: 写失败测试** — 新建 `TouchAccessibilityTests.swift`。SwiftUI 无障碍属性单测受限，采用「挂载 + 遍历命中区尺寸 ≥ 44」结构断言（照 Task 4 的 `hittableRects` 范式）+ 存在 accessibilityLabel（经 hosting 的 `accessibilityElements`/`accessibilityLabel` 读取，若不稳定则退化为「键存在于 xcstrings」+ 手工走读）。
+- [x] **Step 1: 写失败测试** — 新建 `TouchAccessibilityTests.swift`。SwiftUI 无障碍属性单测受限，采用「挂载 + 遍历命中区尺寸 ≥ 44」结构断言（照 Task 4 的 `hittableRects` 范式）+ 存在 accessibilityLabel（经 hosting 的 `accessibilityElements`/`accessibilityLabel` 读取，若不稳定则退化为「键存在于 xcstrings」+ 手工走读）。
 
 ```swift
 import XCTest
@@ -1003,9 +1003,9 @@ final class TouchAccessibilityTests: XCTestCase {
 
 > `ConversationStore(rpc:threadId:)` 若不接受 nil rpc，则先用 `JSONRPCClient(transport: MockTransport())` 造一个再传。会话行 button 语义的断言以 SidebarView 挂载不崩溃 + 手工走读 `Button` 替换为准（VoiceOver button trait 由真机/模拟器自验收 4.4 覆盖）。
 
-- [ ] **Step 2: 运行确认失败** — `xcodebuild test -only-testing:CodexRemoteTests/TouchAccessibilityTests`。预期：FAIL（当前 `plus.circle`/`slider.horizontal.3` 等按钮无 44pt 命中框，高 < 44）。
+- [x] **Step 2: 运行确认失败** — `xcodebuild test -only-testing:CodexRemoteTests/TouchAccessibilityTests`。预期：FAIL（当前 `plus.circle`/`slider.horizontal.3` 等按钮无 44pt 命中框，高 < 44）。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 `ComposerView.swift`：给四个图标按钮统一命中框 + label。抽一个私有 modifier 复用：
 
@@ -1037,9 +1037,9 @@ final class TouchAccessibilityTests: XCTestCase {
 
 在 `Localizable.xcstrings` 补 `composer.a11y.{pickImage,model,stop,send,more}` 的 en + zh。
 
-- [ ] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/TouchAccessibilityTests`；`xcodebuild build`。预期：PASS（命中区 ≥44）。
+- [x] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/TouchAccessibilityTests`；`xcodebuild build`。预期：PASS（命中区 ≥44）。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Views/ComposerView.swift ios/CodexRemote/Views/SidebarView.swift ios/CodexRemote/Resources/Localizable.xcstrings ios/CodexRemoteTests/TouchAccessibilityTests.swift

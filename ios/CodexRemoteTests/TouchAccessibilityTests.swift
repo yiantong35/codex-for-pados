@@ -1,0 +1,53 @@
+import XCTest
+import SwiftUI
+@testable import CodexRemote
+
+/// D7（tasks 2.6/2.7）：图标按钮 44pt 命中框 + 语义标签。
+///
+/// 环境限制（见 `RightPanelTabsLayoutTests.swift:8-17` 记录并本会话复现）：纯 SwiftUI `Button`
+/// 在离屏 XCTest 宿主里既不产生带 gestureRecognizer 的 UIKit 子视图、无障碍树也读不到——
+/// 无法直接遍历 composer 五枚图标按钮的命中框。故命中框验证收敛到**生产共用修饰符**
+/// `minimumHitTarget44()`（五枚按钮统一施加）在真实 SwiftUI 布局下的度量：裸小图标 <44pt 宽，
+/// 施加后宽高均 ≥44pt。语义标签验证走本地化键可解析（缺键回落键名本身）。
+@MainActor
+final class TouchAccessibilityTests: XCTestCase {
+
+    /// SwiftUI 视图理想尺寸：挂进 keyWindow 布局若干 runloop 周期后取 `sizeThatFits`。
+    private func fittingSize<V: View>(_ view: V, width: CGFloat = 600) -> CGSize {
+        let hc = UIHostingController(rootView: view)
+        hc.view.frame = CGRect(x: 0, y: 0, width: width, height: 400)
+        let window = UIWindow(frame: hc.view.frame)
+        window.rootViewController = hc
+        window.makeKeyAndVisible()
+        hc.view.setNeedsLayout(); hc.view.layoutIfNeeded()
+        for _ in 0..<3 {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+            hc.view.layoutIfNeeded()
+        }
+        return hc.sizeThatFits(in: CGSize(width: width, height: 400))
+    }
+
+    /// 2.6：命中框修饰符把小图标撑到 ≥44×44pt（HIG 最小命中目标）。
+    /// 基线断言（裸图标 <44pt 宽）确保修饰符确有其功、测试非空转。
+    func test_minimumHitTarget44_enforces44ptOnSmallIcon() {
+        // composer 主操作图标按钮字号（发送/停止/更多 = .title2）。
+        let icon = Image(systemName: "arrow.up.circle.fill").font(.title2)
+
+        let bare = fittingSize(icon)
+        XCTAssertLessThan(bare.width, 44,
+            "基线前提：裸图标应 <44pt 宽，否则命中框断言无意义（实测宽 \(bare.width)）")
+
+        let hit = fittingSize(icon.minimumHitTarget44())
+        XCTAssertGreaterThanOrEqual(hit.width, 44, "命中框宽应 ≥44pt（实测 \(hit.width)）")
+        XCTAssertGreaterThanOrEqual(hit.height, 44, "命中框高应 ≥44pt（实测 \(hit.height)）")
+    }
+
+    /// 2.7：composer 五枚图标按钮语义标签的本地化键须可解析（缺键回落为键名本身）。
+    func test_composerAccessibilityLabelKeys_areLocalized() {
+        for key in ["composer.a11y.pickImage", "composer.a11y.model",
+                    "composer.a11y.stop", "composer.a11y.send", "composer.a11y.more"] {
+            let value = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(value, key, "缺少无障碍标签本地化键 \(key)")
+        }
+    }
+}

@@ -15,8 +15,8 @@
 - [x] 2.3 D5 探明项目现有「跟随注入 locale」本地化通道（Open Question）；FileBrowserView/ReviewPanelTypes/ShortcutsSettingsSectionView 等硬编码中文 + 动态标签（右栏 tab label、审查模式名）改为跟随注入 locale；xcstrings 补键
 - [x] 2.4 D5 测试：注入英文 locale 时上述文案为英文、无中英混排
 - [x] 2.5 D6 `TabBarView` 移除机器加 `confirmationDialog`（destructive）二次确认；管理菜单连接/断开按连接态互斥（XOR）
-- [ ] 2.6 D7 图标按钮（ComposerView 图片/模型/停止/发送等）统一 ≥44pt 命中框 + `.accessibilityLabel`；`SidebarView` 会话行 `onTapGesture` 改 `Button`（button trait + 键盘激活），保留视觉
-- [ ] 2.7 D7 测试/验收：VoiceOver 语义标签存在；命中框 ≥44pt；会话行键盘可激活
+- [x] 2.6 D7 图标按钮（ComposerView 图片/模型/停止/发送等）统一 ≥44pt 命中框 + `.accessibilityLabel`；`SidebarView` 会话行 `onTapGesture` 改 `Button`（button trait + 键盘激活），保留视觉
+- [x] 2.7 D7 测试/验收：VoiceOver 语义标签存在；命中框 ≥44pt；会话行键盘可激活
 
 ## 3. 批3 — P3 + 收口
 
