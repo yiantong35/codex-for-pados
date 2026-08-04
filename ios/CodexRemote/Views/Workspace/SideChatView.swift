@@ -69,7 +69,7 @@ struct SideChatView: View {
             emptyState(text: "无选中主对话，先在中栏选一个对话再开始侧聊")
         } else if let id = store.selectedId,
                   let session = store.sessions.first(where: { $0.id == id }) {
-            ConversationView(threadId: session.conversation.threadId)
+            ConversationView(threadId: session.conversation.threadId, bindsWorkspaceState: false)
         } else {
             emptyState(text: "点「开始侧聊」从当前主对话派生一个侧聊")
         }

@@ -9,6 +9,9 @@ struct ConversationView: View {
     @Environment(ApprovalStore.self) private var approvals
     @Environment(ActiveConversationHolder.self) private var activeConversation
     let threadId: String
+    /// D1：是否绑定工作区审查状态（写入/清空 ActiveConversationHolder 并注册 resume）。
+    /// 中栏主对话传 true（默认）；侧聊实例传 false，完全不碰 holder，隔离审查状态。
+    var bindsWorkspaceState: Bool = true
     @State private var store: ConversationStore?
 
     /// 属于当前线程的待处理审批卡（内联在对话流末尾）。
@@ -46,7 +49,7 @@ struct ConversationView: View {
             }
         }
         .onChange(of: store?.state) { _, newValue in
-            activeConversation.state = newValue
+            if bindsWorkspaceState { activeConversation.state = newValue }
         }
         .onChange(of: connection.phase) { _, newPhase in
             // reconnect-resync item 3：连接迁移到 .ready → drain 出站队列（补发离线期间缓存的输入）。
@@ -54,7 +57,9 @@ struct ConversationView: View {
         }
         .onDisappear {
             store?.stopObserving()
-            activeConversation.state = nil; activeConversation.fetchFullDiff = nil; activeConversation.startReview = nil
+            if bindsWorkspaceState {
+                activeConversation.state = nil; activeConversation.fetchFullDiff = nil; activeConversation.startReview = nil
+            }
         }
         .safeAreaInset(edge: .bottom) {
             if let store {
@@ -90,14 +95,17 @@ struct ConversationView: View {
             await s.resume()        // session-management：恢复已有会话历史
             store = s
             defer { s.stopObserving() }   // D2：任务结束（threadId 变化/视图消失取消）即停本 store 订阅
-            // 审查面板「全量」数据源：注入拉取回调（gitDiffToRemote），供右栏按 cwd 拉全量 diff。
-            activeConversation.fetchFullDiff = { [weak s] cwd in await s?.fetchFullDiff(cwd: cwd) }
-            // 审查 tab AI 审查发起：注入 review/start 回调（设计 D4，对齐 fetchFullDiff 注入）。
-            activeConversation.startReview = { [weak s] mode in await s?.startReview(mode: mode) ?? false }
-            // 首连/重连成功（.ready）→ 经官方 thread/loaded/list +
-            // thread/resume(rejoin) 重建并重新订阅全部活跃 thread（§5），不依赖本地 seq/threadId。
-            // 注：物理重连属 Phase 5，当前 relay transport 的 control() 为空流。
-            connection.setResumeHandler { [weak s] in await s?.rejoinRunningThreads() }
+            if bindsWorkspaceState {
+                // 审查面板「全量」数据源：注入拉取回调（gitDiffToRemote），供右栏按 cwd 拉全量 diff。
+                activeConversation.fetchFullDiff = { [weak s] cwd in await s?.fetchFullDiff(cwd: cwd) }
+                // 审查 tab AI 审查发起：注入 review/start 回调（设计 D4，对齐 fetchFullDiff 注入）。
+                activeConversation.startReview = { [weak s] mode in await s?.startReview(mode: mode) ?? false }
+                // 首连/重连成功（.ready）→ 经官方 thread/loaded/list +
+                // thread/resume(rejoin) 重建并重新订阅全部活跃 thread（§5），不依赖本地 seq/threadId。
+                // 注：物理重连属 Phase 5，当前 relay transport 的 control() 为空流。
+                // D1：仅主对话注册 resume，避免侧聊也覆盖 handler（Task 4 迁移为 add/remove）。
+                connection.setResumeHandler { [weak s] in await s?.rejoinRunningThreads() }
+            }
             // D2：保持本任务存活，把正文订阅生命周期绑定到 threadId。threadId 变化 / 视图消失时
             // SwiftUI 取消本 .task → Task.sleep 抛出 → defer 停止**本** store 的订阅，避免旧 observer
             // 残留消费通知流、唤醒主线程；切 N 次对话订阅数不累积。
