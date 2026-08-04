@@ -71,17 +71,23 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
             .frame(width: total, alignment: .leading)
             // 旋转 / 分屏使总宽突变时，已存绝对列宽可能越界 → 用新总宽重跑 clamp 收敛（Design 风险表）。
             .onChange(of: total, initial: true) { _, newTotal in
-                reclamp(total: newTotal, dividerCount: dividerCount, dispLeft: dispLeft, dispRight: dispRight)
+                reclamp(total: newTotal, dividerCount: dividerCount,
+                        dispLeft: dispLeft, dispRight: dispRight,
+                        effLeftVisible: effLeftVisible, effRightVisible: effRightVisible)
             }
             // 外部载入列宽（切 tab / 冷启动）后，用当前真实总宽重新收敛已写入的列宽，
             // 不依赖 .task 与首帧 onChange(of: total) 的先后顺序（D7 窄屏恢复溢出兜底）。
             .onChange(of: loadRevision) { _, _ in
-                reclamp(total: total, dividerCount: dividerCount, dispLeft: dispLeft, dispRight: dispRight)
+                reclamp(total: total, dividerCount: dividerCount,
+                        dispLeft: dispLeft, dispRight: dispRight,
+                        effLeftVisible: effLeftVisible, effRightVisible: effRightVisible)
             }
             // 切换某一栏显隐会改变可用分隔线数与占宽：立即用新 dividerCount 重夹，
             // 让相邻栏收敛到最小宽而非把对侧栏挤出屏幕（修复「开左栏→右栏出不来/自动收回」）。
             .onChange(of: dividerCount) { _, newCount in
-                reclamp(total: total, dividerCount: newCount, dispLeft: dispLeft, dispRight: dispRight)
+                reclamp(total: total, dividerCount: newCount,
+                        dispLeft: dispLeft, dispRight: dispRight,
+                        effLeftVisible: effLeftVisible, effRightVisible: effRightVisible)
             }
             // 固定坐标系锚在不动的容器上：分隔线 DragGesture 在此系读绝对 x，消除慢拖抖动（D2）。
             .coordinateSpace(name: Self.coordinateSpaceName)
@@ -165,14 +171,20 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
     }
 
     // 总宽突变后，把左右列宽在新总宽下重新收敛（不直接用旧绝对值）。
-    // otherColumnWidth 传渲染态（含降级收起按 0），保证窄窗下 clamp 的边界与实际渲染一致；
-    // 注意这只影响 clamp 的边界计算，不改变被 clamp 的对象本身仍是 leftWidth/rightWidth 持久值。
-    private func reclamp(total: CGFloat, dividerCount: Int, dispLeft: CGFloat, dispRight: CGFloat) {
-        leftWidth = WorkspaceMetrics.clampColumnWidth(
-            leftWidth, total: total, otherColumnWidth: dispRight,
-            columnMin: WorkspaceMetrics.leftColumnMinWidth, dividerCount: dividerCount)
-        rightWidth = WorkspaceMetrics.clampColumnWidth(
-            rightWidth, total: total, otherColumnWidth: dispLeft,
-            columnMin: WorkspaceMetrics.rightColumnMinWidth, dividerCount: dividerCount)
+    // 只对当前实际可见（effXVisible）的栏做 clamp——隐藏（含 D4 降级收起）的栏跳过、绝不写其
+    // 持久宽：否则窄窗把已收起栏的 leftWidth/rightWidth 夹到 columnMin，宽度恢复后也回不到
+    // 用户上次拖定的值（违反列宽持久化铁律）。dispLeft/dispRight 仍传渲染态（含 0）作对侧边界。
+    private func reclamp(total: CGFloat, dividerCount: Int, dispLeft: CGFloat, dispRight: CGFloat,
+                          effLeftVisible: Bool, effRightVisible: Bool) {
+        if effLeftVisible {
+            leftWidth = WorkspaceMetrics.clampColumnWidth(
+                leftWidth, total: total, otherColumnWidth: dispRight,
+                columnMin: WorkspaceMetrics.leftColumnMinWidth, dividerCount: dividerCount)
+        }
+        if effRightVisible {
+            rightWidth = WorkspaceMetrics.clampColumnWidth(
+                rightWidth, total: total, otherColumnWidth: dispLeft,
+                columnMin: WorkspaceMetrics.rightColumnMinWidth, dividerCount: dividerCount)
+        }
     }
 }
