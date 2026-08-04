@@ -140,6 +140,53 @@ private final class LifecycleProbe: ChannelInboundHandler, @unchecked Sendable {
     #expect(limiter.activeConnectionsSnapshot == 0, "关连接后释放全局配额（channelInactive 对称释放）")
 }
 
+// MARK: - 真机验收回归：upgrade 后投递 ws 数据帧不得崩溃（HealthHandler 必须移出管线）
+
+/// 真机首连崩溃的回归锚（core-dump status=4/ILL）：
+/// upgrade 成功后 HealthHandler（InboundIn=HTTPServerRequestPart）若仍留在管线，对端投来的第一个
+/// **ws 数据帧**会流到它，`unwrapInboundIn` 把 ws 帧强转 HTTP 类型 → NIOAny 类型不匹配 Fatal → 进程崩溃、
+/// 两端连接同断（现象＝“配对成功、一连上就断”）。此前所有 upgrade 测试都只驱动握手、从不在 upgrade 后
+/// 真正 writeInbound 一个 ws 帧，故 bug 潜伏至真机首连才暴露。
+/// 本测试：走完 upgrade → 断言 HealthHandler 已移出管线 → 投递一个真实的（掩码）ws 文本帧 →
+/// 不崩溃且连接仍存活（帧被 RelayConnectionHandler 正常消费）。
+@Test func upgradedChannelHandlesWebSocketFrameWithoutCrash() throws {
+    let loop = EmbeddedEventLoop()
+    let channel = EmbeddedChannel(loop: loop)
+    let limiter = RelayLimiter(maxTotalConnections: 5, maxRooms: 10)
+    try configureRelayPipeline(channel: channel, rooms: RelayRooms(), limiter: limiter).wait()
+    try channel.connect(to: SocketAddress(unixDomainSocketPath: "/tmp/wsframe")).wait()
+
+    // upgrade 前 HealthHandler 在管线（服务未升级的 /health）。
+    #expect((try? channel.pipeline.context(name: "health").wait()) != nil,
+            "upgrade 前 HealthHandler 应在管线")
+
+    let req = "GET /relay/s HTTP/1.1\r\nHost: x\r\nx-role: iPad\r\nConnection: upgrade\r\n" +
+              "Upgrade: websocket\r\nSec-WebSocket-Version: 13\r\n" +
+              "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n"
+    var reqBuf = channel.allocator.buffer(capacity: req.utf8.count); reqBuf.writeString(req)
+    try channel.writeInbound(reqBuf)
+    loop.run()   // NIO 坑：不 run() 则 upgrade 未完成 = 假绿
+
+    // 修复契约：upgrade 后 HealthHandler MUST 已移出管线。
+    #expect((try? channel.pipeline.context(name: "health").wait()) == nil,
+            "upgrade 后 HealthHandler 必须移出管线（否则 ws 帧强转 HTTP 崩溃）")
+
+    // 客户端 → 服务端的 ws 帧必须掩码（RFC6455）。构造一个最小掩码文本帧 "hi"。
+    let payload: [UInt8] = Array("hi".utf8)
+    let maskKey: [UInt8] = [0x37, 0xfa, 0x21, 0x3d]
+    var frame: [UInt8] = [0x81, UInt8(0x80 | payload.count)]  // FIN+text, MASK+len
+    frame.append(contentsOf: maskKey)
+    for (i, b) in payload.enumerated() { frame.append(b ^ maskKey[i % 4]) }
+    var frameBuf = channel.allocator.buffer(capacity: frame.count)
+    frameBuf.writeBytes(frame)
+
+    // 关键断言：此 writeInbound 在修复前会走到 HealthHandler.unwrapInboundIn → Fatal 崩溃。
+    // 修复后帧流到 RelayConnectionHandler，被零知识转发逻辑正常消费，连接存活。
+    try channel.writeInbound(frameBuf)
+    #expect(channel.isActive == true, "upgrade 后投递 ws 数据帧不得崩溃，连接应存活")
+    _ = try? channel.finish()
+}
+
 // MARK: - F3：握手短空闲与已升级 WS 长空闲窗口解耦（接线单测）
 
 /// upgrade 完成后，pre-upgrade 短空闲 handler（`preUpgradeIdle`）MUST 被移除，
