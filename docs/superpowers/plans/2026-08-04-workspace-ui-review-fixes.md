@@ -537,7 +537,7 @@ git commit -m "feat(ipad): 右栏 tab 条去每标签独占，窄宽三 tab 均�
   - `struct ColumnVisibilityPlan { let showLeft: Bool; let showRight: Bool }`。
   - `static func columnVisibilityPlan(total: CGFloat, wantLeft: Bool, wantRight: Bool) -> ColumnVisibilityPlan` — 纯函数：容器宽足够（≥ threeColumnMinTotalWidth）→ 原样；不足 → 先收右栏（`left+center+1*divider`），仍不足 → 再收左栏（仅中栏）。保证被显示栏最小宽之和 ≤ total、中栏永远完整。
 
-- [ ] **Step 1: 写失败测试** — 在 `WorkspaceMetricsTests.swift` 末尾类内新增：
+- [x] **Step 1: 写失败测试** — 在 `WorkspaceMetricsTests.swift` 末尾类内新增：
 
 ```swift
     // MARK: - D4 窄窗三栏降级
@@ -583,9 +583,9 @@ git commit -m "feat(ipad): 右栏 tab 条去每标签独占，窄宽三 tab 均�
     }
 ```
 
-- [ ] **Step 2: 运行确认失败** — `xcodebuild test -only-testing:CodexRemoteTests/WorkspaceMetricsTests`。预期：编译失败（无 `threeColumnMinTotalWidth`/`columnVisibilityPlan`/`ColumnVisibilityPlan`）。
+- [x] **Step 2: 运行确认失败** — `xcodebuild test -only-testing:CodexRemoteTests/WorkspaceMetricsTests`。预期：编译失败（无 `threeColumnMinTotalWidth`/`columnVisibilityPlan`/`ColumnVisibilityPlan`）。
 
-- [ ] **Step 3: 最小实现** — `WorkspaceMetrics.swift` 在列宽常量区后加：
+- [x] **Step 3: 最小实现** — `WorkspaceMetrics.swift` 在列宽常量区后加：
 
 ```swift
     /// D4：三栏全开所需最低宽 = 左min + 中min + 右min + 两分隔线（由常量算出，不写死）。
@@ -619,9 +619,9 @@ git commit -m "feat(ipad): 右栏 tab 条去每标签独占，窄宽三 tab 均�
     }
 ```
 
-- [ ] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/WorkspaceMetricsTests`。预期：PASS（含既有用例不回归）。
+- [x] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/WorkspaceMetricsTests`。预期：PASS（含既有用例不回归）。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Views/Workspace/WorkspaceMetrics.swift ios/CodexRemoteTests/WorkspaceMetricsTests.swift
@@ -640,11 +640,11 @@ git commit -m "feat(ipad): 增三栏最低宽常量与窄窗降级纯函数 (D4)
 - Consumes: Task 5 的 `WorkspaceMetrics.columnVisibilityPlan(total:wantLeft:wantRight:)`；既有 props `leftVisible`/`rightVisible`（= 用户意图）、`leftWidth`/`rightWidth`（既有列宽持久化，不改）。
 - Produces: 渲染派生的 `effectiveLeftVisible`/`effectiveRightVisible`——用户意图经降级 plan 过滤后的实际显隐；宽度恢复后（total ≥ 阈值）plan 还原用户意图即再展开。列宽持久化（`leftWidth`/`rightWidth`）不受降级影响（收起时不改存值）。
 
-- [ ] **Step 1: 写失败测试（纯函数层已覆盖，本步补一条视图不溢出的结构断言，可选）** — 若采用视图级断言，新建/追加到 `RightPanelTabsLayoutTests` 同风格的一条：`ResizableColumns` 在 total=500 挂载后，中栏渲染宽 > 0 且左+中+右渲染宽之和 ≤ 500。因 `ResizableColumns` 是泛型容器、直接实例化需三个 `@ViewBuilder`，成本较高——**推荐** 本任务以 Task 5 纯函数单测为 RED/GREEN 主证据，视图层不溢出由 D9（Task 12 快照结构断言）+ 模拟器自验收（4.4）覆盖。此步记为「复用 Task 5 单测，无新测试文件」。
+- [x] **Step 1: 写失败测试（纯函数层已覆盖，本步补一条视图不溢出的结构断言，可选）** — 若采用视图级断言，新建/追加到 `RightPanelTabsLayoutTests` 同风格的一条：`ResizableColumns` 在 total=500 挂载后，中栏渲染宽 > 0 且左+中+右渲染宽之和 ≤ 500。因 `ResizableColumns` 是泛型容器、直接实例化需三个 `@ViewBuilder`，成本较高——**推荐** 本任务以 Task 5 纯函数单测为 RED/GREEN 主证据，视图层不溢出由 D9（Task 12 快照结构断言）+ 模拟器自验收（4.4）覆盖。此步记为「复用 Task 5 单测，无新测试文件」。
 
-- [ ] **Step 2: 运行确认现状** — 运行 `WorkspaceMetricsTests` 确认纯函数绿；确认 `ResizableColumns` 当前未消费该纯函数（`:37` `dividerCount` 仅按 `leftVisible/rightVisible`，无降级）。
+- [x] **Step 2: 运行确认现状** — 运行 `WorkspaceMetricsTests` 确认纯函数绿；确认 `ResizableColumns` 当前未消费该纯函数（`:37` `dividerCount` 仅按 `leftVisible/rightVisible`，无降级）。
 
-- [ ] **Step 3: 最小实现** — `ResizableColumns.swift` `body` 内 `GeometryReader` 里，用降级 plan 派生实际显隐：
+- [x] **Step 3: 最小实现** — `ResizableColumns.swift` `body` 内 `GeometryReader` 里，用降级 plan 派生实际显隐：
 
 在 `let total = proxy.size.width`（`:35`）之后加：
 
@@ -674,9 +674,9 @@ git commit -m "feat(ipad): 增三栏最低宽常量与窄窗降级纯函数 (D4)
 
 > 关键：列宽持久化不动——降级只改「显示哪些栏」（`effLeftVisible`），不改 `leftWidth`/`rightWidth` 存值；宽度恢复后 plan 还原、列宽仍是用户上次拖定的值（spec「遵循既有列宽持久化/恢复行为」）。
 
-- [ ] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/WorkspaceMetricsTests`；并 `xcodebuild build`（scheme CodexRemote）确认 `ResizableColumns` 改动编译通过、无遗漏引用旧 `displayedLeft/Right`。
+- [x] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/WorkspaceMetricsTests`；并 `xcodebuild build`（scheme CodexRemote）确认 `ResizableColumns` 改动编译通过、无遗漏引用旧 `displayedLeft/Right`。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Views/Workspace/ResizableColumns.swift
