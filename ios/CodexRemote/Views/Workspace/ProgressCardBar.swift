@@ -40,7 +40,8 @@ struct ProgressCardBar: View {
         HStack(spacing: 8) {
             ProgressView().controlSize(.small).tint(Color.accentColor)
             if !progress.isEmpty {
-                (Text("第 ") + Text("\(progress.completed)/\(progress.total)").monospacedDigit() + Text(" 步"))
+                Text("progress.step \(progress.completed)/\(progress.total)")
+                    .monospacedDigit()
                     .font(.callout)
             }
             if !progress.isEmpty && !diff.isEmpty {
@@ -49,7 +50,7 @@ struct ProgressCardBar: View {
             if !diff.isEmpty {
                 Button(action: onTapFiles) {
                     HStack(spacing: 6) {
-                        Text("\(diff.changedFiles) 个文件已更改").font(.callout)
+                        Text("progress.filesChanged \(diff.changedFiles)").font(.callout)
                         Text("+\(fmt(diff.added))").foregroundStyle(.green).monospacedDigit()
                         Text("−\(fmt(diff.removed))").foregroundStyle(.red).monospacedDigit()
                     }

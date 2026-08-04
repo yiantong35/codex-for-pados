@@ -26,7 +26,7 @@ struct SideChatView: View {
                 Button {
                     Task { await store.start(fromThreadId: mainThreadId) }
                 } label: {
-                    Label("开始侧聊", systemImage: "plus.bubble")
+                    Label("sideChat.start", systemImage: "plus.bubble")
                         .font(.caption)
                 }
                 .buttonStyle(.bordered)
@@ -55,7 +55,7 @@ struct SideChatView: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("关闭侧聊")
+            .accessibilityLabel("sideChat.close")
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
@@ -66,19 +66,19 @@ struct SideChatView: View {
     @ViewBuilder
     private var content: some View {
         if !hasMainThread {
-            emptyState(text: "无选中主对话，先在中栏选一个对话再开始侧聊")
+            emptyState("sideChat.noMainThread")
         } else if let id = store.selectedId,
                   let session = store.sessions.first(where: { $0.id == id }) {
             ConversationView(threadId: session.conversation.threadId, bindsWorkspaceState: false)
         } else {
-            emptyState(text: "点「开始侧聊」从当前主对话派生一个侧聊")
+            emptyState("sideChat.pickToStart")
         }
     }
 
-    private func emptyState(text: String) -> some View {
+    private func emptyState(_ key: LocalizedStringKey) -> some View {
         VStack {
             Spacer()
-            Text(text)
+            Text(key)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

@@ -36,19 +36,19 @@ struct FileBrowserView: View {
     private var emptyState: some View {
         VStack(spacing: 8) {
             Image(systemName: "folder").font(.largeTitle).foregroundStyle(.secondary)
-            Text("无选中会话，暂无可浏览目录").font(.callout).foregroundStyle(.secondary)
+            Text("fileBrowser.empty").font(.callout).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var toolbar: some View {
         HStack {
-            Text("文件").font(.subheadline).fontWeight(.semibold)
+            Text("fileBrowser.title").font(.subheadline).fontWeight(.semibold)
             Spacer()
             Button { Task { await store.refresh() } } label: {
                 Image(systemName: "arrow.clockwise")
             }
-            .accessibilityLabel(Text("刷新"))
+            .accessibilityLabel(Text("fileBrowser.refresh"))
         }
         .padding(.horizontal, 10).padding(.vertical, 6)
     }
@@ -124,18 +124,18 @@ struct FileBrowserView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(8)
                 case .tooLarge:
-                    placeholder("文件过大，不支持预览")
+                    placeholder("fileBrowser.tooLarge")
                 case .binary:
-                    placeholder("二进制文件，不支持预览")
+                    placeholder("fileBrowser.binary")
                 case nil:
-                    placeholder("选择文件查看")
+                    placeholder("fileBrowser.selectFile")
                 }
             }
         }
     }
 
-    private func placeholder(_ text: String) -> some View {
-        Text(text).font(.callout).foregroundStyle(.secondary)
+    private func placeholder(_ key: LocalizedStringKey) -> some View {
+        Text(key).font(.callout).foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.vertical, 24)
     }

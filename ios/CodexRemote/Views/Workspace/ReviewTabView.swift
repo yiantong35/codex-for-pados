@@ -29,7 +29,7 @@ struct ReviewTabView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Picker("数据源", selection: $mode) {
+                Picker("review.source", selection: $mode) {
                     ForEach(ReviewSourceMode.allCases) { m in Text(m.label).tag(m) }
                 }
                 .pickerStyle(.segmented)

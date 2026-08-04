@@ -698,7 +698,7 @@ git commit -m "feat(ipad): 三栏容器窄窗自动收起侧栏，渲染不横�
 - Produces: `enum L10n`（或 `extension EnvironmentValues`）提供 `static func string(_ key: String, locale: Locale) -> String`，实现 = 复制 `ShortcutsSettingsSectionView.swift:119-133` 三级 fallback（`locale.identifier` 的 lproj → 语言码 lproj → `Bundle.main`）。供动态标签（Task 8 的 tab label / 审查模式名）与需运行期解析的场景复用。
 - Consumes: `Localizable.xcstrings` 键。静态 `Text("key")` 类字面量 **不** 经此 helper（它们已跟随注入 locale），只把硬编码中文字面量改成 key。
 
-- [ ] **Step 1: 写失败测试** — 新建 `LocalizationFollowsInjectedLocaleTests.swift`：断言共享 helper 在注入 en 时返回英文、注入 zh-Hans 时返回中文；断言此前硬编码的键存在于两种语言表。
+- [x] **Step 1: 写失败测试** — 新建 `LocalizationFollowsInjectedLocaleTests.swift`：断言共享 helper 在注入 en 时返回英文、注入 zh-Hans 时返回中文；断言此前硬编码的键存在于两种语言表。
 
 ```swift
 import XCTest
@@ -741,9 +741,9 @@ final class LocalizationFollowsInjectedLocaleTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败** — `xcodebuild test -only-testing:CodexRemoteTests/LocalizationFollowsInjectedLocaleTests`。预期：编译失败（无 `L10n`）+ 键缺失。
+- [x] **Step 2: 运行确认失败** — `xcodebuild test -only-testing:CodexRemoteTests/LocalizationFollowsInjectedLocaleTests`。预期：编译失败（无 `L10n`）+ 键缺失。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 创建 `LocalizedBundle.swift`：
 
@@ -785,9 +785,9 @@ enum L10n {
 
 在 `Localizable.xcstrings` 补全上述所有新键的 en + zh-Hans 值（照文件既有 JSON 结构，每键一个 `localizations.en.stringUnit` + `localizations.zh-Hans.stringUnit`）。含 `progress.step %@`/`progress.filesChanged %@` 格式键。
 
-- [ ] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/LocalizationFollowsInjectedLocaleTests`；并 `xcodebuild build` 确认视图改动编译通过。预期：PASS。
+- [x] **Step 4: 运行确认通过** — `xcodebuild test -only-testing:CodexRemoteTests/LocalizationFollowsInjectedLocaleTests`；并 `xcodebuild build` 确认视图改动编译通过。预期：PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add ios/CodexRemote/Views/Support/LocalizedBundle.swift ios/CodexRemote/Views/Settings/ShortcutsSettingsSectionView.swift ios/CodexRemote/Views/Workspace/FileBrowserView.swift ios/CodexRemote/Views/Workspace/SideChatView.swift ios/CodexRemote/Views/Workspace/ReviewTabView.swift ios/CodexRemote/Views/Workspace/ProgressCardBar.swift ios/CodexRemote/Resources/Localizable.xcstrings ios/CodexRemoteTests/LocalizationFollowsInjectedLocaleTests.swift
