@@ -9,6 +9,8 @@ struct TabBarView: View {
     @State private var renameTarget: UUID?
     /// 重命名 alert 的输入草稿。
     @State private var renameDraft = ""
+    /// 待移除的机器 id（非空即弹二次确认 confirmationDialog）。
+    @State private var removeTarget: UUID?
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -34,12 +36,30 @@ struct TabBarView: View {
                 renameTarget = nil
             }
         }
+        // 移除机器二次确认（D6）：破坏性操作不由单次点击直接执行，绑定 removeTarget。
+        .confirmationDialog("tab.remove.confirm.title",
+                            isPresented: removeConfirmBinding,
+                            titleVisibility: .visible) {
+            Button("tab.remove.confirm.action", role: .destructive) {
+                if let id = removeTarget { sessions.removeMachine(id: id) }
+                removeTarget = nil
+            }
+            Button("common.cancel", role: .cancel) { removeTarget = nil }
+        } message: {
+            Text("tab.remove.confirm.message")
+        }
     }
 
     /// renameTarget(UUID?) ↔ alert 的 isPresented(Bool) 桥接：present 时不改 target，dismiss 时清空。
     private var renameAlertBinding: Binding<Bool> {
         Binding(get: { renameTarget != nil },
                 set: { if !$0 { renameTarget = nil } })
+    }
+
+    /// removeTarget(UUID?) ↔ confirmationDialog 的 isPresented(Bool) 桥接：dismiss 时清空。
+    private var removeConfirmBinding: Binding<Bool> {
+        Binding(get: { removeTarget != nil },
+                set: { if !$0 { removeTarget = nil } })
     }
 
     @ViewBuilder private func tab(_ m: MachineConfig) -> some View {
@@ -68,10 +88,11 @@ struct TabBarView: View {
             Menu {
                 if sessions.canConnect(id: m.id) {
                     Button("tab.connect", systemImage: "bolt.horizontal") { sessions.connectMachine(id: m.id) }
+                } else {
+                    Button("tab.disconnect", systemImage: "wifi.slash") { sessions.disconnect(id: m.id) }
                 }
-                Button("tab.disconnect", systemImage: "wifi.slash") { sessions.disconnect(id: m.id) }
                 Button("tab.rename", systemImage: "pencil") { beginRename(m) }
-                Button("tab.remove", systemImage: "trash", role: .destructive) { sessions.removeMachine(id: m.id) }
+                Button("tab.remove", systemImage: "trash", role: .destructive) { removeTarget = m.id }
             } label: {
                 Image(systemName: "ellipsis")
                     .padding(.leading, 4).padding(.trailing, 12).padding(.vertical, 8)

@@ -119,19 +119,7 @@ struct ShortcutsSettingsSectionView: View {
     /// 按应用内语言（`locale`）对应的 .lproj bundle 查表解析 key → 可读文案。
     /// 关键：不能用 `String(localized:)`——它按系统语言选表、忽略应用内语言（LocaleManager）。
     /// 显式取 `locale.identifier`（"en"/"zh-Hans"）对应的 bundle 查表，命不中回退主 bundle。
-    private func localized(_ key: String) -> String {
-        if let path = Bundle.main.path(forResource: locale.identifier, ofType: "lproj"),
-           let bundle = Bundle(path: path) {
-            return bundle.localizedString(forKey: key, value: key, table: nil)
-        }
-        // 回退：语言 code（如 identifier 带地区）再试一次，仍无则主 bundle。
-        if let code = locale.language.languageCode?.identifier,
-           let path = Bundle.main.path(forResource: code, ofType: "lproj"),
-           let bundle = Bundle(path: path) {
-            return bundle.localizedString(forKey: key, value: key, table: nil)
-        }
-        return Bundle.main.localizedString(forKey: key, value: key, table: nil)
-    }
+    private func localized(_ key: String) -> String { L10n.string(key, locale: locale) }
 
     /// 被拒提示（已解析为最终 String）。占用冲突插入占用动作的本地化名（FIX 1，spec §冲突检测）。
     /// 全部按应用内语言 `localized(_:)` 解析，与动作行标题一致。

@@ -140,4 +140,46 @@ final class WorkspaceMetricsTests: XCTestCase {
             columnMin: WorkspaceMetrics.leftColumnMinWidth, dividerCount: 1)
         XCTAssertEqual(one - two, WorkspaceMetrics.resizableDividerHitWidth, accuracy: 0.001)
     }
+
+    // MARK: - D4 窄窗三栏降级
+
+    func testThreeColumnMinTotalWidthMatchesConstituents() {
+        let expected = WorkspaceMetrics.leftColumnMinWidth
+            + WorkspaceMetrics.centerColumnMinWidth
+            + WorkspaceMetrics.rightColumnMinWidth
+            + WorkspaceMetrics.resizableDividerHitWidth * 2
+        XCTAssertEqual(WorkspaceMetrics.threeColumnMinTotalWidth, expected)
+        XCTAssertEqual(WorkspaceMetrics.threeColumnMinTotalWidth, 668)
+    }
+
+    /// 宽度充足：三栏全开意图被完整保留。
+    func testWidePlanKeepsBothSidebars() {
+        let plan = WorkspaceMetrics.columnVisibilityPlan(total: 1024, wantLeft: true, wantRight: true)
+        XCTAssertTrue(plan.showLeft); XCTAssertTrue(plan.showRight)
+    }
+
+    /// 低于三栏最低宽：先收右栏，且被显示栏最小宽之和不溢出容器。
+    func testNarrowPlanCollapsesRightFirst() {
+        // 容器只够 左+中+1分隔线（160+280+14=454），放不下右栏。
+        let plan = WorkspaceMetrics.columnVisibilityPlan(total: 500, wantLeft: true, wantRight: true)
+        XCTAssertTrue(plan.showLeft, "应保留左栏")
+        XCTAssertFalse(plan.showRight, "空间不足应先收右栏")
+        let sum = WorkspaceMetrics.leftColumnMinWidth
+            + WorkspaceMetrics.centerColumnMinWidth
+            + WorkspaceMetrics.resizableDividerHitWidth
+        XCTAssertLessThanOrEqual(sum, 500)
+    }
+
+    /// 极窄：左右都收，仅中栏，绝不溢出。
+    func testVeryNarrowPlanCollapsesBoth() {
+        let plan = WorkspaceMetrics.columnVisibilityPlan(total: 300, wantLeft: true, wantRight: true)
+        XCTAssertFalse(plan.showLeft); XCTAssertFalse(plan.showRight)
+        XCTAssertLessThanOrEqual(WorkspaceMetrics.centerColumnMinWidth, 300)
+    }
+
+    /// 用户本就不想开右栏时，充足宽度也不强行展开。
+    func testPlanRespectsUserIntent() {
+        let plan = WorkspaceMetrics.columnVisibilityPlan(total: 1024, wantLeft: true, wantRight: false)
+        XCTAssertTrue(plan.showLeft); XCTAssertFalse(plan.showRight)
+    }
 }

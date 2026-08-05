@@ -78,12 +78,16 @@ struct ComposerView: View {
                     Image(systemName: "plus.circle").font(.title3)
                 }
                 .foregroundStyle(.secondary)
+                .minimumHitTarget44()
+                .accessibilityLabel(Text("composer.a11y.pickImage"))
                 // 模型/推理用 .popover 而非 Menu：Menu+Picker 收起时会闪现（#7），且会遮挡按钮（#8）。
                 // popover 带箭头指向按钮、不遮挡，inline picker 一屏列出可选项。
                 Button { showModelPopover.toggle() } label: {
                     Image(systemName: "slider.horizontal.3").font(.title3)
                 }
                 .foregroundStyle(.secondary)
+                .minimumHitTarget44()
+                .accessibilityLabel(Text("composer.a11y.model"))
                 .popover(isPresented: $showModelPopover) {
                     modelPopover.presentationCompactAdaptation(.popover)
                 }
@@ -99,6 +103,8 @@ struct ComposerView: View {
                     } label: {
                         Image(systemName: "stop.circle.fill").font(.title2)
                     }
+                    .minimumHitTarget44()
+                    .accessibilityLabel(Text("composer.a11y.stop"))
                     Menu {
                         Button("composer.steer") { Task { await trySteer() } }
                             .disabled(store.state.activeTurnKind != nil)
@@ -110,6 +116,8 @@ struct ComposerView: View {
                         Image(systemName: "arrow.up.circle.fill").font(.title2)
                     }
                     .disabled(!canSend)
+                    .minimumHitTarget44()
+                    .accessibilityLabel(Text("composer.a11y.more"))
                 } else {
                     Button {
                         Task { await send() }
@@ -117,6 +125,8 @@ struct ComposerView: View {
                         Image(systemName: "arrow.up.circle.fill").font(.title2)
                     }
                     .disabled(!canSend)
+                    .minimumHitTarget44()
+                    .accessibilityLabel(Text("composer.a11y.send"))
                 }
             }
         }
@@ -218,5 +228,14 @@ struct ComposerView: View {
         guard !input.isEmpty else { return }
         await store.send(input: input, model: effectiveModel, effort: effectiveEffort)
         clearComposer()
+    }
+}
+
+extension View {
+    /// D7（2.6）：保证控件命中目标 ≥44×44pt（HIG 最小可点区），并把整块矩形纳入命中测试。
+    /// composer 五枚图标按钮共用——纯字号图标本身仅 ~26pt 宽，命中框不足难点按；
+    /// 只扩大命中区、不改图标视觉大小/颜色（`.font`/`.foregroundStyle` 仍作用于图标本身）。
+    func minimumHitTarget44() -> some View {
+        frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
     }
 }

@@ -4,11 +4,12 @@ import SwiftUI
 enum RightPanelTab: CaseIterable, Identifiable {
     case review, files, sideChat
     var id: Self { self }
-    var label: String {
+    /// D5：tab 名跟随注入 locale（不用 `String(localized:)`，它忽略应用内注入 locale）。
+    func label(locale: Locale) -> String {
         switch self {
-        case .review:   return String(localized: "rightPanel.tab.review")
-        case .files:    return String(localized: "rightPanel.tab.files")
-        case .sideChat: return String(localized: "rightPanel.tab.sideChat")
+        case .review:   return L10n.string("rightPanel.tab.review", locale: locale)
+        case .files:    return L10n.string("rightPanel.tab.files", locale: locale)
+        case .sideChat: return L10n.string("rightPanel.tab.sideChat", locale: locale)
         }
     }
 }
@@ -127,23 +128,30 @@ struct RightPanelContainerView: View {
     }
 
     // 自绘分段 tab 条（非 Picker/TabView）+ 右侧全屏/收起入口。
+    // D3 修复：原实现每个标签各 maxWidth:.infinity 但尾部全屏按钮未定宽 → 极窄宽下首个
+    // infinity 吞掉剩余空间、后续 tab 被裁。改为三标签等分（infinity 均分而非独占）+
+    // 文字降级 minimumScaleFactor 兜底 + 全屏入口 fixedSize() 退出对 tab 区的宽度竞争。
     private var tabBar: some View {
         HStack(spacing: 0) {
             ForEach(RightPanelTab.allCases) { tab in
                 Button {
                     selectedTab = tab
                 } label: {
-                    Text(tab.label)
+                    Text(tab.label(locale: locale))
                         .font(.subheadline)
                         .fontWeight(selectedTab == tab ? .semibold : .regular)
                         .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
-                        .frame(maxWidth: .infinity)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)          // 窄宽文字降级，不撑破
+                        .frame(maxWidth: .infinity)       // 三 tab 之间等分（每个都 infinity → 均分，不再是首个独占）
                         .padding(.vertical, 8)
+                        .contentShape(Rectangle())        // 留白也可命中
                 }
                 .buttonStyle(.plain)
+                .layoutPriority(1)                        // tab 优先于尾部入口占据 tab 区
                 .accessibilityAddTraits(selectedTab == tab ? [.isSelected] : [])
             }
-            // 全屏 / 收起入口（容器级，三 tab 通用，设计 D5）。
+            // 全屏 / 收起入口（容器级，三 tab 通用，设计 D5）：固定占位、不参与 tab 等分、不挤占 tab 命中区。
             Button {
                 isFullscreen.toggle()
             } label: {
@@ -152,8 +160,10 @@ struct RightPanelContainerView: View {
                       : "arrow.up.left.and.arrow.down.right")
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .fixedSize()                                  // 固定自身尺寸，不吸收也不挤占 tab 区
             .accessibilityLabel(Text(isFullscreen ? "rightPanel.fullscreen.exit" : "rightPanel.fullscreen.enter"))
         }
         .background(.bar)

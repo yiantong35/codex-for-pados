@@ -229,7 +229,7 @@ struct RootSplitView: View {
         if let id = selectedThreadId {
             ConversationView(threadId: id).id(id)
         } else {
-            Color(.systemBackground)
+            ContentUnavailableView("split.selectConversation", systemImage: "bubble.left.and.bubble.right")
         }
     }
 }

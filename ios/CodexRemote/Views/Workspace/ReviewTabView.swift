@@ -5,6 +5,7 @@ import SwiftUI
 /// 经注入的 activeConversation.startReview 回调调 review/start（inline，结果回主对话回显）。
 struct ReviewTabView: View {
     @Environment(ActiveConversationHolder.self) private var activeConversation
+    @Environment(\.locale) private var locale
     /// 全量 diff 拉取所需的工作目录（取自选中 thread；缺失则「全量」不可用）。
     var cwd: String?
 
@@ -14,7 +15,7 @@ struct ReviewTabView: View {
 
     private var turnDiff: String { activeConversation.state?.turnDiff ?? "" }
     private var source: ReviewDiffSource {
-        ReviewDiffSource.resolve(mode: mode, turnDiff: turnDiff, fullDiff: fullDiff)
+        ReviewDiffSource.resolve(mode: mode, turnDiff: turnDiff, fullDiff: fullDiff, locale: locale)
     }
 
     /// 当前数据源能否发起审查：回调已接线 + 对应数据源有效。
@@ -29,8 +30,8 @@ struct ReviewTabView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Picker("数据源", selection: $mode) {
-                    ForEach(ReviewSourceMode.allCases) { m in Text(m.label).tag(m) }
+                Picker("review.source", selection: $mode) {
+                    ForEach(ReviewSourceMode.allCases) { m in Text(m.label(locale: locale)).tag(m) }
                 }
                 .pickerStyle(.segmented)
 

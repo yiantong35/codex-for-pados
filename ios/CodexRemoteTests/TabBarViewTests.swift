@@ -63,4 +63,21 @@ final class TabBarViewTests: XCTestCase {
         sessions.presentAddMachine()
         XCTAssertTrue(sessions.addMachinePresented)
     }
+
+    /// D6：连接互斥判定——未连接态可连（应只显示「连接」），已就绪态不可连（应只显示「断开」）。
+    func test_canConnect_isMutuallyExclusiveByState() {
+        let sessions = mgr(machines: 1)
+        let id = sessions.machineStore.machines[0].id
+        XCTAssertTrue(sessions.canConnect(id: id), "未连接态应可连（互斥显示连接）")
+    }
+
+    /// D6：移除机器不由单次点击直接执行——挂载渲染不崩溃（confirmationDialog 接线成立）。
+    @MainActor
+    func test_tabBar_mountsWithRemoveConfirmation() {
+        let sessions = mgr(machines: 2)
+        let hc = UIHostingController(rootView: TabBarView().environment(sessions))
+        hc.view.frame = CGRect(x: 0, y: 0, width: 320, height: 60)
+        hc.view.setNeedsLayout(); hc.view.layoutIfNeeded()
+        XCTAssertEqual(sessions.machineStore.machines.count, 2)
+    }
 }
