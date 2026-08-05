@@ -938,7 +938,7 @@ git commit -m "feat(#8): file viewer readability — line gutter, h-scroll, sele
 
 > 决策 #9：复用连接横幅 **Capsule 样式** inline 提示条（全 app 现零 toast），`~1.5s` 后由**一次性** `Task.sleep` 收起（先例 `ConversationView.swift:156`）。不加假防抖 `isStarting`，不改 D4 fire-and-forget 本质。energy：一次性 sleep ≈ 0 持续成本，非轮询/定时器。
 
-- [ ] **Step 1: 加 reviewFeedback state**
+- [x] **Step 1: 加 reviewFeedback state**
 
 在 `ReviewTabView.swift` 的 `@State private var loadingFull = false`（第 14 行）后加：
 
@@ -947,7 +947,7 @@ git commit -m "feat(#8): file viewer readability — line gutter, h-scroll, sele
     @State private var showReviewStarted = false
 ```
 
-- [ ] **Step 2: 发起按钮消费返回值 + 触发反馈**
+- [x] **Step 2: 发起按钮消费返回值 + 触发反馈**
 
 把发起 `Button { ... }`（第 41–45 行）改为消费返回 Bool 并置反馈态：
 
@@ -966,7 +966,7 @@ git commit -m "feat(#8): file viewer readability — line gutter, h-scroll, sele
                 }
 ```
 
-- [ ] **Step 3: 面板内叠加 Capsule 提示条**
+- [x] **Step 3: 面板内叠加 Capsule 提示条**
 
 把 `body` 里数据源区（`if loadingFull { ... } else { ReviewPanelView(source: source) }`，第 52–56 行）用 overlay 叠反馈：
 
@@ -993,15 +993,15 @@ git commit -m "feat(#8): file viewer readability — line gutter, h-scroll, sele
             .animation(.easeOut(duration: 0.2), value: showReviewStarted)
 ```
 
-- [ ] **Step 4: 加本地化键 `review.started`**
+- [x] **Step 4: 加本地化键 `review.started`**
 
 在 `ios/CodexRemote/Resources/Localizable.xcstrings` 新增键 `review.started`：en `Review started`，zh-Hans `审查已发起`（格式同 Task 3 模板）。
 
-- [ ] **Step 5: 把 review.started 加入 loc 守卫测试**
+- [x] **Step 5: 把 review.started 加入 loc 守卫测试**
 
 在 `LocalizationFollowsInjectedLocaleTests.swift` 的 `keys` 数组补 `"review.started",`。
 
-- [ ] **Step 6: 跑 loc 测试 + 构建 guard**
+- [x] **Step 6: 跑 loc 测试 + 构建 guard**
 
 Run: `xcodebuild test ... -only-testing:CodexRemoteTests/LocalizationFollowsInjectedLocaleTests`
 Expected: PASS。
@@ -1012,7 +1012,7 @@ Expected: BUILD SUCCEEDED。
 
 在有可发起数据源时点发起按钮 → 审查面板顶部短时出现「审查已发起」Capsule，约 1.5s 后淡出。横竖屏各验；确认无定时器（仅一次性 sleep）。
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add ios/CodexRemote/Views/Workspace/ReviewTabView.swift ios/CodexRemote/Resources/Localizable.xcstrings ios/CodexRemoteTests/LocalizationFollowsInjectedLocaleTests.swift
