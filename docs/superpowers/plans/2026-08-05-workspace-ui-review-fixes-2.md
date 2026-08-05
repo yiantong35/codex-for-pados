@@ -780,7 +780,7 @@ git commit -m "feat(#7): auto-scroll active machine tab into view (event-driven)
 
 > 四项：(a) 行号 gutter；(b) 长行横滚不折行（横滚只包正文区，外层纵向 + 520 横竖自适应布局不变，守 R2）；(c) `.textSelection(.enabled)`；(d) 字号 `caption2 → caption` + 行高。
 
-- [ ] **Step 1: 重写 diffArea（横滚只包正文）**
+- [x] **Step 1: 重写 diffArea（横滚只包正文）**
 
 把 `ReviewPanelView.swift` 的 `diffArea`（第 33–46 行）替换为：
 
@@ -803,7 +803,7 @@ git commit -m "feat(#7): auto-scroll active machine tab into view (event-driven)
     }
 ```
 
-- [ ] **Step 2: 重写 diffLineRow（gutter + 可选 + 字号）**
+- [x] **Step 2: 重写 diffLineRow（gutter + 可选 + 字号）**
 
 把 `diffLineRow(_:)`（第 48–61 行）替换为：
 
@@ -832,7 +832,7 @@ git commit -m "feat(#7): auto-scroll active machine tab into view (event-driven)
     }
 ```
 
-- [ ] **Step 3: 构建 guard**
+- [x] **Step 3: 构建 guard**
 
 Run: `bash ios/comet-build-check.sh`
 Expected: BUILD SUCCEEDED。
@@ -841,7 +841,7 @@ Expected: BUILD SUCCEEDED。
 
 打开右栏审查 tab，选中一个含长行的文件 diff：每行左侧显示行号；长行不软换行、可在正文区内横向滚动；可长按选中复制；字号较前略大易读。**重点验 R2**：正文横滚与外层纵向不打架、宽度 ≥520 时左右布局 / <520 时上下布局仍正确，横竖屏各验一遍。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ios/CodexRemote/Views/Workspace/ReviewPanelView.swift
