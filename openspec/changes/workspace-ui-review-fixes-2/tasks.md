@@ -18,7 +18,7 @@
 ## 3. P2–P3 可读性 / 反馈 / 死代码接入
 
 - [x] 3.1 #8 diff 查看器可读性（`ReviewPanelView`）：行号 gutter + 长行横向滚动（不折行）+ `textSelection(.enabled)` + 字号/行高调优；横滚只包 diff 文本区，不破 520 横竖自适应。
-- [ ] 3.2 #8 文件查看器可读性（`FileBrowserView.contentArea`）：同上四项（行号/横滚/可选/字号行高）。
+- [x] 3.2 #8 文件查看器可读性（`FileBrowserView.contentArea`）：同上四项（行号/横滚/可选/字号行高）。
 - [ ] 3.3 #9 审查发起可见反馈：`ReviewTabView` 发起后给短时可见态（按钮态/inline/toast），基于回调返回事件驱动；不加假防抖、不改 D4 fire-and-forget。
 - [ ] 3.4 #10 近底阈值接入生产：让生产近底判定真正调用 `ScrollAnchorPolicy.isNearBottom(threshold:120)`（sentinel 1pt→120pt 近底带 或等价映射），消灭死代码；保持事件驱动；单测锁定阈值，真机验横竖屏自动滚/新消息浮标手感。
 

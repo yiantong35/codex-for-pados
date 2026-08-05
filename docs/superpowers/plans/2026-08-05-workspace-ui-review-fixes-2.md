@@ -860,7 +860,7 @@ git commit -m "feat(#8): diff viewer readability — line gutter, h-scroll, sele
 
 > 与 Task 8 同四项，作用于 `contentArea` 的 `.text` 正文。文件查看器用 1-based 行号。
 
-- [ ] **Step 1: 重写 contentArea 的 .text 分支为分行 + gutter + 横滚**
+- [x] **Step 1: 重写 contentArea 的 .text 分支为分行 + gutter + 横滚**
 
 把 `FileBrowserView.swift` 的 `contentArea`（第 112–135 行）中 `.text(let s)` 分支替换为调用新私有子视图；把整个 `contentArea` 替换为：
 
@@ -910,7 +910,7 @@ git commit -m "feat(#8): diff viewer readability — line gutter, h-scroll, sele
     }
 ```
 
-- [ ] **Step 2: 构建 guard**
+- [x] **Step 2: 构建 guard**
 
 Run: `bash ios/comet-build-check.sh`
 Expected: BUILD SUCCEEDED。
@@ -919,7 +919,7 @@ Expected: BUILD SUCCEEDED。
 
 文件浏览 tab 打开一个含长行的文本文件：每行显示 1-based 行号；长行横滚不折行；可选中复制；字号略大。验 ≥520 左右 / <520 上下自适应布局不破，横竖屏各验。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add ios/CodexRemote/Views/Workspace/FileBrowserView.swift
