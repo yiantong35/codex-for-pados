@@ -651,7 +651,7 @@ git commit -m "feat(#4): wire summary popover changes row to open right review p
 
 **Interfaces:** 无下游依赖。
 
-- [ ] **Step 1: SkillsGroupContent 空 Toggle 补 accessibilityLabel**
+- [x] **Step 1: SkillsGroupContent 空 Toggle 补 accessibilityLabel**
 
 在 `SkillsGroupContent.swift` 的 `Toggle("", isOn: ...)`（第 30–36 行）末尾（`.labelsHidden()` 之后）加：
 
@@ -660,14 +660,14 @@ git commit -m "feat(#4): wire summary popover changes row to open right review p
                 .accessibilityLabel(Text(skill.name))
 ```
 
-- [ ] **Step 2: 复查本文件其它空标签/手势点按控件**
+- [x] **Step 2: 复查本文件其它空标签/手势点按控件**
 
 Run: `grep -n 'Toggle("")\|onTapGesture' ios/CodexRemote/Views/Settings/SkillsGroupContent.swift`
 - 若还有其它空标签 `Toggle("")`，同样补 `.accessibilityLabel(Text(<对应名>))`。
 - 若有 `onTapGesture` 实现的点按控件，补 `.accessibilityAddTraits(.isButton)`（沿用首轮 D7 触控范式）。
 - 本文件当前只有 skillRow 的一个 Toggle 与 Button/菜单（Button 天然有 button trait），预期无额外改动。
 
-- [ ] **Step 3: 构建 guard**
+- [x] **Step 3: 构建 guard**
 
 Run: `bash ios/comet-build-check.sh`
 Expected: BUILD SUCCEEDED。
@@ -676,7 +676,7 @@ Expected: BUILD SUCCEEDED。
 
 模拟器开 Accessibility Inspector（或真机 VoiceOver）聚焦某个 skill 开关 → 朗读出对应 skill 名（不再是空/「开关」）。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ios/CodexRemote/Views/Settings/SkillsGroupContent.swift
