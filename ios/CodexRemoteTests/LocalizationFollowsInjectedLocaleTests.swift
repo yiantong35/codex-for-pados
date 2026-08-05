@@ -58,6 +58,31 @@ final class LocalizationFollowsInjectedLocaleTests: XCTestCase {
         }
     }
 
+    /// #5：ConnectionStore.friendlyMessage 跟随注入 locale；en 无中文残留、zh 为中文。
+    /// friendlyMessage 为 @MainActor 静态方法，测试需在主 actor 上下文调用。
+    @MainActor
+    func test_connectionFriendlyMessage_followsInjectedLocale() {
+        // 注入 en：写持久化键，currentLocale 应解析为 en。
+        UserDefaults.standard.set(AppLanguage.en.rawValue, forKey: "app_language")
+        let en = ConnectionStore.friendlyMessage(TransportError.notConnected)
+        XCTAssertFalse(en.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) }, "en 文案含中文残留：\(en)")
+
+        UserDefaults.standard.set(AppLanguage.zh.rawValue, forKey: "app_language")
+        let zh = ConnectionStore.friendlyMessage(TransportError.notConnected)
+        XCTAssertTrue(zh.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) }, "zh 文案应为中文：\(zh)")
+
+        UserDefaults.standard.removeObject(forKey: "app_language")
+    }
+
+    /// #5：currentLocale 读持久化 app_language，与注入同源。
+    func test_currentLocale_readsPersistedLanguage() {
+        UserDefaults.standard.set(AppLanguage.en.rawValue, forKey: "app_language")
+        XCTAssertEqual(LocaleManager.currentLocale.identifier, "en")
+        UserDefaults.standard.set(AppLanguage.zh.rawValue, forKey: "app_language")
+        XCTAssertEqual(LocaleManager.currentLocale.identifier, "zh-Hans")
+        UserDefaults.standard.removeObject(forKey: "app_language")
+    }
+
     /// #5：占位假串（如「帮紧你」）不得残留在任何面向用户键。
     func test_noPlaceholderJokeStrings() {
         let langs = [Locale(identifier: "en"), Locale(identifier: "zh-Hans")]

@@ -6,7 +6,7 @@ private let connLog = Logger(subsystem: "com.tangyujie.codexremote", category: "
 
 /// 连接超时错误（建连/握手在限定时间内未完成）。
 struct ConnectionTimeoutError: LocalizedError {
-    var errorDescription: String? { "连接超时（连接或握手在 20 秒内未完成）" }
+    var errorDescription: String? { L10n.string("conn.error.timeoutDetail", locale: LocaleManager.currentLocale) }
 }
 
 /// 连接配置（relay-only：非密的 relay 配对载荷 + TOFU 稳定键）。`.stub` 供测试使用。
@@ -169,7 +169,7 @@ final class ConnectionStore {
         // awaitHandshake() 内驱动（先握手后收loop）。
         guard !(config.relayURL ?? "").isEmpty else {
             connLog.error("connect 拒绝：relay 配对载荷为空")
-            phase = .failed("relay 配对信息缺失")
+            phase = .failed(L10n.string("conn.error.pairingMissing", locale: LocaleManager.currentLocale))
             return
         }
         self.config = config
@@ -221,7 +221,7 @@ final class ConnectionStore {
                 // .trustRevoked 冒泡（observeControl 尚未订阅，控制事件无人消费）。与 live 重连路径的
                 // .trustRevoked 处理一致：置位 needsRePairing + 撤销引导文案，UI 据此导航回配对入口。
                 if case TransportError.trustRevoked = error {
-                    self.phase = .failed("已被开发机移除信任，请重新配对")
+                    self.phase = .failed(L10n.string("conn.error.trustRevoked", locale: LocaleManager.currentLocale))
                     self.needsRePairing = true
                 } else {
                     self.phase = .failed(Self.friendlyMessage(error))
@@ -235,7 +235,8 @@ final class ConnectionStore {
             try? await Task.sleep(nanoseconds: timeoutNanos)
             guard let self, attempt == self.activeAttempt, !self.phase.isSettled else { return }
             connLog.error("connect 超时 attempt=\(attempt)")
-            self.phase = .failed(ConnectionTimeoutError().errorDescription ?? "连接超时")
+            self.phase = .failed(ConnectionTimeoutError().errorDescription
+                ?? L10n.string("conn.error.timeout", locale: LocaleManager.currentLocale))
             self.activeAttempt += 1   // 作废仍在后台跑的 establish（其完成时 token 不匹配 → 忽略）
             // #1：关闭本 attempt 仍在构建的在途 transport，令其 close() 运行（transport 标记
             // 握手失败 → awaitHandshake 抛出 → doEstablish 解挂），避免传输连接 + 挂起任务泄漏。
@@ -429,13 +430,13 @@ final class ConnectionStore {
                     // 重连退避耗尽（终态，4.3）：落 .failed 提示可手动重连。
                     // **保留机器配置**（不清 config、不 disconnect）——用户可再次 connect() 手动重连。
                     self.stopHeartbeat()
-                    self.phase = .failed("连接失败，请稍后重试")
+                    self.phase = .failed(L10n.string("conn.error.connectionFailed", locale: LocaleManager.currentLocale))
                 case .trustRevoked:
                     // 收到 RejectHello = 开发机移除信任（终态，4.4）：落 .failed 并置位 needsRePairing，
                     // 由 UI 据此导航回配对入口（RelayPairingImportView）。仅此路径要求重新配对，
                     // 其它连接问题（含开发机未开）走 .connectionFailed，不误报信任撤销。
                     self.stopHeartbeat()
-                    self.phase = .failed("已被开发机移除信任，请重新配对")
+                    self.phase = .failed(L10n.string("conn.error.trustRevoked", locale: LocaleManager.currentLocale))
                     self.needsRePairing = true
                 case .peerLeft:
                     // 非判决（防降级红线）：relay 连接层「对端已离开」只是**提示**，不是判死依据。
@@ -449,16 +450,25 @@ final class ConnectionStore {
 
     /// 把底层错误转为面向用户的可读文案。
     static func friendlyMessage(_ error: Error) -> String {
+        let loc = LocaleManager.currentLocale
         if let t = error as? TransportError {
             switch t {
-            case .proxyFailed(let m):    return "通道建立失败：\(m)"
-            case .channelClosed(let r):  return "连接通道关闭：\(r ?? "未知原因")"
-            case .notConnected:          return "未连接"
-            case .handshakeFailed(let m): return "WebSocket 握手失败：\(m)"
-            case .trustRevoked:          return "已被开发机移除信任，请重新配对"
+            case .proxyFailed(let m):
+                return String(format: L10n.string("conn.error.proxyFailed", locale: loc), m)
+            case .channelClosed(let r):
+                return String(format: L10n.string("conn.error.channelClosed", locale: loc),
+                              r ?? L10n.string("conn.error.channelClosedUnknown", locale: loc))
+            case .notConnected:
+                return L10n.string("conn.error.notConnected", locale: loc)
+            case .handshakeFailed(let m):
+                return String(format: L10n.string("conn.error.handshakeFailed", locale: loc), m)
+            case .trustRevoked:
+                return L10n.string("conn.error.trustRevoked", locale: loc)
             }
         }
-        if let to = error as? ConnectionTimeoutError { return to.errorDescription ?? "连接超时" }
+        if let to = error as? ConnectionTimeoutError {
+            return to.errorDescription ?? L10n.string("conn.error.timeout", locale: loc)
+        }
         return error.localizedDescription
     }
 
