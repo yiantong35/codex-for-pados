@@ -100,16 +100,23 @@ actor JSONRPCClient {
     }
 
     /// 发起一个请求并挂起等待匹配 id 的响应；error 响应抛出。
+    /// 包 `withTaskCancellationHandler`：取消时原子取出并移除该 id 的 pending，以
+    /// `CancellationError` resume（同构 failPending，不改按 id 分发）。半开连接（response
+    /// 永不到）下，上层取消即可解挂，不再永久挂起——心跳探针的超时/取消得以真正生效（#10）。
     func send(method: String, params: AnyCodable?) async throws -> AnyCodable {
         let id = RequestIdGenerator.next()
         let req = JSONRPCRequest(id: id, method: method, params: params)
         let text = String(data: try encoder.encode(req), encoding: .utf8)!
-        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<AnyCodable, Error>) in
-            pending[id] = cont
-            Task {
-                do { try await transport.send(text) }
-                catch { await self.failPending(id, error) }
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<AnyCodable, Error>) in
+                pending[id] = cont
+                Task {
+                    do { try await transport.send(text) }
+                    catch { await self.failPending(id, error) }
+                }
             }
+        } onCancel: {
+            Task { await self.failPending(id, CancellationError()) }
         }
     }
 
