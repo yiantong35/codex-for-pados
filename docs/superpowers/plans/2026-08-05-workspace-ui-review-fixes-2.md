@@ -603,7 +603,7 @@ git commit -m "fix(#5): Store user-facing strings follow injected locale via L10
 
 > 安全边界：只用只读跳转意图，**不写** `ActiveConversationHolder` 等会话共享状态（规避首轮 D1 侧聊/主对话串台）。
 
-- [ ] **Step 1: RootSplitView 注入 onOpenReview**
+- [x] **Step 1: RootSplitView 注入 onOpenReview**
 
 在 `RootSplitView.swift` 的 `SummaryPopoverView(...)` 构造（第 75 行）加 `onOpenReview` 实参：
 
@@ -612,7 +612,7 @@ git commit -m "fix(#5): Store user-facing strings follow injected locale via L10
                                            onOpenReview: { layout.requestRightPanel(.review) })
 ```
 
-- [ ] **Step 2: 删「后续接」注释**
+- [x] **Step 2: 删「后续接」注释**
 
 在 `SummaryPopoverView.swift` 第 9 行把注释
 
@@ -626,16 +626,16 @@ git commit -m "fix(#5): Store user-facing strings follow injected locale via L10
     var onOpenReview: (() -> Void)? = nil              // #4：变更→右栏审查面板跳转（RootSplitView 注入 requestRightPanel(.review)）
 ```
 
-- [ ] **Step 3: 构建 guard**
+- [x] **Step 3: 构建 guard**
 
 Run: `bash ios/comet-build-check.sh`
 Expected: BUILD SUCCEEDED。
 
-- [ ] **Step 4: 模拟器/真机验收（ui-adaptation-baseline）**
+- [x] **Step 4: 模拟器/真机验收（ui-adaptation-baseline）**
 
 全屏（>668）打开摘要浮层（顶栏 :≡）→ 在「变更」行看到 chevron 不再灰（可点）→ 点击 → 右栏打开并选中「审查」tab，展示当前工作区变更。横竖屏各验；分屏中间档下点击=最后请求右侧（与 Task 2 tiebreaker 协同，右栏展开）。确认主对话内容未串台。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ios/CodexRemote/Views/RootSplitView.swift ios/CodexRemote/Views/Workspace/SummaryPopoverView.swift
