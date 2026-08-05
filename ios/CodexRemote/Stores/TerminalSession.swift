@@ -20,9 +20,17 @@ final class TerminalSession {
     private var rpc: JSONRPCClient?
     private var observer: Task<Void, Never>?
 
-    /// 复用①传输：订阅 outputDelta。幂等。
+    /// 复用①传输：订阅 outputDelta。幂等；完整重连换新 rpc 实例时——
+    ///   ① 取消旧订阅并对新 rpc 重订阅（否则 guard==nil 挡住重订阅 → 新连接 shell 输出永不显示）；
+    ///   ② stale processId 复位：旧 pid 属已断连接上的 shell，新连接无此进程，保留会令
+    ///      startIfNeeded 同 cwd 误判「已运行」而跳过重起（终端永久空白）。复位后由 startIfNeeded 重起。
     func attach(rpc: JSONRPCClient) async {
+        let rpcChanged = self.rpc !== rpc
         self.rpc = rpc
+        if rpcChanged {
+            observer?.cancel(); observer = nil
+            processId = nil; startedCwd = nil; running = false   // ② stale 复位
+        }
         guard observer == nil else { return }
         let stream = await rpc.notifications()
         observer = Task { [weak self] in

@@ -10,6 +10,32 @@ final class ProjectsStoreTests: XCTestCase {
                       name: nil, gitInfo: git ? GitInfoSummary(sha: nil, branch: "main", originUrl: origin) : nil)
     }
 
+    // #4 手动重连重绑：attach 新 rpc 后旧广播订阅被取消、新 client 被重订阅。
+    // 复现——attach(rpcA) 后 attach(rpcB)；经 rpcB 真实流喂 thread/unarchived 广播，
+    // 应在 rpcB 上发出 thread/list（旧实现 guard broadcastObserver==nil → 观察者仍绑 rpcA，
+    // 重连后新连接的官方广播永不刷新列表）。
+    func test_reSubscribes_broadcast_on_rpc_change() async throws {
+        let mockA = MockTransport()
+        await mockA.setAutoRespond(true)
+        let rpcA = JSONRPCClient(transport: mockA)
+        await rpcA.start()
+
+        let mockB = MockTransport()
+        await mockB.setAutoRespond(true)
+        let rpcB = JSONRPCClient(transport: mockB)
+        await rpcB.start()
+
+        let s = ProjectsStore()
+        await s.attach(rpc: rpcA)
+        await s.attach(rpc: rpcB)   // 模拟完整重连：新 rpc 实例
+
+        let before = await mockB.sent.filter { $0.contains("thread/list") }.count
+        await mockB.feed(#"{"method":"thread/unarchived","params":{"threadId":"t1"}}"#)
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        let after = await mockB.sent.filter { $0.contains("thread/list") }.count
+        XCTAssertGreaterThan(after, before)
+    }
+
     func test_ingest_classifies_project_vs_loose() {
         let s = ProjectsStore()
         s.ingest([

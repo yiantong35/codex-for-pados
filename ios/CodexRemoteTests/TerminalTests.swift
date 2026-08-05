@@ -109,6 +109,37 @@ struct TerminalTests {
         #expect(s.processId != old)
     }
 
+    // #4 手动重连重绑：attach 新 rpc 实例后——
+    //   ① stale processId 复位（旧 pid 属已断连接上的 shell，新连接无此进程）；
+    //   ② outputDelta 观察者重订阅到新 rpc（旧实现 guard observer==nil → 仍绑旧流，
+    //      新连接 shell 输出永不显示）。
+    @MainActor @Test func reconnectRebindsAndClearsStaleProcessId() async throws {
+        let mockA = MockTransport()
+        let rpcA = JSONRPCClient(transport: mockA)
+        await rpcA.start()
+        let mockB = MockTransport()
+        let rpcB = JSONRPCClient(transport: mockB)
+        await rpcB.start()
+
+        let s = TerminalSession()
+        await s.attach(rpc: rpcA)
+        s.start(cwd: "/repo")
+        #expect(s.processId != nil)
+
+        await s.attach(rpc: rpcB)                 // 模拟完整重连：新 rpc 实例
+        #expect(s.processId == nil)               // ① stale 复位 → 令 startIfNeeded 重起
+
+        // ② 新连接上起新 shell，经 rpcB 真实流喂 outputDelta，应回调 onBytes（观察者已重订阅）。
+        var received: [UInt8] = []
+        s.onBytes = { received.append(contentsOf: $0) }
+        s.start(cwd: "/repo")
+        let pid = s.processId!
+        let payload = Array("hi".utf8)
+        await mockB.feed(#"{"method":"command/exec/outputDelta","params":{"processId":"\#(pid)","deltaBase64":"\#(Data(payload).base64EncodedString())"}}"#)
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        #expect(received == payload)
+    }
+
     @MainActor @Test func sessionWriteParams() {
         let s = TerminalSession()
         s.start(cwd: "/repo")

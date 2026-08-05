@@ -16,10 +16,13 @@ final class EnvironmentStore {
     private var rpc: JSONRPCClient?
     private var observer: Task<Void, Never>?
 
-    /// 注入 rpc：拉初值 + 订阅账户广播。幂等。
+    /// 注入 rpc：拉初值 + 订阅账户广播。幂等；完整重连换新 rpc 实例时取消旧订阅并对新 rpc
+    /// 重订阅（否则 guard observer==nil 挡住重订阅 → 新连接的 account/rateLimits 广播永不刷新）。
     func attach(rpc: JSONRPCClient) async {
+        let rpcChanged = self.rpc !== rpc
         self.rpc = rpc
         await refreshAll()
+        if rpcChanged { observer?.cancel(); observer = nil }
         guard observer == nil else { return }
         let stream = await rpc.notifications()
         observer = Task { [weak self] in

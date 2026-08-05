@@ -119,9 +119,13 @@ final class ProjectsStore {
         if let rpc { await loadFromServer(rpc: rpc) }
     }
 
-    /// 注入 rpc 并启动官方广播监听（设计 D3：多端一致靠广播，不自建同步）。幂等。
+    /// 注入 rpc 并启动官方广播监听（设计 D3：多端一致靠广播，不自建同步）。幂等；
+    /// 完整重连换新 rpc 实例时取消旧订阅并对新 rpc 重订阅（否则 guard==nil 挡住重订阅 →
+    /// 重连后新连接的官方广播永不刷新列表，UI 停在断线前快照）。
     func attach(rpc: JSONRPCClient) async {
+        let rpcChanged = self.rpc !== rpc
         self.rpc = rpc
+        if rpcChanged { broadcastObserver?.cancel(); broadcastObserver = nil }
         guard broadcastObserver == nil else { return }
         let stream = await rpc.notifications()
         broadcastObserver = Task { [weak self] in

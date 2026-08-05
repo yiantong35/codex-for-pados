@@ -36,6 +36,24 @@ struct SideChatStoreTests {
         }
     }
 
+    // #4 手动重连重绑：侧聊会话内嵌的 ConversationStore 持旧 rpc（`let`）+ 旧 threadId 订阅。
+    // 完整重连（新 rpc 实例）后旧会话全打向已关闭 client、订阅绑死旧流 → 应在 attach 新 rpc 时
+    // 清空 stale 侧聊（fail-closed：不留半死会话；用户可在新连接上重新 fork）。
+    @Test func reattachNewRpcClearsStaleSessions() async {
+        let (mock, _, store) = await makeStore()
+        let r = respondFork(mock); defer { r.cancel() }
+        await store.start(fromThreadId: "main-1")
+        #expect(store.sessions.count == 1)
+
+        let mockB = MockTransport()
+        let rpcB = JSONRPCClient(transport: mockB)
+        await rpcB.start()
+        store.attach(rpc: rpcB)   // 模拟完整重连：新 rpc 实例
+
+        #expect(store.sessions.isEmpty)     // stale 侧聊被清
+        #expect(store.selectedId == nil)
+    }
+
     @Test func startAddsAndSelectsSession() async {
         let (mock, _, store) = await makeStore()
         let r = respondFork(mock); defer { r.cancel() }

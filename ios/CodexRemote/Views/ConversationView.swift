@@ -16,6 +16,14 @@ struct ConversationView: View {
         approvals.cards.filter { $0.threadId == threadId }
     }
 
+    /// #4 手动重连重绑键：threadId + RPC 身份。ConversationStore 持 `let rpc`，仅 threadId 变化
+    /// 不足以在**同一线程完整重连**（新 JSONRPCClient 实例）时重建 store → 旧 store 全打向已关闭
+    /// client、订阅绑死旧流。把 rpc 身份并入键，令重连即重建（与 WorkspaceHost.rpcIdentity 同源）。
+    private var convBindingKey: String {
+        let rpcId = connection.rpc.map { "\(ObjectIdentifier($0))" } ?? "nil"
+        return "\(threadId)|\(rpcId)"
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -81,7 +89,7 @@ struct ConversationView: View {
                 }
             }
         }
-        .task(id: threadId) {
+        .task(id: convBindingKey) {
             guard let rpc = connection.rpc else { return }
             let s = ConversationStore(rpc: rpc, threadId: threadId)
             // reconnect-resync item 3：注入连接就绪信号，供 send 判定在线/离线分支。
