@@ -141,10 +141,11 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
 
     private let bridge: ProxyBridge
     private let context: DialoutContext
-    private var bridgeStarted = false
+    private let lifecycle: BridgeLifecycle
 
     init(bridge: ProxyBridge, context: DialoutContext) {
         self.bridge = bridge; self.context = context
+        self.lifecycle = BridgeLifecycle(bridge: bridge)
     }
 
     func channelRead(context ctx: ChannelHandlerContext, data: NIOAny) {
@@ -155,11 +156,18 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             let bytes = buf.readBytes(length: buf.readableBytes) ?? []
             handlePayload(Data(bytes), ctx: ctx)
         case .connectionClose:
-            bridge.terminate()   // 只停自己 spawn 的 proxy 子进程
+            lifecycle.shutdown()   // 只停自己 spawn 的 proxy 子进程
             ctx.close(promise: nil)
         default:
             break
         }
+    }
+
+    /// #8b：channel inactive/reset（无 connectionClose 帧，如 TCP reset/网络突断）退出路径——
+    /// 补 `lifecycle.shutdown()` 精确回收自己 spawn 的 proxy 子进程，绝不遗留孤儿进程。
+    func channelInactive(context ctx: ChannelHandlerContext) {
+        lifecycle.shutdown()
+        ctx.fireChannelInactive()
     }
 
     /// 分发一帧原始字节：先按 SecureEnvelope 解，失败再按握手明文帧处理。
@@ -169,7 +177,7 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             // dev 侧只期望 iPad 发来的应用数据帧；非预期 kind（如 secureReady）fail-closed 丢弃，不静默放行。
             guard env.kind == .appData else { return }
             guard let plaintext = try? session.open(env) else { return }
-            ensureBridgeStarted()
+            guard ensureBridgeStarted(ctx: ctx) else { return }   // 启桥失败已关连接，不再写
             if let s = String(data: plaintext, encoding: .utf8) {
                 bridge.write(s)
             }
@@ -195,7 +203,7 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             }
             // 握手完成：先加密回传 SecureReady（稳定 sessionId），再启桥并把 proxy 输出加密回发。
             sendFrame(readyFrame, ctx: ctx)   // 只发一次
-            ensureBridgeStarted()
+            guard ensureBridgeStarted(ctx: ctx) else { return }   // #8a 启桥失败 fail-closed 关连接
             pumpBridgeOutbound(ctx: ctx)
             return
         case .clientHello:
@@ -216,10 +224,18 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
         }
     }
 
-    private func ensureBridgeStarted() {
-        guard !bridgeStarted else { return }
-        bridgeStarted = true
-        do { try bridge.start() } catch { /* TODO(集成): 上报启动失败 */ }
+    /// #8a：幂等启桥；启桥失败**不吞**——回收残留并关连接（fail-closed），让 iPad 明确感知断连
+    /// （而非收 SecureReady 后干等 initialize 超时）。返回 false = 已启桥失败并关连接，调用方须即停后续桥接。
+    @discardableResult
+    private func ensureBridgeStarted(ctx: ChannelHandlerContext) -> Bool {
+        do {
+            try lifecycle.ensureStarted()
+            return true
+        } catch {
+            lifecycle.shutdown()          // 回收可能的残留子进程
+            ctx.close(promise: nil)       // 关连接：iPad 侧据此明确失败，不静默继续
+            return false
+        }
     }
 
     /// proxy stdout 明文 → session.seal → SecureEnvelope → ws text frame。
