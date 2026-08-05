@@ -13,40 +13,47 @@ struct TabBarView: View {
     @State private var removeTarget: UUID?
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(sessions.machineStore.machines) { m in
-                    tab(m)
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(sessions.machineStore.machines) { m in
+                        tab(m).id(m.id)
+                    }
+                    addButton
                 }
-                addButton
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-        }
-        .background(.bar)
-        .alert("tab.capReached", isPresented: $showCapAlert) {
-            Button("common.ok", role: .cancel) {}
-        }
-        // 重命名 alert：绑定到 renameTarget（非空即present）；确认写回 SessionsManager.rename。
-        .alert("tab.rename.title", isPresented: renameAlertBinding) {
-            TextField("tab.rename.placeholder", text: $renameDraft)
-            Button("common.cancel", role: .cancel) { renameTarget = nil }
-            Button("tab.rename.confirm") {
-                if let id = renameTarget { sessions.rename(id: id, to: renameDraft) }
-                renameTarget = nil
+            // #7：活动 session 变化 → 把活动 tab 居中滚入（事件驱动，无定时器）。
+            .onChange(of: sessions.activeSessionId) { _, newId in
+                guard let newId else { return }
+                withAnimation { proxy.scrollTo(newId, anchor: .center) }
             }
-        }
-        // 移除机器二次确认（D6）：破坏性操作不由单次点击直接执行，绑定 removeTarget。
-        .confirmationDialog("tab.remove.confirm.title",
-                            isPresented: removeConfirmBinding,
-                            titleVisibility: .visible) {
-            Button("tab.remove.confirm.action", role: .destructive) {
-                if let id = removeTarget { sessions.removeMachine(id: id) }
-                removeTarget = nil
+            .background(.bar)
+            .alert("tab.capReached", isPresented: $showCapAlert) {
+                Button("common.ok", role: .cancel) {}
             }
-            Button("common.cancel", role: .cancel) { removeTarget = nil }
-        } message: {
-            Text("tab.remove.confirm.message")
+            // 重命名 alert：绑定到 renameTarget（非空即present）；确认写回 SessionsManager.rename。
+            .alert("tab.rename.title", isPresented: renameAlertBinding) {
+                TextField("tab.rename.placeholder", text: $renameDraft)
+                Button("common.cancel", role: .cancel) { renameTarget = nil }
+                Button("tab.rename.confirm") {
+                    if let id = renameTarget { sessions.rename(id: id, to: renameDraft) }
+                    renameTarget = nil
+                }
+            }
+            // 移除机器二次确认（D6）：破坏性操作不由单次点击直接执行，绑定 removeTarget。
+            .confirmationDialog("tab.remove.confirm.title",
+                                isPresented: removeConfirmBinding,
+                                titleVisibility: .visible) {
+                Button("tab.remove.confirm.action", role: .destructive) {
+                    if let id = removeTarget { sessions.removeMachine(id: id) }
+                    removeTarget = nil
+                }
+                Button("common.cancel", role: .cancel) { removeTarget = nil }
+            } message: {
+                Text("tab.remove.confirm.message")
+            }
         }
     }
 
