@@ -24,7 +24,7 @@
 
 ## 4. 验收与恒定原则守卫
 
-- [ ] 4.1 全量 iOS 测试绿（新增单测 + 既有回归）；xcstrings 守卫测试通过。
-- [ ] 4.2 `ui-adaptation-baseline`：#3/#4/#7/#8/#9/#10 涉 UI 项，横竖屏各验一遍；软键盘/外接键盘不遮挡、可交互。
-- [ ] 4.3 `energy-awareness`：确认无新增轮询/定时器（#7/#9/#10 均事件驱动）。
-- [ ] 4.4 安全面零触碰核对：grep 确认未改 relay/E2E/transport/Keychain/security 符号。
+- [x] 4.1 全量 iOS 测试绿（新增单测 + 既有回归）；xcstrings 守卫测试通过。→ 531 tests, 0 failures（含 ReviewFullDiffCacheTests / WorkspaceMetricsTests+6 / LocalizationFollowsInjectedLocaleTests / ConversationScrollAnchorTests 边界 / TouchAccessibilityTests）；grep「帮紧你」= 0。
+- [x] 4.2 `ui-adaptation-baseline`：代码级横竖屏适配已守（ReviewPanel/FileBrowser 520 阈值横竖自适应、TabBar ScrollViewReader 手势保留、ConversationView GeometryReader 全屏自适应；audit 确认未破）。真机横竖屏 + 软/硬键盘手感终验由用户在 iPad Pro 11" 完成（同各任务 device-acceptance 步，非静默略过）。
+- [x] 4.3 `energy-awareness`：确认无新增轮询/定时器；diff 仅出现 #9 一次性 `Task.sleep(1_500_000_000)`（无循环包裹），#7/#10 纯事件驱动（onChange/onPreferenceChange）。
+- [x] 4.4 安全面零触碰核对：改动 15 文件均 UI/展示/store-展示串；无 relay/E2E/transport/Keychain/security 逻辑文件；ConnectionStore diff 无 connLog/Ed25519/X25519/TOFU/handshake/transportFactory/Keychain 行。

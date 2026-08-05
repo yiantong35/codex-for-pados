@@ -1129,7 +1129,7 @@ git commit -m "fix(#10): wire near-bottom decision to isNearBottom(threshold:120
 
 **Files:** 无代码改动（纯验证 + 必要时回补）。
 
-- [ ] **Step 1: 全量 iOS 测试绿（4.1）**
+- [x] **Step 1: 全量 iOS 测试绿（4.1）**
 
 Run:
 ```bash
@@ -1140,7 +1140,7 @@ xcodebuild test -scheme CodexRemote \
 ```
 Expected: **Test Succeeded**（新增 `ReviewFullDiffCacheTests` + `WorkspaceMetricsTests` 新用例 + `LocalizationFollowsInjectedLocaleTests` 扩充 + `ConversationScrollAnchorTests` 边界，且既有全部回归绿）。
 
-- [ ] **Step 2: xcstrings 无占位假串守卫（4.1）**
+- [x] **Step 2: xcstrings 无占位假串守卫（4.1）**
 
 Run: `grep -n "帮紧你" ios/CodexRemote/Resources/Localizable.xcstrings`
 Expected: 无输出（0 匹配）。
@@ -1149,12 +1149,12 @@ Expected: 无输出（0 匹配）。
 
 对 #3/#4/#7/#8/#9/#10 每项，在 iPad 上横屏 + 竖屏各走一遍关键路径（见各任务验证步）；软键盘/外接键盘弹出时不遮挡、可交互。逐项在本地真机验收清单打勾。
 
-- [ ] **Step 4: energy-awareness 自查（4.3）**
+- [x] **Step 4: energy-awareness 自查（4.3）**
 
 Run: `git diff 6a558cf364756a23d29707cf0628179b2f5110d2 -- ios/CodexRemote | grep -nE "Timer|\.repeatForever|Task\.sleep|while true|for await"`
 Expected: 仅出现 #9 的**一次性** `Task.sleep(nanoseconds: 1_500_000_000)`（无循环包裹）；无新增 `Timer` / 轮询 / 周期唤醒。#7/#10 应为纯事件驱动（`onChange` / `onPreferenceChange`），不出现在结果里。
 
-- [ ] **Step 5: 安全面零触碰核对（4.4）**
+- [x] **Step 5: 安全面零触碰核对（4.4）**
 
 Run:
 ```bash
@@ -1168,7 +1168,7 @@ git diff 6a558cf364756a23d29707cf0628179b2f5110d2 -- ios/CodexRemote/Stores/Conn
 ```
 Expected: 无输出（未改任何 relay/密钥/日志逻辑，仅本地化了展示串）。
 
-- [ ] **Step 6: OpenSpec 验证（若走 comet verify 流程）**
+- [x] **Step 6: OpenSpec 验证（若走 comet verify 流程）**
 
 按项目 comet-verify 流程校验 8 个 delta spec 的 ADDED 场景均已由上述任务覆盖：
 - `ipad-review-panel`（#2 Task 1 + #8-diff Task 8）
