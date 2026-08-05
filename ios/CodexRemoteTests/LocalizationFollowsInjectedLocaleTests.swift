@@ -26,6 +26,7 @@ final class LocalizationFollowsInjectedLocaleTests: XCTestCase {
         "conn.error.proxyFailed", "conn.error.channelClosed", "conn.error.channelClosedUnknown",
         "conn.error.notConnected", "conn.error.handshakeFailed",
         "fileBrowser.loadDirFailed",
+        "review.started",           // #9：发起审查可见反馈文案
     ]
 
     func test_sharedHelper_returnsInjectedLanguage() {

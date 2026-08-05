@@ -183,6 +183,22 @@
         }
       }
     },
+    "review.started": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review started"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "审查已发起"
+          }
+        }
+      }
+    },
     "sideChat.close": {
       "localizations": {
         "en": {
