@@ -11,6 +11,14 @@ enum ScrollAnchorPolicy {
     }
 }
 
+/// #10：滚动内容底部到可视底部的最小距离（取多个几何读数的 min）。
+private struct BottomDistanceKey: PreferenceKey {
+    static let defaultValue: CGFloat = .greatestFiniteMagnitude
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = Swift.min(value, nextValue())
+    }
+}
+
 /// 中栏对话流（设计 §3）：渲染选中 thread 的 ConversationState.items 流，
 /// 含 agent 正文 / 命令执行卡 / 文件 diff 卡 / 用户消息气泡 / turn 状态指示。
 /// 选中对话时用 connection.rpc 装配 ConversationStore，并 startObserving + resume。
@@ -42,6 +50,7 @@ struct ConversationView: View {
     }
 
     var body: some View {
+        GeometryReader { outer in
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
@@ -60,12 +69,22 @@ struct ConversationView: View {
                     if store?.state.isTurnRunning == true {
                         turnRunningIndicator.id(Self.turnIndicatorID)
                     }
-                    // 底部哨兵：进入/离开可视区切换近底态（事件驱动，无轮询/定时器）。
+                    // #10：底部几何测点——上报「内容底部 minY − 视口底部 maxY」作 distanceToBottom。
+                    // 内容底部在视口内/上方 → 距离 ≤ 0；在视口下方（还没滚到底）→ 正距离。
                     Color.clear.frame(height: 1).id(Self.bottomSentinelID)
-                        .onAppear { isNearBottom = true; showNewBelow = false }
-                        .onDisappear { isNearBottom = false }
+                        .background(GeometryReader { g in
+                            Color.clear.preference(
+                                key: BottomDistanceKey.self,
+                                value: g.frame(in: .global).minY - outer.frame(in: .global).maxY)
+                        })
                 }
                 .padding()
+            }
+            .onPreferenceChange(BottomDistanceKey.self) { d in
+                // 真调策略函数（threshold=120）——消灭死代码。负距离夹到 0（已贴底）。
+                let near = ScrollAnchorPolicy.isNearBottom(distanceToBottom: Swift.max(0, d), threshold: 120)
+                isNearBottom = near
+                if near { showNewBelow = false }
             }
             .onChange(of: store?.state.items.count) { _, _ in
                 if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: isNearBottom) {
@@ -90,6 +109,8 @@ struct ConversationView: View {
                     .accessibilityLabel(Text("conv.newMessages"))
                 }
             }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onChange(of: store?.state) { _, newValue in
             if bindsWorkspaceState { activeConversation.state = newValue }
