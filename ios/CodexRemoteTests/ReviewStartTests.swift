@@ -52,10 +52,14 @@ struct ReviewStartTests {
         let store = ConversationStore(rpc: rpc, threadId: "thread-A")
         let sent = await store.startReview(mode: .full)
         #expect(sent == true)
-        // fire-and-forget：给内部 Task 一点时间把帧写进 mock.sent
-        try? await Task.sleep(nanoseconds: 50_000_000)
-        let frames = await mock.sent
-        let frame = frames.first { $0.contains("review/start") }
+        // fire-and-forget：轮询等待内部 Task 把帧写进 mock.sent（有界，最长 ~1s）。
+        // 定长 sleep 在全量并发负载下会假失败（帧 >50ms 才落）——改为轮询直到出现或超时。
+        var frame: String?
+        for _ in 0..<200 {
+            frame = await mock.sent.first { $0.contains("review/start") }
+            if frame != nil { break }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
         #expect(frame != nil)
         #expect(frame?.contains("thread-A") == true)
         #expect(frame?.contains("uncommittedChanges") == true)
