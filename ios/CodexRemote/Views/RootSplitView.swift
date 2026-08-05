@@ -72,7 +72,8 @@ struct RootSplitView: View {
                 // 不会遮挡顶栏按钮（否则会盖住摘要按钮本身导致收不回）。
                 .overlay(alignment: .topTrailing) {
                     if layout.showSummary {
-                        SummaryPopoverView(state: activeConversation.state, thread: selectedThread, env: envInspector)
+                        SummaryPopoverView(state: activeConversation.state, thread: selectedThread, env: envInspector,
+                                           onOpenReview: { layout.requestRightPanel(.review) })
                             .frame(width: 340)
                             .task(id: summaryEnvKey) {
                                 if connection.phase == .ready, let rpc = connection.rpc {

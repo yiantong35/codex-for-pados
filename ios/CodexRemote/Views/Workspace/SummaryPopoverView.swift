@@ -6,7 +6,7 @@ struct SummaryPopoverView: View {
     let state: ConversationState?
     let thread: ThreadSummary?
     var env: EnvironmentInspectorModel? = nil          // 批次⑤：全量 diff + 认证
-    var onOpenReview: (() -> Void)? = nil              // 批次⑤：变更→审查面板跳转信号（后续接）
+    var onOpenReview: (() -> Void)? = nil              // #4：变更→右栏审查面板跳转（RootSplitView 注入 requestRightPanel(.review)）
 
     private var diff: WorkspaceSummary.DiffLineCounts {
         state.map(WorkspaceSummary.diffLineCounts(in:)) ?? .init(added: 0, removed: 0, changedFiles: 0)
