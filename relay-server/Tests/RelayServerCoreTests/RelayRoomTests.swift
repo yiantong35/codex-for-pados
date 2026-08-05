@@ -116,6 +116,46 @@ import RelayProtocol
     #expect(devRx == [opaque])   // 原样投递，未被解析/改写
 }
 
+// #2 reset-on-rejoin（仅 iPad 入向，不对称）：iPad 断线重连时，缺席期 dev 用**旧会话密钥**
+// seal 的 appData 密文积在 pendingForIpad，重连的 iPad 必然解不开(新 ephemeral)→ 必须丢弃、
+// 不得 flush。构造:dev 常驻 → iPad 首 join 后 leave(模拟断线,dev 槽仍在→房间保留) →
+// 缺席期 dev forward 若干帧进 pendingForIpad → iPad 重新 join **不得**收到这些 stale 帧。
+@Test func ipadRejoinDiscardsStalePendingForIpad() {
+    let rooms = RelayRooms()
+    // dev 常驻(不断线);其 sink 只用于收 peer-left 信令,不参与断言。
+    rooms.join(sessionId: "s", role: .devMachine) { _ in }
+    // iPad 首次 join 然后断线离开(dev 槽仍在 → 房间保留,不回收)。
+    guard case let .joined(ipadId1) = rooms.join(sessionId: "s", role: .iPad, sink: { _ in }) else {
+        return #expect(Bool(false))
+    }
+    rooms.leave(sessionId: "s", role: .iPad, connId: ipadId1)
+    // 缺席期 dev 用旧会话密钥发帧 → iPad 缺席 → 进 pendingForIpad(旧密文,重连 iPad 解不开)。
+    rooms.forward(sessionId: "s", from: .devMachine, frame: "stale-old-key-1")
+    rooms.forward(sessionId: "s", from: .devMachine, frame: "stale-old-key-2")
+    // iPad 重连 → reset-on-rejoin 应丢弃 pendingForIpad,不 flush。
+    var ipadRx: [String] = []
+    guard case .joined = rooms.join(sessionId: "s", role: .iPad, sink: { ipadRx.append($0) }) else {
+        return #expect(Bool(false))
+    }
+    #expect(ipadRx.isEmpty)   // 旧密钥密文必丢:重连 iPad 不得收到 stale 帧
+}
+
+// #2 对照(防误伤 dev 入向):不对称语义只清 iPad 入向,dev 入向的 pendingForDev(iPad 发的
+// 明文 ClientHello 握手引导帧,非 stale)必须保持既有 flush 行为。iPad 先 join 连发数帧
+// (dev 缺席 → pendingForDev) → dev 后 join 仍须按 FIFO 原序收到全部。
+@Test func devRejoinStillFlushesPendingForDevInOrder() {
+    let rooms = RelayRooms()
+    // iPad 在场,dev 缺席 → iPad 发的握手引导帧进 pendingForDev。
+    rooms.join(sessionId: "s", role: .iPad) { _ in }
+    rooms.forward(sessionId: "s", from: .iPad, frame: "hello-1")
+    rooms.forward(sessionId: "s", from: .iPad, frame: "hello-2")
+    rooms.forward(sessionId: "s", from: .iPad, frame: "hello-3")
+    // dev 上线 → 必须按原序 flush 全部(dev 入向不受 reset-on-rejoin 影响)。
+    var devRx: [String] = []
+    rooms.join(sessionId: "s", role: .devMachine) { devRx.append($0) }
+    #expect(devRx == ["hello-1", "hello-2", "hello-3"])
+}
+
 // 6.1/6.2：dev 离开 → 通知仍在的 iPad；离开者自己不收到。
 @Test func leaveNotifiesRemainingPeer() throws {
     let rooms = RelayRooms()

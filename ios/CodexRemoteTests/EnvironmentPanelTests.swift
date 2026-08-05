@@ -70,6 +70,32 @@ struct EnvironmentPanelTests {
 
     // MARK: - Task 4: EnvironmentStore
 
+    // #4 手动重连重绑：attach 新 rpc 实例后，旧 client 的订阅被取消、新 client 被重新订阅。
+    // 复现——重连前 env.attach(rpcA)，重连后 env.attach(rpcB)；经 rpcB 真实流喂 account/updated
+    // 广播，应在 rpcB 上发出 account/read（旧实现 guard observer==nil → observer 仍绑 rpcA，
+    // 新连接广播永不触发刷新）。
+    @MainActor @Test func reSubscribesOnRpcChange() async throws {
+        let mockA = MockTransport()
+        await mockA.setAutoRespond(true)
+        let rpcA = JSONRPCClient(transport: mockA)
+        await rpcA.start()
+
+        let mockB = MockTransport()
+        await mockB.setAutoRespond(true)
+        let rpcB = JSONRPCClient(transport: mockB)
+        await rpcB.start()
+
+        let store = EnvironmentStore()
+        await store.attach(rpc: rpcA)
+        await store.attach(rpc: rpcB)   // 模拟完整重连：新 rpc 实例
+
+        let before = await mockB.sent.filter { $0.contains("account/read") }.count
+        await mockB.feed(#"{"method":"account/updated","params":{"authMode":"chatgpt"}}"#)
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        let after = await mockB.sent.filter { $0.contains("account/read") }.count
+        #expect(after > before)
+    }
+
     @MainActor @Test func storeConsumesAccountBroadcast() {
         let s = EnvironmentStore()
         s.handleAccountUpdated(.chatgpt(email: "x@y.com", planType: "pro"))

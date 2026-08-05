@@ -141,10 +141,15 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
 
     private let bridge: ProxyBridge
     private let context: DialoutContext
-    private var bridgeStarted = false
+    private let lifecycle: BridgeLifecycle
+    /// #1 后遗:连接内可多次重握手,但 bridge 子进程与其 stdout 跨重握手连续存在。
+    /// pump 必须每连接恰启一次——否则每次重握手都新装 stdout readabilityHandler,
+    /// 顶掉旧 pump Task(挂起永不回收=泄漏)且交接处可能丢一行。守 handler EventLoop 单线程,裸 Bool 足矣。
+    private var pumpStarted = false
 
     init(bridge: ProxyBridge, context: DialoutContext) {
         self.bridge = bridge; self.context = context
+        self.lifecycle = BridgeLifecycle(bridge: bridge)
     }
 
     func channelRead(context ctx: ChannelHandlerContext, data: NIOAny) {
@@ -155,11 +160,18 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             let bytes = buf.readBytes(length: buf.readableBytes) ?? []
             handlePayload(Data(bytes), ctx: ctx)
         case .connectionClose:
-            bridge.terminate()   // 只停自己 spawn 的 proxy 子进程
+            lifecycle.shutdown()   // 只停自己 spawn 的 proxy 子进程
             ctx.close(promise: nil)
         default:
             break
         }
+    }
+
+    /// #8b：channel inactive/reset（无 connectionClose 帧，如 TCP reset/网络突断）退出路径——
+    /// 补 `lifecycle.shutdown()` 精确回收自己 spawn 的 proxy 子进程，绝不遗留孤儿进程。
+    func channelInactive(context ctx: ChannelHandlerContext) {
+        lifecycle.shutdown()
+        ctx.fireChannelInactive()
     }
 
     /// 分发一帧原始字节：先按 SecureEnvelope 解，失败再按握手明文帧处理。
@@ -169,7 +181,7 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             // dev 侧只期望 iPad 发来的应用数据帧；非预期 kind（如 secureReady）fail-closed 丢弃，不静默放行。
             guard env.kind == .appData else { return }
             guard let plaintext = try? session.open(env) else { return }
-            ensureBridgeStarted()
+            guard ensureBridgeStarted(ctx: ctx) else { return }   // 启桥失败已关连接，不再写
             if let s = String(data: plaintext, encoding: .utf8) {
                 bridge.write(s)
             }
@@ -179,28 +191,30 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
         if let sig = try? RelaySignal(decoding: data), sig.kind == RelaySignal.peerLeftKind {
             return
         }
-        // 握手期：先试 ClientAuth（更晚），再试 ClientHello。
+        // 握手期分发（缺陷 #1 dev 侧）：dev 拨出常驻连接，iPad 弱网重连会在同一 ws 上再发新 ClientHello。
+        // 按帧类型路由——绝不因 hellos 已就绪就把新 ClientHello 当迟到 ClientAuth 丢弃。
         // #2：不吞错——信任落盘失败必须冒泡，绝不因 try? 吞错而在信任未落盘时启 bridge。
-        if context.hellos != nil {
+        switch DialoutContext.classifyHandshakeFrame(data) {
+        case .clientAuth:
+            // 握手收尾：必须已有在飞握手（hellos 就绪）才处理，否则无 hello 上下文，静默丢弃。
+            guard context.hellos != nil else { return }
             let readyFrame: Data
             do {
                 readyFrame = try context.handleClientAuth(data)
             } catch {
                 // 落盘/验签失败：不发 SecureReady、不启 bridge、不发布会话。上层错误路径负责关连接。
-                // 直接返回（不 fall through 到 ClientHello 解析）：对 ClientAuth 帧或垃圾帧，与改前 try?
-                // 失败后行为等价（二者都不会解成 ClientHello）。唯一差异是「hellos 已就绪时又来一个
-                // ClientHello」（连接内握手重启）——改前会 fall through 重发 ServerHello，改后静默丢弃;
-                // 但本进程模型是「一 ws 连接一进程、连接关即退出」，弱网重连走新连接(新 context, hellos==nil)，
-                // 故该差异路径运行时不可达，且丢弃方向 fail-closed，可接受。
                 return
             }
             // 握手完成：先加密回传 SecureReady（稳定 sessionId），再启桥并把 proxy 输出加密回发。
             sendFrame(readyFrame, ctx: ctx)   // 只发一次
-            ensureBridgeStarted()
+            guard ensureBridgeStarted(ctx: ctx) else { return }   // #8a 启桥失败 fail-closed 关连接
             pumpBridgeOutbound(ctx: ctx)
             return
+        case .clientHello:
+            // (重)握手起始：受信任复连的 handleClientHello 每次重置在飞握手态，支持连接内多次重握手。
+            // 首配/防降级校验（rejectHelloIfUnauthorized + makeServerHello 验 proof）一律照旧，绝不降级。
+            break   // 落到下方 ClientHello 处理
         }
-        // 未受信任且未持有效 proof → 判定权在 dev 侧：主动发 RejectHello 再关连接，不建会话
         // （区别于静默断连，便于 iPad 侧展示明确原因，而非无提示卡住）。
         if let hello = try? JSONDecoder().decode(ClientHello.self, from: data) {
             if let reject = context.rejectHelloIfUnauthorized(hello) {
@@ -214,14 +228,25 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
         }
     }
 
-    private func ensureBridgeStarted() {
-        guard !bridgeStarted else { return }
-        bridgeStarted = true
-        do { try bridge.start() } catch { /* TODO(集成): 上报启动失败 */ }
+    /// #8a：幂等启桥；启桥失败**不吞**——回收残留并关连接（fail-closed），让 iPad 明确感知断连
+    /// （而非收 SecureReady 后干等 initialize 超时）。返回 false = 已启桥失败并关连接，调用方须即停后续桥接。
+    @discardableResult
+    private func ensureBridgeStarted(ctx: ChannelHandlerContext) -> Bool {
+        do {
+            try lifecycle.ensureStarted()
+            return true
+        } catch {
+            lifecycle.shutdown()          // 回收可能的残留子进程
+            ctx.close(promise: nil)       // 关连接：iPad 侧据此明确失败，不静默继续
+            return false
+        }
     }
 
     /// proxy stdout 明文 → session.seal → SecureEnvelope → ws text frame。
     private func pumpBridgeOutbound(ctx: ChannelHandlerContext) {
+        // 每连接恰启一次:重握手复用同一 bridge/stdout,重复启会顶掉旧 handler 并泄漏 Task。
+        guard !pumpStarted else { return }
+        pumpStarted = true
         let channel = ctx.channel
         let ctxRef = context
         Task {

@@ -1,6 +1,6 @@
 # CodexRemote
 
-iPad-native SwiftUI client for controlling Codex running on a Mac over SSH.
+iPad-native SwiftUI client for controlling Codex running on a Mac over an end-to-end-encrypted relay connection.
 
 ## Repository Boundary
 
@@ -12,7 +12,7 @@ Local agent/workflow state stays out of Git: `.agents/`, `.codex/`, `.claude/`, 
 
 - Xcode 26 series.
 - XcodeGen for regenerating `ios/CodexRemote.xcodeproj` from `ios/project.yml`.
-- iOS/iPadOS 18 is the minimum target direction because the app will use ShipSwift UI.
+- iOS/iPadOS 17 is the minimum target (`ios/project.yml` `deploymentTarget.iOS: "17.0"`).
 - Use a 26-series iPad simulator named `iPad-Test` for build and verification.
 
 ## Build

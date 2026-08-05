@@ -10,8 +10,11 @@ enum ImageEncodeResult {
 ///
 /// relay 单帧上限见 `relay-server/Sources/RelayServerCore/FrameAccumulator.swift:8`
 /// （`1 << 20` = 1 MiB）；iOS 侧不能 `import RelayServerCore`，故在此镜像该常量。
-/// data URL 文本（base64 编码后的密文体积 ≈ 明文体积）受 ws text frame 该上限约束，
-/// 留 `envelopeHeadroom` 给 JSON-RPC envelope 包装余量。
+///
+/// 关键：`byteLimit` 约束的是**明文** data URL，但明文并非直接上线——它先经 E2E
+/// 加密，密文体再由 JSONEncoder base64（×4/3）打进单帧。故明文预算必须留出这层
+/// 膨胀：`明文上限 ≈ 帧上限 / (4/3) − envelope`（≈ 帧上限的 ¾）。若按帧上限直接
+/// 卡明文，近上限图片密文化后 ≈1.3 MiB 会撑爆 1 MiB 帧上限致 relay 断连。
 enum ImageEncoder {
     /// 镜像 relay-server `FrameAccumulator.swift:8` 的单帧上限。
     static let relayMaxMessageBytes = 1 << 20
@@ -19,8 +22,9 @@ enum ImageEncoder {
     static let envelopeHeadroom = 64 * 1024
     /// 降采样目标最长边（像素）。
     static let maxLongestEdge: CGFloat = 1568
-    /// data URL 文本字节数上限（=relay 单帧上限 - envelope 余量）。
-    static var byteLimit: Int { relayMaxMessageBytes - envelopeHeadroom }
+    /// 明文 data URL 文本字节数上限。密文经 base64 膨胀 ×4/3 进单帧，故按帧上限的
+    /// ¾ 折算再扣 envelope 余量，确保加密上线后仍 < relay 单帧上限（#5）。
+    static var byteLimit: Int { Int(Double(relayMaxMessageBytes) * 3.0 / 4.0) - envelopeHeadroom }
 
     /// 后台降采样 + 迭代降质编码；返回可发送的 data URL 或带具体字节数的超限拒绝。
     /// 全程在 `Task.detached`（非主 actor）内完成，避免大图解码/编码阻塞 UI。

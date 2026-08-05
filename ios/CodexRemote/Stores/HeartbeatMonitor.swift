@@ -46,8 +46,10 @@ final class HeartbeatMonitor {
     func setForeground(_ active: Bool) {
         foreground = active
         if active {
+            // 回前台：仅重启可取消 loop。loop 首轮不 sleep、立即探一次（见 restartLoopIfNeeded），
+            // 故「回前台立即补探」已并入 loop，无需再起游离 Task{probeOnce}——后者会造成双探针，
+            // 且 probeOnce 单次 miss 即判死、绕过 missThreshold（#11）。
             restartLoopIfNeeded()
-            Task { await probeOnce() }   // 回前台立即补发一次
         } else {
             loopTask?.cancel()           // 后台暂停：不维持前台级唤醒
             loopTask = nil

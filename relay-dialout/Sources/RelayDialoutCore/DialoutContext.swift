@@ -58,6 +58,24 @@ public final class DialoutContext: @unchecked Sendable {
         return (c, s)
     }
 
+    /// 握手期入站帧的路由判定（缺陷 #1 dev 侧）。
+    ///
+    /// dev 拨出是常驻连接：iPad 弱网重连会在同一 ws 上再发一个新 `ClientHello`（新 ephemeral），
+    /// dispatch 层必须据帧类型区分「(重)握手起始」与「握手收尾 ClientAuth」，不能因 `hellos`
+    /// 已就绪就一律当 ClientAuth（旧缺陷：新 Hello 被 `handleClientAuth` 解失败后 return 丢弃）。
+    public enum InboundHandshakeRoute: Equatable { case clientHello, clientAuth }
+
+    /// 纯函数分类：能按 `ClientHello` 解出即 `.clientHello`，否则 `.clientAuth`。
+    ///
+    /// `ClientHello` 与 `ClientAuth` 的 JSON 必填字段不相交——前者独有
+    /// `ipadIdentityPub`/`ipadEphemeralPub`/`clientNonce`/`pairingCodeProof`/`protocolVersion`，
+    /// 后者独有 `keyEpoch`/`ipadSignature`——故按 `ClientHello` 试解无误判（红测实证 decode 不相交）。
+    /// 不改协议、不加显式 kind tag，守零知识（relay 不参与，dev 侧本地判帧类型）。
+    public static func classifyHandshakeFrame(_ data: Data) -> InboundHandshakeRoute {
+        if (try? JSONDecoder().decode(ClientHello.self, from: data)) != nil { return .clientHello }
+        return .clientAuth
+    }
+
     /// 返回非 nil 表示 dev 应向 iPad 发该 RejectHello 后关连接（而非静默断/继续）。
     /// 未受信任且未持有效 proof（空 proof）→ .untrusted（防降级：判定权在 dev 侧）。
     /// 已在信任列表则 nil（走受信任握手）；未受信任但带 proof 则 nil（走首配校验）。
