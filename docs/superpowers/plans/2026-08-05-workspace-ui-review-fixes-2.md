@@ -438,7 +438,7 @@ git commit -m "fix(#5): remove placeholder joke string; add Store user-facing lo
 
 > 安全边界（Global Constraints）：只改**用户可见展示串**（`.failed(...)` 文案、`node.error`）；`.failed(String)` 契约不变（仍是 String）；`connLog.*` 日志中文串**不碰**；不触任何 relay/transport/Keychain 逻辑。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 在 `LocalizationFollowsInjectedLocaleTests.swift` 加：
 
@@ -467,12 +467,12 @@ git commit -m "fix(#5): remove placeholder joke string; add Store user-facing lo
     }
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `xcodebuild test ... -only-testing:CodexRemoteTests/LocalizationFollowsInjectedLocaleTests`
 Expected: 编译失败（`LocaleManager.currentLocale` 未定义）+ 断言失败（friendlyMessage 仍硬编码中文）。
 
-- [ ] **Step 3: 加 `LocaleManager.currentLocale`**
+- [x] **Step 3: 加 `LocaleManager.currentLocale`**
 
 在 `AppearanceManagers.swift` 的 `LocaleManager` 类内 `var locale: Locale { ... }`（第 54 行）之后加：
 
@@ -489,7 +489,7 @@ Expected: 编译失败（`LocaleManager.currentLocale` 未定义）+ 断言失�
 
 > `key` 是 `LocaleManager` 的 `private static let key = "app_language"`（第 39 行），同类内可直接引用。
 
-- [ ] **Step 4: ConnectionStore 用户可见串走 L10n**
+- [x] **Step 4: ConnectionStore 用户可见串走 L10n**
 
 在 `ConnectionStore.swift` 定位并替换（只改展示串，日志不动）：
 
@@ -561,7 +561,7 @@ live 重连 `.trustRevoked`（`self.phase = .failed("已被开发机移除信任
 
 > 不改 `connLog.error(...)` / `connLog.info(...)` 里的中文日志串——它们非用户可见，属开发者日志（spec 明确不在约束内）。
 
-- [ ] **Step 5: FileBrowserStore 目录加载失败串走 L10n**
+- [x] **Step 5: FileBrowserStore 目录加载失败串走 L10n**
 
 在 `FileBrowserStore.swift` 第 103 行 `node.error = "目录加载失败"` 改为：
 
@@ -569,21 +569,21 @@ live 重连 `.trustRevoked`（`self.phase = .failed("已被开发机移除信任
             node.error = L10n.string("fileBrowser.loadDirFailed", locale: LocaleManager.currentLocale)
 ```
 
-- [ ] **Step 6: 跑测试确认通过**
+- [x] **Step 6: 跑测试确认通过**
 
 Run: `xcodebuild test ... -only-testing:CodexRemoteTests/LocalizationFollowsInjectedLocaleTests`
 Expected: PASS。
 
-- [ ] **Step 7: 构建 guard**
+- [x] **Step 7: 构建 guard**
 
 Run: `bash ios/comet-build-check.sh`
 Expected: BUILD SUCCEEDED。
 
-- [ ] **Step 8: 安全面零触碰自查**
+- [x] **Step 8: 安全面零触碰自查**
 
 Run: `git diff --stat` 确认只动 `AppearanceManagers.swift` / `ConnectionStore.swift` / `FileBrowserStore.swift` 的展示串行；`git diff ios/CodexRemote/Stores/ConnectionStore.swift | grep -E "^\+" | grep -i "connLog"` 应为空（未改日志）。
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add ios/CodexRemote/App/AppearanceManagers.swift ios/CodexRemote/Stores/ConnectionStore.swift ios/CodexRemote/Stores/FileBrowserStore.swift ios/CodexRemoteTests/LocalizationFollowsInjectedLocaleTests.swift
