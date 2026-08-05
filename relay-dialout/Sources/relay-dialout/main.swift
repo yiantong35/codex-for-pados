@@ -142,6 +142,10 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
     private let bridge: ProxyBridge
     private let context: DialoutContext
     private let lifecycle: BridgeLifecycle
+    /// #1 后遗:连接内可多次重握手,但 bridge 子进程与其 stdout 跨重握手连续存在。
+    /// pump 必须每连接恰启一次——否则每次重握手都新装 stdout readabilityHandler,
+    /// 顶掉旧 pump Task(挂起永不回收=泄漏)且交接处可能丢一行。守 handler EventLoop 单线程,裸 Bool 足矣。
+    private var pumpStarted = false
 
     init(bridge: ProxyBridge, context: DialoutContext) {
         self.bridge = bridge; self.context = context
@@ -240,6 +244,9 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
 
     /// proxy stdout 明文 → session.seal → SecureEnvelope → ws text frame。
     private func pumpBridgeOutbound(ctx: ChannelHandlerContext) {
+        // 每连接恰启一次:重握手复用同一 bridge/stdout,重复启会顶掉旧 handler 并泄漏 Task。
+        guard !pumpStarted else { return }
+        pumpStarted = true
         let channel = ctx.channel
         let ctxRef = context
         Task {
