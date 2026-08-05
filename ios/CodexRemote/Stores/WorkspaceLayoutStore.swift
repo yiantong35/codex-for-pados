@@ -32,6 +32,8 @@ final class WorkspaceLayoutStore {
     var rightWidth: CGFloat
     /// 右栏跳转/全屏一次性信号（设计 D6）；消费即复位为 nil，防自触发回环（功耗约束 4）。
     var pendingRightPanelIntent: RightPanelIntent?
+    /// #3：最近一次被打开的侧栏——供 ResizableColumns 在窄窗中间档做 tiebreaker。
+    var lastRequested: WorkspaceMetrics.RequestedSide = .none
 
     init(leftVisible: Bool = true,
          showRight: Bool = false,
@@ -52,6 +54,7 @@ final class WorkspaceLayoutStore {
     /// 快捷键请求右栏跳转/全屏（设计 D6）：先开右栏（未开先开），再发一次性信号。
     func requestRightPanel(_ intent: RightPanelIntent) {
         showRight = true
+        lastRequested = .right
         pendingRightPanelIntent = intent
     }
 }

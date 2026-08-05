@@ -182,4 +182,51 @@ final class WorkspaceMetricsTests: XCTestCase {
         let plan = WorkspaceMetrics.columnVisibilityPlan(total: 1024, wantLeft: true, wantRight: false)
         XCTAssertTrue(plan.showLeft); XCTAssertFalse(plan.showRight)
     }
+
+    // MARK: - #3 中间档 [494,668) lastRequested tiebreaker
+
+    /// [494,668) 且左右都想要、最后点右 → 展开右栏（收左栏），右栏入口不再静默失效。
+    func testMidBandBothWantedLastRightExpandsRight() {
+        let plan = WorkspaceMetrics.columnVisibilityPlan(
+            total: 500, wantLeft: true, wantRight: true, lastRequested: .right)
+        XCTAssertFalse(plan.showLeft); XCTAssertTrue(plan.showRight)
+    }
+
+    /// [494,668) 且左右都想要、最后点左 → 展开左栏（收右栏）。
+    func testMidBandBothWantedLastLeftExpandsLeft() {
+        let plan = WorkspaceMetrics.columnVisibilityPlan(
+            total: 500, wantLeft: true, wantRight: true, lastRequested: .left)
+        XCTAssertTrue(plan.showLeft); XCTAssertFalse(plan.showRight)
+    }
+
+    /// [494,668) 只想要右栏（不要左）→ 展开右栏。
+    func testMidBandOnlyRightExpandsRight() {
+        let plan = WorkspaceMetrics.columnVisibilityPlan(
+            total: 500, wantLeft: false, wantRight: true, lastRequested: .none)
+        XCTAssertFalse(plan.showLeft); XCTAssertTrue(plan.showRight)
+    }
+
+    /// [454,494) 仅左+中可容纳：即便最后点右，右栏物理放不下 → 展开左栏。
+    func testNarrowBandRightNotFittableFallsBackLeft() {
+        // 454 <= 470 < 494（centerPlusRight=280+200+14=494）。
+        let plan = WorkspaceMetrics.columnVisibilityPlan(
+            total: 470, wantLeft: true, wantRight: true, lastRequested: .right)
+        XCTAssertTrue(plan.showLeft); XCTAssertFalse(plan.showRight)
+    }
+
+    /// 全屏 834（竖）/ 1194（横）三栏齐全，不触发降级。
+    func testFullscreenWidthsKeepAllThree() {
+        for w in [CGFloat(834), CGFloat(1194)] {
+            let plan = WorkspaceMetrics.columnVisibilityPlan(
+                total: w, wantLeft: true, wantRight: true, lastRequested: .left)
+            XCTAssertTrue(plan.showLeft, "w=\(w)"); XCTAssertTrue(plan.showRight, "w=\(w)")
+        }
+    }
+
+    /// 极窄 320：仅中栏（右栏 <494 属既有 gap，已登记 BACKLOG，不在本轮修）。
+    func testUltraNarrowKeepsCenterOnly() {
+        let plan = WorkspaceMetrics.columnVisibilityPlan(
+            total: 320, wantLeft: true, wantRight: true, lastRequested: .right)
+        XCTAssertFalse(plan.showLeft); XCTAssertFalse(plan.showRight)
+    }
 }

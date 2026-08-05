@@ -15,6 +15,8 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
     /// 左 / 右栏显隐（D5：条件渲染 + 宽度动画，竖屏并排挤窄，无浮层）。
     let leftVisible: Bool
     let rightVisible: Bool
+    /// #3：窄窗中间档 tiebreaker（哪侧是用户最后请求）。
+    let lastRequested: WorkspaceMetrics.RequestedSide
     /// 外部载入列宽的修订号：变化即用当前真实总宽重新收敛已写入的列宽（D7 窄屏恢复兜底）。
     let loadRevision: Int
     /// 一次拖拽 / 一次无障碍调节结束后回调（Task 4 接持久化 save）。
@@ -36,7 +38,8 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
             // D4：窄窗降级——用户意图（leftVisible/rightVisible）经容器宽过滤成实际显隐，
             // 保证渲染宽度之和 ≤ 容器、中栏永远完整。宽度恢复到阈值以上 plan 即还原用户意图。
             let plan = WorkspaceMetrics.columnVisibilityPlan(
-                total: total, wantLeft: leftVisible, wantRight: rightVisible)
+                total: total, wantLeft: leftVisible, wantRight: rightVisible,
+                lastRequested: lastRequested)
             let effLeftVisible = plan.showLeft
             let effRightVisible = plan.showRight
             // 渲染用列宽：隐藏（含降级收起）时按 0 参与中栏 / clamp 计算，避免读到过期宽度或把

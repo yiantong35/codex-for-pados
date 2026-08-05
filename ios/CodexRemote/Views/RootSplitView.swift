@@ -145,7 +145,7 @@ struct RootSplitView: View {
 
             // 左面板：切换 layout.leftVisible 显隐自绘左列（无系统 columnVisibility / sidebarToggle）。
             Button {
-                withAnimation { layout.leftVisible.toggle() }
+                withAnimation { layout.leftVisible.toggle(); layout.lastRequested = .left }
             } label: { Image(systemName: "rectangle.leadinghalf.inset.filled") }
             .accessibilityLabel(Text("workspace.leftPanel.toggle"))
 
@@ -162,7 +162,7 @@ struct RootSplitView: View {
             .accessibilityLabel(Text("workspace.summary.toggle"))
 
             // 右面板。
-            Button { withAnimation { layout.showRight.toggle() } } label: {
+            Button { withAnimation { layout.showRight.toggle(); layout.lastRequested = .right } } label: {
                 Image(systemName: "rectangle.trailinghalf.inset.filled")
             }
             .accessibilityLabel(Text("workspace.rightPanel.toggle"))
@@ -190,6 +190,7 @@ struct RootSplitView: View {
             rightWidth: $layout.rightWidth,
             leftVisible: layout.leftVisible,
             rightVisible: layout.showRight,
+            lastRequested: layout.lastRequested,
             loadRevision: widthLoadRevision,
             onResizeEnded: { saveColumnWidths() }
         ) {
