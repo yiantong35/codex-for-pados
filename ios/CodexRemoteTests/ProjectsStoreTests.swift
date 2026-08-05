@@ -53,6 +53,29 @@ final class ProjectsStoreTests: XCTestCase {
         XCTAssertEqual(s.projects.last?.threads.map(\.id), ["b", "a"])
     }
 
+    // #7：会话列表分页——loadFromServer 应跟随 nextCursor 翻页，合并全部页后 ingest，
+    // 而非只读首页 100 条（重连恢复也只读首页 → 100 条外的活跃会话永不出现）。
+    func test_loadFromServer_follows_nextCursor_paginates_all_pages() async throws {
+        let mock = MockTransport()
+        // 首页（cursor "" ）返回 a + nextCursor "p2"；第二页（cursor "p2"）返回 b + nextCursor null。
+        let page1 = #"{"data":[{"id":"a","sessionId":"a","preview":"","modelProvider":"openai","createdAt":0,"updatedAt":10,"cwd":"/repo/x","cliVersion":"0.133.0","name":null,"gitInfo":{"sha":null,"branch":"main","originUrl":"o/x"}}],"nextCursor":"p2","backwardsCursor":null}"#
+        let page2 = #"{"data":[{"id":"b","sessionId":"b","preview":"","modelProvider":"openai","createdAt":0,"updatedAt":20,"cwd":"/Volumes/mount","cliVersion":"0.133.0","name":null,"gitInfo":null}],"nextCursor":null,"backwardsCursor":null}"#
+        await mock.setThreadListPages(["": page1, "p2": page2])
+        await mock.setAutoRespond(true)
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+
+        let s = ProjectsStore()
+        await s.loadFromServer(rpc: rpc)
+
+        // 两页均应被 ingest：第 2 页的 loose 会话 b 只有跟随 nextCursor 才会出现。
+        XCTAssertEqual(s.projects.count, 1, "第 1 页项目 x 应在")
+        XCTAssertEqual(s.looseConversations.map(\.id), ["b"], "第 2 页 loose 会话 b 须经翻页才出现")
+        // 至少发出两次 thread/list（首页 + 跟随 nextCursor 的第二页）。
+        let listCalls = await mock.sent.filter { $0.contains("thread/list") }.count
+        XCTAssertGreaterThanOrEqual(listCalls, 2, "应跟随 nextCursor 翻页而非只读首页")
+    }
+
     func test_isGrouped_false_when_single_project() {
         let s = ProjectsStore()
         s.ingest([ thread("a", cwd: "/repo/x", updatedAt: 1, origin: "o/x", git: true),
