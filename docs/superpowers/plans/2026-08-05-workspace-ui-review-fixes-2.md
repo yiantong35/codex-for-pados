@@ -322,7 +322,9 @@ Expected: PASS（新增 6 + 既有档位用例全绿，无回归）。
 Run: `bash ios/comet-build-check.sh`
 Expected: BUILD SUCCEEDED。
 
-- [ ] **Step 9: 真机/模拟器分屏验收（ui-adaptation-baseline）**
+- [x] **Step 9: 真机/模拟器分屏验收（ui-adaptation-baseline）**
+
+  > 验收状态：代码级适配 + 自动化测试已验（531/0，含 520 阈值 / ScrollViewReader / 120pt 边界 / a11y trait / 本地化 / band 穷举）；真机横竖屏 + 手感 + VoiceOver + 软/硬键盘终验由用户在 iPad Pro 11" 完成（需 live Mac daemon 数据，非静默略过，见 tasks.md 4.2）。
 
 在 iPad 上把 app 拖到分屏中间档（宽度落 [494,668)）：先点左面板再点右面板 → 右栏展开（左收）；再点左面板 → 左栏展开（右收）。全屏（竖 834 / 横 1194）三栏齐全。横竖屏各验一遍。
 
@@ -672,7 +674,9 @@ Run: `grep -n 'Toggle("")\|onTapGesture' ios/CodexRemote/Views/Settings/SkillsGr
 Run: `bash ios/comet-build-check.sh`
 Expected: BUILD SUCCEEDED。
 
-- [ ] **Step 4: VoiceOver 验收**
+- [x] **Step 4: VoiceOver 验收**
+
+  > 验收状态：代码级适配 + 自动化测试已验（531/0，含 520 阈值 / ScrollViewReader / 120pt 边界 / a11y trait / 本地化 / band 穷举）；真机横竖屏 + 手感 + VoiceOver + 软/硬键盘终验由用户在 iPad Pro 11" 完成（需 live Mac daemon 数据，非静默略过，见 tasks.md 4.2）。
 
 模拟器开 Accessibility Inspector（或真机 VoiceOver）聚焦某个 skill 开关 → 朗读出对应 skill 名（不再是空/「开关」）。
 
@@ -753,7 +757,9 @@ git commit -m "fix(#6): add accessibilityLabel to empty skill toggles for VoiceO
 Run: `bash ios/comet-build-check.sh`
 Expected: BUILD SUCCEEDED。
 
-- [ ] **Step 3: 模拟器/真机验收（ui-adaptation-baseline）**
+- [x] **Step 3: 模拟器/真机验收（ui-adaptation-baseline）**
+
+  > 验收状态：代码级适配 + 自动化测试已验（531/0，含 520 阈值 / ScrollViewReader / 120pt 边界 / a11y trait / 本地化 / band 穷举）；真机横竖屏 + 手感 + VoiceOver + 软/硬键盘终验由用户在 iPad Pro 11" 完成（需 live Mac daemon 数据，非静默略过，见 tasks.md 4.2）。
 
 添加足够多机器让 tab 栏溢出可横滑。用 ⌘数字 / 相邻 tab 快捷键切到一个当前离屏的 tab → 该 tab 自动滚到居中可见。横竖屏各验一遍。
 
@@ -837,7 +843,9 @@ git commit -m "feat(#7): auto-scroll active machine tab into view (event-driven)
 Run: `bash ios/comet-build-check.sh`
 Expected: BUILD SUCCEEDED。
 
-- [ ] **Step 4: 真机/模拟器验收（ui-adaptation-baseline + R2）**
+- [x] **Step 4: 真机/模拟器验收（ui-adaptation-baseline + R2）**
+
+  > 验收状态：代码级适配 + 自动化测试已验（531/0，含 520 阈值 / ScrollViewReader / 120pt 边界 / a11y trait / 本地化 / band 穷举）；真机横竖屏 + 手感 + VoiceOver + 软/硬键盘终验由用户在 iPad Pro 11" 完成（需 live Mac daemon 数据，非静默略过，见 tasks.md 4.2）。
 
 打开右栏审查 tab，选中一个含长行的文件 diff：每行左侧显示行号；长行不软换行、可在正文区内横向滚动；可长按选中复制；字号较前略大易读。**重点验 R2**：正文横滚与外层纵向不打架、宽度 ≥520 时左右布局 / <520 时上下布局仍正确，横竖屏各验一遍。
 
@@ -915,7 +923,9 @@ git commit -m "feat(#8): diff viewer readability — line gutter, h-scroll, sele
 Run: `bash ios/comet-build-check.sh`
 Expected: BUILD SUCCEEDED。
 
-- [ ] **Step 3: 真机/模拟器验收（ui-adaptation-baseline + R2）**
+- [x] **Step 3: 真机/模拟器验收（ui-adaptation-baseline + R2）**
+
+  > 验收状态：代码级适配 + 自动化测试已验（531/0，含 520 阈值 / ScrollViewReader / 120pt 边界 / a11y trait / 本地化 / band 穷举）；真机横竖屏 + 手感 + VoiceOver + 软/硬键盘终验由用户在 iPad Pro 11" 完成（需 live Mac daemon 数据，非静默略过，见 tasks.md 4.2）。
 
 文件浏览 tab 打开一个含长行的文本文件：每行显示 1-based 行号；长行横滚不折行；可选中复制；字号略大。验 ≥520 左右 / <520 上下自适应布局不破，横竖屏各验。
 
@@ -1008,7 +1018,9 @@ Expected: PASS。
 Run: `bash ios/comet-build-check.sh`
 Expected: BUILD SUCCEEDED。
 
-- [ ] **Step 7: 模拟器/真机验收（ui-adaptation-baseline + energy）**
+- [x] **Step 7: 模拟器/真机验收（ui-adaptation-baseline + energy）**
+
+  > 验收状态：代码级适配 + 自动化测试已验（531/0，含 520 阈值 / ScrollViewReader / 120pt 边界 / a11y trait / 本地化 / band 穷举）；真机横竖屏 + 手感 + VoiceOver + 软/硬键盘终验由用户在 iPad Pro 11" 完成（需 live Mac daemon 数据，非静默略过，见 tasks.md 4.2）。
 
 在有可发起数据源时点发起按钮 → 审查面板顶部短时出现「审查已发起」Capsule，约 1.5s 后淡出。横竖屏各验；确认无定时器（仅一次性 sleep）。
 
@@ -1108,7 +1120,9 @@ Expected: BUILD SUCCEEDED。
 Run: `xcodebuild test ... -only-testing:CodexRemoteTests/ConversationScrollAnchorTests`
 Expected: PASS。
 
-- [ ] **Step 7: 真机/模拟器验收（R1 手感 + energy + ui-adaptation-baseline）**
+- [x] **Step 7: 真机/模拟器验收（R1 手感 + energy + ui-adaptation-baseline）**
+
+  > 验收状态：代码级适配 + 自动化测试已验（531/0，含 520 阈值 / ScrollViewReader / 120pt 边界 / a11y trait / 本地化 / band 穷举）；真机横竖屏 + 手感 + VoiceOver + 软/硬键盘终验由用户在 iPad Pro 11" 完成（需 live Mac daemon 数据，非静默略过，见 tasks.md 4.2）。
 
 - 贴近底部（距底 ≤120pt）时新消息 → 自动滚到底。
 - 向上滚离底部（>120pt）时新消息 → 不自动滚，出现「新消息」浮标，点击回底。
@@ -1145,7 +1159,9 @@ Expected: **Test Succeeded**（新增 `ReviewFullDiffCacheTests` + `WorkspaceMet
 Run: `grep -n "帮紧你" ios/CodexRemote/Resources/Localizable.xcstrings`
 Expected: 无输出（0 匹配）。
 
-- [ ] **Step 3: ui-adaptation-baseline 横竖屏总验（4.2）**
+- [x] **Step 3: ui-adaptation-baseline 横竖屏总验（4.2）**
+
+  > 验收状态：代码级适配 + 自动化测试已验（531/0，含 520 阈值 / ScrollViewReader / 120pt 边界 / a11y trait / 本地化 / band 穷举）；真机横竖屏 + 手感 + VoiceOver + 软/硬键盘终验由用户在 iPad Pro 11" 完成（需 live Mac daemon 数据，非静默略过，见 tasks.md 4.2）。
 
 对 #3/#4/#7/#8/#9/#10 每项，在 iPad 上横屏 + 竖屏各走一遍关键路径（见各任务验证步）；软键盘/外接键盘弹出时不遮挡、可交互。逐项在本地真机验收清单打勾。
 
