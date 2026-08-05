@@ -1,5 +1,5 @@
 workflow: full
-phase: design
+phase: build
 context_compression: off
 build_mode: null
 build_pause: null
@@ -9,7 +9,7 @@ isolation: null
 verify_mode: null
 auto_transition: true
 base_ref: ee22d660e7767c973da3d99ff2efa24a752e77d1
-design_doc: null
+design_doc: docs/superpowers/specs/2026-08-05-workspace-ui-review-fixes-2-design.md
 plan: null
 verify_result: pending
 verification_report: null
@@ -17,3 +17,5 @@ branch_status: pending
 created_at: 2026-08-05
 verified_at: null
 archived: false
+handoff_context: openspec/changes/workspace-ui-review-fixes-2/.comet/handoff/design-context.json
+handoff_hash: e458f7283950acbd30260708d3d27c46a2d2bd8d49674e260024ddebcab5ed2c
