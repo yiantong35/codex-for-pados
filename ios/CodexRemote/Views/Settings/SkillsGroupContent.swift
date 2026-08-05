@@ -34,6 +34,7 @@ struct SkillsGroupContent: View {
                     }
                 ))
                 .labelsHidden()
+                .accessibilityLabel(Text(skill.name))
             }
             if !skill.description.isEmpty {
                 Text(skill.description).font(.footnote).foregroundStyle(.secondary)
