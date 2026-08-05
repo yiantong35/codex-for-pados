@@ -154,7 +154,7 @@ final class ApprovalStoreTests: XCTestCase {
     func test_permissions_filesystem_only_approve_echoes_request_no_unrequested_network() async throws {
         let store = ApprovalStore()
         var captured: AnyCodable?
-        store.resolver = { _, body in captured = body }
+        store.resolver = { _, body in captured = body; return true }
         let req = JSONRPCRequest(id: .string("p3"),
             method: ServerRequestMethod.permsApprovalV2,
             params: AnyCodable(["threadId": "t1", "reason": "需要读写文件",
@@ -177,7 +177,7 @@ final class ApprovalStoreTests: XCTestCase {
     func test_permissions_network_only_approve_echoes_network_no_filesystem() async throws {
         let store = ApprovalStore()
         var captured: AnyCodable?
-        store.resolver = { _, body in captured = body }
+        store.resolver = { _, body in captured = body; return true }
         let req = JSONRPCRequest(id: .string("p4"),
             method: ServerRequestMethod.permsApprovalV2,
             params: AnyCodable(["threadId": "t1", "reason": "需要联网",
@@ -242,13 +242,49 @@ final class ApprovalStoreTests: XCTestCase {
     func test_connection_lost_never_auto_approves() {
         let store = ApprovalStore()
         var resolverCalled = false
-        store.resolver = { _, _ in resolverCalled = true }
+        store.resolver = { _, _ in resolverCalled = true; return true }
         store.handle(request: JSONRPCRequest(id: .string("r1"),
             method: ServerRequestMethod.cmdApprovalV2,
             params: AnyCodable(["threadId": "t1", "command": "rm"])))
         store.handleConnectionLost()
         XCTAssertFalse(resolverCalled, "断线绝不自动批准")
         XCTAssertEqual(store.cards.count, 1, "断线不移除卡片")
+    }
+
+    // MARK: - #6：respond 送达失败 → 保留卡片可重试，绝不静默丢弃
+
+    /// 半开连接下 respond 抛错（resolver 返回 false）→ `resolve` 保留卡片、返回 false，
+    /// 用户可再次 approve 重试；绝不像旧代码那样无条件 `remove` 造成审批静默蒸发（fail-open）。
+    func test_resolve_send_failure_keeps_card_for_retry() async throws {
+        let store = ApprovalStore()
+        var attempts = 0
+        // 首次送达失败（半开），第二次成功。
+        store.resolver = { _, _ in attempts += 1; return attempts >= 2 }
+        store.handle(request: JSONRPCRequest(id: .string("r1"),
+            method: ServerRequestMethod.cmdApprovalV2,
+            params: AnyCodable(["threadId": "t1", "command": "rm -rf x"])))
+        let card = store.cards.first!
+
+        let firstOK = await store.resolve(card: card, choice: .approve)
+        XCTAssertFalse(firstOK, "首次 respond 送达失败应返回 false")
+        XCTAssertEqual(store.cards.count, 1, "送达失败绝不移除卡片（fail-closed，可重试）")
+
+        let secondOK = await store.resolve(card: store.cards.first!, choice: .approve)
+        XCTAssertTrue(secondOK, "重试送达成功应返回 true")
+        XCTAssertEqual(store.cards.count, 0, "送达成功后方可移除卡片")
+        XCTAssertEqual(attempts, 2, "两次尝试")
+    }
+
+    /// 无 resolver（尚未接线）→ resolve 返回 false 且保留卡片，绝不误判为已送达。
+    func test_resolve_without_resolver_keeps_card() async throws {
+        let store = ApprovalStore()
+        store.handle(request: JSONRPCRequest(id: .string("r1"),
+            method: ServerRequestMethod.cmdApprovalV2,
+            params: AnyCodable(["threadId": "t1", "command": "ls"])))
+        let card = store.cards.first!
+        let ok = await store.resolve(card: card, choice: .approve)
+        XCTAssertFalse(ok)
+        XCTAssertEqual(store.cards.count, 1, "无 resolver 不得移除卡片")
     }
 
     // 辅助：轮询直到条件满足或超时。

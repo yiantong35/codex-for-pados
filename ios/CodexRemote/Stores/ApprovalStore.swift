@@ -37,7 +37,8 @@ final class ApprovalStore {
     private(set) var cards: [ApprovalCard] = []
 
     /// 回传响应的回调，由接线方注入（实际调用 rpc.respond）。
-    var resolver: (@MainActor (RequestId, AnyCodable) async -> Void)?
+    /// 返回 respond 是否送达成功：失败时 `resolve` 保留卡片供重试，绝不静默丢弃未决审批（fail-closed）。
+    var resolver: (@MainActor (RequestId, AnyCodable) async -> Bool)?
     /// 通知 ProjectsStore 更新徽标。
     var onPendingChange: (@MainActor (_ threadId: String, _ pending: Bool) -> Void)?
 
@@ -109,12 +110,19 @@ final class ApprovalStore {
 
     // MARK: - 用户决定回传
 
-    func resolve(card: ApprovalCard, choice: ApprovalChoice) async {
+    /// 用户决定回传。返回是否成功送达：
+    /// 成功 → 移除卡片；失败（半开连接 respond 抛错/无 resolver）→ **保留卡片**并清 awaitingRecovery
+    /// 以外的状态供重试，绝不静默 `remove` 未确认的审批（#6，fail-closed）。
+    @discardableResult
+    func resolve(card: ApprovalCard, choice: ApprovalChoice) async -> Bool {
         let body = responseBody(for: card.method, decision: choice, requestedProfile: card.requestedProfile)
         let any = (try? JSONDecoder().decode(AnyCodable.self, from: JSONEncoder().encode(body)))
             ?? AnyCodable([String: Any]())
-        await resolver?(card.id, any)
-        remove(card.id, threadId: card.threadId)
+        let delivered = await resolver?(card.id, any) ?? false
+        if delivered {
+            remove(card.id, threadId: card.threadId)
+        }
+        return delivered
     }
 
     func remove(_ id: RequestId, threadId: String) {

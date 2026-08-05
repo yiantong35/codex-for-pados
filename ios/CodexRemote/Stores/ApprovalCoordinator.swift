@@ -30,7 +30,12 @@ final class ApprovalCoordinator {
     /// 已就绪，之后到达的审批请求/解决通知不会因「注册晚于到达」而丢失（与 ConversationStore
     /// 的多播订阅注册竞态同源修复）。
     func bind(rpc: JSONRPCClient) async {
-        store.resolver = { id, body in try? await rpc.respond(to: id, result: body) }
+        // #6：respond 送达成败如实回传给 ApprovalStore。半开连接下 respond 抛错 → 返回 false
+        // → 卡片保留供重试，绝不静默丢弃未确认审批（fail-closed）。
+        store.resolver = { id, body in
+            do { try await rpc.respond(to: id, result: body); return true }
+            catch { return false }
+        }
 
         // 先同步完成两条流的订阅注册，再起消费循环。
         let serverRequestStream = await rpc.serverRequests()

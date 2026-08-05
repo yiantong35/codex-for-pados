@@ -22,7 +22,7 @@ final class ApprovalBoundaryTests: XCTestCase {
     func testResolvedByOtherDoesNotAutoApprove() {
         let store = cardStore()
         var autoApproved = false
-        store.resolver = { _, _ in autoApproved = true }
+        store.resolver = { _, _ in autoApproved = true; return true }
         store.handleServerRequestResolved(requestId: .string("r1"), threadId: "t1")
         XCTAssertFalse(autoApproved)              // 他端解决也绝不回传 approve
     }
@@ -30,7 +30,7 @@ final class ApprovalBoundaryTests: XCTestCase {
     func testDisconnectMarksPendingNotAutoApproved() async {
         let store = cardStore()
         var autoApproved = false
-        store.resolver = { _, _ in autoApproved = true }    // 若被调用即视为自动回传
+        store.resolver = { _, _ in autoApproved = true; return true }    // 若被调用即视为自动回传
         store.handleConnectionLost()
         XCTAssertFalse(autoApproved)                 // 绝不自动批准
         XCTAssertTrue(store.cards.first?.awaitingRecovery ?? false)  // 标记待恢复
