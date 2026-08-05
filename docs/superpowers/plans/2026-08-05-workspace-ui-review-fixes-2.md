@@ -51,7 +51,7 @@ xcodebuild test -scheme CodexRemote \
 - Consumes: `ActiveConversationHolder.fetchFullDiff: ((_ cwd: String) async -> String?)?`（`RootSplitView.swift:14`）、`ReviewSourceMode`（`.turn`/`.full`）。
 - Produces: 静态纯函数 `ReviewTabView.shouldRefetchFullDiff(mode:cachedCwd:currentCwd:) -> Bool`（Task 无其它下游依赖）。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 新建 `ios/CodexRemoteTests/ReviewFullDiffCacheTests.swift`：
 
@@ -79,12 +79,12 @@ final class ReviewFullDiffCacheTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `xcodebuild test ... -only-testing:CodexRemoteTests/ReviewFullDiffCacheTests`
 Expected: 编译失败（`shouldRefetchFullDiff` 未定义）。
 
-- [ ] **Step 3: 实现纯函数 + 接线 .task 复合键**
+- [x] **Step 3: 实现纯函数 + 接线 .task 复合键**
 
 在 `ReviewTabView` 加静态纯函数（放在 `body` 之后、`}` 之前）：
 
@@ -119,17 +119,17 @@ Expected: 编译失败（`shouldRefetchFullDiff` 未定义）。
         }
 ```
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过**
 
 Run: `xcodebuild test ... -only-testing:CodexRemoteTests/ReviewFullDiffCacheTests`
 Expected: PASS（5 个用例全绿）。
 
-- [ ] **Step 5: 构建 guard**
+- [x] **Step 5: 构建 guard**
 
 Run: `bash ios/comet-build-check.sh`
 Expected: BUILD SUCCEEDED。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add ios/CodexRemote/Views/Workspace/ReviewTabView.swift ios/CodexRemoteTests/ReviewFullDiffCacheTests.swift

@@ -5,7 +5,7 @@
 
 ## 1. P1 清晰缺陷（correctness / release-blocking）
 
-- [ ] 1.1 #2 `ReviewTabView` 全量 diff 缓存按 `cwd`(+thread) 失效：`.task(id:)` 绑 `mode+cwd` 复合键，cwd 变化即清空 `fullDiff` 重取；补单测覆盖「切 thread 后不复用旧工作区 diff」。
+- [x] 1.1 #2 `ReviewTabView` 全量 diff 缓存按 `cwd`(+thread) 失效：`.task(id:)` 绑 `mode+cwd` 复合键，cwd 变化即清空 `fullDiff` 重取；补单测覆盖「切 thread 后不复用旧工作区 diff」。
 - [ ] 1.2 #3 `WorkspaceMetrics.columnVisibilityPlan` 窄窗档位修正：`wantRight` 为真或总宽落在 center+right 可容纳档时据实展开右栏，不再 `wantLeft` 一票 `showRight:false`；穷举 320/494/668/宽档单测，含首轮 D3/D4 既有场景不回归。
 - [ ] 1.3 #5 消除占位假串与硬编码中文：`conv.item.unknown` en/zh 换正确本地化文案；`ConnectionStore:432`、`FileBrowserStore:103` 等改 `String(localized:)` 跟随注入 locale；补「xcstrings 无占位假串（无『帮紧你』等）」守卫测试。
 
