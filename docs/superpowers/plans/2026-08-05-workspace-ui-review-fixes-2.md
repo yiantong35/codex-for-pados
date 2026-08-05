@@ -151,7 +151,7 @@ git commit -m "fix(#2): invalidate full-diff cache by mode+cwd composite key"
 - Produces: `enum WorkspaceMetrics.RequestedSide { case left, right, none }`；`columnVisibilityPlan(total:wantLeft:wantRight:lastRequested:) -> ColumnVisibilityPlan`（`lastRequested` 默认 `.none`，保持既有调用点与既有测试编译不破）。
 - Consumes: `WorkspaceLayoutStore.leftVisible` / `showRight`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 在 `ios/CodexRemoteTests/WorkspaceMetricsTests.swift` 末尾（`testPlanRespectsUserIntent` 之后、类结束 `}` 之前）追加：
 
@@ -207,12 +207,12 @@ git commit -m "fix(#2): invalidate full-diff cache by mode+cwd composite key"
 
 > 注：既有 `testNarrowPlanCollapsesRightFirst`（total=500，无 `lastRequested` 参数）依赖新参数默认 `.none` → 走「展开左栏」分支，结果 showLeft=true/showRight=false 不变，不回归。
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `xcodebuild test ... -only-testing:CodexRemoteTests/WorkspaceMetricsTests`
 Expected: 编译失败（`RequestedSide` 与新参数未定义）。
 
-- [ ] **Step 3: 实现 RequestedSide + 改档位逻辑（保纯函数）**
+- [x] **Step 3: 实现 RequestedSide + 改档位逻辑（保纯函数）**
 
 在 `WorkspaceMetrics.swift` 的 `ColumnVisibilityPlan` 定义（第 55 行）之后插入枚举：
 
@@ -254,12 +254,12 @@ Expected: 编译失败（`RequestedSide` 与新参数未定义）。
     }
 ```
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过**
 
 Run: `xcodebuild test ... -only-testing:CodexRemoteTests/WorkspaceMetricsTests`
 Expected: PASS（新增 6 + 既有档位用例全绿，无回归）。
 
-- [ ] **Step 5: WorkspaceLayoutStore 记录 lastRequested**
+- [x] **Step 5: WorkspaceLayoutStore 记录 lastRequested**
 
 在 `WorkspaceLayoutStore.swift` 的 `pendingRightPanelIntent` 字段（第 34 行）后加：
 
@@ -274,7 +274,7 @@ Expected: PASS（新增 6 + 既有档位用例全绿，无回归）。
         lastRequested = .right
 ```
 
-- [ ] **Step 6: ResizableColumns 透传 lastRequested**
+- [x] **Step 6: ResizableColumns 透传 lastRequested**
 
 在 `ResizableColumns.swift` 的 `let rightVisible: Bool`（第 17 行）后加一个属性：
 
@@ -291,7 +291,7 @@ Expected: PASS（新增 6 + 既有档位用例全绿，无回归）。
                 lastRequested: lastRequested)
 ```
 
-- [ ] **Step 7: RootSplitView 更新 lastRequested + 传参**
+- [x] **Step 7: RootSplitView 更新 lastRequested + 传参**
 
 在 `RootSplitView.swift` 左面板 toggle 按钮（第 147–149 行）改为同时记左侧：
 
@@ -317,7 +317,7 @@ Expected: PASS（新增 6 + 既有档位用例全绿，无回归）。
             lastRequested: layout.lastRequested,
 ```
 
-- [ ] **Step 8: 构建 guard**
+- [x] **Step 8: 构建 guard**
 
 Run: `bash ios/comet-build-check.sh`
 Expected: BUILD SUCCEEDED。
@@ -326,7 +326,7 @@ Expected: BUILD SUCCEEDED。
 
 在 iPad 上把 app 拖到分屏中间档（宽度落 [494,668)）：先点左面板再点右面板 → 右栏展开（左收）；再点左面板 → 左栏展开（右收）。全屏（竖 834 / 横 1194）三栏齐全。横竖屏各验一遍。
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add ios/CodexRemote/Views/Workspace/WorkspaceMetrics.swift ios/CodexRemote/Stores/WorkspaceLayoutStore.swift ios/CodexRemote/Views/Workspace/ResizableColumns.swift ios/CodexRemote/Views/RootSplitView.swift ios/CodexRemoteTests/WorkspaceMetricsTests.swift
