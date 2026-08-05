@@ -344,11 +344,11 @@ git commit -m "fix(#3): expand requested side in mid-band split via lastRequeste
 **Interfaces:**
 - Produces: 正确的 `conv.item.unknown`（en/zh），以及 Store 展示文案键 `conn.error.*` / `fileBrowser.loadDirFailed`（Task 4 消费）。
 
-- [ ] **Step 1: 修 `conv.item.unknown` 占位假串**
+- [x] **Step 1: 修 `conv.item.unknown` 占位假串**
 
 在 `Localizable.xcstrings` 定位 `"conv.item.unknown"`（约第 1172 行）。把 en 的 `"value": "帮紧你，帮紧你"` 改为 `"Unknown item"`；把 zh-Hans 的 `"value": "帮紧你，帮紧你"` 改为 `"未知条目"`。
 
-- [ ] **Step 2: 新增 Store 展示文案键**
+- [x] **Step 2: 新增 Store 展示文案键**
 
 在 `Localizable.xcstrings` 的 `"strings": {` 对象内（任意键之间，保持 JSON 合法、逗号正确）新增以下键（每个含 en / zh-Hans 两语言，格式对齐既有条目 `stringUnit.state="translated"`）。带 `%@` 的为 `String(format:)` 用格式串：
 
@@ -377,7 +377,7 @@ git commit -m "fix(#3): expand requested side in mid-band split via lastRequeste
     },
 ```
 
-- [ ] **Step 3: 扩充守卫测试（含无假串 + 新键可解析）**
+- [x] **Step 3: 扩充守卫测试（含无假串 + 新键可解析）**
 
 在 `LocalizationFollowsInjectedLocaleTests.swift` 的 `keys` 数组末尾补入新键：
 
@@ -409,13 +409,13 @@ git commit -m "fix(#3): expand requested side in mid-band split via lastRequeste
     }
 ```
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过**
 
 Run: `xcodebuild test ... -only-testing:CodexRemoteTests/LocalizationFollowsInjectedLocaleTests`
 Expected: PASS（新键 en 无 CJK 残留检查会校验 `conn.error.*` 英文文案；假串守卫绿）。
 > 若 en 校验对 `conn.error.timeoutDetail` 等报「含中文残留」，说明该键 en 文案漏填——补齐英文即可。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ios/CodexRemote/Resources/Localizable.xcstrings ios/CodexRemoteTests/LocalizationFollowsInjectedLocaleTests.swift
