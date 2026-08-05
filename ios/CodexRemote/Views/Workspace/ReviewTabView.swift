@@ -11,6 +11,8 @@ struct ReviewTabView: View {
 
     @State private var mode: ReviewSourceMode = .turn
     @State private var fullDiff: String?
+    /// #2：fullDiff 当前所属 cwd；切 thread（cwd 变）后与选中 cwd 不符即失效重取。
+    @State private var fullDiffCwd: String?
     @State private var loadingFull = false
 
     private var turnDiff: String { activeConversation.state?.turnDiff ?? "" }
@@ -55,13 +57,22 @@ struct ReviewTabView: View {
                 ReviewPanelView(source: source)
             }
         }
-        // 切到「全量」且尚未拉取时，经注入的回调按 cwd 拉一次并缓存。
-        .task(id: mode) {
-            guard mode == .full, fullDiff == nil, let cwd,
-                  let fetch = activeConversation.fetchFullDiff else { return }
+        // #2：绑定 mode + cwd 复合键；cwd 变即重跑 task。取指纹 String(describing:) 避免依赖 rawValue。
+        .task(id: "\(String(describing: mode))|\(cwd ?? "")") {
+            guard mode == .full, let cwd, let fetch = activeConversation.fetchFullDiff else { return }
+            // 同 cwd 已缓存则不重复拉取；换 cwd 则失效重取（纯函数单一真源）。
+            guard Self.shouldRefetchFullDiff(mode: mode, cachedCwd: fullDiffCwd, currentCwd: cwd) else { return }
             loadingFull = true
             fullDiff = await fetch(cwd)
+            fullDiffCwd = cwd
             loadingFull = false
         }
+    }
+
+    /// #2：全量 diff 是否需重取——`.full` 且 cwd 非空且与已缓存 cwd 不同才重取。
+    /// cwd 为空不请求；`.turn` 不走全量。纯函数便于单测。
+    static func shouldRefetchFullDiff(mode: ReviewSourceMode, cachedCwd: String?, currentCwd: String?) -> Bool {
+        guard mode == .full, let currentCwd else { return false }
+        return cachedCwd != currentCwd
     }
 }
