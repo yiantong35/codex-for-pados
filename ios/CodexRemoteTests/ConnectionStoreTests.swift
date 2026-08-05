@@ -221,6 +221,76 @@ final class ConnectionStoreTests: XCTestCase {
         XCTAssertEqual(info?.userAgent, "codex", "回前台重试应正常握手到达 .ready")
     }
 
+    // MARK: - D2 resume 订阅表（多订阅者）
+
+    /// D2：主对话与侧聊各自注册恢复回调，物理重连 .ready 时两者都被触发（后者不覆盖前者）。
+    func test_multipleResumeHandlers_bothTriggeredOnReconnect() async throws {
+        let mock = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in mock })
+        try await driveToReady(store: store, mock: mock)
+
+        let a = FireBox(); let b = FireBox()
+        _ = await store.addResumeHandler { await a.bump() }
+        _ = await store.addResumeHandler { await b.bump() }
+        // 首连补触发各恰一次（已 ready 时注册）。
+        try await waitUntil { let ca = await a.count; let cb = await b.count; return ca >= 1 && cb >= 1 }
+
+        // 物理重连 .ready：遍历触发全部订阅者。
+        await mock.emitControl(.reconnecting)
+        await mock.emitControl(.ready)
+        try await waitUntil { let ca = await a.count; let cb = await b.count; return ca >= 2 && cb >= 2 }
+        let ca = await a.count; let cb = await b.count
+        XCTAssertGreaterThanOrEqual(ca, 2); XCTAssertGreaterThanOrEqual(cb, 2)
+    }
+
+    /// D2：注销某订阅者后，仅它被移除；其它订阅者后续重连仍被触发。
+    func test_removeResumeHandler_removesOnlyThatSubscriber() async throws {
+        let mock = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in mock })
+        try await driveToReady(store: store, mock: mock)
+
+        let keep = FireBox(); let drop = FireBox()
+        _ = await store.addResumeHandler { await keep.bump() }
+        let dropToken = await store.addResumeHandler { await drop.bump() }
+        try await waitUntil { let k = await keep.count; let d = await drop.count; return k >= 1 && d >= 1 }
+        let dropAfterFirst = await drop.count
+
+        await store.removeResumeHandler(dropToken)
+        await mock.emitControl(.reconnecting)
+        await mock.emitControl(.ready)
+        try await waitUntil { await keep.count >= 2 }
+        let dropFinal = await drop.count
+        XCTAssertEqual(dropFinal, dropAfterFirst, "已注销订阅者不应再被触发")
+    }
+
+    /// D2：连接已就绪且已首连恢复后，新订阅者补触发恰一次，既有订阅者不重复触发。
+    func test_lateSubscriber_backfillsExactlyOnce() async throws {
+        let mock = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in mock })
+        try await driveToReady(store: store, mock: mock)
+
+        let early = FireBox()
+        _ = await store.addResumeHandler { await early.bump() }
+        try await waitUntil { await early.count >= 1 }
+        let earlyAfterFirst = await early.count
+
+        let late = FireBox()
+        _ = await store.addResumeHandler { await late.bump() }
+        try await waitUntil { await late.count >= 1 }
+        let lateCount = await late.count
+        let earlyFinal = await early.count
+        XCTAssertEqual(lateCount, 1, "新订阅者应补触发恰一次")
+        XCTAssertEqual(earlyFinal, earlyAfterFirst, "既有订阅者不应因新订阅者加入而重复触发")
+    }
+
+    /// D2 helper：经 ControlEmittingTransport 握手驱动 store 到 .ready（复用 feedInitializeResponse 模式，
+    /// 该 transport 支持 emitControl 以驱动物理重连事件——与 testReconnectReadyControlTriggersResync 同机制）。
+    private func driveToReady(store: ConnectionStore, mock: ControlEmittingTransport) async throws {
+        await feedInitializeResponse(mock)
+        await store.connect(config: .stub)
+        try await waitUntil { await store.phase == .ready }
+    }
+
     /// 轮询条件直到为真或超时。
     private func waitUntil(timeout: TimeInterval = 3,
                           _ condition: () async -> Bool) async throws {

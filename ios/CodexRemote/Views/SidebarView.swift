@@ -99,6 +99,12 @@ struct SidebarView: View {
         // 选中态自渲染：左缘橙条 + 橙标题（不用方框）。点按整行选择。
         // 不依赖系统 List 选中高亮——后者方框丑（#4）且列隐藏再显示后会丢失（#5）。
         let selected = selectedThreadId == thread.id
+        // D7（2.7）：整行改 Button 语义（原 .onTapGesture 无按钮 trait/无键盘可达）。
+        // .buttonStyle(.plain) 保留自绘选中态视觉（左缘橙条 + 橙标题），不引入系统高亮方框。
+        Button {
+            selectedThreadId = thread.id
+            projects.markViewed(threadId: thread.id, updatedAt: thread.updatedAt)
+        } label: {
         HStack(spacing: 8) {
             Capsule()
                 .fill(selected ? Color.accentColor : Color.clear)
@@ -134,10 +140,8 @@ struct SidebarView: View {
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture {
-            selectedThreadId = thread.id
-            projects.markViewed(threadId: thread.id, updatedAt: thread.updatedAt)
         }
+        .buttonStyle(.plain)
         .contextMenu {
             Button {
                 guard let rpc = connection.rpc else { return }

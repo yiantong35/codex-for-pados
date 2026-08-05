@@ -1,5 +1,16 @@
 import SwiftUI
 
+/// D8：对话滚动位置感知的纯决策（可单测，无 UI 依赖）。
+enum ScrollAnchorPolicy {
+    static func isNearBottom(distanceToBottom: CGFloat, threshold: CGFloat = 120) -> Bool {
+        distanceToBottom <= threshold
+    }
+    static func shouldAutoScroll(isNearBottom: Bool) -> Bool { isNearBottom }
+    static func shouldShowNewBelow(isNearBottom: Bool, contentDidGrow: Bool) -> Bool {
+        !isNearBottom && contentDidGrow
+    }
+}
+
 /// 中栏对话流（设计 §3）：渲染选中 thread 的 ConversationState.items 流，
 /// 含 agent 正文 / 命令执行卡 / 文件 diff 卡 / 用户消息气泡 / turn 状态指示。
 /// 选中对话时用 connection.rpc 装配 ConversationStore，并 startObserving + resume。
@@ -9,7 +20,13 @@ struct ConversationView: View {
     @Environment(ApprovalStore.self) private var approvals
     @Environment(ActiveConversationHolder.self) private var activeConversation
     let threadId: String
+    /// D1：是否绑定工作区审查状态（写入/清空 ActiveConversationHolder 并注册 resume）。
+    /// 中栏主对话传 true（默认）；侧聊实例传 false，完全不碰 holder，隔离审查状态。
+    var bindsWorkspaceState: Bool = true
     @State private var store: ConversationStore?
+    /// D8：滚动位置感知（哨兵事件驱动，无轮询/定时器）。
+    @State private var isNearBottom = true
+    @State private var showNewBelow = false
 
     /// 属于当前线程的待处理审批卡（内联在对话流末尾）。
     private var threadApprovals: [ApprovalCard] {
@@ -43,18 +60,39 @@ struct ConversationView: View {
                     if store?.state.isTurnRunning == true {
                         turnRunningIndicator.id(Self.turnIndicatorID)
                     }
+                    // 底部哨兵：进入/离开可视区切换近底态（事件驱动，无轮询/定时器）。
+                    Color.clear.frame(height: 1).id(Self.bottomSentinelID)
+                        .onAppear { isNearBottom = true; showNewBelow = false }
+                        .onDisappear { isNearBottom = false }
                 }
                 .padding()
             }
             .onChange(of: store?.state.items.count) { _, _ in
-                scrollToBottom(proxy)
+                if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: isNearBottom) {
+                    scrollToBottom(proxy)
+                } else {
+                    showNewBelow = true
+                }
             }
             .onChange(of: store?.state.isTurnRunning) { _, _ in
-                scrollToBottom(proxy)
+                if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: isNearBottom) { scrollToBottom(proxy) }
+            }
+            .overlay(alignment: .bottom) {
+                if showNewBelow {
+                    Button {
+                        withAnimation { scrollToBottom(proxy); showNewBelow = false }
+                    } label: {
+                        Label("conv.newMessages", systemImage: "arrow.down.circle.fill")
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(.regularMaterial, in: Capsule())
+                    }
+                    .padding(.bottom, 8)
+                    .accessibilityLabel(Text("conv.newMessages"))
+                }
             }
         }
         .onChange(of: store?.state) { _, newValue in
-            activeConversation.state = newValue
+            if bindsWorkspaceState { activeConversation.state = newValue }
         }
         .onChange(of: connection.phase) { _, newPhase in
             // reconnect-resync item 3：连接迁移到 .ready → drain 出站队列（补发离线期间缓存的输入）。
@@ -62,7 +100,9 @@ struct ConversationView: View {
         }
         .onDisappear {
             store?.stopObserving()
-            activeConversation.state = nil; activeConversation.fetchFullDiff = nil; activeConversation.startReview = nil
+            if bindsWorkspaceState {
+                activeConversation.state = nil; activeConversation.fetchFullDiff = nil; activeConversation.startReview = nil
+            }
         }
         .safeAreaInset(edge: .bottom) {
             if let store {
@@ -98,14 +138,17 @@ struct ConversationView: View {
             await s.resume()        // session-management：恢复已有会话历史
             store = s
             defer { s.stopObserving() }   // D2：任务结束（threadId 变化/视图消失取消）即停本 store 订阅
-            // 审查面板「全量」数据源：注入拉取回调（gitDiffToRemote），供右栏按 cwd 拉全量 diff。
-            activeConversation.fetchFullDiff = { [weak s] cwd in await s?.fetchFullDiff(cwd: cwd) }
-            // 审查 tab AI 审查发起：注入 review/start 回调（设计 D4，对齐 fetchFullDiff 注入）。
-            activeConversation.startReview = { [weak s] mode in await s?.startReview(mode: mode) ?? false }
-            // 首连/重连成功（.ready）→ 经官方 thread/loaded/list +
-            // thread/resume(rejoin) 重建并重新订阅全部活跃 thread（§5），不依赖本地 seq/threadId。
-            // 注：物理重连属 Phase 5，当前 relay transport 的 control() 为空流。
-            connection.setResumeHandler { [weak s] in await s?.rejoinRunningThreads() }
+            // D2：resume 注册不再受 bindsWorkspaceState 限制——主对话与每个侧聊各自 thread
+            // 都需在重连后 rejoin 恢复；改 add/remove 精确配对，.task 结束/取消时注销自己的订阅，
+            // 与 s.stopObserving() 两个 defer 并存。多订阅互不覆盖（Task 2 能力）。
+            let resumeToken = connection.addResumeHandler { [weak s] in await s?.rejoinRunningThreads() }
+            defer { connection.removeResumeHandler(resumeToken) }
+            if bindsWorkspaceState {
+                // 审查面板「全量」数据源：注入拉取回调（gitDiffToRemote），供右栏按 cwd 拉全量 diff。
+                activeConversation.fetchFullDiff = { [weak s] cwd in await s?.fetchFullDiff(cwd: cwd) }
+                // 审查 tab AI 审查发起：注入 review/start 回调（设计 D4，对齐 fetchFullDiff 注入）。
+                activeConversation.startReview = { [weak s] mode in await s?.startReview(mode: mode) ?? false }
+            }
             // D2：保持本任务存活，把正文订阅生命周期绑定到 threadId。threadId 变化 / 视图消失时
             // SwiftUI 取消本 .task → Task.sleep 抛出 → defer 停止**本** store 的订阅，避免旧 observer
             // 残留消费通知流、唤醒主线程；切 N 次对话订阅数不累积。
@@ -117,6 +160,7 @@ struct ConversationView: View {
     // MARK: - 子视图
 
     private static let turnIndicatorID = "__turn_running_indicator__"
+    private static let bottomSentinelID = "__bottom_sentinel__"
 
     private var turnRunningIndicator: some View {
         HStack(spacing: 8) {
