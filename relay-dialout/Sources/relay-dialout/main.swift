@@ -179,19 +179,18 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
         if let sig = try? RelaySignal(decoding: data), sig.kind == RelaySignal.peerLeftKind {
             return
         }
-        // 握手期：先试 ClientAuth（更晚），再试 ClientHello。
+        // 握手期分发（缺陷 #1 dev 侧）：dev 拨出常驻连接，iPad 弱网重连会在同一 ws 上再发新 ClientHello。
+        // 按帧类型路由——绝不因 hellos 已就绪就把新 ClientHello 当迟到 ClientAuth 丢弃。
         // #2：不吞错——信任落盘失败必须冒泡，绝不因 try? 吞错而在信任未落盘时启 bridge。
-        if context.hellos != nil {
+        switch DialoutContext.classifyHandshakeFrame(data) {
+        case .clientAuth:
+            // 握手收尾：必须已有在飞握手（hellos 就绪）才处理，否则无 hello 上下文，静默丢弃。
+            guard context.hellos != nil else { return }
             let readyFrame: Data
             do {
                 readyFrame = try context.handleClientAuth(data)
             } catch {
                 // 落盘/验签失败：不发 SecureReady、不启 bridge、不发布会话。上层错误路径负责关连接。
-                // 直接返回（不 fall through 到 ClientHello 解析）：对 ClientAuth 帧或垃圾帧，与改前 try?
-                // 失败后行为等价（二者都不会解成 ClientHello）。唯一差异是「hellos 已就绪时又来一个
-                // ClientHello」（连接内握手重启）——改前会 fall through 重发 ServerHello，改后静默丢弃;
-                // 但本进程模型是「一 ws 连接一进程、连接关即退出」，弱网重连走新连接(新 context, hellos==nil)，
-                // 故该差异路径运行时不可达，且丢弃方向 fail-closed，可接受。
                 return
             }
             // 握手完成：先加密回传 SecureReady（稳定 sessionId），再启桥并把 proxy 输出加密回发。
@@ -199,8 +198,11 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             ensureBridgeStarted()
             pumpBridgeOutbound(ctx: ctx)
             return
+        case .clientHello:
+            // (重)握手起始：受信任复连的 handleClientHello 每次重置在飞握手态，支持连接内多次重握手。
+            // 首配/防降级校验（rejectHelloIfUnauthorized + makeServerHello 验 proof）一律照旧，绝不降级。
+            break   // 落到下方 ClientHello 处理
         }
-        // 未受信任且未持有效 proof → 判定权在 dev 侧：主动发 RejectHello 再关连接，不建会话
         // （区别于静默断连，便于 iPad 侧展示明确原因，而非无提示卡住）。
         if let hello = try? JSONDecoder().decode(ClientHello.self, from: data) {
             if let reject = context.rejectHelloIfUnauthorized(hello) {
