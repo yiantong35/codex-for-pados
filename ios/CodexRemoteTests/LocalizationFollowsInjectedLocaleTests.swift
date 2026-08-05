@@ -20,6 +20,12 @@ final class LocalizationFollowsInjectedLocaleTests: XCTestCase {
         "sideChat.pickToStart",     // 原 "点「开始侧聊」…"
         "review.mode.turn",         // 原 "本轮"
         "review.mode.full",         // 原 "全量"
+        "conv.item.unknown",
+        "conn.error.pairingMissing", "conn.error.trustRevoked",
+        "conn.error.timeout", "conn.error.timeoutDetail", "conn.error.connectionFailed",
+        "conn.error.proxyFailed", "conn.error.channelClosed", "conn.error.channelClosedUnknown",
+        "conn.error.notConnected", "conn.error.handshakeFailed",
+        "fileBrowser.loadDirFailed",
     ]
 
     func test_sharedHelper_returnsInjectedLanguage() {
@@ -49,6 +55,21 @@ final class LocalizationFollowsInjectedLocaleTests: XCTestCase {
             let s = tab.label(locale: en)
             XCTAssertFalse(s.isEmpty)
             XCTAssertFalse(s.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) })
+        }
+    }
+
+    /// #5：占位假串（如「帮紧你」）不得残留在任何面向用户键。
+    func test_noPlaceholderJokeStrings() {
+        let langs = [Locale(identifier: "en"), Locale(identifier: "zh-Hans")]
+        let banned = ["帮紧你"]
+        let sampleKeys = ["conv.item.unknown"]   // 已知曾中招的键，作显式回归锚
+        for key in sampleKeys {
+            for locale in langs {
+                let s = L10n.string(key, locale: locale)
+                for b in banned {
+                    XCTAssertFalse(s.contains(b), "占位假串残留 \(key)@\(locale.identifier)=\(s)")
+                }
+            }
         }
     }
 }

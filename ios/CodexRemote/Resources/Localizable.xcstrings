@@ -33,6 +33,12 @@
         }
       }
     },
+    "fileBrowser.loadDirFailed": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Failed to load directory" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "目录加载失败" } }
+      }
+    },
     "fileBrowser.refresh": {
       "localizations": {
         "en": {
@@ -1169,18 +1175,78 @@
         }
       }
     },
+    "conn.error.channelClosed": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Connection channel closed: %@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接通道关闭：%@" } }
+      }
+    },
+    "conn.error.channelClosedUnknown": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Unknown reason" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "未知原因" } }
+      }
+    },
+    "conn.error.connectionFailed": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Connection failed, please retry later" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接失败，请稍后重试" } }
+      }
+    },
+    "conn.error.handshakeFailed": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "WebSocket handshake failed: %@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "WebSocket 握手失败：%@" } }
+      }
+    },
+    "conn.error.notConnected": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Not connected" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "未连接" } }
+      }
+    },
+    "conn.error.pairingMissing": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Relay pairing info missing" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "relay 配对信息缺失" } }
+      }
+    },
+    "conn.error.proxyFailed": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Channel setup failed: %@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "通道建立失败：%@" } }
+      }
+    },
+    "conn.error.timeout": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Connection timed out" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接超时" } }
+      }
+    },
+    "conn.error.timeoutDetail": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Connection timed out (connect/handshake did not finish within 20s)" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接超时（连接或握手在 20 秒内未完成）" } }
+      }
+    },
+    "conn.error.trustRevoked": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Trust removed by host machine; please re-pair" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已被开发机移除信任，请重新配对" } }
+      }
+    },
     "conv.item.unknown": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "帮紧你，帮紧你"
+            "value": "Unknown item"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "帮紧你，帮紧你"
+            "value": "未知条目"
           }
         }
       }
