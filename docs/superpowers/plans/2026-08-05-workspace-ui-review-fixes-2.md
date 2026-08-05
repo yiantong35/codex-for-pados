@@ -695,7 +695,7 @@ git commit -m "fix(#6): add accessibilityLabel to empty skill toggles for VoiceO
 
 > energy-awareness：仅由 `activeSessionId` 变化事件驱动，无定时器/轮询。
 
-- [ ] **Step 1: 外套 ScrollViewReader + tab .id + onChange scrollTo**
+- [x] **Step 1: 外套 ScrollViewReader + tab .id + onChange scrollTo**
 
 在 `TabBarView.swift` 的 `body`（第 15 行起）：把 `ScrollView(.horizontal, ...) { ... }` 整体用 `ScrollViewReader { proxy in ... }` 包裹，给每个 tab 加 `.id(m.id)`，并在 `ScrollView` 上加 `onChange`。具体：
 
@@ -748,7 +748,7 @@ git commit -m "fix(#6): add accessibilityLabel to empty skill toggles for VoiceO
 
 > 注：把既有 `.background/.alert/.confirmationDialog` 修饰符从 `ScrollView` 平移到 `ScrollView`（仍挂在同一 `ScrollView` 上，只是外层多了 `ScrollViewReader`）。逻辑不变，仅新增 `ScrollViewReader` + `.id` + `.onChange`。
 
-- [ ] **Step 2: 构建 guard**
+- [x] **Step 2: 构建 guard**
 
 Run: `bash ios/comet-build-check.sh`
 Expected: BUILD SUCCEEDED。
@@ -757,11 +757,11 @@ Expected: BUILD SUCCEEDED。
 
 添加足够多机器让 tab 栏溢出可横滑。用 ⌘数字 / 相邻 tab 快捷键切到一个当前离屏的 tab → 该 tab 自动滚到居中可见。横竖屏各验一遍。
 
-- [ ] **Step 4: 能耗自查（energy-awareness）**
+- [x] **Step 4: 能耗自查（energy-awareness）**
 
 确认无新增 `Timer` / `Task.sleep` 循环 / 轮询；滚动仅由 `onChange(of: activeSessionId)` 触发。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ios/CodexRemote/Views/TabBarView.swift

@@ -13,7 +13,7 @@
 
 - [x] 2.1 #4 接线摘要→审查跳转：`RootSplitView` 向 `SummaryPopoverView` 注入 `onOpenReview`（复用右栏 tab 选择只读信号，不写共享 ActiveConversationHolder）；chevron 不再恒 `.disabled`，点击切到右栏审查 tab；删「后续接」注释。
 - [x] 2.2 #6 a11y 补全：`SkillsGroupContent` 空 `Toggle` 补 `accessibilityLabel(skill 名)`；同类空标签开关一并补；点按控件（onTapGesture 类）补 button trait；VoiceOver 朗读校验。
-- [ ] 2.3 #7 `TabBarView` 活动 tab 自动滚入可见：外套 `ScrollViewReader`，活动 tab `.id`，选中变化 `scrollTo(anchor:.center)`（事件驱动无定时器）。
+- [x] 2.3 #7 `TabBarView` 活动 tab 自动滚入可见：外套 `ScrollViewReader`，活动 tab `.id`，选中变化 `scrollTo(anchor:.center)`（事件驱动无定时器）。
 
 ## 3. P2–P3 可读性 / 反馈 / 死代码接入
 
