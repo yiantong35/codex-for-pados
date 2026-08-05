@@ -1033,7 +1033,7 @@ git commit -m "feat(#9): visible inline Capsule feedback after starting review (
 
 > 决策 B：用 `GeometryReader` 测滚动内容底部到可视底部的 `distanceToBottom`，喂策略函数产出 `isNearBottom`；sentinel 从「判定真源」降为几何测点。iOS 17.0 → 用 `GeometryReader` + `PreferenceKey`（**禁** `onScrollGeometryChange`）。energy：随布局/滚动几何变化事件驱动，无几何轮询/定时器。
 
-- [ ] **Step 1: 补 120pt 边界单测（先失败/回归锚）**
+- [x] **Step 1: 补 120pt 边界单测（先失败/回归锚）**
 
 把 `ConversationScrollAnchorTests.swift` 的 `test_nearBottomThreshold`（第 15–18 行）替换为：
 
@@ -1047,12 +1047,12 @@ git commit -m "feat(#9): visible inline Capsule feedback after starting review (
     }
 ```
 
-- [ ] **Step 2: 跑测试确认通过（策略函数已存在）**
+- [x] **Step 2: 跑测试确认通过（策略函数已存在）**
 
 Run: `xcodebuild test ... -only-testing:CodexRemoteTests/ConversationScrollAnchorTests`
 Expected: PASS（`<=` 语义使 120→true）。
 
-- [ ] **Step 3: 定义 PreferenceKey**
+- [x] **Step 3: 定义 PreferenceKey**
 
 在 `ConversationView.swift` 顶部 `ScrollAnchorPolicy` 枚举（第 12 行）之后加：
 
@@ -1066,7 +1066,7 @@ private struct BottomDistanceKey: PreferenceKey {
 }
 ```
 
-- [ ] **Step 4: 外套 GeometryReader 取可视底部 + sentinel 测几何 + onPreferenceChange 喂策略函数**
+- [x] **Step 4: 外套 GeometryReader 取可视底部 + sentinel 测几何 + onPreferenceChange 喂策略函数**
 
 把 `body`（第 44 行起）的 `ScrollViewReader { proxy in ScrollView { ... } ... }` 结构调整为：外层用 `GeometryReader` 拿视口底部全局 y；底部 sentinel 用背景 `GeometryReader` 上报自身全局 minY 相对视口底部的距离；`onPreferenceChange` 里真调策略函数。
 
@@ -1098,12 +1098,12 @@ private struct BottomDistanceKey: PreferenceKey {
 
 > 布局注意：外层 `GeometryReader` 会填满并 top-leading 对齐子内容——给内部 `ScrollViewReader`/`ScrollView` 链补 `.frame(maxWidth: .infinity, maxHeight: .infinity)` 以铺满，避免尺寸塌陷。`.safeAreaInset(.bottom)`（composer）、`.overlay`（新消息浮标）等修饰符保持挂在原层级。
 
-- [ ] **Step 5: 构建 guard**
+- [x] **Step 5: 构建 guard**
 
 Run: `bash ios/comet-build-check.sh`
 Expected: BUILD SUCCEEDED。
 
-- [ ] **Step 6: 跑对话相关测试无回归**
+- [x] **Step 6: 跑对话相关测试无回归**
 
 Run: `xcodebuild test ... -only-testing:CodexRemoteTests/ConversationScrollAnchorTests`
 Expected: PASS。
@@ -1116,7 +1116,7 @@ Expected: PASS。
 - energy：确认仅由滚动/布局几何变化触发 `onPreferenceChange`，无 `Timer`/轮询。
 - 横竖屏各验；软键盘弹出（composer 聚焦）时视口底部变化，近底判定仍正确、不误触自动滚。
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add ios/CodexRemote/Views/ConversationView.swift ios/CodexRemoteTests/ConversationScrollAnchorTests.swift
