@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		0027F69F8B82B895613D4827 /* RelayPairingImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37B881303291B67F5B5A8DE6 /* RelayPairingImportView.swift */; };
 		00D035F4CCE176BD3E53D4F1 /* CodexRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C01C7EC77E19B927C5E72B /* CodexRemoteApp.swift */; };
-		01BE5A03B6CE5A4875A7AD98 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 55AF6C40AC2043794D057E06 /* Citadel */; };
+		01BE5A03B6CE5A4875A7AD98 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 87B02C1FFD1A919E48906D14 /* SwiftTerm */; };
 		02398E5893F4A912AE583724 /* EnvironmentPanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69DDF69B6BB91F0396041F28 /* EnvironmentPanelTests.swift */; };
 		032F1CAB7CA522F27E5C65F6 /* ConversationCoalesceSchedulingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 571F13286F5DC954B383D3E6 /* ConversationCoalesceSchedulingTests.swift */; };
 		046D60CECEF36F595B491834 /* ProjectsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F3DFDE3E35F47099089A687 /* ProjectsStore.swift */; };
@@ -120,7 +120,7 @@
 		84A18F4EE4591FB4E5B73085 /* TerminalTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A84EDBFE836AF7DBF4037EA /* TerminalTypes.swift */; };
 		857DA199BA47CB2FE34937FF /* SidebarStatusBadgesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B3C59E77F035114A636C87 /* SidebarStatusBadgesTests.swift */; };
 		85AD5ABEC4E7ABCEE9F4C7B4 /* QRScannerLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C38CCDE1D2D15F91A043B806 /* QRScannerLifecycleTests.swift */; };
-		87B97AD99B7A4399F10C1A2E /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 87B02C1FFD1A919E48906D14 /* SwiftTerm */; };
+		87B97AD99B7A4399F10C1A2E /* RelayProtocol in Frameworks */ = {isa = PBXBuildFile; productRef = EA3E2E25A51F081D15DF24F9 /* RelayProtocol */; };
 		887D5ED994C791F9488720D1 /* RightPanelContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0275E1295AF8C61CD1A4E5A8 /* RightPanelContainerView.swift */; };
 		88F5616C96BE83FFF0DC807D /* LifecycleStructureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AC8553E9AF65D70A6171AE0 /* LifecycleStructureTests.swift */; };
 		8924E2361FB43E1B59B0C06C /* ApprovalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 299CE3AF94910F633856C075 /* ApprovalStore.swift */; };
@@ -148,7 +148,6 @@
 		AB424AE27534DFFD13F5E2A2 /* FileBrowserTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FCC19E5275E4A7752ADB4C8 /* FileBrowserTypes.swift */; };
 		AC3BD0F63FF3EF2385135E5A /* SessionIsolationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E75ED9B66740234D880F0F80 /* SessionIsolationTests.swift */; };
 		AD0E73CB3D07915A0E1748C9 /* ReviewStartTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4783F7EE72021D94A790C18 /* ReviewStartTests.swift */; };
-		AD7312A1E5821D8C6E2EF6AA /* RelayProtocol in Frameworks */ = {isa = PBXBuildFile; productRef = EA3E2E25A51F081D15DF24F9 /* RelayProtocol */; };
 		AE36BA993EB1C60C751C416A /* ReviewPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 239D1247A5B1E3511AE98C8D /* ReviewPanelView.swift */; };
 		AE409793C410F73918FB4566 /* EnvironmentInspectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC9F320A35BB19E1F9376F5 /* EnvironmentInspectorTests.swift */; };
 		B1B3F3C51EF2A1510BB314BF /* ColumnWidthStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 161566406F96EB16EABE135F /* ColumnWidthStoreTests.swift */; };
@@ -454,9 +453,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				01BE5A03B6CE5A4875A7AD98 /* Citadel in Frameworks */,
-				87B97AD99B7A4399F10C1A2E /* SwiftTerm in Frameworks */,
-				AD7312A1E5821D8C6E2EF6AA /* RelayProtocol in Frameworks */,
+				01BE5A03B6CE5A4875A7AD98 /* SwiftTerm in Frameworks */,
+				87B97AD99B7A4399F10C1A2E /* RelayProtocol in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -831,7 +829,6 @@
 			);
 			name = CodexRemote;
 			packageProductDependencies = (
-				55AF6C40AC2043794D057E06 /* Citadel */,
 				87B02C1FFD1A919E48906D14 /* SwiftTerm */,
 				EA3E2E25A51F081D15DF24F9 /* RelayProtocol */,
 			);
@@ -888,7 +885,6 @@
 			mainGroup = 712AD02F05D26361AF729D70;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				935CA715DF2ED02C0C97E7BA /* XCRemoteSwiftPackageReference "Citadel" */,
 				D09A990FFBB1FCC3E1019587 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 				1FF86BE153B52C049F9C1082 /* XCLocalSwiftPackageReference "../packages/RelayProtocol" */,
 			);
@@ -1400,14 +1396,6 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		935CA715DF2ED02C0C97E7BA /* XCRemoteSwiftPackageReference "Citadel" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/orlandos-nl/Citadel";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.12.1;
-			};
-		};
 		D09A990FFBB1FCC3E1019587 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
@@ -1419,11 +1407,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		55AF6C40AC2043794D057E06 /* Citadel */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 935CA715DF2ED02C0C97E7BA /* XCRemoteSwiftPackageReference "Citadel" */;
-			productName = Citadel;
-		};
 		87B02C1FFD1A919E48906D14 /* SwiftTerm */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D09A990FFBB1FCC3E1019587 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
