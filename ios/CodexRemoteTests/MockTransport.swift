@@ -27,6 +27,11 @@ actor MockTransport: MessageTransport {
     private var threadListResponse: String?
     func setThreadListResponse(_ json: String) { threadListResponse = json }
 
+    /// 按 cursor 分页应答 `thread/list`：key 为请求携带的 cursor（首页 nil → "" ），value 为该页
+    /// 完整 result JSON（含 data + nextCursor）。用于 #7 分页测试：驱动多页翻页。
+    private var threadListPages: [String: String] = [:]
+    func setThreadListPages(_ pages: [String: String]) { threadListPages = pages }
+
     /// thread/start 响应延迟（纳秒，默认 0）。用于测试并发防抖：首个请求延迟应答，
     /// 制造「创建进行中」窗口，验证第二次调用被拦下——且请求最终会回，测试不悬挂。
     private var threadStartDelayNanos: UInt64 = 0
@@ -60,7 +65,14 @@ actor MockTransport: MessageTransport {
         // thread/start 回定制体（若设了 threadStartResponse）；其余回空对象。
         let resultJSON: String
         if req.method == RPCMethod.threadList {
-            resultJSON = threadListResponse ?? #"{"data":[],"nextCursor":null,"backwardsCursor":null}"#
+            if !threadListPages.isEmpty {
+                // 按请求 cursor 选页（首页 cursor 为 nil → key ""）。
+                let cursor = (req.params?.value as? [String: Any])?["cursor"] as? String ?? ""
+                resultJSON = threadListPages[cursor]
+                    ?? #"{"data":[],"nextCursor":null,"backwardsCursor":null}"#
+            } else {
+                resultJSON = threadListResponse ?? #"{"data":[],"nextCursor":null,"backwardsCursor":null}"#
+            }
         } else if req.method == RPCMethod.threadStart, let r = threadStartResponse {
             resultJSON = r
         } else {

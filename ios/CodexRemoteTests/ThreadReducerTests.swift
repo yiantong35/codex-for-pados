@@ -543,6 +543,80 @@ final class ThreadReducerTests: XCTestCase {
         XCTAssertTrue(d.contains("a.swift"))
     }
 
+    // MARK: - #3 重连权威对账（B1 红测）
+
+    // 断线期间漏收 turn/completed：重连 resume 快照（turn.status=completed）应
+    //   ① 以服务端终态 last-write-wins 替换断线前的 partial item；
+    //   ② 按 turn.status 权威清 activeTurnId/inFlightItemIds → isTurnRunning 转 false，
+    //      解除「isTurnRunning 永真 → outbox 永久阻塞」。
+    func testResumeReconcilesMissedTurnCompletion() {
+        var s = ConversationState(threadId: "t")
+        let r = ThreadReducer()
+        // 断线前：turn 进行中，命令流式执行（partial：status inProgress、无 exitCode）。
+        r.apply(notif("turn/started", ["turn": ["id": "T1"]]), to: &s)
+        r.apply(notif("item/started",
+                      ["item": ["id": "C1", "type": "commandExecution", "command": "swift build"]]),
+                to: &s)
+        XCTAssertTrue(s.isTurnRunning, "前置：断线前应处于运行态")
+
+        // 重连 resume：服务端权威快照——turn 已完成、命令终态（completed + exitCode + 全量输出）。
+        let resume: [String: Any] = ["thread": ["turns": [[
+            "id": "T1", "status": "completed",
+            "items": [[
+                "id": "C1", "type": "commandExecution", "command": "swift build",
+                "status": "completed", "exitCode": 0, "aggregatedOutput": "Build complete!"
+            ]]
+        ]]]]
+        r.ingest(resumeResult: resume, to: &s)
+
+        // ① partial 被终态替换（last-write-wins）。
+        guard case let .commandExecution(_, _, output, status, exitCode, _)? =
+                s.items.first(where: { $0.id == "C1" }) else {
+            return XCTFail("C1 应存在")
+        }
+        XCTAssertEqual(status, .completed, "命令应被替换为终态")
+        XCTAssertEqual(exitCode, 0)
+        XCTAssertEqual(output, "Build complete!")
+        // ② turn 运行态被权威清除 → 解除 outbox 阻塞。
+        XCTAssertNil(s.activeTurnId)
+        XCTAssertTrue(s.inFlightItemIds.isEmpty)
+        XCTAssertFalse(s.isTurnRunning, "漏收 turn/completed 后 resume 应解除卡死")
+    }
+
+    // 反向守卫：resume 快照里 turn 仍在进行（status=inProgress）时，
+    //   ① 保留运行态（activeTurnId=该 turn），不误清；
+    //   ② 不以快照 partial 覆盖本地正在流式累加的 item（避免丢 live 增量）。
+    func testResumeInProgressTurnKeepsRunningAndDoesNotClobberStream() {
+        var s = ConversationState(threadId: "t")
+        let r = ThreadReducer()
+        r.apply(notif("turn/started", ["turn": ["id": "T2"]]), to: &s)
+        r.apply(notif("item/started",
+                      ["item": ["id": "C2", "type": "commandExecution", "command": "tail -f log"]]),
+                to: &s)
+        r.apply(notif("item/commandExecution/outputDelta",
+                      ["itemId": "C2", "delta": "live-accumulated-output"]), to: &s)
+        // 落地 coalescer（任何非 delta 事件都会先 drain）→ C2 output 材质化为流式内容。
+        r.apply(notif("turn/started", ["turn": ["id": "T2"]]), to: &s)
+
+        // resume：turn 仍 inProgress，命令快照输出较少（服务端尚未落终态）。
+        let resume: [String: Any] = ["thread": ["turns": [[
+            "id": "T2", "status": "inProgress",
+            "items": [[
+                "id": "C2", "type": "commandExecution", "command": "tail -f log",
+                "status": "inProgress", "aggregatedOutput": ""
+            ]]
+        ]]]]
+        r.ingest(resumeResult: resume, to: &s)
+
+        XCTAssertEqual(s.activeTurnId, "T2", "进行中 turn 应保留运行态")
+        XCTAssertTrue(s.isTurnRunning)
+        guard case let .commandExecution(_, _, output, _, _, _)? =
+                s.items.first(where: { $0.id == "C2" }) else {
+            return XCTFail("C2 应存在")
+        }
+        XCTAssertEqual(output, "live-accumulated-output", "流式 item 不应被 resume 快照覆盖")
+    }
+
     // helpers
     private func notif(_ m: String, _ p: [String: Any]) -> JSONRPCNotification {
         JSONRPCNotification(method: m, params: AnyCodable(p))

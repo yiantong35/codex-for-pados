@@ -21,8 +21,17 @@ final class SideChatStore {
     /// 已开侧聊计数（只增），用于标题 #序号，与 close 无关（关掉不回收序号，避免标题跳变）。
     private var startedCount = 0
 
-    /// 注入共享 rpc（幂等）。无初始请求——由 start 触发。
-    func attach(rpc: JSONRPCClient) { self.rpc = rpc }
+    /// 注入共享 rpc（幂等）。无初始请求——由 start 触发。完整重连换新 rpc 实例时清空 stale
+    /// 侧聊：每个侧聊内嵌的 ConversationStore 持旧 rpc（`let`）+ 绑死旧通知流，重连后全打向
+    /// 已关闭 client、订阅永不复活。fail-closed 不留半死会话；用户可在新连接上重新 fork。
+    func attach(rpc: JSONRPCClient) {
+        let rpcChanged = self.rpc !== rpc
+        self.rpc = rpc
+        guard rpcChanged else { return }
+        for s in sessions { s.conversation.stopObserving() }   // 停旧订阅，避免残留消费
+        sessions.removeAll()
+        selectedId = nil
+    }
 
     /// 从主对话 fork 一个 ephemeral 侧聊。无 rpc / 无主对话 threadId → 直接返回，不发请求。
     func start(fromThreadId mainThreadId: String?) async {

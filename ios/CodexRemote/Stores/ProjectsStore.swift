@@ -119,9 +119,13 @@ final class ProjectsStore {
         if let rpc { await loadFromServer(rpc: rpc) }
     }
 
-    /// 注入 rpc 并启动官方广播监听（设计 D3：多端一致靠广播，不自建同步）。幂等。
+    /// 注入 rpc 并启动官方广播监听（设计 D3：多端一致靠广播，不自建同步）。幂等；
+    /// 完整重连换新 rpc 实例时取消旧订阅并对新 rpc 重订阅（否则 guard==nil 挡住重订阅 →
+    /// 重连后新连接的官方广播永不刷新列表，UI 停在断线前快照）。
     func attach(rpc: JSONRPCClient) async {
+        let rpcChanged = self.rpc !== rpc
         self.rpc = rpc
+        if rpcChanged { broadcastObserver?.cancel(); broadcastObserver = nil }
         guard broadcastObserver == nil else { return }
         let stream = await rpc.notifications()
         broadcastObserver = Task { [weak self] in
@@ -277,16 +281,33 @@ final class ProjectsStore {
                          archived: nil)
     }
 
-    /// 从服务端拉取并 ingest。失败静默（保留旧 projects）。
+    /// 单页翻页硬上限（#7 能耗红线）：防御 daemon 返回环状/错误 nextCursor 导致无限循环。
+    /// 50 页 * limit 100 = 5000 条会话，远超常规上限；达到即停并保留已拉取的页。
+    private static let maxListPages = 50
+
+    /// 从服务端拉取并 ingest。跟随 `nextCursor` 翻页直到 nil 或触达硬上限（#7：不能只读首页，
+    /// 否则会话数超单页时重连恢复丢会话）。首页请求失败：静默失败保留旧 projects（既有语义）；
+    /// 后续页失败：停止翻页，用已累积的页 ingest（不因某一页失败丢弃已成功拉到的页）。
     func loadFromServer(rpc: JSONRPCClient) async {
-        let params = Self.listParamsForDesktopVisibility()
-        guard let data = try? JSONEncoder().encode(params),
-              let any = try? JSONDecoder().decode(AnyCodable.self, from: data),
-              let result = try? await rpc.send(method: RPCMethod.threadList, params: any),
-              let resData = try? JSONEncoder().encode(result),
-              let resp = try? JSONDecoder().decode(ThreadListResponse.self, from: resData)
-        else { return }
-        ingest(resp.data)
+        var cursor: String?
+        var accumulated: [ThreadSummary] = []
+        for pageIndex in 0..<Self.maxListPages {
+            var params = Self.listParamsForDesktopVisibility()
+            params.cursor = cursor
+            guard let data = try? JSONEncoder().encode(params),
+                  let any = try? JSONDecoder().decode(AnyCodable.self, from: data),
+                  let result = try? await rpc.send(method: RPCMethod.threadList, params: any),
+                  let resData = try? JSONEncoder().encode(result),
+                  let resp = try? JSONDecoder().decode(ThreadListResponse.self, from: resData)
+            else {
+                if pageIndex == 0 { return }   // 首页失败：静默保留旧 projects（既有语义）
+                break                          // 后续页失败：用已累积的页 ingest
+            }
+            accumulated.append(contentsOf: resp.data)
+            guard let next = resp.nextCursor else { break }
+            cursor = next
+        }
+        ingest(accumulated)
     }
 
     /// 启发式分类（D8）：有 gitInfo → 项目（按 originUrl ?? cwd 归组）；否则 → 对话(loose)。

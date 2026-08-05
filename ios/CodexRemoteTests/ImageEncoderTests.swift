@@ -33,6 +33,22 @@ final class ImageEncoderTests: XCTestCase {
         XCTAssertTrue(url.hasPrefix("data:image/jpeg;base64,"), "PNG 原图应被重编码为 JPEG 并如实标注")
     }
 
+    /// #5：`byteLimit` 是明文 dataURL 的接受上界，但明文并非直接上线——它先经
+    /// AES-GCM 加密（+16 字节 tag），再由 JSONEncoder 将密文体 base64（×4/3）打进单帧。
+    /// 故一张恰好落在 `byteLimit` 的图，其真实上线帧 ≈ `明文 × 4/3 + envelope`，
+    /// 必须仍 < relay 单帧上限，否则近上限图片将撑爆 1 MiB 帧上限致 relay 断连。
+    /// 断言字节换算：现行 `byteLimit = 帧上限 − envelope` 过宽 → 该帧超限（RED）。
+    func test_byteLimit_survives_encryption_base64_within_relay_frame() {
+        let worstPlaintext = ImageEncoder.byteLimit
+        // 密文体 = 明文 UTF-8 + 16 字节 GCM tag；JSONEncoder base64 后 = 4·⌈n/3⌉。
+        let base64Body = 4 * Int(ceil(Double(worstPlaintext + 16) / 3.0))
+        let projectedFrame = base64Body + ImageEncoder.envelopeHeadroom
+        XCTAssertLessThanOrEqual(
+            projectedFrame, ImageEncoder.relayMaxMessageBytes,
+            "明文上限图片经加密+base64 后应仍 < relay 单帧上限"
+            + "（projected=\(projectedFrame) vs cap=\(ImageEncoder.relayMaxMessageBytes)）")
+    }
+
     // MARK: - Test image helpers
 
     /// 纯色测试图，编码为 JPEG（模拟全尺寸照片，尺寸大但内容简单，仍应能落入预算）。

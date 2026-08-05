@@ -32,15 +32,30 @@ struct RelayReconnectPolicy: Sendable {
     let maxDelaySeconds: Double
     /// 退避挂起（默认真 sleep；测试注入 no-op / 记录钩子）。
     let sleep: @Sendable (Double) async -> Void
+    /// 握手期单次 `receiveText()` 超时秒数（决策 #1）：ServerHello/SecureReady 迟迟不到时的兜底上限。
+    /// 有界值——超时抛错回落既有 `reconnectLoop`/`performHandshake` 错误处理，计入本策略的
+    /// `maxAttempts` 预算，不新增独立的无界等待/循环（能耗铁律）。
+    let receiveTimeoutSeconds: Double
+    /// 超时挂起钩子，与退避 `sleep` 同型但**独立注入**（默认真 sleep；测试可注入更短且可观测的等价物）。
+    /// 独立而非复用 `sleep`：既有重连测试把 `sleep` 注成立即返回的 no-op 来跳过真退避等待，
+    /// 若超时竞速也借用同一个 no-op，会让超时分支在正常握手里也"瞬间"赢下竞速，
+    /// 把本该成功的收发误判为超时——两者语义不同（一个是"退避多久"，一个是"多久判死"），故分开注入。
+    let receiveTimeoutSleep: @Sendable (Double) async -> Void
 
     init(maxAttempts: Int = 6, baseDelaySeconds: Double = 1.0, maxDelaySeconds: Double = 30.0,
          sleep: @escaping @Sendable (Double) async -> Void = { s in
+             try? await Task.sleep(nanoseconds: UInt64(max(0, s) * 1_000_000_000))
+         },
+         receiveTimeoutSeconds: Double = 15.0,
+         receiveTimeoutSleep: @escaping @Sendable (Double) async -> Void = { s in
              try? await Task.sleep(nanoseconds: UInt64(max(0, s) * 1_000_000_000))
          }) {
         self.maxAttempts = maxAttempts
         self.baseDelaySeconds = baseDelaySeconds
         self.maxDelaySeconds = maxDelaySeconds
         self.sleep = sleep
+        self.receiveTimeoutSeconds = receiveTimeoutSeconds
+        self.receiveTimeoutSleep = receiveTimeoutSleep
     }
 
     /// 第 `attempt`（0 起）次退避秒数：指数增长封顶 `maxDelaySeconds`。
@@ -426,6 +441,30 @@ actor RelayTransport: MessageTransport {
     /// TOFU 比对/首信（发 ClientAuth 前，受信任复连不省）→ 发 ClientAuth → finishClient 建 SecureSession →
     /// 消费第 4 条 SecureReady 持久化 stableSessionId → 回填 `self.session`。
     /// **不** markHandshakeDone / 启 read loop（由调用方按首连 vs 重连分别处理）。
+    /// 单发超时 race：`ch.receiveText()` vs 注入的超时 sleep（`withThrowingTaskGroup`）。
+    /// 谁先完成谁定胜负，`defer { group.cancelAll() }` 促成败者尽快退出——超时 sleep 分支用
+    /// 可取消的 `Task.sleep`（cancel 后立刻抛 `CancellationError` 退出），故不会像等一个不可取消的
+    /// 原语那样拖住 group 的隐式「等所有子任务」收尾（否则超时机制本身就会被败者拖成新的无界挂起）。
+    /// 超时抛 `TransportError.handshakeFailed`——**不是**新起一个无界等待，而是让本次握手尝试失败，
+    /// 沿既有错误路径回落 `reconnectLoop`/`performHandshake`，计入 `RelayReconnectPolicy.maxAttempts`
+    /// 预算（决策 #1：ServerHello/SecureReady 永不到时，不再永久挂起）。
+    private func receiveTextWithTimeout(_ ch: RelayWSChannel, waiting what: String) async throws -> String? {
+        let seconds = reconnect.receiveTimeoutSeconds
+        let timeoutSleep = reconnect.receiveTimeoutSleep
+        return try await withThrowingTaskGroup(of: String?.self) { group in
+            defer { group.cancelAll() }
+            group.addTask { try await ch.receiveText() }
+            group.addTask {
+                await timeoutSleep(seconds)
+                throw TransportError.handshakeFailed("握手接收超时（等 \(what)，\(seconds)s 未到）")
+            }
+            guard let first = try await group.next() else {
+                throw TransportError.handshakeFailed("握手接收超时竞速无结果（等 \(what)）")
+            }
+            return first
+        }
+    }
+
     private func performHandshakeOn(_ ch: RelayWSChannel) async throws {
         guard let inputs = handshakeInputs else { throw TransportError.notConnected }
         let p = inputs.pairing
@@ -445,7 +484,7 @@ actor RelayTransport: MessageTransport {
         if inputs.isTrustedReconnect { clientHello.pairingCodeProof = Data() }
         try await ch.sendText(String(decoding: try JSONEncoder().encode(clientHello), as: UTF8.self))
 
-        guard let shText = try await ch.receiveText() else {
+        guard let shText = try await receiveTextWithTimeout(ch, waiting: "ServerHello") else {
             throw TransportError.channelClosed(reason: "握手中连接关闭（等 ServerHello）")
         }
         // 先判 RejectHello（独有 `kind` tag；ServerHello 无 kind 故互不误解）：命中 → 抛错，
@@ -472,7 +511,7 @@ actor RelayTransport: MessageTransport {
 
         // 发 ClientAuth 后、回填 session 前，多收一条 SecureReady（msg 4，加密帧）并消费：
         // dev 首配与复连都发。必须在启 read loop 之前消费，否则 read loop 会把这条加密帧当业务帧 yield。
-        guard let readyText = try await ch.receiveText() else {
+        guard let readyText = try await receiveTextWithTimeout(ch, waiting: "SecureReady") else {
             throw TransportError.channelClosed(reason: "握手中连接关闭（等 SecureReady）")
         }
         let readyEnv = try SecureEnvelope(decoding: Data(readyText.utf8))

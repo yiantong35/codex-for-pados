@@ -311,16 +311,45 @@ struct ThreadReducer {
         let turns = (thread?["turns"] as? [[String: Any]])
             ?? (result["turns"] as? [[String: Any]]) ?? []
         for turn in turns {
+            // #3 权威对账：turn 终态（completed/failed/…）→ 其 item 均已定稿，
+            // last-write-wins 替换断线前 partial；进行中 turn → first-write-wins，
+            // 不覆盖本地正在流式累加的 item（与 ipad-thread-item-fidelity 不冲突）。
+            let terminal = Self.isTerminalTurnStatus(turn["status"] as? String)
             let items = turn["items"] as? [[String: Any]] ?? []
-            for item in items { ingestHistoryItem(item, &state) }
+            for item in items { ingestHistoryItem(item, replace: terminal, &state) }
+        }
+        // 以最近一个 turn 的 status 权威重置运行态：漏收 turn/completed 时解除
+        // 「isTurnRunning 永真 → outbox 永久阻塞」。无 status 字段（历史摄入）不动运行态。
+        if let last = turns.last { applyResumeTurnState(last, &state) }
+    }
+
+    /// turn 终态判定：完成/失败/取消/拒绝等均为终态；inProgress/缺省为非终态。
+    static func isTerminalTurnStatus(_ status: String?) -> Bool {
+        switch status {
+        case "completed", "failed", "cancelled", "canceled", "aborted", "declined":
+            return true
+        default:
+            return false
         }
     }
 
-    private func ingestHistoryItem(_ item: [String: Any], _ s: inout ConversationState) {
+    /// #3 权威对账：按 resume 快照里最近 turn 的 status 重置运行态。
+    private func applyResumeTurnState(_ turn: [String: Any], _ s: inout ConversationState) {
+        guard turn["status"] != nil else { return }   // 历史摄入（无 status）不触碰运行态
+        if Self.isTerminalTurnStatus(turn["status"] as? String) {
+            s.activeTurnId = nil
+            s.activeTurnKind = nil
+            s.inFlightItemIds.removeAll()
+        } else if let id = turn["id"] as? String {
+            s.activeTurnId = id   // 仍在进行：保留/校正运行态
+        }
+    }
+
+    private func ingestHistoryItem(_ item: [String: Any], replace: Bool, _ s: inout ConversationState) {
         guard item["id"] is String else { return }
         applySubAgentItem(item, &s)          // 子智能体聚合，与 live 一致（Task 5.2）
         guard let ci = parseItem(item) else { return }
-        absorb(ci, replace: false, &s)       // history 单次摄入，first-write-wins
+        absorb(ci, replace: replace, &s)     // 终态 turn: last-write-wins；否则 first-write-wins
     }
 
     /// 从 content 拼纯文本。兼容两种形态：

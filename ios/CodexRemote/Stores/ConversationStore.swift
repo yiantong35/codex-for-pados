@@ -221,8 +221,9 @@ final class ConversationStore {
                   let dict = r.value as? [String: Any] else { continue }   // no rollout 等单个失败：跳过
             if tid == state.threadId { reducer.ingest(resumeResult: dict, to: &state) }
         }
-        // 重连刷新拿到权威 activeTurnId 后，若断线期间那轮已在 Mac 跑完、漏收 turn/completed
-        // 致本地 isTurnRunning「假的真」卡住 outbox，此处解锁补发（item 2 咬合）。
+        // #3 权威对账已在上面的 ingest(resumeResult:) 里按 turn.status 权威重置运行态
+        // （漏收 turn/completed 时清 activeTurnId/inFlightItemIds → isTurnRunning 转 false）。
+        // 此处 drainOutbox 补发断线期间因「假的真」运行态而积压的 send。
         drainOutbox()
     }
 

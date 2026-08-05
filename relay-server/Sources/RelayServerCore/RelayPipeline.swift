@@ -74,7 +74,14 @@ public func configureRelayPipeline(
             //   - HEAD-ward ConnectionCountHandler 位于 upgradedIdle 之前，收不到该事件、不重复关连接，
             //     其全局计数所有权（D1）不受影响。
             // post-upgrade handler 只做房间 admit/release + 转发，不再触碰全局连接配额（D1 收敛点）。
+            // 升级成功后必须把 HealthHandler 移出管线：它的 InboundIn 是 HTTPServerRequestPart，
+            // 升级后 HTTP 解码器已被 upgrade 流程摘除、ws 帧解码器接管，若 HealthHandler 仍在管线，
+            // 对端投来的第一个 ws 数据帧会以原始字节/帧形态流到它，`unwrapInboundIn` 强转 HTTP 类型
+            // 直接 Fatal（NIOAny 类型不匹配）→ 进程崩溃、两端连接同断。故 upgrade 后只保留
+            // ws 解码器 + RelayConnectionHandler，HealthHandler 仅服务未升级的 HTTP（/health）。
             return ch.pipeline.removeHandler(name: "preUpgradeIdle").flatMap {
+                ch.pipeline.removeHandler(name: "health")
+            }.flatMap {
                 ch.pipeline.addHandler(
                     IdleStateHandler(allTimeout: .seconds(upgradedIdleTimeoutSeconds)),
                     name: "upgradedIdle")
@@ -100,8 +107,8 @@ public func configureRelayPipeline(
             withServerUpgrade: (upgraders: [upgrader], completionHandler: { _ in }),
             withErrorHandling: true)
     }.flatMap {
-        // 非 upgrade 请求(如 GET /health)由 HealthHandler 处理。
-        channel.pipeline.addHandler(HealthHandler())
+        // 非 upgrade 请求(如 GET /health)由 HealthHandler 处理。命名以便 upgrade 成功后移除。
+        channel.pipeline.addHandler(HealthHandler(), name: "health")
     }
 }
 
@@ -202,7 +209,9 @@ public final class RelayConnectionHandler: ChannelInboundHandler, @unchecked Sen
 }
 
 /// 非 ws 请求处理:GET /health → {"ok":true}。其余 → 404。
-public final class HealthHandler: ChannelInboundHandler, @unchecked Sendable {
+/// 遵循 RemovableChannelHandler：ws upgrade 成功后本 handler 会被移出管线（否则 ws 帧强转
+/// HTTP 类型崩溃）；removeHandler 仅接受可移除 handler，故必须显式声明该协议（默认实现即可）。
+public final class HealthHandler: ChannelInboundHandler, RemovableChannelHandler, @unchecked Sendable {
     public typealias InboundIn = HTTPServerRequestPart
     public typealias OutboundOut = HTTPServerResponsePart
 
