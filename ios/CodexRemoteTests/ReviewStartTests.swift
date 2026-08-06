@@ -53,23 +53,45 @@ struct ReviewStartTests {
     // .full → 发出 review/start，target=uncommittedChanges、delivery=inline、threadId 正确
     @MainActor @Test func startReviewFullSendsUncommitted() async throws {
         let mock = MockTransport()
+        await mock.setAutoRespond(true)
         let rpc = JSONRPCClient(transport: mock)
         await rpc.start()
         let store = ConversationStore(rpc: rpc, threadId: "thread-A")
         let sent = await store.startReview(mode: .full)
         #expect(sent == true)
-        // fire-and-forget：轮询等待内部 Task 把帧写进 mock.sent（有界，最长 ~1s）。
-        // 定长 sleep 在全量并发负载下会假失败（帧 >50ms 才落）——改为轮询直到出现或超时。
-        var frame: String?
-        for _ in 0..<200 {
-            frame = await mock.sent.first { $0.contains("review/start") }
-            if frame != nil { break }
-            try? await Task.sleep(nanoseconds: 5_000_000)
-        }
+        let frame = await mock.sent.first { $0.contains("review/start") }
         #expect(frame != nil)
         #expect(frame?.contains("thread-A") == true)
         #expect(frame?.contains("uncommittedChanges") == true)
         #expect(frame?.contains("inline") == true)
+    }
+
+    // 服务端拒绝 → 返回 false，供 ReviewTabView 展示失败而不是“已开始”。
+    @MainActor @Test func startReviewServerErrorReturnsFalse() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "thread-error")
+        let responder = Task {
+            for _ in 0..<200 {
+                if let frame = await mock.sent.first(where: { $0.contains("review/start") }),
+                   let data = frame.data(using: .utf8),
+                   case .request(let request)? = try? JSONDecoder().decode(JSONRPCMessage.self, from: data) {
+                    let id: String
+                    switch request.id {
+                    case .string(let value): id = "\"\(value)\""
+                    case .int(let value): id = "\(value)"
+                    }
+                    await mock.feed(#"{"id":\#(id),"error":{"code":-32602,"message":"rejected"}}"#)
+                    return
+                }
+                await Task.yield()
+            }
+        }
+
+        let accepted = await store.startReview(mode: .full)
+        await responder.value
+        #expect(!accepted)
     }
 
     // 无 threadId → 不发请求，返回 false

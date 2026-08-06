@@ -274,7 +274,8 @@ extension ConversationStore {
     /// 发起一轮 AI 审查（review/start，inline 投递，结果经通知流回主对话回显）。
     /// - `.full` → target: uncommittedChanges（服务端算工作区改动，不传 diff 文本）
     /// - `.turn` → target: custom{instructions: turnDiff}（协议无「某一轮」原生 target）
-    /// 无 threadId 或 `.turn` 且 turnDiff 为空时不发请求。返回是否发出（供入口禁用/测试断言）。
+    /// 无 threadId 或 `.turn` 且 turnDiff 为空时不发请求。返回 RPC 是否成功完成，
+    /// 使 UI 不会在断线、服务端拒绝或协议错误时误报“已开始”。
     @discardableResult
     func startReview(mode: ReviewSourceMode) async -> Bool {
         let threadId = state.threadId
@@ -291,8 +292,12 @@ extension ConversationStore {
         }
 
         let params = ReviewStartParams(threadId: threadId, target: target, delivery: .inline)
-        Task { [weak self] in _ = try? await self?.call(RPCMethod.reviewStart, params) }
-        return true
+        do {
+            _ = try await call(RPCMethod.reviewStart, params)
+            return true
+        } catch {
+            return false
+        }
     }
 }
 

@@ -59,12 +59,13 @@ iPad 审查面板 SHALL 展示文件树(各变更文件 path)与选中文件的�
 - **WHEN** 从环境 inspector 变更按钮打开面板(数据源=全量 gitDiffToRemote)
 - **THEN** 面板渲染全量 diff
 
-### Requirement: 审查面板为纯 diff 查看器（无动作按钮）
-审查面板 SHALL 为纯 diff 查看器,不含"让 AI 审查"按钮(desktop 审查面板无此按钮)、不含 git 写操作按钮(提交/推送/创建 PR)。git 操作走终端/agent skill,不在本面板。
+### Requirement: diff 渲染组件为纯查看器
+`ReviewPanelView` diff 渲染组件 SHALL 为纯查看器，不含 AI 审查或 git 写操作按钮。承载该组件的 Review tab MAY 按 `ipad-review-actions` capability 在独立工具栏提供 AI 审查入口；提交、推送、创建 PR 等 git 写操作仍走终端/agent skill。
 
-#### Scenario: 无 AI 审查/git 写按钮
-- **WHEN** 审查面板展示
-- **THEN** 不提供"让 AI 审查"入口,也不提供提交/推送/创建 PR 按钮
+#### Scenario: 渲染组件与命令工具栏边界清晰
+- **WHEN** `ReviewPanelView` 展示 diff
+- **THEN** 渲染组件内部不提供 AI 审查或 git 写按钮
+- **AND** 外层 Review tab 可在独立工具栏提供 AI 审查入口，但不提供提交、推送或创建 PR 按钮
 
 ### Requirement: 全量 diff 数据源随工作区/线程失效重取
 审查面板的全量 diff 缓存 SHALL 以 `mode + cwd` 复合键失效：当选中 thread（cwd）变化时，SHALL 丢弃旧工作区的全量 diff 并按新 cwd 重新拉取，不得跨工作区复用旧缓存。cwd 为空时 SHALL 不发起请求且不崩溃。
