@@ -13,7 +13,7 @@ design_doc: docs/superpowers/specs/2026-08-05-workspace-ui-review-fixes-2-design
 plan: docs/superpowers/plans/2026-08-05-workspace-ui-review-fixes-2.md
 verify_result: pass
 verification_report: docs/superpowers/reports/2026-08-06-workspace-ui-review-fixes-2-verify.md
-branch_status: pending
+branch_status: handled
 created_at: 2026-08-05
 verified_at: 2026-08-06
 archived: true
