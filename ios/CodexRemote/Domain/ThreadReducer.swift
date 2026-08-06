@@ -323,25 +323,26 @@ struct ThreadReducer {
         if let last = turns.last { applyResumeTurnState(last, &state) }
     }
 
-    /// turn 终态判定：完成/失败/取消/拒绝等均为终态；inProgress/缺省为非终态。
+    /// 只有明确的 inProgress 是非终态；未知未来状态必须 fail-closed，不能卡住 outbox。
     static func isTerminalTurnStatus(_ status: String?) -> Bool {
-        switch status {
-        case "completed", "failed", "cancelled", "canceled", "aborted", "declined":
-            return true
-        default:
-            return false
-        }
+        guard let status else { return false }
+        return status != "inProgress"
     }
 
     /// #3 权威对账：按 resume 快照里最近 turn 的 status 重置运行态。
     private func applyResumeTurnState(_ turn: [String: Any], _ s: inout ConversationState) {
         guard turn["status"] != nil else { return }   // 历史摄入（无 status）不触碰运行态
-        if Self.isTerminalTurnStatus(turn["status"] as? String) {
+        let status = turn["status"] as? String
+        if status == "inProgress", let id = turn["id"] as? String {
+            s.activeTurnId = id
+        } else {
             s.activeTurnId = nil
             s.activeTurnKind = nil
             s.inFlightItemIds.removeAll()
-        } else if let id = turn["id"] as? String {
-            s.activeTurnId = id   // 仍在进行：保留/校正运行态
+            let known = ["completed", "interrupted", "failed", "cancelled", "canceled", "aborted", "declined"]
+            if let status, !known.contains(status), !s.unknownTurnStatuses.contains(status) {
+                s.unknownTurnStatuses.append(status)
+            }
         }
     }
 

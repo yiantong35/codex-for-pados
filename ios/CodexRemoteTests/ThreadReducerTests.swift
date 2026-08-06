@@ -2,6 +2,35 @@ import XCTest
 @testable import CodexRemote
 
 final class ThreadReducerTests: XCTestCase {
+    func testResumeOnlyInProgressStatusRestoresActiveTurn() {
+        let cases: [(status: String, active: Bool)] = [
+            ("inProgress", true),
+            ("completed", false),
+            ("interrupted", false),
+            ("failed", false),
+            ("futurePaused", false),
+        ]
+        for testCase in cases {
+            var state = ConversationState(threadId: "t")
+            state.activeTurnId = "stale"
+            state.inFlightItemIds = ["stale-item"]
+            ThreadReducer().ingest(
+                resumeResult: ["thread": ["turns": [["id": "turn", "status": testCase.status, "items": []]]]],
+                to: &state
+            )
+            XCTAssertEqual(state.activeTurnId, testCase.active ? "turn" : nil, testCase.status)
+            XCTAssertEqual(state.isTurnRunning, testCase.active, testCase.status)
+        }
+    }
+
+    func testResumeUnknownStatusRecordsDiagnostic() {
+        var state = ConversationState(threadId: "t")
+        ThreadReducer().ingest(
+            resumeResult: ["thread": ["turns": [["id": "turn", "status": "futurePaused", "items": []]]]],
+            to: &state
+        )
+        XCTAssertEqual(state.unknownTurnStatuses, ["futurePaused"])
+    }
     // delta 累积成完整文本，且 turn/completed 后不再运行
     func testAgentDeltaAccumulates() throws {
         var state = ConversationState(threadId: "t")

@@ -183,12 +183,12 @@ presentation wiring, localization resources, and protocol fixture tests.
 **Files:** `ThreadReducer.swift`, conversation resume logic, outbox handling, and
 `ThreadReducerTests.swift`.
 
-- [ ] RED: table-test `inProgress`, `completed`, `interrupted`, `failed`, and an
+- [x] RED: table-test `inProgress`, `completed`, `interrupted`, `failed`, and an
   unknown future status.
-- [ ] Restore active turn only for `inProgress`; all other values clear transient
+- [x] Restore active turn only for `inProgress`; all other values clear transient
   state and permit outbox drain while recording unknown-status diagnostics.
-- [ ] GREEN: run reducer, resume, and outbox ordering tests.
-- [ ] Commit: `fix(ipad): close terminal turns during resume`.
+- [x] GREEN: run reducer, resume, and outbox ordering tests.
+- [x] Commit: `fix(ipad): close terminal turns during resume`.
 
 ## Phase 4 - Session and Workspace Lifecycles
 

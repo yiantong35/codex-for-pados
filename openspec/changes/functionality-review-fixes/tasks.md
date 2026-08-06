@@ -25,7 +25,7 @@
 - [x] 3.1 将 command/file/permissions approval 改为 method-specific Codable DTO；协议解码失败不可批准且显式反馈。
 - [x] 3.2 完整支持 permission `fileSystem.entries`、access mode、glob depth 的知情展示与原样回授；测试拒绝/turn/session 三种结果。
 - [x] 3.3 file approval 通过 `itemId` 关联 ConversationState 的真实变更，展示 reason/grantRoot/files/diff；command approval 同步展示 reason/network context。
-- [ ] 3.4 resume 只有 `inProgress` 可激活 turn；`completed/interrupted/failed/unknown` 清运行态并 drain outbox；补官方状态穷尽测试。
+- [x] 3.4 resume 只有 `inProgress` 可激活 turn；`completed/interrupted/failed/unknown` 清运行态并 drain outbox；补官方状态穷尽测试。
 
 ## 4. Session 与工作区生命周期
 
