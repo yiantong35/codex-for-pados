@@ -272,13 +272,13 @@ state tests.
 **Files:** `scripts/comet-build-check.sh`, `scripts/comet-verify-check.sh`, and
 change `.comet.yaml` if command paths change.
 
-- [ ] Build wrapper generates/builds iOS and builds RelayProtocol, relay-server,
+- [x] Build wrapper generates/builds iOS and builds RelayProtocol, relay-server,
   relay-dialout, and mac-daemon with labeled failure sections.
-- [ ] Verify wrapper runs all four package suites, full iOS tests,
+- [x] Verify wrapper runs all four package suites, full iOS tests,
   `xcodebuild analyze`, OpenSpec strict validation, and `git diff --check`.
-- [ ] Keep scripts fail-fast while preserving enough section output to identify
+- [x] Keep scripts fail-fast while preserving enough section output to identify
   the failing component.
-- [ ] Commit: `build: make Comet gates cover the full repository`.
+- [x] Commit: `build: make Comet gates cover the full repository`.
 
 ### Task 5.2: Full verification and report
 
