@@ -61,6 +61,22 @@
         }
       }
     },
+    "fileBrowser.previewTruncated": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview limited to the first 2,000 lines"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预览仅显示前 2,000 行"
+          }
+        }
+      }
+    },
     "fileBrowser.retry": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Retry" } },

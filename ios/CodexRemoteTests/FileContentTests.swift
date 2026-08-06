@@ -46,4 +46,19 @@ struct FileContentTests {
         let s = "héllo 世界"
         #expect(FileContentDecoder.classify(bytes: Data(s.utf8)) == .text(s))
     }
+
+    @Test func textPreviewCapsPathologicalEmptyLines() {
+        let text = String(repeating: "\n", count: 512 * 1024)
+        let preview = FileTextPreview(text)
+
+        #expect(preview.lines.count == FileTextPreview.maximumRenderedLines)
+        #expect(preview.isTruncated)
+    }
+
+    @Test func textPreviewPreservesShortFileLines() {
+        let preview = FileTextPreview("first\n\nthird\n")
+
+        #expect(preview.lines.map(String.init) == ["first", "", "third", ""])
+        #expect(!preview.isTruncated)
+    }
 }

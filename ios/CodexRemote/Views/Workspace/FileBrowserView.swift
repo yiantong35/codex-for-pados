@@ -1,5 +1,41 @@
 import SwiftUI
 
+/// 有界文本预览：只扫描并保留渲染所需的前缀，避免极端多行文件创建海量 SwiftUI 视图。
+struct FileTextPreview {
+    static let maximumRenderedLines = 2_000
+
+    let lines: [Substring]
+    let isTruncated: Bool
+
+    init(_ text: String, maximumLines: Int = maximumRenderedLines) {
+        let limit = max(1, maximumLines)
+        var result: [Substring] = []
+        result.reserveCapacity(limit)
+        var lineStart = text.startIndex
+
+        while result.count < limit {
+            guard let newline = text[lineStart...].firstIndex(of: "\n") else {
+                result.append(text[lineStart...])
+                lineStart = text.endIndex
+                break
+            }
+
+            result.append(text[lineStart..<newline])
+            lineStart = text.index(after: newline)
+            if lineStart == text.endIndex {
+                if result.count < limit {
+                    result.append(text[text.endIndex..<text.endIndex])
+                }
+                break
+            }
+        }
+
+        lines = result
+        isTruncated = lineStart < text.endIndex
+            || (text.last == "\n" && result.count == limit)
+    }
+}
+
 /// 文件浏览 tab（只读）：懒加载目录树 + 文件内容查看 + 手动刷新。消费 FileBrowserStore。
 /// 无写入能力（写文件走 agent 对话）。布局自适应见 Task 10。
 struct FileBrowserView: View {
@@ -148,24 +184,34 @@ struct FileBrowserView: View {
 
     /// #8：文件正文——1-based 行号 gutter + 长行横滚不折行 + 可选 + 略大字号/行高。
     private func fileTextBody(_ s: String) -> some View {
-        ScrollView(.horizontal, showsIndicators: true) {       // #8b：横滚只包正文区
-            VStack(alignment: .leading, spacing: 0) {
-                let lines = Array(s.split(separator: "\n", omittingEmptySubsequences: false).enumerated())
-                ForEach(lines, id: \.offset) { idx, line in
-                    HStack(alignment: .top, spacing: 6) {
-                        Text("\(idx + 1)")                     // #8a：1-based 行号 gutter
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 44, alignment: .trailing)
-                        Text(String(line).isEmpty ? " " : String(line))
-                            .font(.system(.caption, design: .monospaced))   // #8d：caption2 → caption
-                            .textSelection(.enabled)                        // #8c：可选可复制
-                            .lineSpacing(2)                                  // #8d：行高
+        let preview = FileTextPreview(s)
+        return VStack(alignment: .leading, spacing: 0) {
+            ScrollView(.horizontal, showsIndicators: true) {       // #8b：横滚只包正文区
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(preview.lines.indices, id: \.self) { idx in
+                        let line = preview.lines[idx]
+                        HStack(alignment: .top, spacing: 6) {
+                            Text("\(idx + 1)")                     // #8a：1-based 行号 gutter
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 44, alignment: .trailing)
+                            Text(line.isEmpty ? " " : String(line))
+                                .font(.system(.caption, design: .monospaced))   // #8d：caption2 → caption
+                                .textSelection(.enabled)                        // #8c：可选可复制
+                                .lineSpacing(2)                                  // #8d：行高
+                        }
                     }
                 }
+                .padding(8)
+                .fixedSize(horizontal: true, vertical: false)      // #8b：不折行
             }
-            .padding(8)
-            .fixedSize(horizontal: true, vertical: false)      // #8b：不折行
+            if preview.isTruncated {
+                Label("fileBrowser.previewTruncated", systemImage: "text.badge.ellipsis")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+            }
         }
     }
 
