@@ -30,6 +30,7 @@ struct BridgeLifecycleTests {
         #expect(bridge.pid == pid)
         #expect(lifecycle.isStarted)
         lifecycle.shutdown()
+        bridge.waitForTermination()
     }
 
     /// #8b：shutdown 回收自己启过的子进程（inactive/reset 退出路径调用），只动自己的 PID，幂等。
@@ -38,10 +39,13 @@ struct BridgeLifecycleTests {
         let lifecycle = BridgeLifecycle(bridge: bridge)
         try lifecycle.ensureStarted()
         #expect(bridge.isRunning)
+        let startedAt = ContinuousClock.now
         lifecycle.shutdown()
-        #expect(!bridge.isRunning)      // 精确回收自己这一个（非 pkill）
+        #expect(startedAt.duration(to: .now) < .milliseconds(100))
         #expect(!lifecycle.isStarted)
         lifecycle.shutdown()            // 幂等：再调不炸
+        bridge.waitForTermination()
+        #expect(!bridge.isRunning)      // 精确回收自己这一个（非 pkill）
     }
 
     /// 从未启桥就 reset 的路径：shutdown 安全无副作用（不 terminate、不崩）。

@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 
 /// 桥接开发机本地已有的共享 control-socket daemon。
 ///
@@ -9,37 +14,55 @@ import Foundation
 ///
 /// ⚠️ 进程安全：只记住并管理**自己 spawn 的这个子进程 PID**，`terminate()` 仅停它，
 /// 绝不使用 pkill/wide-match kill（会误杀 desktop GUI 私有的 app-server）。
-public final class ProxyBridge {
+public final class ProxyBridge: @unchecked Sendable {
     private let codexPath: String
     private let sockPath: String
     private let overrideArguments: [String]?
+    private let terminationGracePeriod: Duration
     private let process = Process()
     private let stdinPipe = Pipe()
     private let stdoutPipe = Pipe()
+    private let processQueue = DispatchQueue(label: "com.codexremote.relay-dialout.proxy-process")
+    private var didStart = false
 
     /// - Parameters:
     ///   - codexPath: 可执行路径，允许注入便于测试用无害 stub（默认 "codex"）。
     ///   - arguments: 子进程参数，默认 nil→生产固定为 `["app-server","proxy","--sock",sockPath]`；
     ///     仅测试可注入长驻无害 stub 参数（如 `/bin/sleep 300`）验证 terminate 回收，**不改生产调用路径**。
     ///   - sockPath: control-socket 路径。
-    public init(codexPath: String = "codex", arguments: [String]? = nil, sockPath: String) {
+    public init(codexPath: String = "codex",
+                arguments: [String]? = nil,
+                sockPath: String,
+                terminationGracePeriod: Duration = .seconds(2)) {
         self.codexPath = codexPath
         self.overrideArguments = arguments
         self.sockPath = sockPath
+        self.terminationGracePeriod = terminationGracePeriod
     }
 
     /// 我方 spawn 的子进程 PID（仅在 start 后有效），用于确认只管自己这一个。
-    public var pid: Int32 { process.processIdentifier }
+    public var pid: Int32 { processQueue.sync { process.processIdentifier } }
 
     /// 自己持有的这个子进程是否仍在运行（仅反映自身 `process` 句柄，非按名查找）。
-    public var isRunning: Bool { process.isRunning }
+    public var isRunning: Bool { processQueue.sync { process.isRunning } }
+
+    /// 非正常信号退出时的信号编号；仅在完成回收后有值。
+    public var terminationSignal: Int32? {
+        processQueue.sync {
+            guard didStart, !process.isRunning, process.terminationReason == .uncaughtSignal else { return nil }
+            return process.terminationStatus
+        }
+    }
 
     public func start() throws {
-        process.executableURL = URL(fileURLWithPath: codexPath)
-        process.arguments = overrideArguments ?? ["app-server", "proxy", "--sock", sockPath]
-        process.standardInput = stdinPipe
-        process.standardOutput = stdoutPipe
-        try process.run()
+        try processQueue.sync {
+            process.executableURL = URL(fileURLWithPath: codexPath)
+            process.arguments = overrideArguments ?? ["app-server", "proxy", "--sock", sockPath]
+            process.standardInput = stdinPipe
+            process.standardOutput = stdoutPipe
+            try process.run()
+            didStart = true
+        }
     }
 
     /// 往 proxy stdin 写一行 JSON-RPC（按行协议，自动补换行）。
@@ -86,13 +109,27 @@ public final class ProxyBridge {
         }
     }
 
-    /// 只停自己 spawn 的这个子进程（精确 PID），绝不 pkill。
-    /// terminate 后同步等待其退出以回收（防僵尸）——仅等自己这一个 process 句柄，
-    /// 是终止收尾的一次性同步等待（非轮询、非常驻线程；进程已被请求退出，等待即刻返回）。
+    /// 非阻塞地发起精确回收：先向自己 spawn 的 PID 发 SIGTERM，宽限期后仍存活才发 SIGKILL。
+    /// 实际等待与 reap 全在私有串行队列，调用本方法的 NIO EventLoop 不会被阻塞。
     public func terminate() {
-        if process.isRunning {
+        processQueue.async { [self] in
+            guard didStart, process.isRunning else { return }
             process.terminate()
+
+            let clock = ContinuousClock()
+            let deadline = clock.now.advanced(by: terminationGracePeriod)
+            while process.isRunning, clock.now < deadline {
+                Thread.sleep(forTimeInterval: 0.01)
+            }
+            if process.isRunning {
+                _ = kill(process.processIdentifier, SIGKILL)
+            }
             process.waitUntilExit()
         }
+    }
+
+    /// 等待此前排队的终止/reap 完成。只能在 EventLoop 外的顶层收口或测试代码调用。
+    public func waitForTermination() {
+        processQueue.sync {}
     }
 }
