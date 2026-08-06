@@ -291,7 +291,7 @@ change `.comet.yaml` if command paths change.
 - [x] Write the Comet verification report with command, result, duration, and any
   unexecuted device-only check; set `verify_result` truthfully.
 - [x] Complete the real-device checklist, or leave those items explicitly pending.
-- [ ] Strict-validate and archive `functionality-review-fixes` only after every
+- [x] Strict-validate and archive `functionality-review-fixes` only after every
   required automated gate passes.
 
 ## Resume Point

@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: 对话滚动位置感知
 
@@ -15,8 +15,6 @@
 #### Scenario: 离底时内容增长只提示
 - **WHEN** 用户距底超过 120pt，流式文本或审批卡使内容增长
 - **THEN** 阅读位置不被拉走，并显示新消息入口；点击后滚到真实底部
-
-## ADDED Requirements
 
 ### Requirement: 图片附件异步选择不被迟到结果覆盖
 

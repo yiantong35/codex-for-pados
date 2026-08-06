@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: 权限审批（permissions/requestApproval）知情展示与协议正确响应
 
@@ -15,8 +15,6 @@ iPad SHALL 按当前生成协议类型化解码 `item/permissions/requestApprova
 #### Scenario: 旧兼容字段不丢失
 - **WHEN** server 同时或仅发送 read/write 兼容字段
 - **THEN** iPad 仍能展示并回授其范围，但 entries 是首选当前结构
-
-## ADDED Requirements
 
 ### Requirement: 文件改动审批关联真实 item 展示
 

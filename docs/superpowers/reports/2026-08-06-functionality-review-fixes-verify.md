@@ -36,6 +36,8 @@ Full verify counts:
 - `xcodebuild analyze`: PASS.
 - `openspec validate functionality-review-fixes --strict`: valid.
 - `git diff --check`: PASS on a clean worktree.
+- OpenSpec archive: created `2026-08-06-functionality-review-fixes` and promoted
+  15 requirements into 10 main capability specs.
 
 Linux evidence:
 
@@ -48,6 +50,11 @@ The first full iOS verify exposed three snapshot/layout hosts missing the newly 
 `UserInputStore`, `McpElicitationStore`, and `SideChatStore` environments. Production
 injection was already correct. The test hosts were fixed in `6a6161cc`, the three tests
 passed in isolation, and the entire verify wrapper then passed from a clean commit.
+
+Post-archive validation passed for all 10 newly created main specs. Repository-wide
+`openspec validate --all --strict` still reports the unrelated pre-existing active change
+`workspace-ui-review-fixes` as invalid; `workspace-ui-review-fixes-2` and all 10 main
+specs pass. That external change was left untouched.
 
 ## Residual Checks
 
