@@ -4,6 +4,48 @@ import SwiftUI
 
 @MainActor
 final class SessionsManagerTests: XCTestCase {
+    func testExplicitDisconnectSurvivesTabAndForegroundAutoConnectPaths() async {
+        let mock = MockTransport()
+        await mock.setBlockHandshake(true)
+        let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
+        let manager = SessionsManager(machineStore: store, transportFactory: { _ in mock })
+        let first = relayMC("intent-a")
+        let second = relayMC("intent-b")
+        store.add(first); store.add(second)
+        manager.setActive(first.id)
+        let session = manager.session(for: first.id)!
+        _ = await waitUntil { session.connection.inFlightTransportForTesting != nil }
+
+        manager.disconnect(id: first.id)
+        _ = await waitUntil { session.connection.phase == .disconnected }
+        XCTAssertEqual(session.connectionIntent, .disconnectedByUser)
+        manager.setActive(second.id)
+        manager.setActive(first.id)
+        manager.setAppForegroundAll(true)
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(session.connection.phase, .disconnected)
+    }
+
+    func testExplicitDisconnectIntentPersistsAndExplicitConnectClearsIt() async {
+        let suite = "test.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        let store = MachineStore(defaults: defaults)
+        let manager = SessionsManager(machineStore: store, transportFactory: { _ in MockTransport() })
+        let machine = relayMC("persist-intent")
+        store.add(machine)
+        _ = manager.session(for: machine.id)
+        manager.disconnect(id: machine.id)
+        XCTAssertEqual(store.machines.first?.connectionIntent, .disconnectedByUser)
+
+        let reloaded = MachineStore(defaults: defaults)
+        XCTAssertEqual(reloaded.machines.first?.connectionIntent, .disconnectedByUser)
+        let reloadedManager = SessionsManager(machineStore: reloaded, transportFactory: { _ in MockTransport() })
+        reloadedManager.bootstrapAutoConnect()
+        XCTAssertEqual(reloadedManager.activeSession?.connection.phase, .disconnected)
+
+        reloadedManager.connectMachine(id: machine.id)
+        XCTAssertEqual(reloaded.machines.first?.connectionIntent, .automatic)
+    }
     private func mgr() -> SessionsManager {
         let name = "test.\(UUID().uuidString)"
         let d = UserDefaults(suiteName: name)!

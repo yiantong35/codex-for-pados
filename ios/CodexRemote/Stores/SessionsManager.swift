@@ -54,13 +54,14 @@ final class SessionsManager {
     /// 手动（重）连某机器（TabBarView contextMenu「连接」项用）。
     /// 用 session(for:)：若懒连从未切过去、Session 未建，会按需建实例再连。
     func connectMachine(id: UUID) {
+        setConnectionIntent(.automatic, for: id)
         session(for: id)?.connect()
     }
 
     /// 是否可（重）连某机器：未在连接中且未就绪才显示「连接」入口。
     /// 未建 Session（懒连从未切过去）→ true（表示可连），避免为判断而提前建实例。
     func canConnect(id: UUID) -> Bool {
-        cache[id]?.shouldAutoConnect ?? true
+        cache[id]?.canConnectManually ?? true
     }
 
     /// 添加机器后自动切过去并连接（D13）。
@@ -93,6 +94,7 @@ final class SessionsManager {
     }
 
     func disconnect(id: UUID) {
+        setConnectionIntent(.disconnectedByUser, for: id)
         Task { await cache[id]?.disconnect() }
     }
 
@@ -101,8 +103,8 @@ final class SessionsManager {
         guard let m = machineStore.lastActiveMachine else { return }
         machineStore.setActive(m.id)
         let s = session(for: m.id)
-        s?.connect()
         s?.setForeground(true)
+        if s?.shouldAutoConnect == true { s?.connect() }
     }
 
     /// app 级前后台广播（D1）：遍历**全部缓存 Session**（不止当前活跃 tab）转发 app 级前后台，
@@ -115,6 +117,13 @@ final class SessionsManager {
     func setAppForegroundAll(_ active: Bool) {
         for s in cache.values { s.setAppForeground(active) }
         if active, let s = activeSession, s.shouldAutoConnect { s.connect() }
+    }
+
+    private func setConnectionIntent(_ intent: ConnectionIntent, for id: UUID) {
+        guard var machine = machineStore.machines.first(where: { $0.id == id }) else { return }
+        machine.connectionIntent = intent
+        machineStore.update(machine)
+        cache[id]?.updateMachine(machine)
     }
 
     // MARK: - T7 UI 依赖桩（数据源/表单接线在 T11/T8 补）

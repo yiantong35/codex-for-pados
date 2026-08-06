@@ -50,14 +50,28 @@ final class Session: Identifiable {
     /// 是否应发起（重）连：未在连接中且未就绪。用于切 tab 懒连（D7）与 tab 菜单重连入口。
     /// `.failed`/`.disconnected` → 可（重）连；`.connecting`/`.initializing`/`.reconnecting`/`.ready` → 不重复触发。
     var shouldAutoConnect: Bool {
+        guard connectionIntent == .automatic else { return false }
         switch connection.phase {
         case .ready, .connecting, .initializing, .reconnecting: return false
         case .disconnected, .failed: return true
         }
     }
 
+    var canConnectManually: Bool {
+        switch connection.phase {
+        case .disconnected, .failed: true
+        case .ready, .connecting, .initializing, .reconnecting: false
+        }
+    }
+
+    var connectionIntent: ConnectionIntent { machine.connectionIntent }
+
     func updateMachine(_ m: MachineConfig) { machine = m }
-    func connect() { connection.connect(config: machine.connectionConfig) }
+    func setConnectionIntent(_ intent: ConnectionIntent) { machine.connectionIntent = intent }
+    func connect() {
+        machine.connectionIntent = .automatic
+        connection.connect(config: machine.connectionConfig)
+    }
     func disconnect() async { await connection.disconnect() }
 
     /// 前后台切换（D6=B「后台保连+降频」）。

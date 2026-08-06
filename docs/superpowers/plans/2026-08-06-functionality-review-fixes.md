@@ -197,12 +197,12 @@ presentation wiring, localization resources, and protocol fixture tests.
 **Files:** session model/storage, `SessionsManager.swift`, connection entry points,
 and `SessionsManagerTests.swift`.
 
-- [ ] RED: after explicit Disconnect, tab changes, bootstrap, and foreground do
+- [x] RED: after explicit Disconnect, tab changes, bootstrap, and foreground do
   not connect; explicit Connect does; unexpected transport loss still reconnects.
-- [ ] Add `ConnectionIntent` and route every auto-connect call through one
+- [x] Add `ConnectionIntent` and route every auto-connect call through one
   predicate. Set intent before closing to remove the close callback race.
-- [ ] GREEN: run session persistence and connection lifecycle tests.
-- [ ] Commit: `fix(ipad): honor explicit disconnect intent`.
+- [x] GREEN: run session persistence and connection lifecycle tests.
+- [x] Commit: `fix(ipad): honor explicit disconnect intent`.
 
 ### Task 4.2: Give side chat one conversation owner
 
