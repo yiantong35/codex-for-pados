@@ -130,14 +130,14 @@ protocol adapters, and `JSONRPCClientTests.swift`.
 **Files:** new interactive request store/types/card view, conversation/root
 presentation wiring, localization resources, and protocol fixture tests.
 
-- [ ] RED: fixtures cover multiple questions, options, free-form, secret fields,
+- [x] RED: fixtures cover multiple questions, options, free-form, secret fields,
   cancellation, disconnect, and `autoResolutionMs`.
-- [ ] Render one pending request at a time without blocking unrelated approvals;
+- [x] Render one pending request at a time without blocking unrelated approvals;
   preserve each generated question id.
-- [ ] Encode `{answers: {id: {answers: [...]}}}` exactly and complete the request
+- [x] Encode `{answers: {id: {answers: [...]}}}` exactly and complete the request
   id once; auto resolution follows the request policy and never guesses secrets.
-- [ ] GREEN: run store, view-model, fixture, timeout, and disconnect tests.
-- [ ] Commit: `feat(ipad): respond to tool user-input requests`.
+- [x] GREEN: run store, view-model, fixture, timeout, and disconnect tests.
+- [x] Commit: `feat(ipad): respond to tool user-input requests`.
 
 ### Task 2.3: Implement MCP elicitation
 

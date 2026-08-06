@@ -21,6 +21,7 @@ final class Session: Identifiable {
     let sideChat: SideChatStore
     let envInspector: EnvironmentInspectorModel
     let approvals: ApprovalStore
+    let userInputs: UserInputStore
 
     init(machine: MachineConfig,
          transportFactory: @escaping @Sendable (ConnectionConfig) async throws -> MessageTransport) {
@@ -38,6 +39,7 @@ final class Session: Identifiable {
         self.sideChat = SideChatStore()
         self.envInspector = EnvironmentInspectorModel()
         self.approvals = ApprovalStore()
+        self.userInputs = UserInputStore()
     }
 
     /// 前后台标记（D6=B）。默认后台；活跃 tab 由 SessionsManager 置前台。

@@ -93,6 +93,7 @@ struct RootView: View {
             .environment(s.connection)
             .environment(s.projects)
             .environment(s.approvals)
+            .environment(s.userInputs)
             .environment(s.environment)
             .environment(s.mcp)
             .environment(s.skills)
@@ -116,7 +117,9 @@ private struct WorkspaceHost: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(ProjectsStore.self) private var projects
     @Environment(ApprovalStore.self) private var approvals
+    @Environment(UserInputStore.self) private var userInputs
     @State private var coordinator: ApprovalCoordinator?
+    @State private var userInputCoordinator: UserInputCoordinator?
     // 信任失效横幅「重新配对」入口：弹配对导入 sheet（fail-closed 引导重配，非静默降级）。
     @State private var showRePairing = false
 
@@ -136,12 +139,18 @@ private struct WorkspaceHost: View {
             .task(id: rpcIdentity) {
                 let coord = coordinator ?? ApprovalCoordinator(store: approvals, projects: projects)
                 coordinator = coord
+                let inputCoord = userInputCoordinator ?? UserInputCoordinator(store: userInputs)
+                userInputCoordinator = inputCoord
                 if connection.phase == .ready, let rpc = connection.rpc {
                     await coord.bind(rpc: rpc)
+                    await inputCoord.bind(rpc: rpc)
                 }
             }
             .onChange(of: connection.phase) { _, phase in
-                if phase == .reconnecting { coordinator?.connectionLost() }
+                if phase != .ready { userInputCoordinator?.connectionLost() }
+                if phase == .reconnecting {
+                    coordinator?.connectionLost()
+                }
             }
     }
 

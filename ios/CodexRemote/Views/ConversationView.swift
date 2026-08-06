@@ -26,6 +26,7 @@ private struct BottomDistanceKey: PreferenceKey {
 struct ConversationView: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(ApprovalStore.self) private var approvals
+    @Environment(UserInputStore.self) private var userInputs
     @Environment(ActiveConversationHolder.self) private var activeConversation
     let threadId: String
     /// D1：是否绑定工作区审查状态（写入/清空 ActiveConversationHolder 并注册 resume）。
@@ -39,6 +40,11 @@ struct ConversationView: View {
     /// 属于当前线程的待处理审批卡（内联在对话流末尾）。
     private var threadApprovals: [ApprovalCard] {
         approvals.cards.filter { $0.threadId == threadId }
+    }
+
+    /// 同一 thread 一次只展示队首交互请求；完成后下一条自然出现。
+    private var currentUserInput: UserInputCard? {
+        userInputs.cards.first { $0.threadId == threadId }
     }
 
     /// #4 手动重连重绑键：threadId + RPC 身份。ConversationStore 持 `let rpc`，仅 threadId 变化
@@ -62,6 +68,9 @@ struct ConversationView: View {
                     }
                     ForEach(store?.state.items ?? []) { item in
                         ItemCard(item: item).id(item.id)
+                    }
+                    if let card = currentUserInput {
+                        UserInputCardView(card: card).id(card.id)
                     }
                     ForEach(threadApprovals) { card in
                         ApprovalCardView(card: card).id(card.id)

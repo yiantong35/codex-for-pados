@@ -5224,6 +5224,42 @@
           }
         }
       }
+    },
+    "userInput.title": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Input requested" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "需要你的输入" } }
+      }
+    },
+    "userInput.awaitingRecovery": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Waiting for the connection to recover" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "等待连接恢复" } }
+      }
+    },
+    "userInput.answerPlaceholder": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Answer" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "回答" } }
+      }
+    },
+    "userInput.otherPlaceholder": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Other" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "其他" } }
+      }
+    },
+    "userInput.cancel": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Cancel" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "取消" } }
+      }
+    },
+    "userInput.submit": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Submit" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "提交" } }
+      }
     }
   },
   "version": "1.0"
