@@ -140,6 +140,22 @@ final class SessionsManagerTests: XCTestCase {
         XCTAssertNil(m.activeSession)
     }
 
+    func test_removingActiveMachineActivatesAndConnectsReplacement() {
+        let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
+        let manager = SessionsManager(machineStore: store, transportFactory: { _ in MockTransport() })
+        let a = relayMC("remove-active-a"); store.add(a)
+        let b = relayMC("remove-active-b"); store.add(b)
+        manager.setActive(a.id)
+
+        manager.removeMachine(id: a.id)
+
+        XCTAssertEqual(manager.activeSessionId, b.id)
+        let replacement = manager.activeSession
+        XCTAssertEqual(replacement?.id, b.id)
+        XCTAssertEqual(replacement?.isForeground, true)
+        XCTAssertNotEqual(replacement?.connection.phase, .disconnected)
+    }
+
     /// Important#1 回归：removeMachine 必须真的断连缓存 session（防连接泄漏）。
     /// 旧实现 `Task { await cache[id]?.disconnect() }` + 同步 `cache[id] = nil`：闭包体延迟
     /// 执行时 cache[id] 已为 nil → 断连从不发生。

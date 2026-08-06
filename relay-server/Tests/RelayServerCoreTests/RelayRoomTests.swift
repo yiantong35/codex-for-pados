@@ -45,6 +45,41 @@ import RelayProtocol
     #expect(devRx == ["a", "b", "c", "d"])
 }
 
+@Test func liveFrameCannotOvertakeBufferedFlush() {
+    let rooms = RelayRooms()
+    rooms.join(sessionId: "ordered", role: .iPad) { _ in }
+    rooms.forward(sessionId: "ordered", from: .iPad, frame: "buffered-1")
+    rooms.forward(sessionId: "ordered", from: .iPad, frame: "buffered-2")
+
+    let firstEntered = DispatchSemaphore(value: 0)
+    let releaseFirst = DispatchSemaphore(value: 0)
+    let finished = DispatchSemaphore(value: 0)
+    let received = LockedFrames()
+    DispatchQueue.global().async {
+        rooms.join(sessionId: "ordered", role: .devMachine) { frame in
+            received.append(frame)
+            if frame == "buffered-1" {
+                firstEntered.signal()
+                releaseFirst.wait()
+            }
+        }
+        finished.signal()
+    }
+
+    #expect(firstEntered.wait(timeout: .now() + 2) == .success)
+    rooms.forward(sessionId: "ordered", from: .iPad, frame: "live")
+    releaseFirst.signal()
+    #expect(finished.wait(timeout: .now() + 2) == .success)
+    #expect(received.snapshot == ["buffered-1", "buffered-2", "live"])
+}
+
+private final class LockedFrames: @unchecked Sendable {
+    private let lock = NSLock()
+    private var frames: [String] = []
+    func append(_ frame: String) { lock.lock(); frames.append(frame); lock.unlock() }
+    var snapshot: [String] { lock.lock(); defer { lock.unlock() }; return frames }
+}
+
 // D4/3.3：旧 connId 的迟到/重复 leave 不得误清已在槽内的较新连接。
 @Test func staleLeaveByOldConnIdDoesNotEvictNewer() {
     let rooms = RelayRooms()

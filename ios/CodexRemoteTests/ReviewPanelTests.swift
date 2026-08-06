@@ -96,6 +96,31 @@ struct ReviewPanelTests {
         #expect(ReviewPanelView.resolvedSelection(current: "gone", paths: ["a", "b"]) == "a")
         #expect(ReviewPanelView.resolvedSelection(current: "a", paths: []) == nil)
     }
+    @Test func parsePathsContainingSpaces() {
+        let diff = """
+        diff --git a/folder/old file.txt b/folder/new file.txt
+        similarity index 100%
+        rename from folder/old file.txt
+        rename to folder/new file.txt
+        """
+        let file = UnifiedDiffParser.parse(diff)[0]
+        #expect(file.oldPath == "folder/old file.txt")
+        #expect(file.path == "folder/new file.txt")
+        #expect(file.kind == .rename)
+    }
+    @Test func parseGitQuotedAndOctalEscapedPaths() {
+        let diff = #"""
+        diff --git "a/docs/hello\040\346\234\200.txt" "b/docs/hello\040\346\234\200.txt"
+        --- "a/docs/hello\040\346\234\200.txt"
+        +++ "b/docs/hello\040\346\234\200.txt"
+        @@ -1 +1 @@
+        -old
+        +new
+        """#
+        let files = UnifiedDiffParser.parse(diff)
+        #expect(files.count == 1)
+        #expect(files[0].path == "docs/hello 最.txt")
+    }
     @Test func gitDiffMethodAndDecode() throws {
         #expect(RPCMethod.gitDiffToRemote == "gitDiffToRemote")
         let r = try JSONDecoder().decode(GitDiffToRemoteResponse.self,

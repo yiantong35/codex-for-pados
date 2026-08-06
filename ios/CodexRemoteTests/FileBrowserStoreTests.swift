@@ -56,6 +56,22 @@ struct FileBrowserStoreTests {
         return nil
     }
 
+    private func requestIDs(_ mock: MockTransport, method: String, path: String, count: Int) async -> [String] {
+        for _ in 0..<200 {
+            let sent = await mock.sent
+            let ids = sent.compactMap { frame -> String? in
+                guard let obj = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any],
+                      obj["method"] as? String == method,
+                      let params = obj["params"] as? [String: Any], params["path"] as? String == path
+                else { return nil }
+                return obj["id"] as? String
+            }
+            if ids.count >= count { return ids }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+        return []
+    }
+
     @Test func noCwdIsEmptyAndSendsNothing() async {
         let (mock, _, store) = await makeStore()
         await store.setRoot(nil)
@@ -163,5 +179,36 @@ struct FileBrowserStoreTests {
 
         #expect(store.selectedFile?.path == "/repo/b.txt")
         #expect(store.selectedFile?.content == .text("B"))
+    }
+
+    @Test func lateDirectoryResponseCannotOverwriteNewerRefresh() async {
+        let (mock, _, store) = await makeStore()
+        let initial = Task { await store.setRoot("/repo") }
+        guard (await requestIDs(mock, method: RPCMethod.fsReadDirectory, path: "/repo", count: 1)).count == 1 else {
+            Issue.record("initial directory request was not sent"); initial.cancel(); return
+        }
+        let refresh = Task { await store.refresh() }
+        let ids = await requestIDs(mock, method: RPCMethod.fsReadDirectory, path: "/repo", count: 2)
+        guard ids.count == 2 else {
+            Issue.record("refresh directory request was not sent"); initial.cancel(); refresh.cancel(); return
+        }
+
+        await mock.feed(#"{"id":"\#(ids[1])","result":{"entries":[{"fileName":"new.txt","isDirectory":false,"isFile":true}]}}"#)
+        await refresh.value
+        await mock.feed(#"{"id":"\#(ids[0])","result":{"entries":[{"fileName":"old.txt","isDirectory":false,"isFile":true}]}}"#)
+        await initial.value
+
+        #expect(store.nodes["/repo"]?.entries?.map(\.fileName) == ["new.txt"])
+    }
+
+    @Test func wireLimitErrorDegradesFilePreviewToTooLarge() async {
+        let (mock, _, store) = await makeStore()
+        let open = Task { await store.openFile("/repo/huge.bin") }
+        guard let id = await requestID(mock, method: RPCMethod.fsReadFile, path: "/repo/huge.bin") else {
+            Issue.record("file request was not sent"); open.cancel(); return
+        }
+        await mock.feed(#"{"id":"\#(id)","error":{"code":-32010,"message":"Relay response exceeds 1 MiB wire limit"}}"#)
+        await open.value
+        #expect(store.selectedFile?.content == .tooLarge)
     }
 }

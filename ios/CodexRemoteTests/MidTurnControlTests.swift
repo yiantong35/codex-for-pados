@@ -17,12 +17,22 @@ final class MidTurnControlTests: XCTestCase {
     /// steer：turn 进行中 → 发 turn/steer，带 expectedTurnId=T1。
     func testSteerSendsExpectedTurnId() async throws {
         let (store, mock) = await runningStore()
+        let responder = respondToSteer(mock, error: nil)
         let ok = await store.steer(input: [.text("change course")])
+        responder.cancel()
         XCTAssertTrue(ok)
         try await waitUntil { await mock.sent.contains { $0.contains("turn/steer") } }
         let sent = await mock.sent.first { $0.contains("turn/steer") }!
         XCTAssertTrue(sent.contains(#""expectedTurnId":"T1""#), sent)
         XCTAssertTrue(sent.contains(#""threadId":"t1""#), sent)
+    }
+
+    func testSteerReturnsFalseWhenServerRejects() async throws {
+        let (store, mock) = await runningStore()
+        let responder = respondToSteer(mock, error: "rejected")
+        let ok = await store.steer(input: [.text("do not discard me")])
+        responder.cancel()
+        XCTAssertFalse(ok)
     }
 
     /// review 类型 turn 不可 steer：steer 返回 false 且不发帧。
@@ -85,5 +95,23 @@ final class MidTurnControlTests: XCTestCase {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
         XCTFail("waitUntil timed out")
+    }
+
+    private func respondToSteer(_ mock: MockTransport, error: String?) -> Task<Void, Never> {
+        Task {
+            for _ in 0..<200 {
+                for frame in await mock.sent where frame.contains(#""method":"turn/steer""#) {
+                    guard let object = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any],
+                          let id = object["id"] as? String else { continue }
+                    if let error {
+                        await mock.feed(#"{"id":"\#(id)","error":{"code":-32000,"message":"\#(error)"}}"#)
+                    } else {
+                        await mock.feed(#"{"id":"\#(id)","result":{}}"#)
+                    }
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 5_000_000)
+            }
+        }
     }
 }

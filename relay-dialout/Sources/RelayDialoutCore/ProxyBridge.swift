@@ -5,6 +5,10 @@ import Darwin
 import Glibc
 #endif
 
+public enum ProxyBridgeError: Error, Equatable {
+    case executableNotFound(String)
+}
+
 /// 桥接开发机本地已有的共享 control-socket daemon。
 ///
 /// spawn 官方 `codex app-server proxy --sock <control.sock>` 子进程——**只 spawn proxy 桥**，
@@ -18,6 +22,7 @@ public final class ProxyBridge: @unchecked Sendable {
     private let codexPath: String
     private let sockPath: String
     private let overrideArguments: [String]?
+    private let environment: [String: String]
     private let terminationGracePeriod: Duration
     private let process = Process()
     private let stdinPipe = Pipe()
@@ -33,10 +38,12 @@ public final class ProxyBridge: @unchecked Sendable {
     public init(codexPath: String = "codex",
                 arguments: [String]? = nil,
                 sockPath: String,
+                environment: [String: String] = ProcessInfo.processInfo.environment,
                 terminationGracePeriod: Duration = .seconds(2)) {
         self.codexPath = codexPath
         self.overrideArguments = arguments
         self.sockPath = sockPath
+        self.environment = environment
         self.terminationGracePeriod = terminationGracePeriod
     }
 
@@ -56,13 +63,37 @@ public final class ProxyBridge: @unchecked Sendable {
 
     public func start() throws {
         try processQueue.sync {
-            process.executableURL = URL(fileURLWithPath: codexPath)
+            process.executableURL = try Self.resolveExecutable(codexPath, environment: environment)
             process.arguments = overrideArguments ?? ["app-server", "proxy", "--sock", sockPath]
+            process.environment = environment
             process.standardInput = stdinPipe
             process.standardOutput = stdoutPipe
             try process.run()
             didStart = true
         }
+    }
+
+    /// `Process.executableURL` 不会搜索 PATH；生产默认值 `codex` 必须先解析成绝对路径。
+    static func resolveExecutable(_ configuredPath: String,
+                                  environment: [String: String]) throws -> URL {
+        let fileManager = FileManager.default
+        if configuredPath.contains("/") {
+            let url = URL(fileURLWithPath: configuredPath).standardizedFileURL
+            guard fileManager.isExecutableFile(atPath: url.path) else {
+                throw ProxyBridgeError.executableNotFound(configuredPath)
+            }
+            return url
+        }
+
+        let searchPath = environment["PATH"] ?? ""
+        for component in searchPath.split(separator: ":", omittingEmptySubsequences: false) {
+            let directory = component.isEmpty ? fileManager.currentDirectoryPath : String(component)
+            let candidate = URL(fileURLWithPath: directory, isDirectory: true)
+                .appendingPathComponent(configuredPath)
+                .standardizedFileURL
+            if fileManager.isExecutableFile(atPath: candidate.path) { return candidate }
+        }
+        throw ProxyBridgeError.executableNotFound(configuredPath)
     }
 
     /// 往 proxy stdin 写一行 JSON-RPC（按行协议，自动补换行）。

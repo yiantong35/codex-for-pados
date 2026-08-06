@@ -98,8 +98,14 @@ final class SessionsManager {
         // 先捕获 session 再清缓存：`Task{}` 体在 @MainActor 稍后调度，若先同步置 nil，
         // 闭包届时读到的 cache[id] 已为 nil → disconnect 短路、断连从不发生（连接泄漏）。
         let s = cache[id]
+        let removedActiveMachine = machineStore.activeMachineId == id
+        s?.setForeground(false)
         cache[id] = nil
         machineStore.remove(id: id)
+        // MachineStore 会选出相邻机器，但只有 setActive 才会创建/前台化 Session 并触发懒连。
+        if removedActiveMachine, let nextId = machineStore.activeMachineId {
+            setActive(nextId)
+        }
         Task { await s?.disconnect() }
     }
 

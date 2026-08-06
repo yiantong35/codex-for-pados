@@ -288,10 +288,22 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
         if let outputAttachment { outputRouter.detach(outputAttachment) }
         let channel = ctx.channel
         let ctxRef = context
+        let bridgeRef = bridge
         outputAttachment = outputRouter.attach { line in
-            guard let session = ctxRef.session,
-                  let env = try? session.seal(Data(line.utf8), kind: .appData),
-                  let encoded = try? env.encoded() else { return }
+            guard let session = ctxRef.session else { return }
+            let result: DialoutOutboundFrameBuildResult
+            do { result = try DialoutOutboundFrameBuilder.build(line: line, session: session) }
+            catch { return }
+            let encoded: Data
+            switch result {
+            case .frame(let frame):
+                encoded = frame
+            case .rejectUpstream(let response):
+                bridgeRef.write(response)
+                return
+            case .dropped:
+                return
+            }
             channel.eventLoop.execute {
                 var buf = channel.allocator.buffer(capacity: encoded.count)
                 buf.writeBytes(encoded)
