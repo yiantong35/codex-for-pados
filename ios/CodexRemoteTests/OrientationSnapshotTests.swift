@@ -60,9 +60,14 @@ final class OrientationSnapshotTests: XCTestCase {
         // 已知局限：drawHierarchy(afterScreenUpdates:true) 在 UIGraphicsImageRenderer 离屏上下文中
         // 恒返回空白（需真实屏幕渲染通道）。齿轮已不走系统 toolbar：现挂在自绘顶栏 topBar 的
         // HStack 内（RootSplitView），随 layer 树同步渲染即可捕获，两个朝向同一份自绘顶栏均接入（见报告）。
-        let renderer = UIGraphicsImageRenderer(size: size)
-        let png = renderer.pngData { ctx in
-            window.layer.render(in: ctx.cgContext)
+        let png: Data = autoreleasepool {
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            format.opaque = true
+            let renderer = UIGraphicsImageRenderer(size: size, format: format)
+            return renderer.pngData { ctx in
+                window.layer.render(in: ctx.cgContext)
+            }
         }
 
         let path = "\(outDir)/\(name).png"
@@ -163,6 +168,8 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(TerminalSession())
             .environment(makeConnection())
             .environment(makeProjects())
+            .environment(FileBrowserStore())
+            .environment(SideChatStore())
             .environment(LocaleManager())
             .environment(ThemeManager())
             .environment(ShortcutStore())                 // T10
@@ -185,6 +192,8 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(TerminalSession())
             .environment(makeConnection())
             .environment(makeProjects())
+            .environment(FileBrowserStore())
+            .environment(SideChatStore())
             .environment(LocaleManager())
             .environment(ThemeManager())
             .environment(ShortcutStore())                 // T10
