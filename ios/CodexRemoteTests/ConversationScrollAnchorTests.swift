@@ -19,4 +19,10 @@ final class ConversationScrollAnchorTests: XCTestCase {
         XCTAssertFalse(ScrollAnchorPolicy.isNearBottom(distanceToBottom: 121, threshold: 120))
         XCTAssertFalse(ScrollAnchorPolicy.isNearBottom(distanceToBottom: 400, threshold: 120))
     }
+    func test_contentGrowthUsesHeightNotItemCount() {
+        XCTAssertTrue(ScrollAnchorPolicy.contentDidGrow(previousHeight: 400, currentHeight: 401))
+        XCTAssertFalse(ScrollAnchorPolicy.contentDidGrow(previousHeight: 400, currentHeight: 400.4))
+        XCTAssertFalse(ScrollAnchorPolicy.contentDidGrow(previousHeight: 400, currentHeight: 350))
+        XCTAssertFalse(ScrollAnchorPolicy.contentDidGrow(previousHeight: 0, currentHeight: 400))
+    }
 }

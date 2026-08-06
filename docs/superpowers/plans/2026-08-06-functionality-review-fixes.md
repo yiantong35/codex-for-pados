@@ -222,12 +222,12 @@ and side-chat isolation/store tests.
 **Files:** `ConversationView.swift`, recovered scroll helper/tests, approval/running
 indicator integration, and `ConversationScrollAnchorTests.swift`.
 
-- [ ] RED: streaming delta, approval-card insertion/growth, and running-indicator
+- [x] RED: streaming delta, approval-card insertion/growth, and running-indicator
   changes auto-scroll only when within 120 pt; manual jump targets the sentinel.
-- [ ] Preserve the recovered geometry rule, publish content-height growth, and
+- [x] Preserve the recovered geometry rule, publish content-height growth, and
   centralize all auto/manual bottom actions on a stable bottom sentinel id.
-- [ ] GREEN: run scroll policy tests and inspect portrait/landscape behavior.
-- [ ] Commit: `fix(ipad): anchor conversation scrolling to content growth`.
+- [x] GREEN: run scroll policy tests and inspect portrait/landscape behavior.
+- [x] Commit: `fix(ipad): anchor conversation scrolling to content growth`.
 
 ### Task 4.4: Make full diff a generation-keyed snapshot
 

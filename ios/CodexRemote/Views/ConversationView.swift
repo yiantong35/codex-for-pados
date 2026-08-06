@@ -9,13 +9,20 @@ enum ScrollAnchorPolicy {
     static func shouldShowNewBelow(isNearBottom: Bool, contentDidGrow: Bool) -> Bool {
         !isNearBottom && contentDidGrow
     }
+    static func contentDidGrow(previousHeight: CGFloat, currentHeight: CGFloat) -> Bool {
+        previousHeight > 0 && currentHeight > previousHeight + 0.5
+    }
 }
 
-/// #10：滚动内容底部到可视底部的最小距离（取多个几何读数的 min）。
-private struct BottomDistanceKey: PreferenceKey {
-    static let defaultValue: CGFloat = .greatestFiniteMagnitude
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = Swift.min(value, nextValue())
+private struct ConversationScrollMetrics: Equatable {
+    var contentHeight: CGFloat = 0
+    var distanceToBottom: CGFloat = 0
+}
+
+private struct ConversationScrollMetricsKey: PreferenceKey {
+    static let defaultValue = ConversationScrollMetrics()
+    static func reduce(value: inout ConversationScrollMetrics, nextValue: () -> ConversationScrollMetrics) {
+        value = nextValue()
     }
 }
 
@@ -37,6 +44,7 @@ struct ConversationView: View {
     /// D8：滚动位置感知（哨兵事件驱动，无轮询/定时器）。
     @State private var isNearBottom = true
     @State private var showNewBelow = false
+    @State private var scrollMetrics = ConversationScrollMetrics()
 
     /// 属于当前线程的待处理审批卡（内联在对话流末尾）。
     private var threadApprovals: [ApprovalCard] {
@@ -93,32 +101,40 @@ struct ConversationView: View {
                     if store?.state.isTurnRunning == true {
                         turnRunningIndicator.id(Self.turnIndicatorID)
                     }
-                    // #10：底部几何测点——上报「内容底部 minY − 视口底部 maxY」作 distanceToBottom。
-                    // 内容底部在视口内/上方 → 距离 ≤ 0；在视口下方（还没滚到底）→ 正距离。
+                    // 稳定回底锚点；内容高度与底部距离由整个栈的几何快照统一上报。
                     Color.clear.frame(height: 1).id(Self.bottomSentinelID)
-                        .background(GeometryReader { g in
-                            Color.clear.preference(
-                                key: BottomDistanceKey.self,
-                                value: g.frame(in: .global).minY - outer.frame(in: .global).maxY)
-                        })
                 }
                 .padding()
+                .background(GeometryReader { geometry in
+                    Color.clear.preference(
+                        key: ConversationScrollMetricsKey.self,
+                        value: ConversationScrollMetrics(
+                            contentHeight: geometry.size.height,
+                            distanceToBottom: geometry.frame(in: .global).maxY - outer.frame(in: .global).maxY
+                        )
+                    )
+                })
             }
-            .onPreferenceChange(BottomDistanceKey.self) { d in
-                // 真调策略函数（threshold=120）——消灭死代码。负距离夹到 0（已贴底）。
-                let near = ScrollAnchorPolicy.isNearBottom(distanceToBottom: Swift.max(0, d), threshold: 120)
-                isNearBottom = near
-                if near { showNewBelow = false }
-            }
-            .onChange(of: store?.state.items.count) { _, _ in
-                if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: isNearBottom) {
-                    scrollToBottom(proxy)
-                } else {
-                    showNewBelow = true
+            .onPreferenceChange(ConversationScrollMetricsKey.self) { metrics in
+                let wasNearBottom = ScrollAnchorPolicy.isNearBottom(
+                    distanceToBottom: Swift.max(0, scrollMetrics.distanceToBottom), threshold: 120
+                )
+                let grew = ScrollAnchorPolicy.contentDidGrow(
+                    previousHeight: scrollMetrics.contentHeight, currentHeight: metrics.contentHeight
+                )
+                scrollMetrics = metrics
+                isNearBottom = ScrollAnchorPolicy.isNearBottom(
+                    distanceToBottom: Swift.max(0, metrics.distanceToBottom), threshold: 120
+                )
+                if grew {
+                    if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: wasNearBottom) {
+                        scrollToBottom(proxy)
+                    } else if ScrollAnchorPolicy.shouldShowNewBelow(isNearBottom: wasNearBottom, contentDidGrow: true) {
+                        showNewBelow = true
+                    }
+                } else if isNearBottom {
+                    showNewBelow = false
                 }
-            }
-            .onChange(of: store?.state.isTurnRunning) { _, _ in
-                if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: isNearBottom) { scrollToBottom(proxy) }
             }
             .overlay(alignment: .bottom) {
                 if showNewBelow {
@@ -229,11 +245,7 @@ struct ConversationView: View {
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
         withAnimation(.easeOut(duration: 0.2)) {
-            if store?.state.isTurnRunning == true {
-                proxy.scrollTo(Self.turnIndicatorID, anchor: .bottom)
-            } else if let last = store?.state.items.last {
-                proxy.scrollTo(last.id, anchor: .bottom)
-            }
+            proxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
         }
     }
 }
