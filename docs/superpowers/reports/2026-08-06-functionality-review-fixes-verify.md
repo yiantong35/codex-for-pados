@@ -38,6 +38,8 @@ Full verify counts:
 - `git diff --check`: PASS on a clean worktree.
 - OpenSpec archive: created `2026-08-06-functionality-review-fixes` and promoted
   15 requirements into 10 main capability specs.
+- The Comet verify wrapper validates the named active change before archive and
+  automatically validates all main specs after that change has been archived.
 
 Linux evidence:
 

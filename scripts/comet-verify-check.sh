@@ -26,7 +26,11 @@ generate_ios_project() {
 
 validate_openspec() {
     cd "$ROOT_DIR"
-    openspec validate "$OPEN_SPEC_CHANGE" --strict
+    if [[ -d "$ROOT_DIR/openspec/changes/$OPEN_SPEC_CHANGE" ]]; then
+        openspec validate "$OPEN_SPEC_CHANGE" --strict
+    else
+        openspec validate --specs --strict
+    fi
 }
 
 check_git_diff() {
