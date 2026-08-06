@@ -9,13 +9,20 @@ enum ScrollAnchorPolicy {
     static func shouldShowNewBelow(isNearBottom: Bool, contentDidGrow: Bool) -> Bool {
         !isNearBottom && contentDidGrow
     }
+    static func contentDidGrow(previousHeight: CGFloat, currentHeight: CGFloat) -> Bool {
+        previousHeight > 0 && currentHeight > previousHeight + 0.5
+    }
 }
 
-/// #10：滚动内容底部到可视底部的最小距离（取多个几何读数的 min）。
-private struct BottomDistanceKey: PreferenceKey {
-    static let defaultValue: CGFloat = .greatestFiniteMagnitude
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = Swift.min(value, nextValue())
+private struct ConversationScrollMetrics: Equatable {
+    var contentHeight: CGFloat = 0
+    var distanceToBottom: CGFloat = 0
+}
+
+private struct ConversationScrollMetricsKey: PreferenceKey {
+    static let defaultValue = ConversationScrollMetrics()
+    static func reduce(value: inout ConversationScrollMetrics, nextValue: () -> ConversationScrollMetrics) {
+        value = nextValue()
     }
 }
 
@@ -26,6 +33,8 @@ private struct BottomDistanceKey: PreferenceKey {
 struct ConversationView: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(ApprovalStore.self) private var approvals
+    @Environment(UserInputStore.self) private var userInputs
+    @Environment(McpElicitationStore.self) private var mcpElicitations
     @Environment(ActiveConversationHolder.self) private var activeConversation
     let threadId: String
     /// D1：是否绑定工作区审查状态（写入/清空 ActiveConversationHolder 并注册 resume）。
@@ -37,6 +46,7 @@ struct ConversationView: View {
     /// D8：滚动位置感知（哨兵事件驱动，无轮询/定时器）。
     @State private var isNearBottom = true
     @State private var showNewBelow = false
+    @State private var scrollMetrics = ConversationScrollMetrics()
 
     static func allowsWorkspaceReviewNavigation(bindsWorkspaceState: Bool,
                                                 hasAction: Bool) -> Bool {
@@ -54,6 +64,15 @@ struct ConversationView: View {
     /// 属于当前线程的待处理审批卡（内联在对话流末尾）。
     private var threadApprovals: [ApprovalCard] {
         approvals.cards.filter { $0.threadId == threadId }
+    }
+
+    /// 同一 thread 一次只展示队首交互请求；完成后下一条自然出现。
+    private var currentUserInput: UserInputCard? {
+        userInputs.cards.first { $0.threadId == threadId }
+    }
+
+    private var currentMcpElicitation: McpElicitationCard? {
+        mcpElicitations.cards.first { $0.threadId == threadId }
     }
 
     /// #4 手动重连重绑键：threadId + RPC 身份。ConversationStore 持 `let rpc`，仅 threadId 变化
@@ -78,38 +97,59 @@ struct ConversationView: View {
                     ForEach(store?.state.items ?? []) { item in
                         ItemCard(item: item).id(item.id)
                     }
+                    if let card = currentUserInput {
+                        UserInputCardView(card: card).id(card.id)
+                    }
+                    if let card = currentMcpElicitation {
+                        McpElicitationCardView(card: card).id(card.id)
+                    }
                     ForEach(threadApprovals) { card in
-                        ApprovalCardView(card: card).id(card.id)
+                        ApprovalCardView(
+                            card: card,
+                            fileContext: ApprovalPresentation.fileContext(
+                                for: card,
+                                in: store?.state.items ?? []
+                            )
+                        )
+                        .id(card.id)
                     }
                     if store?.state.isTurnRunning == true {
                         turnRunningIndicator.id(Self.turnIndicatorID)
                     }
-                    // #10：底部几何测点——上报「内容底部 minY − 视口底部 maxY」作 distanceToBottom。
-                    // 内容底部在视口内/上方 → 距离 ≤ 0；在视口下方（还没滚到底）→ 正距离。
+                    // 稳定回底锚点；内容高度与底部距离由整个栈的几何快照统一上报。
                     Color.clear.frame(height: 1).id(Self.bottomSentinelID)
-                        .background(GeometryReader { g in
-                            Color.clear.preference(
-                                key: BottomDistanceKey.self,
-                                value: g.frame(in: .global).minY - outer.frame(in: .global).maxY)
-                        })
                 }
                 .padding()
+                .background(GeometryReader { geometry in
+                    Color.clear.preference(
+                        key: ConversationScrollMetricsKey.self,
+                        value: ConversationScrollMetrics(
+                            contentHeight: geometry.size.height,
+                            distanceToBottom: geometry.frame(in: .global).maxY - outer.frame(in: .global).maxY
+                        )
+                    )
+                })
             }
-            .onPreferenceChange(BottomDistanceKey.self) { d in
-                // 真调策略函数（threshold=120）——消灭死代码。负距离夹到 0（已贴底）。
-                let near = ScrollAnchorPolicy.isNearBottom(distanceToBottom: Swift.max(0, d), threshold: 120)
-                isNearBottom = near
-                if near { showNewBelow = false }
-            }
-            .onChange(of: store?.state.items.count) { _, _ in
-                if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: isNearBottom) {
-                    scrollToBottom(proxy)
-                } else {
-                    showNewBelow = true
+            .onPreferenceChange(ConversationScrollMetricsKey.self) { metrics in
+                let wasNearBottom = ScrollAnchorPolicy.isNearBottom(
+                    distanceToBottom: Swift.max(0, scrollMetrics.distanceToBottom), threshold: 120
+                )
+                let grew = ScrollAnchorPolicy.contentDidGrow(
+                    previousHeight: scrollMetrics.contentHeight, currentHeight: metrics.contentHeight
+                )
+                scrollMetrics = metrics
+                isNearBottom = ScrollAnchorPolicy.isNearBottom(
+                    distanceToBottom: Swift.max(0, metrics.distanceToBottom), threshold: 120
+                )
+                if grew {
+                    if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: wasNearBottom) {
+                        scrollToBottom(proxy)
+                    } else if ScrollAnchorPolicy.shouldShowNewBelow(isNearBottom: wasNearBottom, contentDidGrow: true) {
+                        showNewBelow = true
+                    }
+                } else if isNearBottom {
+                    showNewBelow = false
                 }
-            }
-            .onChange(of: store?.state.isTurnRunning) { _, _ in
-                if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: isNearBottom) { scrollToBottom(proxy) }
             }
             .overlay(alignment: .bottom) {
                 if showNewBelow {
@@ -136,8 +176,9 @@ struct ConversationView: View {
         }
         .onDisappear {
             store?.stopObserving()
-            if bindsWorkspaceState {
+            if bindsWorkspaceState, activeConversation.contextIdentity == convBindingKey {
                 activeConversation.state = nil; activeConversation.fetchFullDiff = nil; activeConversation.startReview = nil
+                activeConversation.contextIdentity = nil
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -180,6 +221,7 @@ struct ConversationView: View {
             let resumeToken = connection.addResumeHandler { [weak s] in await s?.rejoinRunningThreads() }
             defer { connection.removeResumeHandler(resumeToken) }
             if bindsWorkspaceState {
+                activeConversation.contextIdentity = convBindingKey
                 // 审查面板「全量」数据源：注入拉取回调（gitDiffToRemote），供右栏按 cwd 拉全量 diff。
                 activeConversation.fetchFullDiff = { [weak s] cwd in await s?.fetchFullDiff(cwd: cwd) }
                 // 审查 tab AI 审查发起：注入 review/start 回调（设计 D4，对齐 fetchFullDiff 注入）。
@@ -218,11 +260,7 @@ struct ConversationView: View {
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
         withAnimation(.easeOut(duration: 0.2)) {
-            if store?.state.isTurnRunning == true {
-                proxy.scrollTo(Self.turnIndicatorID, anchor: .bottom)
-            } else if let last = store?.state.items.last {
-                proxy.scrollTo(last.id, anchor: .bottom)
-            }
+            proxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
         }
     }
 }

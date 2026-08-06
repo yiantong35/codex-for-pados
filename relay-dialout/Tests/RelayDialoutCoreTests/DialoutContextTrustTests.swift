@@ -262,13 +262,14 @@ private func driveHandshake(context: DialoutContext, hello: ClientHello,
 // MARK: - #2：dev 侧信任落盘成功后才发布会话 / 消费口令
 
 /// #2：信任落盘失败时，handleClientAuth 必须向上抛错、不发布 _session、不消费口令、清握手临时态。
-/// 用一个指向随后被设为只读目录的 TrustStore，令首配路径的 trust.trust 落盘（原子写）失败。
+/// 在信任文件路径创建目录，令首配路径的 trust.trust 原子写稳定失败（包括以 root 运行的容器）。
 @Test func trustPersistFailureDoesNotPublishSession() throws {
     let h = try DialoutTrustHarness()
     let trust = try TrustStore(dir: h.trustDir)   // init 时目录以 0700 建好，文件尚不存在
-    // 把信任目录设为不可写（0500），使 persist() 的原子写（在目录内建临时文件）失败。
-    try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: h.trustDir.path)
-    defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: h.trustDir.path) }
+    try FileManager.default.createDirectory(
+        at: h.trustDir.appendingPathComponent("trusted-ipads.json"),
+        withIntermediateDirectories: false
+    )
 
     let context = DialoutContext(keyStore: h.devKeyStore, devDeviceId: h.devDeviceId,
                                  pairingCode: h.pairingCode, expiresAt: h.expiresAt, trust: trust)

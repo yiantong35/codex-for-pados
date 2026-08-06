@@ -95,23 +95,47 @@ enum ReviewDecision: Codable {
 }
 struct ExecCommandApprovalResponse: Codable { let decision: ReviewDecision }
 
-// ===== 审批请求参数(取自 CommandExecutionRequestApprovalParams.json 等，MVP 子集)=====
+// ===== 审批请求参数（严格对齐当前生成 schema）=====
+enum NetworkApprovalProtocol: String, Codable, Equatable {
+    case http, https, socks5Tcp, socks5Udp
+}
+
+struct NetworkApprovalContext: Codable, Equatable {
+    let host: String
+    let `protocol`: NetworkApprovalProtocol
+}
+
+enum NetworkPolicyRuleAction: String, Codable, Equatable {
+    case allow, deny
+}
+
+struct NetworkPolicyAmendment: Codable, Equatable {
+    let host: String
+    let action: NetworkPolicyRuleAction
+}
+
 struct CommandExecutionApprovalParams: Codable {
     let threadId: String
     let turnId: String
     let itemId: String
+    let startedAtMs: Int64
     let approvalId: String?
     let command: String?
+    let commandActions: [AnyCodable]?
     let cwd: String?
+    let reason: String?
+    let networkApprovalContext: NetworkApprovalContext?
     let proposedExecpolicyAmendment: [String]?
+    let proposedNetworkPolicyAmendments: [NetworkPolicyAmendment]?
 }
 
 struct FileChangeApprovalParams: Codable {
     let threadId: String
-    let turnId: String?
-    let itemId: String?
-    // 文件改动明细：MVP 用 AnyCodable 承载 patch/diff，Task 18 渲染时取所需字段
-    let changes: AnyCodable?
+    let turnId: String
+    let itemId: String
+    let startedAtMs: Int64
+    let reason: String?
+    let grantRoot: String?
 }
 
 // ===== F4：v2 权限审批（item/permissions/requestApproval）=====
@@ -124,9 +148,77 @@ struct AdditionalNetworkPermissions: Codable, Equatable {
 }
 
 struct AdditionalFileSystemPermissions: Codable, Equatable {
-    // read/write 官方将迁移到 entries，MVP 仅承载 read/write 绝对路径列表用于知情展示。
+    let entries: [FileSystemSandboxEntry]?
+    let globScanMaxDepth: UInt?
     let read: [String]?
     let write: [String]?
+
+    init(entries: [FileSystemSandboxEntry]? = nil, globScanMaxDepth: UInt? = nil,
+         read: [String]? = nil, write: [String]? = nil) {
+        self.entries = entries
+        self.globScanMaxDepth = globScanMaxDepth
+        self.read = read
+        self.write = write
+    }
+}
+
+enum FileSystemAccessMode: String, Codable, Equatable {
+    case read, write, deny
+}
+
+enum FileSystemPath: Codable, Equatable {
+    case path(String)
+    case globPattern(String)
+    case special(FileSystemSpecialPath)
+
+    var displayValue: String {
+        switch self {
+        case .path(let value), .globPattern(let value): value
+        case .special(let value): value.displayValue
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey { case type, path, pattern, value }
+    private enum Kind: String, Codable { case path, globPattern = "glob_pattern", special }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        switch try container.decode(Kind.self, forKey: .type) {
+        case .path: self = .path(try container.decode(String.self, forKey: .path))
+        case .globPattern: self = .globPattern(try container.decode(String.self, forKey: .pattern))
+        case .special: self = .special(try container.decode(FileSystemSpecialPath.self, forKey: .value))
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .path(let value):
+            try container.encode(Kind.path, forKey: .type)
+            try container.encode(value, forKey: .path)
+        case .globPattern(let value):
+            try container.encode(Kind.globPattern, forKey: .type)
+            try container.encode(value, forKey: .pattern)
+        case .special(let value):
+            try container.encode(Kind.special, forKey: .type)
+            try container.encode(value, forKey: .value)
+        }
+    }
+}
+
+struct FileSystemSpecialPath: Codable, Equatable {
+    let kind: String
+    let path: String?
+    let subpath: String?
+
+    var displayValue: String {
+        [kind, path, subpath].compactMap { $0 }.joined(separator: ":")
+    }
+}
+
+struct FileSystemSandboxEntry: Codable, Equatable {
+    let access: FileSystemAccessMode
+    let path: FileSystemPath
 }
 
 /// 授予档案（对齐 GrantedPermissionProfile.ts：network?/fileSystem? 均可选）。
@@ -158,7 +250,70 @@ struct PermissionsRequestApprovalResponse: Codable {
 /// 权限审批请求参数子集（对齐 PermissionsRequestApprovalParams.ts）：解析知情要素。
 struct PermissionsRequestApprovalParams: Codable {
     let threadId: String
+    let turnId: String
+    let itemId: String
+    let startedAtMs: Int64
     let reason: String?
-    let permissions: RequestPermissionProfile?
-    let cwd: String?
+    let permissions: RequestPermissionProfile
+    let cwd: String
+    let environmentId: String?
+}
+
+struct ExecCommandApprovalParams: Codable {
+    let conversationId: String
+    let callId: String
+    let approvalId: String?
+    let command: [String]
+    let cwd: String
+    let parsedCmd: [AnyCodable]
+    let reason: String?
+}
+
+struct ApplyPatchApprovalParams: Codable {
+    let conversationId: String
+    let callId: String
+    let fileChanges: [String: AnyCodable]
+    let grantRoot: String?
+    let reason: String?
+}
+
+enum ApprovalRequestPayload {
+    case command(CommandExecutionApprovalParams)
+    case file(FileChangeApprovalParams)
+    case permissions(PermissionsRequestApprovalParams)
+    case legacyCommand(ExecCommandApprovalParams)
+    case legacyPatch(ApplyPatchApprovalParams)
+}
+
+enum ApprovalRequestDecoder {
+    static func decode(_ request: JSONRPCRequest) throws -> ApprovalRequestPayload {
+        guard let params = request.params else { throw ApprovalProtocolError.invalidParams }
+        let data = try JSONEncoder().encode(params)
+        do {
+            switch request.method {
+            case ServerRequestMethod.cmdApprovalV2:
+                return .command(try JSONDecoder().decode(CommandExecutionApprovalParams.self, from: data))
+            case ServerRequestMethod.fileApprovalV2:
+                return .file(try JSONDecoder().decode(FileChangeApprovalParams.self, from: data))
+            case ServerRequestMethod.permsApprovalV2:
+                return .permissions(try JSONDecoder().decode(PermissionsRequestApprovalParams.self, from: data))
+            case ServerRequestMethod.execApprovalLegacy:
+                return .legacyCommand(try JSONDecoder().decode(ExecCommandApprovalParams.self, from: data))
+            case ServerRequestMethod.applyPatchApprovalLegacy:
+                return .legacyPatch(try JSONDecoder().decode(ApplyPatchApprovalParams.self, from: data))
+            default:
+                throw ApprovalProtocolError.unsupportedMethod
+            }
+        } catch let error as ApprovalProtocolError {
+            throw error
+        } catch {
+            throw ApprovalProtocolError.decodingFailed(String(describing: error))
+        }
+    }
+}
+
+enum ApprovalProtocolError: Error, Equatable {
+    case invalidParams
+    case unsupportedMethod
+    case decodingFailed(String)
 }

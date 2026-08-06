@@ -1,0 +1,14 @@
+{
+  "id": "command-current",
+  "method": "item/commandExecution/requestApproval",
+  "params": {
+    "threadId": "thread-1",
+    "turnId": "turn-1",
+    "itemId": "item-1",
+    "startedAtMs": 1,
+    "command": "curl example.com",
+    "cwd": "/work",
+    "reason": "Needs network",
+    "networkApprovalContext": { "host": "example.com", "protocol": "https" }
+  }
+}

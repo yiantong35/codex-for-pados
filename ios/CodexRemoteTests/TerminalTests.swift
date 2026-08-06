@@ -157,6 +157,72 @@ struct TerminalTests {
         #expect(s.processId != pidA)
     }
 
+    @MainActor @Test func naturalExitClearsStateRendersOnceAndAllowsRestart() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let s = TerminalSession()
+        var output = ""
+        s.onBytes = { output += String(decoding: $0, as: UTF8.self) }
+        await s.attach(rpc: rpc)
+
+        s.start(cwd: "/repo")
+        let oldPid = try #require(s.processId)
+        let request = try await execRequest(at: 0, from: mock)
+        await mock.feed(response(to: request.id, result: #"{"exitCode":0}"#))
+        try await waitUntil { !s.running }
+
+        #expect(s.processId == nil)
+        #expect(output.components(separatedBy: "进程已退出").count == 2)
+        s.startIfNeeded(cwd: "/repo")
+        #expect(s.running)
+        #expect(s.processId != oldPid)
+    }
+
+    @MainActor @Test func terminateThenRestartIgnoresOldExecResponse() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let s = TerminalSession()
+        await s.attach(rpc: rpc)
+
+        s.start(cwd: "/repo")
+        let oldRequest = try await execRequest(at: 0, from: mock)
+        s.terminate()
+        #expect(s.processId == nil)
+        s.startIfNeeded(cwd: "/repo")
+        let newPid = try #require(s.processId)
+
+        await mock.feed(response(to: oldRequest.id, result: #"{"exitCode":0}"#))
+        await Task.yield()
+        #expect(s.running)
+        #expect(s.processId == newPid)
+    }
+
+    @MainActor @Test func cwdSwitchAndDisconnectInvalidateOldExecResponse() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let s = TerminalSession()
+        await s.attach(rpc: rpc)
+
+        s.start(cwd: "/a")
+        let cwdRequest = try await execRequest(at: 0, from: mock)
+        s.startIfNeeded(cwd: "/b")
+        let cwdPid = try #require(s.processId)
+        await mock.feed(response(to: cwdRequest.id, result: #"{"exitCode":0}"#))
+        await Task.yield()
+        #expect(s.running)
+        #expect(s.processId == cwdPid)
+
+        let currentRequest = try await execRequest(at: 1, from: mock)
+        s.handleDisconnect()
+        await mock.feed(response(to: currentRequest.id, result: #"{"exitCode":0}"#))
+        await Task.yield()
+        #expect(!s.running)
+        #expect(s.processId == nil)
+    }
+
     // MARK: - Task 4: SwiftTermView 桥接
 
     @MainActor @Test func bridgeSendForwardsUTF8ToSession() {
@@ -179,4 +245,36 @@ struct TerminalTests {
         #expect(got?.cols == 100)
         #expect(got?.rows == 30)
     }
+
+    private func execRequest(at index: Int, from mock: MockTransport) async throws -> JSONRPCRequest {
+        try await waitUntil { await mock.sent.filter { $0.contains(#""method":"command/exec""#) }.count > index }
+        let frames = await mock.sent.filter { $0.contains(#""method":"command/exec""#) }
+        let data = try #require(frames[index].data(using: .utf8))
+        guard case .request(let request) = try JSONDecoder().decode(JSONRPCMessage.self, from: data) else {
+            Issue.record("expected command/exec request")
+            throw TerminalTestError.invalidRequest
+        }
+        return request
+    }
+
+    private func response(to id: RequestId, result: String) -> String {
+        let encodedId: String
+        switch id {
+        case .string(let value): encodedId = #""\#(value)""#
+        case .int(let value): encodedId = String(value)
+        }
+        return #"{"id":\#(encodedId),"result":\#(result)}"#
+    }
+
+    private func waitUntil(timeout: TimeInterval = 2, _ condition: @escaping @MainActor () async -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await condition() { return }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        Issue.record("waitUntil timed out")
+        throw TerminalTestError.timeout
+    }
 }
+
+private enum TerminalTestError: Error { case invalidRequest, timeout }

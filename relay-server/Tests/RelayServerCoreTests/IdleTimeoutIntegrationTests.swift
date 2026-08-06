@@ -1,7 +1,9 @@
 import Testing
 import Foundation
 import NIOCore
+import NIOHTTP1
 import NIOPosix
+import NIOWebSocket
 @testable import RelayServerCore
 
 /// F3 真钟集成测：以**真实 NIO 服务 + 真墙钟**验证「握手期短空闲」与「已升级 WS 长空闲」两段解耦。
@@ -66,28 +68,67 @@ private final class InactiveProbe: ChannelInboundHandler, @unchecked Sendable {
     }
 }
 
+private final class UpgradeRequestWriter: ChannelInboundHandler, RemovableChannelHandler, @unchecked Sendable {
+    typealias InboundIn = HTTPClientResponsePart
+    typealias OutboundOut = HTTPClientRequestPart
+
+    func channelActive(context: ChannelHandlerContext) {
+        var headers = HTTPHeaders()
+        headers.add(name: "Host", value: "127.0.0.1")
+        headers.add(name: "x-role", value: "iPad")
+        let head = HTTPRequestHead(
+            version: .http1_1,
+            method: .GET,
+            uri: "/relay/f3-live",
+            headers: headers
+        )
+        context.write(wrapOutboundOut(.head(head)), promise: nil)
+        context.writeAndFlush(wrapOutboundOut(.end(nil)), promise: nil)
+    }
+
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {}
+}
+
 /// (A) 已升级健康 WS：越过握手期短空闲（1s）仍存活（证明短窗口未作用于已升级连接），
 ///     继续静默越过长窗口（4s）后被兜底回收（证明长窗口仍兜底、无僵尸长存）。
 @Test func upgradedWSSurvivesShortIdleThenReclaimedByLongWindow() async throws {
     let server = try startRelayServer(idleTimeoutSeconds: 1, upgradedIdleTimeoutSeconds: 4)
     defer { teardown(server.channel, server.group) }
 
-    var req = URLRequest(url: URL(string: "ws://127.0.0.1:\(server.port)/relay/f3-live")!)
-    req.setValue("iPad", forHTTPHeaderField: "x-role")
-    let session = URLSession(configuration: .ephemeral)
-    let task = session.webSocketTask(with: req)
+    let clientGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+    defer { teardown(clientGroup) }
 
-    // receive 在连接被服务端关闭时以 failure 完成——用它作为「已被回收」信号（不产生出站活动）。
     let closed = ClosedLatch()
-    task.resume()
-    task.receive { result in
-        if case .failure = result { closed.mark() }
+    let upgraded = ClosedLatch()
+    let requestWriter = UpgradeRequestWriter()
+    let upgrader = NIOWebSocketClientUpgrader(
+        maxFrameSize: 1 << 20,
+        upgradePipelineHandler: { channel, _ in
+            upgraded.mark()
+            return channel.pipeline.addHandler(InactiveProbe(closed))
+        }
+    )
+    let upgradeConfig = NIOHTTPClientUpgradeConfiguration(
+        upgraders: [upgrader],
+        completionHandler: { channel in
+            channel.pipeline.removeHandler(requestWriter, promise: nil)
+        }
+    )
+    let client = try await ClientBootstrap(group: clientGroup)
+        .channelInitializer { channel in
+            channel.pipeline.addHTTPClientHandlers(withClientUpgrade: upgradeConfig)
+                .flatMap { channel.pipeline.addHandler(requestWriter) }
+        }
+        .connect(host: "127.0.0.1", port: server.port)
+        .get()
+    defer { closeChannel(client) }
+
+    for _ in 0..<20 where !upgraded.isClosed {
+        try await Task.sleep(nanoseconds: 50_000_000)
     }
+    #expect(upgraded.isClosed == true, "测试客户端必须先完成 WebSocket upgrade")
 
-    // 等 upgrade 落定（最后一次活动 ≈ 此刻）。
-    try await Task.sleep(nanoseconds: 500_000_000)
-
-    // t ≈ 2s 空闲：若握手期短空闲(1s)仍作用于已升级连接，此刻应已被回收；断言仍存活。
+    // upgrade 后空闲约 1.5s：若握手期短空闲(1s)仍作用于已升级连接，此刻应已被回收。
     try await Task.sleep(nanoseconds: 1_500_000_000)
     #expect(closed.isClosed == false, "已升级 WS 越过握手期短空闲(1s)不应被回收（两段解耦）")
 
@@ -98,7 +139,6 @@ private final class InactiveProbe: ChannelInboundHandler, @unchecked Sendable {
         if closed.isClosed { reclaimed = true; break }
     }
     #expect(reclaimed == true, "已升级 WS 越过长空闲窗口(4s)后应被兜底回收（无僵尸）")
-    task.cancel(with: .goingAway, reason: nil)
 }
 
 /// (B) upgrade 之前只连不发的慢连接：受握手期短空闲(1s)回收。真 TCP 客户端连上不发任何数据，
@@ -111,9 +151,9 @@ private final class InactiveProbe: ChannelInboundHandler, @unchecked Sendable {
     defer { teardown(clientGroup) }
 
     let closed = ClosedLatch()
-    let client = try ClientBootstrap(group: clientGroup)
+    let client = try await ClientBootstrap(group: clientGroup)
         .channelInitializer { ch in ch.pipeline.addHandler(InactiveProbe(closed)) }
-        .connect(host: "127.0.0.1", port: server.port).wait()
+        .connect(host: "127.0.0.1", port: server.port).get()
     defer { closeChannel(client) }
 
     // 不发送任何数据（只连不发）：服务端应在握手期短空闲(1s)后关连接。轮询至多 ~6s。

@@ -541,6 +541,13 @@ actor RelayTransport: MessageTransport {
         guard let session, let ws else { throw TransportError.notConnected }
         let env = try session.seal(Data(text.utf8), kind: .appData)
         let frame = String(decoding: try env.encoded(), as: UTF8.self)
+        let frameBytes = frame.utf8.count
+        guard frameBytes <= RelayWireLimits.maxMessageBytes else {
+            throw TransportError.messageTooLarge(
+                bytes: frameBytes,
+                limit: RelayWireLimits.maxMessageBytes
+            )
+        }
         try await ws.sendText(frame)
     }
 

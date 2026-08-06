@@ -21,6 +21,8 @@ final class Session: Identifiable {
     let sideChat: SideChatStore
     let envInspector: EnvironmentInspectorModel
     let approvals: ApprovalStore
+    let userInputs: UserInputStore
+    let mcpElicitations: McpElicitationStore
 
     init(machine: MachineConfig,
          transportFactory: @escaping @Sendable (ConnectionConfig) async throws -> MessageTransport) {
@@ -38,18 +40,21 @@ final class Session: Identifiable {
         self.sideChat = SideChatStore()
         self.envInspector = EnvironmentInspectorModel()
         self.approvals = ApprovalStore()
+        self.userInputs = UserInputStore()
+        self.mcpElicitations = McpElicitationStore()
     }
 
     /// 前后台标记（D6=B）。默认后台；活跃 tab 由 SessionsManager 置前台。
     private(set) var isForeground = false
 
-    /// 用户显式断开后保持暂停，避免 tab/app 生命周期把连接自动拉起。
-    private(set) var userPaused = false
+    /// 兼容现有 UI/测试的暂停视图；真实意图持久化在 MachineConfig 中。
+    var userPaused: Bool { connectionIntent == .disconnectedByUser }
 
     /// 是否应自动发起（重）连：用户未暂停，且当前未在连接中或就绪。
     /// `.failed`/`.disconnected` → 可（重）连；`.connecting`/`.initializing`/`.reconnecting`/`.ready` → 不重复触发。
     var shouldAutoConnect: Bool {
-        !userPaused && canConnect
+        guard connectionIntent == .automatic else { return false }
+        return canConnect
     }
 
     /// 当前连接状态是否允许显式（重）连。用户暂停不隐藏 tab 菜单的连接入口。
@@ -60,21 +65,21 @@ final class Session: Identifiable {
         }
     }
 
+    var canConnectManually: Bool { canConnect }
+
+    var connectionIntent: ConnectionIntent { machine.connectionIntent }
+
     func updateMachine(_ m: MachineConfig) { machine = m }
+    func setConnectionIntent(_ intent: ConnectionIntent) { machine.connectionIntent = intent }
     func connect() {
-        userPaused = false
+        machine.connectionIntent = .automatic
         connection.connect(config: machine.connectionConfig)
     }
-
     func autoConnect() {
         guard shouldAutoConnect else { return }
         connection.connect(config: machine.connectionConfig)
     }
-
-    func disconnect() async {
-        userPaused = true
-        await connection.disconnect()
-    }
+    func disconnect() async { await connection.disconnect() }
 
     /// 前后台切换（D6=B「后台保连+降频」）。
     /// 前台：开列表轮询 + 补拉最终态；后台：停轮询降频。

@@ -7,6 +7,9 @@ import Observation
 @MainActor
 final class ActiveConversationHolder {
     var state: ConversationState?
+    var contextIdentity: String?
+    /// 进度卡片点「X 文件」请求打开右栏的信号（一次性，RootSplitView 消费后复位）。
+    var requestRightPanel: Bool = false
     /// 拉取远端全量 diff 的回调（由持有 ConversationStore 的 ConversationView 注入）。
     /// 审查面板切到「全量」时调用；未接线（nil）时返回 nil，面板降级空态。
     var fetchFullDiff: ((_ cwd: String) async -> String?)?
@@ -104,6 +107,12 @@ struct RootSplitView: View {
             }
         }
         .background { ShortcutLayer(layout: layout) }   // T10：隐藏快捷键层挂稳定独立视图（不随 body 重算重建）
+        .onChange(of: activeConversation.requestRightPanel) { _, req in
+            if req {
+                withAnimation { layout.showRight = true }
+                activeConversation.requestRightPanel = false
+            }
+        }
         .environment(activeConversation)
         .sheet(isPresented: $layout.showSettings) { SettingsPageView(systemColorScheme: systemColorScheme) }
         .onChange(of: sessions.activeSessionId) { _, newId in
@@ -120,7 +129,7 @@ struct RootSplitView: View {
         // 全部按钮靠右；顺序：左面板 · 下面板 · 摘要 · 右面板 · 设置。
         // 三个面板图标用统一的 inset.filled 矩形族（一致风格，不混描边/填充）；
         // 摘要用 list.bullet(:≡ 两圆点两横线)；图标走主题色(.tint)、随系统深浅适配。
-        HStack(spacing: 4) {
+        HStack(spacing: 18) {
             Spacer()
 
             // 新建会话：SidebarView 无导航栏（已移除 NavigationSplitView），故新建入口挂在此自定义顶栏（design D1 深挖）。点击发 thread/start，切 selectedThreadId 进入新会话。
@@ -134,43 +143,37 @@ struct RootSplitView: View {
                 }
             } label: { Image(systemName: "plus.rectangle") }
             .accessibilityLabel(Text("sidebar.newThread"))
-            .minimumHitTarget44()
             .disabled(projects.isCreatingThread)   // 防抖：创建进行中禁用，避免连点建多个会话
 
             // 左面板：切换 layout.leftVisible 显隐自绘左列（无系统 columnVisibility / sidebarToggle）。
             Button {
-                withAnimation { layout.toggleLeftPanel() }
+                withAnimation { layout.leftVisible.toggle(); layout.lastRequested = .left }
             } label: { Image(systemName: "rectangle.leadinghalf.inset.filled") }
             .accessibilityLabel(Text("workspace.leftPanel.toggle"))
-            .minimumHitTarget44()
 
             // 下面板。
             Button { withAnimation { layout.showBottom.toggle() } } label: {
                 Image(systemName: "rectangle.bottomthird.inset.filled")
             }
             .accessibilityLabel(Text("workspace.bottomPanel.toggle"))
-            .minimumHitTarget44()
 
             // 摘要(:≡ = list.bullet)：常驻悬浮浮层由 body 的 overlay 渲染。
             Button { withAnimation { layout.showSummary.toggle() } } label: {
                 Image(systemName: "list.bullet")
             }
             .accessibilityLabel(Text("workspace.summary.toggle"))
-            .minimumHitTarget44()
 
             // 右面板。
-            Button { withAnimation { layout.toggleRightPanel() } } label: {
+            Button { withAnimation { layout.showRight.toggle(); layout.lastRequested = .right } } label: {
                 Image(systemName: "rectangle.trailinghalf.inset.filled")
             }
             .accessibilityLabel(Text("workspace.rightPanel.toggle"))
-            .minimumHitTarget44()
 
             // 设置：gear 直接打开设置页 .sheet（移除旧 popover，设计 D3）。
             Button { layout.showSettings = true } label: {
                 Image(systemName: "gearshape")
+                    .accessibilityLabel(Text("settings.accessibility"))
             }
-            .accessibilityLabel(Text("settings.accessibility"))
-            .minimumHitTarget44()
         }
         .font(.title3)
         // 图标用 .primary（标签色，随深浅自动适配黑/白），不用 iOS 默认蓝。
@@ -227,11 +230,7 @@ struct RootSplitView: View {
 
     @ViewBuilder private var content: some View {
         if let id = selectedThreadId {
-            ConversationView(
-                threadId: id,
-                onOpenReview: { layout.requestRightPanel(.review) }
-            )
-            .id(id)
+            ConversationView(threadId: id).id(id)
         } else {
             ContentUnavailableView("split.selectConversation", systemImage: "bubble.left.and.bubble.right")
         }

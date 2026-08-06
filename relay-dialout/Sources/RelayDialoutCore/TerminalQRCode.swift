@@ -1,15 +1,19 @@
 import Foundation
+#if canImport(CoreImage)
 import CoreImage
+#endif
 
 /// 终端二维码渲染：把配对载荷字符串（codexrelay:// URL）渲染成半块字符 ASCII 二维码，
 /// 供开发机终端直接扫码；同时调用方仍保留 URL 明文打印作兜底（不支持扫码的终端也能手动搬运）。
 public enum TerminalQRCode {
-    public enum QRError: Error {
+    public enum QRError: Error, Equatable, Sendable {
         case generationFailed
+        case unsupportedPlatform
     }
 
     /// 生成 QR 布尔矩阵（true = 黑模块）。CIQRCodeGenerator 每个模块输出 1px，方阵。
     public static func matrix(for text: String) throws -> [[Bool]] {
+#if canImport(CoreImage)
         guard let filter = CIFilter(name: "CIQRCodeGenerator") else { throw QRError.generationFailed }
         filter.setValue(Data(text.utf8), forKey: "inputMessage")
         filter.setValue("M", forKey: "inputCorrectionLevel")
@@ -42,6 +46,9 @@ public enum TerminalQRCode {
             rows.append(row)
         }
         return rows
+#else
+        throw QRError.unsupportedPlatform
+#endif
     }
 
     /// 半块字符渲染：一个字符高度覆盖两行像素模块（▀ 上黑 / ▄ 下黑 / █ 全黑 / 空格全白），

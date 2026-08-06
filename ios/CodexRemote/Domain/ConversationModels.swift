@@ -73,6 +73,8 @@ struct ConversationState: Equatable {
     var inFlightItemIds: Set<String> = []
     /// 最近一次发送失败信息（D2）；nil = 无错误。UI 据此显式提示并停止"生成中"。
     var lastSendError: String?
+    /// resume 遇到未来未知 turn status 时保留原值，便于诊断；行为一律 fail-closed 为非运行中。
+    var unknownTurnStatuses: [String] = []
     /// 运行态（"生成中"）：有进行中 item 即为真；activeTurnId 作发起端兜底信号。
     var isTurnRunning: Bool { !inFlightItemIds.isEmpty || activeTurnId != nil }
 

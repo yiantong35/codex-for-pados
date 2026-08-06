@@ -4,18 +4,24 @@ import Foundation
 /// JSONRPCMessage 并分发：
 ///   - .response/.error → 按 id 唤醒等待中的 send(method:params:)（pending 表）
 ///   - .notification → yield 到对外通知流
-///   - .request（server→client，审批等）→ 交给 server-request 处理器并回 response
+///   - .request（server→client）→ 路由给唯一 owner，或立即回 method-not-found
 actor JSONRPCClient {
-    typealias ServerRequestHandler = @Sendable (JSONRPCRequest) async -> AnyCodable
-
     private let transport: MessageTransport
     private var pending: [RequestId: CheckedContinuation<AnyCodable, Error>] = [:]
-    private var serverRequestHandler: ServerRequestHandler?
+    private enum DeferredState {
+        case owned(ServerRequestOwner)
+        case completing(ServerRequestOwner)
+    }
+    private var deferredServerRequests: [RequestId: DeferredState] = [:]
+    private var deferredServerRequestPayloads: [RequestId: JSONRPCRequest] = [:]
+    private var deferredServerRequestOrder: [RequestId] = []
     /// 多播：每个 notifications() 调用方拿到**独立**的 AsyncStream，actor 内部维护其
     /// continuation；收到一条通知 yield 给所有订阅者。修复「单消费者流被三处抢占、
     /// 事件被瓜分」导致的对话流滞后 bug。serverRequests 同理多播。
     private var notifContinuations: [UUID: AsyncStream<JSONRPCNotification>.Continuation] = [:]
-    private var serverRequestContinuations: [UUID: AsyncStream<JSONRPCRequest>.Continuation] = [:]
+    private var serverRequestContinuations: [
+        ServerRequestOwner: [UUID: AsyncStream<JSONRPCRequest>.Continuation]
+    ] = [:]
     private var streamsFinished = false
     private var pump: Task<Void, Never>?
 
@@ -43,14 +49,21 @@ actor JSONRPCClient {
         }
     }
 
-    /// 对外 server-request 流（供审批层在没有同步 handler 时观察）。多播，语义同 notifications()。
-    func serverRequests() -> AsyncStream<JSONRPCRequest> {
+    /// 每类延迟请求有独立 owner 流；新订阅者会收到该 owner 尚未完成的请求。
+    func serverRequests(for owner: ServerRequestOwner = .approval) -> AsyncStream<JSONRPCRequest> {
         if streamsFinished { return AsyncStream { $0.finish() } }
         let id = UUID()
         return AsyncStream(bufferingPolicy: .unbounded) { cont in
-            serverRequestContinuations[id] = cont
+            serverRequestContinuations[owner, default: [:]][id] = cont
+            for requestId in deferredServerRequestOrder {
+                guard case .owned(let requestOwner) = deferredServerRequests[requestId],
+                      requestOwner == owner,
+                      let request = deferredServerRequestPayloads[requestId]
+                else { continue }
+                cont.yield(request)
+            }
             cont.onTermination = { [weak self] _ in
-                Task { await self?.removeServerRequestContinuation(id) }
+                Task { await self?.removeServerRequestContinuation(id, owner: owner) }
             }
         }
     }
@@ -58,13 +71,16 @@ actor JSONRPCClient {
 #if DEBUG
     /// 测试支持：当前存活的 notifications() 订阅数。用于回归锁「切对话不累积正文订阅」（D2）。
     func liveNotificationSubscriberCount() -> Int { notifContinuations.count }
+    func deferredServerRequestCount() -> Int { deferredServerRequests.count }
 #endif
 
     private func removeNotifContinuation(_ id: UUID) { notifContinuations[id] = nil }
-    private func removeServerRequestContinuation(_ id: UUID) { serverRequestContinuations[id] = nil }
-
-    /// 注册一个同步处理 server→client 请求的回调（返回值会被编码为 response.result 回发）。
-    func setServerRequestHandler(_ h: @escaping ServerRequestHandler) { serverRequestHandler = h }
+    private func removeServerRequestContinuation(_ id: UUID, owner: ServerRequestOwner) {
+        serverRequestContinuations[owner]?[id] = nil
+        if serverRequestContinuations[owner]?.isEmpty == true {
+            serverRequestContinuations[owner] = nil
+        }
+    }
 
     func start() {
         guard pump == nil else { return }
@@ -87,9 +103,12 @@ actor JSONRPCClient {
 
     private func finishStreams() {
         streamsFinished = true
+        clearDeferredServerRequests()
         for c in notifContinuations.values { c.finish() }
         notifContinuations.removeAll()
-        for c in serverRequestContinuations.values { c.finish() }
+        for ownerContinuations in serverRequestContinuations.values {
+            for c in ownerContinuations.values { c.finish() }
+        }
         serverRequestContinuations.removeAll()
     }
 
@@ -128,10 +147,40 @@ actor JSONRPCClient {
     }
 
     /// 回 server→client 请求一个 response。
-    func respond(to id: RequestId, result: AnyCodable) async throws {
+    @discardableResult
+    func respond(to id: RequestId, result: AnyCodable) async throws -> Bool {
         let resp = JSONRPCResponse(id: id, result: result)
         let text = String(data: try encoder.encode(resp), encoding: .utf8)!
-        try await transport.send(text)
+        return try await completeDeferredServerRequest(id, text: text)
+    }
+
+    @discardableResult
+    func respond(to id: RequestId, error: JSONRPCErrorBody) async throws -> Bool {
+        let resp = JSONRPCError(id: id, error: error)
+        let text = String(data: try encoder.encode(resp), encoding: .utf8)!
+        return try await completeDeferredServerRequest(id, text: text)
+    }
+
+    private func completeDeferredServerRequest(_ id: RequestId, text: String) async throws -> Bool {
+        guard case .owned(let owner) = deferredServerRequests[id] else { return false }
+        deferredServerRequests[id] = .completing(owner)
+        do {
+            try await transport.send(text)
+            if case .completing = deferredServerRequests[id] {
+                removeDeferredServerRequest(id)
+            }
+            return true
+        } catch {
+            if !streamsFinished, case .completing = deferredServerRequests[id] {
+                deferredServerRequests[id] = .owned(owner)
+            }
+            throw error
+        }
+    }
+
+    /// `serverRequest/resolved` 表示另一客户端已完成该 request；撤销本端 owner，禁止迟到响应。
+    func discardServerRequest(_ id: RequestId) {
+        removeDeferredServerRequest(id)
     }
 
     // MARK: - 分发
@@ -152,12 +201,41 @@ actor JSONRPCClient {
         case .notification(let n):
             for c in notifContinuations.values { c.yield(n) }
         case .request(let req):
-            for c in serverRequestContinuations.values { c.yield(req) }
-            if let handler = serverRequestHandler {
-                let result = await handler(req)
-                try? await respond(to: req.id, result: result)
+            guard deferredServerRequests[req.id] == nil else { return }
+            switch ServerRequestRouter.outcome(for: req.method) {
+            case .deferred(let owner):
+                deferredServerRequests[req.id] = .owned(owner)
+                deferredServerRequestPayloads[req.id] = req
+                deferredServerRequestOrder.append(req.id)
+                if let continuations = serverRequestContinuations[owner] {
+                    for c in continuations.values { c.yield(req) }
+                }
+            case .methodNotSupported:
+                try? await respondWithError(
+                    to: req.id,
+                    code: -32601,
+                    message: "Method not found: \(req.method)"
+                )
             }
         }
+    }
+
+    private func respondWithError(to id: RequestId, code: Int, message: String) async throws {
+        let response = JSONRPCError(id: id, error: JSONRPCErrorBody(code: code, message: message))
+        let text = String(data: try encoder.encode(response), encoding: .utf8)!
+        try await transport.send(text)
+    }
+
+    private func removeDeferredServerRequest(_ id: RequestId) {
+        deferredServerRequests[id] = nil
+        deferredServerRequestPayloads[id] = nil
+        deferredServerRequestOrder.removeAll { $0 == id }
+    }
+
+    private func clearDeferredServerRequests() {
+        deferredServerRequests.removeAll()
+        deferredServerRequestPayloads.removeAll()
+        deferredServerRequestOrder.removeAll()
     }
 
     private func failPending(_ id: RequestId, _ error: Error) {
@@ -172,9 +250,10 @@ actor JSONRPCClient {
     /// 失败所有在途请求（物理断线时由上层调用）。incoming() 流跨重连不结束，
     /// 故 start() 的「流结束才 failAllPending」覆盖不到物理断线；断线瞬间已发出、
     /// 等响应的请求若不在此失败将永久挂起（响应不会在新通道重放）。调用方据此重试。
-    /// 注意：只动 pending 表，不触碰正常 dispatch/通知流（保持「上层零改动」原则，
-    /// 这是必要的正确性补充入口，不改 dispatch 逻辑）。
+    /// 同时失效所有 server→client 延迟请求的响应所有权；这些请求只能由服务端在新连接重发，
+    /// 旧 request id 不得在新物理连接上被补发或重复完成。
     func failInflight(_ error: Error) {
         failAllPending(error)
+        clearDeferredServerRequests()
     }
 }

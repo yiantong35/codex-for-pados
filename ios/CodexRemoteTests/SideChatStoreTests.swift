@@ -36,10 +36,7 @@ struct SideChatStoreTests {
         }
     }
 
-    // #4 手动重连重绑：侧聊会话内嵌的 ConversationStore 持旧 rpc（`let`）+ 旧 threadId 订阅。
-    // 完整重连（新 rpc 实例）后旧会话全打向已关闭 client、订阅绑死旧流 → 应在 attach 新 rpc 时
-    // 清空 stale 侧聊（fail-closed：不留半死会话；用户可在新连接上重新 fork）。
-    @Test func reattachNewRpcClearsStaleSessions() async {
+    @Test func reattachNewRpcKeepsMetadataForVisibleViewToResume() async {
         let (mock, _, store) = await makeStore()
         let r = respondFork(mock); defer { r.cancel() }
         await store.start(fromThreadId: "main-1")
@@ -50,8 +47,8 @@ struct SideChatStoreTests {
         await rpcB.start()
         store.attach(rpc: rpcB)   // 模拟完整重连：新 rpc 实例
 
-        #expect(store.sessions.isEmpty)     // stale 侧聊被清
-        #expect(store.selectedId == nil)
+        #expect(store.sessions.map(\.id) == ["fork-1"])
+        #expect(store.selectedId == "fork-1")
     }
 
     @Test func startAddsAndSelectsSession() async {
@@ -59,7 +56,8 @@ struct SideChatStoreTests {
         let r = respondFork(mock); defer { r.cancel() }
         await store.start(fromThreadId: "main-1")
         #expect(store.sessions.count == 1)
-        #expect(store.sessions.first?.conversation.threadId == "fork-1")
+        #expect(store.sessions.first?.id == "fork-1")
+        #expect(store.sessions.first?.forkedFromId == "main-1")
         #expect(store.selectedId == store.sessions.first?.id)
     }
 
@@ -69,7 +67,7 @@ struct SideChatStoreTests {
         await store.start(fromThreadId: "main-1")
         await store.start(fromThreadId: "main-1")
         #expect(store.sessions.count == 2)
-        let tids = Set(store.sessions.map { $0.conversation.threadId })
+        let tids = Set(store.sessions.map(\.id))
         #expect(tids == ["fork-1", "fork-2"])
     }
 
@@ -109,18 +107,11 @@ struct SideChatStoreTests {
         #expect(store.sessions.isEmpty)
     }
 
-    @Test func streamIsolatedByThreadId() async {
-        let (mock, _, store) = await makeStore()
+    @Test func metadataStoreCreatesNoNotificationSubscribers() async {
+        let (mock, rpc, store) = await makeStore()
         let r = respondFork(mock); defer { r.cancel() }
         await store.start(fromThreadId: "main-1")
         await store.start(fromThreadId: "main-1")
-        await mock.feed(#"{"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"fork-1","turn":{"id":"T1","status":"inProgress"}}}"#)
-        await mock.feed(#"{"jsonrpc":"2.0","method":"item/started","params":{"threadId":"fork-1","item":{"id":"I1","type":"agentMessage","text":""}}}"#)
-        await mock.feed(#"{"jsonrpc":"2.0","method":"item/agentMessage/delta","params":{"threadId":"fork-1","itemId":"I1","delta":"only-1"}}"#)
-        try? await Task.sleep(nanoseconds: 150_000_000)
-        let s1 = store.sessions.first { $0.conversation.threadId == "fork-1" }!
-        let s2 = store.sessions.first { $0.conversation.threadId == "fork-2" }!
-        #expect(!s1.conversation.state.items.isEmpty)
-        #expect(s2.conversation.state.items.isEmpty)
+        #expect(await rpc.liveNotificationSubscriberCount() == 0)
     }
 }

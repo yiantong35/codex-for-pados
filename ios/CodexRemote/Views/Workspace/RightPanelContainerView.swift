@@ -29,7 +29,10 @@ struct RightPanelContainerView: View {
     // 全屏覆盖层脱离 inspector 列，侧聊 tab 会渲染 ConversationView→ComposerView 子树，
     // 后者读 ApprovalStore / EnvironmentStore；不补注入则侧聊全屏必崩（设计 D5 + 风险 3）。
     @Environment(ApprovalStore.self) private var approvals
+    @Environment(UserInputStore.self) private var userInputs
+    @Environment(McpElicitationStore.self) private var mcpElicitations
     @Environment(EnvironmentStore.self) private var environmentStore
+    @Environment(SideChatStore.self) private var sideChat
     @Environment(\.locale) private var locale
     // 快捷键经布局 store 发一次性右栏意图；本容器消费即复位（设计 D6）。
     @Environment(WorkspaceLayoutStore.self) private var layout
@@ -39,7 +42,6 @@ struct RightPanelContainerView: View {
 
     @State private var selectedTab: RightPanelTab = .review
     @State private var fileBrowser = FileBrowserStore()
-    @State private var sideChat = SideChatStore()
     @State private var isFullscreen = false
 
     var body: some View {
@@ -52,6 +54,8 @@ struct RightPanelContainerView: View {
                     .environment(activeConversation)
                     .environment(connection)
                     .environment(approvals)
+                    .environment(userInputs)
+                    .environment(mcpElicitations)
                     .environment(environmentStore)
                     .environment(\.locale, locale)
                     // 退出全屏快捷键宿主（M1）：⌘⌃F 只挂在 base 层 ShortcutLayer 时，覆盖层一旦present
