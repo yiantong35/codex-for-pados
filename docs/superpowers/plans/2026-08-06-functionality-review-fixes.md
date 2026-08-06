@@ -245,13 +245,13 @@ recovered `ReviewFullDiffCacheTests.swift`.
 
 **Files:** `TerminalSession.swift` and terminal tests.
 
-- [ ] RED: natural exit clears running/pid and allows restart; terminate followed
+- [x] RED: natural exit clears running/pid and allows restart; terminate followed
   by immediate start is not cleared by the old response; disconnect/cwd switch
   invalidate the old execution.
-- [ ] Store exec task and generation, gate all completions on current generation,
+- [x] Store exec task and generation, gate all completions on current generation,
   and render the natural exit result once.
-- [ ] GREEN: run terminal lifecycle/race tests.
-- [ ] Commit: `fix(ipad): converge terminal execution lifecycle`.
+- [x] GREEN: run terminal lifecycle/race tests.
+- [x] Commit: `fix(ipad): converge terminal execution lifecycle`.
 
 ### Task 4.6: Cancel stale photo encoding
 
