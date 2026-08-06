@@ -104,7 +104,6 @@ final class McpElicitationTests: XCTestCase {
         var responses: [McpServerElicitationRequestResponse] = []
         store.resolver = { _, response in responses.append(response); return true }
         try store.handle(request: makeRequest(id: "decline", params: formParams))
-        let card = try XCTUnwrap(store.cards.first)
         store.handleConnectionLost()
         XCTAssertTrue(store.cards[0].awaitingRecovery)
         XCTAssertTrue(responses.isEmpty)
