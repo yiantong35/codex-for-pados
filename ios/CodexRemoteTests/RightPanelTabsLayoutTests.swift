@@ -25,6 +25,8 @@ final class RightPanelTabsLayoutTests: XCTestCase {
             .environment(ApprovalStore())
             .environment(EnvironmentStore())
             .environment(ConnectionStore(transportFactory: { _ in MockTransport() }))
+            .environment(FileBrowserStore())
+            .environment(SideChatStore())
             .environment(WorkspaceLayoutStore())
             .environment(ShortcutStore())
             .environment(LocaleManager())

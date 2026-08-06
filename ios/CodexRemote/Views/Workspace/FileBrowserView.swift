@@ -113,20 +113,33 @@ struct FileBrowserView: View {
 
     @ViewBuilder private var contentArea: some View {
         ScrollView {                                   // 外层纵向（不变）
-            if store.isOpeningFile {
+            if case .loading = store.fileOpenState {
                 // 文件打开中：预览区显示加载指示，避免停留在上一个文件或空白（设计文档 D）。
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(.vertical, 24)
             } else {
-                switch store.selectedFile?.content {
+                switch store.fileOpenState {
+                case .loaded(let file):
+                    switch file.content {
                 case .text(let s):
                     fileTextBody(s)
                 case .tooLarge:
                     placeholder("fileBrowser.tooLarge")
                 case .binary:
                     placeholder("fileBrowser.binary")
-                case nil:
+                    }
+                case .failed(let path):
+                    VStack(spacing: 10) {
+                        Label("fileBrowser.loadFileFailed", systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.secondary)
+                        Button("fileBrowser.retry") { Task { await store.openFile(path) } }
+                            .buttonStyle(.borderedProminent)
+                            .minimumHitTarget44()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.vertical, 24)
+                case .idle, .loading:
                     placeholder("fileBrowser.selectFile")
                 }
             }

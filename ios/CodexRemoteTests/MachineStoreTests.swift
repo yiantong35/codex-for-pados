@@ -43,6 +43,18 @@ final class MachineStoreTests: XCTestCase {
         XCTAssertEqual(store.machines.count, 10)
     }
 
+    func test_updateAtCapacityReplacesWithoutAdding() {
+        let store = MachineStore(defaults: freshDefaults())
+        for i in 0..<10 { store.add(relayMachine("h\(i)")) }
+        var replacement = store.machines[9]
+        replacement.sessionId = "replacement"
+
+        store.update(replacement)
+
+        XCTAssertEqual(store.machines.count, 10)
+        XCTAssertEqual(store.machines[9].sessionId, "replacement")
+    }
+
     func test_removeDeletesMachine() {
         let store = MachineStore(defaults: freshDefaults())
         let m = relayMachine("h")

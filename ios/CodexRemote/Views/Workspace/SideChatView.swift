@@ -72,7 +72,11 @@ struct SideChatView: View {
             emptyState("sideChat.noMainThread")
         } else if let id = store.selectedId,
                   let session = store.sessions.first(where: { $0.id == id }) {
-            ConversationView(threadId: session.conversation.threadId, bindsWorkspaceState: false)
+            ConversationView(
+                threadId: session.conversation.threadId,
+                bindsWorkspaceState: false,
+                providedStore: session.conversation
+            )
         } else {
             emptyState("sideChat.pickToStart")
         }

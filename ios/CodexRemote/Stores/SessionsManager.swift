@@ -10,14 +10,20 @@ import Observation
 final class SessionsManager {
     let machineStore: MachineStore
     private let transportFactory: @Sendable (ConnectionConfig) async throws -> MessageTransport
+    private let resetPairingTrust: @Sendable (UUID) throws -> Void
 
     /// 缓存保活（D8）：每机器一个 Session，切走不销毁。
     private var cache: [UUID: Session] = [:]
 
     init(machineStore: MachineStore,
-         transportFactory: @escaping @Sendable (ConnectionConfig) async throws -> MessageTransport) {
+         transportFactory: @escaping @Sendable (ConnectionConfig) async throws -> MessageTransport,
+         resetPairingTrust: @escaping @Sendable (UUID) throws -> Void = { id in
+             try KeychainTOFUStore().forget(machineKey: id.uuidString)
+             UserDefaultsStableSessionStore().remove(machineKey: id.uuidString)
+         }) {
         self.machineStore = machineStore
         self.transportFactory = transportFactory
+        self.resetPairingTrust = resetPairingTrust
     }
 
     var activeSessionId: UUID? { machineStore.activeMachineId }
@@ -70,6 +76,20 @@ final class SessionsManager {
     func addMachineAndConnect(_ m: MachineConfig) -> Bool {
         guard machineStore.add(m) else { return false }
         setActive(m.id)
+        return true
+    }
+
+    /// 重新配对当前机器：保留 machine id/列表位置，清除旧 TOFU 与稳定会话，再用新载荷重建连接。
+    @discardableResult
+    func replaceMachineAndConnect(_ m: MachineConfig, pairingCode: String) -> Bool {
+        guard machineStore.machines.contains(where: { $0.id == m.id }) else { return false }
+        do { try resetPairingTrust(m.id) } catch { return false }
+
+        let oldSession = cache.removeValue(forKey: m.id)
+        machineStore.update(m)
+        PendingPairingStore.shared.stash(pairingCode, for: m.id)
+        setActive(m.id)
+        Task { await oldSession?.disconnect() }
         return true
     }
 

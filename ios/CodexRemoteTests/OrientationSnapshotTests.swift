@@ -143,6 +143,8 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(TerminalSession())
             .environment(makeConnection())
             .environment(makeProjects())
+            .environment(FileBrowserStore())
+            .environment(SideChatStore())
             .environment(LocaleManager())
             .environment(ThemeManager())
             .environment(ShortcutStore())                 // T10
@@ -281,6 +283,8 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(ApprovalStore())
             .environment(EnvironmentStore())
             .environment(makeConnection())
+            .environment(FileBrowserStore())
+            .environment(SideChatStore())
             .environment(WorkspaceLayoutStore())   // T10：右栏读布局 store 消费意图
             .environment(ShortcutStore())          // M1：右栏读快捷键 store 承载全屏退出键
             .frame(width: 320, height: 600)
@@ -457,6 +461,8 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(TerminalSession())
             .environment(makeConnection())
             .environment(makeProjects())
+            .environment(FileBrowserStore())
+            .environment(SideChatStore())
             .environment(LocaleManager())
             .environment(ThemeManager())
             .environment(TerminalSession())

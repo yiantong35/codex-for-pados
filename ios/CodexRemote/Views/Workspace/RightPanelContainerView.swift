@@ -37,10 +37,18 @@ struct RightPanelContainerView: View {
     // 会脱离 presenter 的响应链——退出路径必须在 cover 自身内部再挂一枚隐藏快捷键按钮才能双向切换（M1）。
     @Environment(ShortcutStore.self) private var shortcuts
 
-    @State private var selectedTab: RightPanelTab = .review
-    @State private var fileBrowser = FileBrowserStore()
-    @State private var sideChat = SideChatStore()
+    @Environment(FileBrowserStore.self) private var fileBrowser
+    @Environment(SideChatStore.self) private var sideChat
+    @Binding var selectedTab: RightPanelTab
     @State private var isFullscreen = false
+
+    init(cwd: String? = nil,
+         mainThreadId: String? = nil,
+         selectedTab: Binding<RightPanelTab> = .constant(.review)) {
+        self.cwd = cwd
+        self.mainThreadId = mainThreadId
+        self._selectedTab = selectedTab
+    }
 
     var body: some View {
         baseContent

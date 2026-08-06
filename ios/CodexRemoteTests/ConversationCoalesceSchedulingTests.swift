@@ -37,6 +37,17 @@ final class ConversationCoalesceSchedulingTests: XCTestCase {
             return XCTFail("应有 a1")
         }
         XCTAssertEqual(text, "Hello, 世界")   // 逐字一致，不丢帧
+        XCTAssertEqual(store.contentRevision, 1, "同一批流式正文落地应发布一次内容修订")
+    }
+
+    func test_each_coalescedBatch_advancesContentRevision() async throws {
+        let (store, mock) = await makeStore()
+        await mock.feed(#"{"method":"item/started","params":{"item":{"id":"a1","type":"agentMessage","text":""}}}"#)
+        await mock.feed(#"{"method":"item/agentMessage/delta","params":{"itemId":"a1","delta":"A"}}"#)
+        try await waitUntil { store.contentRevision == 1 }
+        await mock.feed(#"{"method":"item/agentMessage/delta","params":{"itemId":"a1","delta":"B"}}"#)
+        try await waitUntil { store.contentRevision == 2 }
+        XCTAssertEqual(store.state.items.count, 1, "同一消息增长不应依赖 items 数量变化")
     }
 
     /// 空闲：flush 完成后不再有周期性变化——快照两次相等即证明无常驻循环重复发布。

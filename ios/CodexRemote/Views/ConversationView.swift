@@ -33,6 +33,8 @@ struct ConversationView: View {
     var bindsWorkspaceState: Bool = true
     /// 主工作区注入 Review 路由；侧聊即使误传，也会由隔离策略忽略。
     var onOpenReview: (() -> Void)? = nil
+    /// 侧聊由 SideChatStore 持有并观察的唯一 store；nil 时由本视图创建并拥有。
+    var providedStore: ConversationStore? = nil
     @State private var store: ConversationStore?
     /// D8：滚动位置感知（哨兵事件驱动，无轮询/定时器）。
     @State private var isNearBottom = true
@@ -60,6 +62,7 @@ struct ConversationView: View {
     /// 不足以在**同一线程完整重连**（新 JSONRPCClient 实例）时重建 store → 旧 store 全打向已关闭
     /// client、订阅绑死旧流。把 rpc 身份并入键，令重连即重建（与 WorkspaceHost.rpcIdentity 同源）。
     private var convBindingKey: String {
+        if let providedStore { return "provided|\(ObjectIdentifier(providedStore))" }
         let rpcId = connection.rpc.map { "\(ObjectIdentifier($0))" } ?? "nil"
         return "\(threadId)|\(rpcId)"
     }
@@ -108,6 +111,13 @@ struct ConversationView: View {
                     showNewBelow = true
                 }
             }
+            .onChange(of: store?.contentRevision) { _, _ in
+                if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: isNearBottom) {
+                    scrollToBottom(proxy)
+                } else {
+                    showNewBelow = true
+                }
+            }
             .onChange(of: store?.state.isTurnRunning) { _, _ in
                 if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: isNearBottom) { scrollToBottom(proxy) }
             }
@@ -135,9 +145,10 @@ struct ConversationView: View {
             if newPhase == .ready { store?.drainOutbox() }
         }
         .onDisappear {
-            store?.stopObserving()
+            if providedStore == nil { store?.stopObserving() }
             if bindsWorkspaceState {
                 activeConversation.state = nil; activeConversation.fetchFullDiff = nil; activeConversation.startReview = nil
+                activeConversation.fetchGeneration &+= 1
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -166,14 +177,20 @@ struct ConversationView: View {
             }
         }
         .task(id: convBindingKey) {
-            guard let rpc = connection.rpc else { return }
-            let s = ConversationStore(rpc: rpc, threadId: threadId)
+            let ownsStore = providedStore == nil
+            let s: ConversationStore
+            if let providedStore {
+                s = providedStore
+            } else {
+                guard let rpc = connection.rpc else { return }
+                s = ConversationStore(rpc: rpc, threadId: threadId)
+            }
             // reconnect-resync item 3：注入连接就绪信号，供 send 判定在线/离线分支。
             s.isReady = { [weak connection] in connection?.phase == .ready }
-            await s.startObserving()   // 先完成订阅注册（async），再 resume，避免漏掉随后到达的事件
-            await s.resume()        // session-management：恢复已有会话历史
+            if ownsStore { await s.startObserving() }
             store = s
-            defer { s.stopObserving() }   // D2：任务结束（threadId 变化/视图消失取消）即停本 store 订阅
+            await s.resume()        // session-management：恢复已有会话历史
+            defer { if ownsStore { s.stopObserving() } }
             // D2：resume 注册不再受 bindsWorkspaceState 限制——主对话与每个侧聊各自 thread
             // 都需在重连后 rejoin 恢复；改 add/remove 精确配对，.task 结束/取消时注销自己的订阅，
             // 与 s.stopObserving() 两个 defer 并存。多订阅互不覆盖（Task 2 能力）。
@@ -182,6 +199,7 @@ struct ConversationView: View {
             if bindsWorkspaceState {
                 // 审查面板「全量」数据源：注入拉取回调（gitDiffToRemote），供右栏按 cwd 拉全量 diff。
                 activeConversation.fetchFullDiff = { [weak s] cwd in await s?.fetchFullDiff(cwd: cwd) }
+                activeConversation.fetchGeneration &+= 1
                 // 审查 tab AI 审查发起：注入 review/start 回调（设计 D4，对齐 fetchFullDiff 注入）。
                 activeConversation.startReview = { [weak s] mode in await s?.startReview(mode: mode) ?? false }
             }

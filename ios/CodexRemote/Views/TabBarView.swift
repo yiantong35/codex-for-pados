@@ -29,6 +29,13 @@ struct TabBarView: View {
                 guard let newId else { return }
                 proxy.scrollTo(newId, anchor: .center)
             }
+            .onAppear {
+                guard let activeId = sessions.activeSessionId else { return }
+                Task { @MainActor in
+                    await Task.yield()
+                    proxy.scrollTo(activeId, anchor: .center)
+                }
+            }
             .background(.bar)
             .alert("tab.capReached", isPresented: $showCapAlert) {
                 Button("common.ok", role: .cancel) {}

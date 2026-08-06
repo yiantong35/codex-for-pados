@@ -7,7 +7,9 @@ final class ReviewFullDiffCacheTests: XCTestCase {
         XCTAssertTrue(ReviewTabView.shouldRefetchFullDiff(mode: .full, cachedCwd: "/A", currentCwd: "/B"))
     }
     func test_sameCwd_noRefetch() {
-        XCTAssertFalse(ReviewTabView.shouldRefetchFullDiff(mode: .full, cachedCwd: "/A", currentCwd: "/A"))
+        XCTAssertFalse(ReviewTabView.shouldRefetchFullDiff(
+            mode: .full, cachedCwd: "/A", currentCwd: "/A",
+            cachedGeneration: 2, currentGeneration: 2))
     }
     func test_firstLoad_nilCache_refetches() {
         XCTAssertTrue(ReviewTabView.shouldRefetchFullDiff(mode: .full, cachedCwd: nil, currentCwd: "/A"))
@@ -17,5 +19,10 @@ final class ReviewFullDiffCacheTests: XCTestCase {
     }
     func test_turnMode_noFullFetch() {
         XCTAssertFalse(ReviewTabView.shouldRefetchFullDiff(mode: .turn, cachedCwd: nil, currentCwd: "/A"))
+    }
+    func test_newFetchGeneration_refetchesSameCwd() {
+        XCTAssertTrue(ReviewTabView.shouldRefetchFullDiff(
+            mode: .full, cachedCwd: "/A", currentCwd: "/A",
+            cachedGeneration: 1, currentGeneration: 2))
     }
 }

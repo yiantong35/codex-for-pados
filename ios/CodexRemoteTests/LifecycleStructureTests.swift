@@ -27,7 +27,9 @@ final class LifecycleStructureTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(calls, 2,
             "ConversationView 应在 .task 取消路径（defer）与 .onDisappear 兜底各调一次 stopObserving()")
         XCTAssertTrue(src.contains(".onDisappear"), "应保留 .onDisappear 兜底停订阅")
-        XCTAssertTrue(src.contains("defer { s.stopObserving() }") || src.contains("defer {s.stopObserving()}"),
-            ".task 应用 defer 绑定订阅生命周期")
+        XCTAssertTrue(src.contains("defer { if ownsStore { s.stopObserving() } }"),
+            ".task 应只为自建 ConversationStore 绑定停止生命周期")
+        XCTAssertTrue(src.contains("if providedStore == nil { store?.stopObserving() }"),
+            ".onDisappear 应只停止自建 store，侧聊共享 store 由 SideChatStore 管理")
     }
 }

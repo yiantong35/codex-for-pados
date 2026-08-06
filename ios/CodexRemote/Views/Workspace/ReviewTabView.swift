@@ -14,6 +14,7 @@ struct ReviewTabView: View {
     @State private var fullDiff: String?
     /// #2：fullDiff 当前所属 cwd；切 thread（cwd 变）后与选中 cwd 不符即失效重取。
     @State private var fullDiffCwd: String?
+    @State private var fullDiffGeneration: Int?
     @State private var loadingFull = false
     @State private var isSubmittingReview = false
     @State private var reviewFeedback: ReviewStartFeedback?
@@ -82,13 +83,23 @@ struct ReviewTabView: View {
             .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: reviewFeedback)
         }
         // #2：绑定 mode + cwd 复合键；cwd 变即重跑 task。取指纹 String(describing:) 避免依赖 rawValue。
-        .task(id: "\(String(describing: mode))|\(cwd ?? "")") {
+        .task(id: "\(String(describing: mode))|\(cwd ?? "")|\(activeConversation.fetchGeneration)") {
             guard mode == .full, let cwd, let fetch = activeConversation.fetchFullDiff else { return }
-            // 同 cwd 已缓存则不重复拉取；换 cwd 则失效重取（纯函数单一真源）。
-            guard Self.shouldRefetchFullDiff(mode: mode, cachedCwd: fullDiffCwd, currentCwd: cwd) else { return }
+            let generation = activeConversation.fetchGeneration
+            guard Self.shouldRefetchFullDiff(
+                mode: mode,
+                cachedCwd: fullDiffCwd,
+                currentCwd: cwd,
+                cachedGeneration: fullDiffGeneration,
+                currentGeneration: generation
+            ) else { return }
             loadingFull = true
-            fullDiff = await fetch(cwd)
-            fullDiffCwd = cwd
+            fullDiff = nil
+            if let fetched = await fetch(cwd) {
+                fullDiff = fetched
+                fullDiffCwd = cwd
+                fullDiffGeneration = generation
+            }
             loadingFull = false
         }
     }
@@ -111,9 +122,13 @@ struct ReviewTabView: View {
 
     /// #2：全量 diff 是否需重取——`.full` 且 cwd 非空且与已缓存 cwd 不同才重取。
     /// cwd 为空不请求；`.turn` 不走全量。纯函数便于单测。
-    static func shouldRefetchFullDiff(mode: ReviewSourceMode, cachedCwd: String?, currentCwd: String?) -> Bool {
+    static func shouldRefetchFullDiff(mode: ReviewSourceMode,
+                                      cachedCwd: String?,
+                                      currentCwd: String?,
+                                      cachedGeneration: Int? = nil,
+                                      currentGeneration: Int = 0) -> Bool {
         guard mode == .full, let currentCwd else { return false }
-        return cachedCwd != currentCwd
+        return cachedCwd != currentCwd || cachedGeneration != currentGeneration
     }
 }
 

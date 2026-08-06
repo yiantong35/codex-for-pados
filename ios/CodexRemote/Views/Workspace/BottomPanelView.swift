@@ -28,7 +28,12 @@ struct BottomPanelView: View {
             terminal.startIfNeeded(cwd: cwd)
         }
         .onChange(of: connection.phase) { _, ph in
-            if ph == .reconnecting { terminal.handleDisconnect() }
+            switch ph {
+            case .reconnecting: terminal.handleReconnecting()
+            case .ready: terminal.handleReconnectSucceeded()
+            case .failed, .disconnected: terminal.handleReconnectFailed()
+            case .connecting, .initializing: break
+            }
         }
     }
 

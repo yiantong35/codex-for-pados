@@ -99,9 +99,7 @@ struct RootView: View {
             .environment(s.plugins)
             .environment(s.hooks)
             .environment(s.terminal)
-            // fileBrowser/sideChat：当前读取者用自建 @State（RightPanelContainerView.swift:35-36），
-            // 暂无 @Environment 消费者；此注入为多 tab 落地预留（前瞻）。切 tab 不串台由消费方
-            // @State 随 .id(s.id) 重建保证，故保留注入不删。
+            // 右栏直接消费 Session 持有的 store；面板隐藏、inline/overlay 切换不销毁浏览与侧聊状态。
             .environment(s.fileBrowser)
             .environment(s.sideChat)
             .environment(s.envInspector)
@@ -113,6 +111,7 @@ struct RootView: View {
 /// 它读的是**当前 Session** 的 connection/projects/approvals（方案②由 workspace(for:) 注入），
 /// 故 coordinator 绑定到当前连接的 rpc；`.id(s.id)` 挂在本视图 → 切 Session 时 coordinator 一并重建。
 private struct WorkspaceHost: View {
+    @Environment(SessionsManager.self) private var sessions
     @Environment(ConnectionStore.self) private var connection
     @Environment(ProjectsStore.self) private var projects
     @Environment(ApprovalStore.self) private var approvals
@@ -126,7 +125,7 @@ private struct WorkspaceHost: View {
         RootSplitView()
             .overlay(alignment: .top) { reconnectBanner }
             .sheet(isPresented: $showRePairing) {
-                NavigationStack { RelayPairingImportView() }
+                NavigationStack { RelayPairingImportView(replacingMachineID: sessions.activeSessionId) }
             }
             // 连接就绪/重连成功后把审批层接到当前 rpc；断线（reconnecting）时标记待恢复（绝不自动批准）。
             // 用 `.task(id:)` 而非 `.onChange`：`.id(s.id)` 重建 WorkspaceHost 时 @State coordinator 归 nil，

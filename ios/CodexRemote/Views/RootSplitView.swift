@@ -10,6 +10,8 @@ final class ActiveConversationHolder {
     /// 拉取远端全量 diff 的回调（由持有 ConversationStore 的 ConversationView 注入）。
     /// 审查面板切到「全量」时调用；未接线（nil）时返回 nil，面板降级空态。
     var fetchFullDiff: ((_ cwd: String) async -> String?)?
+    /// fetch 回调/RPC 绑定代际。重连或重新注入时递增，令 Full Diff 缓存失效并重试。
+    var fetchGeneration = 0
     /// 发起 AI 审查的回调（由持有 ConversationStore 的 ConversationView 注入，设计 D4）。
     /// 审查 tab 的「本轮/全量」发起入口调用；未接线（nil）→ 入口禁用。返回是否成功发出。
     var startReview: ((_ mode: ReviewSourceMode) async -> Bool)?
@@ -43,6 +45,8 @@ struct RootSplitView: View {
 
     /// 每次外部载入列宽（切 tab / 冷启动）自增，驱动 ResizableColumns 用真实总宽重新收敛（修复窄屏恢复溢出）。
     @State private var widthLoadRevision = 0
+    /// 右栏条件卸载时仍保留用户所选 tab。
+    @State private var rightPanelTab: RightPanelTab = .review
 
     /// 便利初始化：允许注入面板初始展开态（供快照测试覆盖全开布局）。
     init(initialRightOpen: Bool = false, initialBottomOpen: Bool = false) {
@@ -198,7 +202,11 @@ struct RootSplitView: View {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } right: {
-            RightPanelContainerView(cwd: selectedThread?.cwd, mainThreadId: selectedThreadId)
+            RightPanelContainerView(
+                cwd: selectedThread?.cwd,
+                mainThreadId: selectedThreadId,
+                selectedTab: $rightPanelTab
+            )
                 // 右栏在自绘列内仍显式注入环境（对齐原 .inspector 注入），
                 // 否则 RightPanelContainerView 读环境时运行时崩溃。
                 .environment(activeConversation)
@@ -262,9 +270,9 @@ struct ShortcutLayer: View {
     var body: some View {
         Group {
             // 面板（workspace）
-            Button("") { withAnimation { layout.leftVisible.toggle() } }
+            Button("") { withAnimation { layout.toggleLeftPanel() } }
                 .keyboardShortcut(shortcuts.combo(for: .toggleLeftPanel).keyboardShortcut)
-            Button("") { withAnimation { layout.showRight.toggle() } }
+            Button("") { withAnimation { layout.toggleRightPanel() } }
                 .keyboardShortcut(shortcuts.combo(for: .toggleRightPanel).keyboardShortcut)
             Button("") { withAnimation { layout.showBottom.toggle() } }
                 .keyboardShortcut(shortcuts.combo(for: .toggleBottomPanel).keyboardShortcut)

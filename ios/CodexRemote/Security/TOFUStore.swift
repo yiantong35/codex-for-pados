@@ -51,4 +51,7 @@ struct KeychainTOFUStore: TOFUStoring {
     func remember(_ identityPub: Data, forMachineKey key: String) throws {
         try keychain.save(identityPub.base64EncodedString(), for: account(key))
     }
+    func forget(machineKey key: String) throws {
+        try keychain.delete(account(key))
+    }
 }
