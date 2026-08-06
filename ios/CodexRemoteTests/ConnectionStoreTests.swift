@@ -487,7 +487,8 @@ final class ConnectionStoreTests: XCTestCase {
         let store = await ConnectionStore(
             transportFactory: { _ in mock },
             heartbeatFactory: { cb in
-                HeartbeatMonitor(config: .init(interval: .seconds(10), missThreshold: 2),
+                HeartbeatMonitor(config: .init(interval: .seconds(10), missThreshold: 2,
+                                               minimumAcceleratedProbeInterval: .zero),
                                  probe: { await results.next() }, onUnhealthy: cb.run,
                                  sleep: { _ in try? await Task.sleep(for: .seconds(3600)) }) })
         await store.setTabActive(true)
