@@ -18,7 +18,7 @@ enum WorkspaceMetrics {
     static let columnResizeHandleHeight: CGFloat = 44
     static let columnResizeHandleEdgePadding: CGFloat = resizeHandleEdgePadding
     static let bottomResizeHandleTopPadding: CGFloat = resizeHandleEdgePadding
-    static let bottomResizeHandleTrackHeight: CGFloat = 16
+    static let bottomResizeHandleTrackHeight: CGFloat = 44
     static let bottomResizeHandleWidth: CGFloat = 40
     static let bottomResizeHandleInactiveHeight: CGFloat = 4
     static let bottomResizeHandleActiveHeight: CGFloat = 5
@@ -102,6 +102,15 @@ enum WorkspaceMetrics {
 
     /// VoiceOver `accessibilityAdjustableAction` 每次增减的列宽步长（D8）。
     static let columnResizeAccessibilityStep: CGFloat = 40
+    static let bottomResizeAccessibilityStep: CGFloat = 40
+
+    static func adjustedBottomHeight(_ current: CGFloat, increment: Bool) -> CGFloat {
+        clamp(
+            current + (increment ? bottomResizeAccessibilityStep : -bottomResizeAccessibilityStep),
+            min: bottomPanelMinHeight,
+            max: 900
+        )
+    }
 
     /// 单栏最大宽 = 容器总宽的 2/3（随总宽动态，SHALL NOT 固定像素）。
     static func maxColumnWidth(total: CGFloat) -> CGFloat {

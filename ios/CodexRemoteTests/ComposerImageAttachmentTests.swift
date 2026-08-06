@@ -38,6 +38,26 @@ final class ComposerImageAttachmentTests: XCTestCase {
         XCTAssertNil(state.error)
     }
 
+    func test_load_failure_is_visible_and_retryable() async throws {
+        let state = ComposerImageAttachmentState()
+
+        state.load { throw ComposerImageAttachmentTestError.timeout }
+        try await waitUntil { state.loadFailed }
+
+        XCTAssertFalse(state.isLoading)
+        XCTAssertNil(state.dataURL)
+
+        state.load { Data([1]) }
+        XCTAssertTrue(state.isLoading)
+        XCTAssertFalse(state.loadFailed)
+    }
+
+    func test_text_cannot_send_while_image_is_loading() {
+        XCTAssertFalse(ComposerView.canSend(text: "hello", imageDataURL: nil, isImageLoading: true))
+        XCTAssertTrue(ComposerView.canSend(text: "hello", imageDataURL: nil, isImageLoading: false))
+        XCTAssertTrue(ComposerView.canSend(text: "", imageDataURL: "data:image/jpeg;base64,x", isImageLoading: false))
+    }
+
     private func waitUntil(
         timeout: TimeInterval = 2,
         _ condition: @escaping @MainActor () async -> Bool

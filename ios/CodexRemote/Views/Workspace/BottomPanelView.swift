@@ -68,6 +68,15 @@ struct BottomPanelView: View {
                 }
                 .onEnded { _ in dragging = false }
         )
-        .accessibilityLabel(Text("workspace.bottomPanel.toggle"))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("workspace.bottomPanel.resize"))
+        .accessibilityValue(Text("workspace.bottomPanel.height \(Int(height))"))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: height = WorkspaceMetrics.adjustedBottomHeight(height, increment: true)
+            case .decrement: height = WorkspaceMetrics.adjustedBottomHeight(height, increment: false)
+            @unknown default: break
+            }
+        }
     }
 }

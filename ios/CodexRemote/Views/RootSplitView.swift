@@ -8,8 +8,6 @@ import Observation
 final class ActiveConversationHolder {
     var state: ConversationState?
     var contextIdentity: String?
-    /// 进度卡片点「X 文件」请求打开右栏的信号（一次性，RootSplitView 消费后复位）。
-    var requestRightPanel: Bool = false
     /// 拉取远端全量 diff 的回调（由持有 ConversationStore 的 ConversationView 注入）。
     /// 审查面板切到「全量」时调用；未接线（nil）时返回 nil，面板降级空态。
     var fetchFullDiff: ((_ cwd: String) async -> String?)?
@@ -77,22 +75,25 @@ struct RootSplitView: View {
                 // 不会遮挡顶栏按钮（否则会盖住摘要按钮本身导致收不回）。
                 .overlay(alignment: .topTrailing) {
                     if layout.showSummary {
-                        SummaryPopoverView(state: activeConversation.state, thread: selectedThread, env: envInspector,
-                                           onOpenReview: { layout.requestRightPanel(.review) })
-                            .frame(width: 340)
-                            .task(id: summaryEnvKey) {
-                                if connection.phase == .ready, let rpc = connection.rpc {
-                                    envInspector.attach(rpc: rpc)
-                                    await envInspector.refresh(cwd: selectedThread?.cwd)
+                        GeometryReader { geometry in
+                            SummaryPopoverView(state: activeConversation.state, thread: selectedThread, env: envInspector,
+                                               onOpenReview: { layout.requestRightPanel(.review) })
+                                .frame(width: min(340, max(0, geometry.size.width - 24)))
+                                .task(id: summaryEnvKey) {
+                                    if connection.phase == .ready, let rpc = connection.rpc {
+                                        envInspector.attach(rpc: rpc)
+                                        await envInspector.refresh(cwd: selectedThread?.cwd)
+                                    }
                                 }
-                            }
-                            .frame(maxHeight: 480)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-                            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))
-                            .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
-                            .padding(.top, 8)
-                            .padding(.trailing, 12)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
+                                .frame(maxHeight: 480)
+                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+                                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))
+                                .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
+                                .padding(.top, 8)
+                                .padding(.trailing, 12)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
                     }
                 }
                 .safeAreaInset(edge: .top, spacing: 0) {
@@ -111,12 +112,6 @@ struct RootSplitView: View {
             }
         }
         .background { ShortcutLayer(layout: layout) }   // T10：隐藏快捷键层挂稳定独立视图（不随 body 重算重建）
-        .onChange(of: activeConversation.requestRightPanel) { _, req in
-            if req {
-                withAnimation { layout.showRight = true }
-                activeConversation.requestRightPanel = false
-            }
-        }
         .environment(activeConversation)
         .sheet(isPresented: $layout.showSettings) { SettingsPageView(systemColorScheme: systemColorScheme) }
         .onChange(of: sessions.activeSessionId) { _, newId in
@@ -133,7 +128,7 @@ struct RootSplitView: View {
         // 全部按钮靠右；顺序：左面板 · 下面板 · 摘要 · 右面板 · 设置。
         // 三个面板图标用统一的 inset.filled 矩形族（一致风格，不混描边/填充）；
         // 摘要用 list.bullet(:≡ 两圆点两横线)；图标走主题色(.tint)、随系统深浅适配。
-        HStack(spacing: 18) {
+        HStack(spacing: 4) {
             Spacer()
 
             // 新建会话：SidebarView 无导航栏（已移除 NavigationSplitView），故新建入口挂在此自定义顶栏（design D1 深挖）。点击发 thread/start，切 selectedThreadId 进入新会话。
@@ -146,6 +141,7 @@ struct RootSplitView: View {
                     projects.markViewed(threadId: newId, updatedAt: Date().timeIntervalSince1970)
                 }
             } label: { Image(systemName: "plus.rectangle") }
+            .minimumHitTarget44()
             .accessibilityLabel(Text("sidebar.newThread"))
             .disabled(projects.isCreatingThread)   // 防抖：创建进行中禁用，避免连点建多个会话
 
@@ -153,24 +149,28 @@ struct RootSplitView: View {
             Button {
                 withAnimation { layout.leftVisible.toggle(); layout.lastRequested = .left }
             } label: { Image(systemName: "rectangle.leadinghalf.inset.filled") }
+            .minimumHitTarget44()
             .accessibilityLabel(Text("workspace.leftPanel.toggle"))
 
             // 下面板。
             Button { withAnimation { layout.showBottom.toggle() } } label: {
                 Image(systemName: "rectangle.bottomthird.inset.filled")
             }
+            .minimumHitTarget44()
             .accessibilityLabel(Text("workspace.bottomPanel.toggle"))
 
             // 摘要(:≡ = list.bullet)：常驻悬浮浮层由 body 的 overlay 渲染。
             Button { withAnimation { layout.showSummary.toggle() } } label: {
                 Image(systemName: "list.bullet")
             }
+            .minimumHitTarget44()
             .accessibilityLabel(Text("workspace.summary.toggle"))
 
             // 右面板。
             Button { withAnimation { layout.showRight.toggle(); layout.lastRequested = .right } } label: {
                 Image(systemName: "rectangle.trailinghalf.inset.filled")
             }
+            .minimumHitTarget44()
             .accessibilityLabel(Text("workspace.rightPanel.toggle"))
 
             // 设置：gear 直接打开设置页 .sheet（移除旧 popover，设计 D3）。
@@ -178,6 +178,7 @@ struct RootSplitView: View {
                 Image(systemName: "gearshape")
                     .accessibilityLabel(Text("settings.accessibility"))
             }
+            .minimumHitTarget44()
         }
         .font(.title3)
         // 图标用 .primary（标签色，随深浅自动适配黑/白），不用 iOS 默认蓝。
@@ -238,7 +239,11 @@ struct RootSplitView: View {
 
     @ViewBuilder private var content: some View {
         if let id = selectedThreadId {
-            ConversationView(threadId: id).id(id)
+            ConversationView(
+                threadId: id,
+                onOpenReview: { layout.requestRightPanel(.review) }
+            )
+            .id(id)
         } else {
             ContentUnavailableView("split.selectConversation", systemImage: "bubble.left.and.bubble.right")
         }

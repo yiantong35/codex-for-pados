@@ -82,6 +82,15 @@ struct ReviewTabView: View {
             Group {
                 if mode == .full && fullSnapshot.isLoading {
                     ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if mode == .full && fullSnapshot.hasError {
+                    ContentUnavailableView {
+                        Label("review.fullDiffFailed", systemImage: "exclamationmark.triangle")
+                    } description: {
+                        Text("review.fullDiffFailed.detail")
+                    } actions: {
+                        Button("common.retry") { Task { await refreshFullDiff() } }
+                            .buttonStyle(.borderedProminent)
+                    }
                 } else {
                     ReviewPanelView(source: source)
                 }

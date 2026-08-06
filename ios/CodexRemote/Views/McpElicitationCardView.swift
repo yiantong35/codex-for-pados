@@ -4,6 +4,11 @@ struct McpElicitationCardView: View {
     @Environment(McpElicitationStore.self) private var elicitations
     let card: McpElicitationCard
     @State private var drafts: [String: McpFormDraft] = [:]
+    @State private var showValidationErrors = false
+
+    private var submissionState: DecisionSubmissionState {
+        elicitations.submissionState(for: card.id)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -18,27 +23,41 @@ struct McpElicitationCardView: View {
                 Label("mcpElicitation.awaitingRecovery", systemImage: "wifi.exclamationmark")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            decisionFeedback
 
             switch card.mode {
             case .url(let url, _):
                 Link(destination: url) {
                     Label(url.host() ?? url.absoluteString, systemImage: "arrow.up.right.square")
                 }
-                actionRow(canAccept: true)
+                actionRow
             case .form(let fields):
                 ForEach(fields) { field in fieldView(field) }
-                actionRow(canAccept: card.isSubmittable(drafts: drafts))
+                actionRow
             }
         }
         .padding()
         .background(Color.teal.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 8))
-        .disabled(card.awaitingRecovery)
+        .disabled(card.awaitingRecovery || submissionState == .submitting)
         .onAppear { drafts = card.defaultDrafts() }
     }
 
     @ViewBuilder
-    private func actionRow(canAccept: Bool) -> some View {
+    private var decisionFeedback: some View {
+        switch submissionState {
+        case .idle: EmptyView()
+        case .submitting:
+            Label("decision.submitting", systemImage: "arrow.triangle.2.circlepath")
+                .font(.caption).foregroundStyle(.secondary)
+        case .failed:
+            Label("decision.failed", systemImage: "exclamationmark.triangle.fill")
+                .font(.caption).foregroundStyle(.red)
+        }
+    }
+
+    @ViewBuilder
+    private var actionRow: some View {
         HStack {
             Button(role: .cancel) {
                 Task { await elicitations.resolve(card: card, action: .cancel) }
@@ -51,13 +70,14 @@ struct McpElicitationCardView: View {
                 Task {
                     if case .url = card.mode {
                         await elicitations.resolve(card: card, action: .accept)
-                    } else {
+                    } else if card.validationErrors(drafts: drafts).isEmpty {
                         await elicitations.accept(card: card, drafts: drafts)
+                    } else {
+                        showValidationErrors = true
                     }
                 }
             } label: { Label("mcpElicitation.accept", systemImage: "checkmark") }
                 .buttonStyle(.borderedProminent)
-                .disabled(!canAccept)
         }
     }
 
@@ -98,6 +118,70 @@ struct McpElicitationCardView: View {
                     }
                 }
             }
+            fieldConstraint(field)
+            if showValidationErrors, let error = card.validationErrors(drafts: drafts)[field.name] {
+                Label(validationMessage(error), systemImage: "exclamationmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func fieldConstraint(_ field: McpFormField) -> some View {
+        Group {
+            switch field.kind {
+            case .string(let format, let minimum, let maximum):
+                if let minimum, let maximum {
+                    Text("mcpElicitation.constraint.lengthRange \(minimum) \(maximum)")
+                } else if let minimum {
+                    Text("mcpElicitation.constraint.minLength \(minimum)")
+                } else if let maximum {
+                    Text("mcpElicitation.constraint.maxLength \(maximum)")
+                }
+                if let format {
+                    Text(formatConstraintKey(format))
+                }
+            case .number(let integer, let minimum, let maximum):
+                if integer { Text("mcpElicitation.constraint.integer") }
+                if let minimum, let maximum {
+                    Text("mcpElicitation.constraint.numberRange \(minimum.formatted()) \(maximum.formatted())")
+                } else if let minimum {
+                    Text("mcpElicitation.constraint.minimum \(minimum.formatted())")
+                } else if let maximum {
+                    Text("mcpElicitation.constraint.maximum \(maximum.formatted())")
+                }
+            case .multiple(_, let minimum, let maximum):
+                if let minimum, let maximum {
+                    Text("mcpElicitation.constraint.selectionRange \(minimum) \(maximum)")
+                } else if let minimum {
+                    Text("mcpElicitation.constraint.minSelections \(minimum)")
+                } else if let maximum {
+                    Text("mcpElicitation.constraint.maxSelections \(maximum)")
+                }
+            case .boolean, .single:
+                EmptyView()
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func validationMessage(_ error: McpElicitationError) -> LocalizedStringKey {
+        switch error {
+        case .missingValue: "mcpElicitation.error.required"
+        default: "mcpElicitation.error.invalid"
+        }
+    }
+
+    private func formatConstraintKey(_ format: String) -> LocalizedStringKey {
+        switch format {
+        case "uri": "mcpElicitation.constraint.url"
+        case "email": "mcpElicitation.constraint.email"
+        case "date": "mcpElicitation.constraint.date"
+        default: "mcpElicitation.constraint.dateTime"
         }
     }
 

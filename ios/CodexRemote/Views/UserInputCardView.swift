@@ -4,6 +4,11 @@ struct UserInputCardView: View {
     @Environment(UserInputStore.self) private var userInputs
     let card: UserInputCard
     @State private var drafts: [String: UserInputDraft] = [:]
+    @FocusState private var focusedQuestionId: String?
+
+    private var submissionState: DecisionSubmissionState {
+        userInputs.submissionState(for: card.id)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -14,6 +19,8 @@ struct UserInputCardView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            autoResolutionStatus
+            decisionFeedback
 
             ForEach(card.questions) { question in
                 questionView(question)
@@ -34,7 +41,7 @@ struct UserInputCardView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(!card.isSubmittable(drafts: drafts))
             }
-            .disabled(card.awaitingRecovery)
+            .disabled(card.awaitingRecovery || submissionState == .submitting)
         }
         .padding()
         .background(Color.accentColor.opacity(0.07))
@@ -43,6 +50,39 @@ struct UserInputCardView: View {
             for question in card.questions where drafts[question.id] == nil {
                 drafts[question.id] = UserInputDraft()
             }
+        }
+        .onChange(of: focusedQuestionId) { _, newValue in
+            if newValue != nil { userInputs.userInteracted(with: card.id) }
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0).onChanged { _ in userInputs.userInteracted(with: card.id) }
+        )
+    }
+
+    @ViewBuilder
+    private var autoResolutionStatus: some View {
+        if userInputs.isAutoResolutionPaused(card.id) {
+            Label("userInput.autoPaused", systemImage: "pause.circle")
+                .font(.caption).foregroundStyle(.secondary)
+        } else if let deadline = userInputs.autoResolutionDeadline(for: card.id) {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let seconds = max(0, Int(ceil(deadline.timeIntervalSince(context.date))))
+                Label("userInput.autoCountdown \(seconds)", systemImage: "timer")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var decisionFeedback: some View {
+        switch submissionState {
+        case .idle: EmptyView()
+        case .submitting:
+            Label("decision.submitting", systemImage: "arrow.triangle.2.circlepath")
+                .font(.caption).foregroundStyle(.secondary)
+        case .failed:
+            Label("decision.failed", systemImage: "exclamationmark.triangle.fill")
+                .font(.caption).foregroundStyle(.red)
         }
     }
 
@@ -88,6 +128,7 @@ struct UserInputCardView: View {
                 if question.isSecret {
                     SecureField("userInput.answerPlaceholder", text: freeformBinding(for: question.id))
                         .textFieldStyle(.roundedBorder)
+                        .focused($focusedQuestionId, equals: question.id)
                 } else {
                     TextField(
                         question.options == nil ? "userInput.answerPlaceholder" : "userInput.otherPlaceholder",
@@ -96,6 +137,7 @@ struct UserInputCardView: View {
                     )
                     .lineLimit(1...4)
                     .textFieldStyle(.roundedBorder)
+                    .focused($focusedQuestionId, equals: question.id)
                 }
             }
         }
