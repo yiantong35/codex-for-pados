@@ -218,11 +218,15 @@ final class SessionsManagerTests: XCTestCase {
 
         m.setActive(a.id)
         XCTAssertTrue(sa.isForeground, "新活跃 a 应转前台")
+        XCTAssertTrue(sa.connection.tabActive, "活跃 tab 应使用活动心跳节奏")
         XCTAssertFalse(sb.isForeground, "b 从未活跃，仍在后台")
+        XCTAssertFalse(sb.connection.tabActive, "非活动 tab 应使用低频心跳节奏")
 
         m.setActive(b.id)
         XCTAssertFalse(sa.isForeground, "旧前台 a 切走后应转后台")
+        XCTAssertFalse(sa.connection.tabActive, "切走后应降为低频心跳")
         XCTAssertTrue(sb.isForeground, "新活跃 b 应转前台")
+        XCTAssertTrue(sb.connection.tabActive, "切入后应恢复活动心跳节奏")
     }
 
     // MARK: - final C1 懒连/重连入口

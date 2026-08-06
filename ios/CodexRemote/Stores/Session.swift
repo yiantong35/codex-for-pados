@@ -63,6 +63,7 @@ final class Session: Identifiable {
     /// 故此处无需额外退订正文——Session 级唯一 lever 就是列表轮询开关。
     func setForeground(_ v: Bool) {
         isForeground = v
+        connection.setTabActive(v)
         if v {
             projects.startPolling()
             Task { await projects.refreshNow() }

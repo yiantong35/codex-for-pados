@@ -108,6 +108,8 @@ final class ConnectionStore {
     /// app 前台/后台状态（能耗）：转发给底层 transport 以在后台暂停重连。默认前台。
     /// private(set)：外部（含单测）只读，写入仍仅经 setForeground(_:)。
     private(set) var foregroundActive = true
+    /// 当前机器 tab 是否活跃；与 app 前后台正交，用于心跳 10s/60s 分级。
+    private(set) var tabActive = false
 
     #if DEBUG
     /// 测试专用只读访问器：暴露在途 transport 引用以断言 fail-closed 清理（F6）。
@@ -289,6 +291,11 @@ final class ConnectionStore {
         heartbeat?.setForeground(active)
     }
 
+    func setTabActive(_ active: Bool) {
+        tabActive = active
+        heartbeat?.setTabActive(active)
+    }
+
     // MARK: - 握手
 
     /// 建底层 transport + initialize 握手，返回就绪的 JSON-RPC client 及其 transport。
@@ -387,6 +394,7 @@ final class ConnectionStore {
         }
         let m = injectedHeartbeatFactory?(HeartbeatUnhealthy(run: onUnhealthy))
             ?? makeRealHeartbeat(onUnhealthy: onUnhealthy)
+        m.setTabActive(tabActive)
         m.setForeground(foregroundActive)
         m.start()
         heartbeat = m
@@ -441,7 +449,7 @@ final class ConnectionStore {
                     // 非判决（防降级红线）：relay 连接层「对端已离开」只是**提示**，不是判死依据。
                     // 恶意/误报 relay 不能凭空杀健康连接——不改 phase、不断开、不重连，
                     // 只带外补发一次心跳探针核实：探针 miss 才由心跳判死走有界重连；探针 hit 则忽略。
-                    if let hb = self.heartbeat { Task { await hb.probeOnce() } }
+                    self.heartbeat?.requestAcceleratedProbe()
                 }
             }
         }

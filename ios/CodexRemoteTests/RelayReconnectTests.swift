@@ -344,6 +344,29 @@ final class RelayReconnectTests: XCTestCase {
         await transport.close()
     }
 
+    func testPeerLeftForDifferentSessionIsIgnored() async throws {
+        let script = ReconnectScript([.succeed])
+        let policy = RelayReconnectPolicy(maxAttempts: 6, baseDelaySeconds: 0.0, maxDelaySeconds: 0.0,
+                                          sleep: { _ in })
+        let transport = makeTransport(script, policy: policy)
+        try await transport.awaitHandshake()
+
+        let collected = Task { () -> [TransportControlEvent] in
+            var events: [TransportControlEvent] = []
+            for await event in transport.control() { events.append(event) }
+            return events
+        }
+        let signal = try RelaySignal(kind: RelaySignal.peerLeftKind,
+                                     sessionId: "different-session").encoded()
+        await script.currentChannel?.inject(String(decoding: signal, as: UTF8.self))
+        try? await Task.sleep(for: .milliseconds(50))
+        await transport.close()
+
+        let events = await collected.value
+        XCTAssertFalse(events.contains(.peerLeft),
+                       "其它 relay session 的 peer-left 不得影响当前连接")
+    }
+
     /// triggerReconnect 主动丢弃当前 ws → 走既有内部有界重连（先 .reconnecting、再 .ready），不置 activeClose。
     func testTriggerReconnectStartsBoundedReconnect() async throws {
         let script = ReconnectScript([.succeed, .succeed])
