@@ -1,11 +1,16 @@
 import XCTest
 import UIKit
+import RelayProtocol
 @testable import CodexRemote
 
 /// F7：图片发送前有界编码。relay 单帧上限 1 MiB（镜像 relay-server
 /// `FrameAccumulator.swift:8`）；普通照片全尺寸 base64 后远超此限会致 relay 断连。
 /// 覆盖：大图降采样落上限内 / 无法落入上限时带具体数字拒绝 / 非 JPEG 原图重编码后如实标注 MIME。
 final class ImageEncoderTests: XCTestCase {
+
+    func test_relay_limit_comes_from_shared_protocol_contract() {
+        XCTAssertEqual(ImageEncoder.relayMaxMessageBytes, RelayWireLimits.maxMessageBytes)
+    }
 
     func test_large_image_downscaled_within_limit() async throws {
         let big = Self.makeTestJPEG(width: 4032, height: 3024)
@@ -47,6 +52,27 @@ final class ImageEncoderTests: XCTestCase {
             projectedFrame, ImageEncoder.relayMaxMessageBytes,
             "明文上限图片经加密+base64 后应仍 < relay 单帧上限"
             + "（projected=\(projectedFrame) vs cap=\(ImageEncoder.relayMaxMessageBytes)）")
+    }
+
+    func test_cancellation_reaches_detached_multistage_encoder() async throws {
+        let reachedStage = expectation(description: "encoder reached compression stage")
+        let resumeStage = DispatchSemaphore(value: 0)
+        let image = Self.makeTestJPEG(width: 2000, height: 1600)
+        let task = Task {
+            await ImageEncoder.encodeForSend(image) { stage in
+                guard stage == 1 else { return }
+                reachedStage.fulfill()
+                resumeStage.wait()
+            }
+        }
+
+        await fulfillment(of: [reachedStage], timeout: 2)
+        task.cancel()
+        resumeStage.signal()
+        let result = await task.value
+        guard case .cancelled = result else {
+            return XCTFail("取消必须传播到 detached 编码任务")
+        }
     }
 
     // MARK: - Test image helpers
@@ -103,4 +129,3 @@ final class ImageEncoderTests: XCTestCase {
         }
     }
 }
-

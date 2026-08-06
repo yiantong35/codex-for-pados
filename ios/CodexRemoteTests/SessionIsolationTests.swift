@@ -11,6 +11,7 @@ final class SessionIsolationTests: XCTestCase {
         XCTAssertFalse(s1.projects === s2.projects)
         XCTAssertFalse(s1.environment === s2.environment)
         XCTAssertFalse(s1.connection === s2.connection)
+        XCTAssertFalse(s1.userInputs === s2.userInputs)
     }
 
     func test_sessionExposesMachineIdentity() {

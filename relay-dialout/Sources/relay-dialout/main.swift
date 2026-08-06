@@ -6,6 +6,11 @@ import NIOWebSocket
 import Crypto
 import RelayProtocol
 import RelayDialoutCore
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 
 // MARK: - 开发机侧拨出程序（编排入口）
 //
@@ -132,7 +137,29 @@ let context = DialoutContext(keyStore: keyStore, devDeviceId: devDeviceId,
 //   - upgradePipelineHandler 里装 DialoutWSHandler，按帧分发到上面的 handshake 函数；
 //     建通道后收 SecureEnvelope → session.open → bridge.write，
 //     bridge.incoming 明文 → session.seal → env.encoded() → 写 ws text frame。
-//   - 断线/过期清理：调用 bridge.terminate() 只停自己 spawn 的 proxy 子进程。
+//   - relay 瞬断由 supervisor 重拨；bridge 只在信任/进程/用户终态时精确回收。
+
+final class PendingDialoutChannel: @unchecked Sendable {
+    private let lock = NSLock()
+    private var channel: Channel?
+    private var cancelled = false
+
+    func register(_ channel: Channel) {
+        lock.lock()
+        self.channel = channel
+        let shouldClose = cancelled
+        lock.unlock()
+        if shouldClose { channel.close(promise: nil) }
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        let channel = self.channel
+        lock.unlock()
+        channel?.close(promise: nil)
+    }
+}
 
 /// ws 帧处理器：把 relay 收到的帧路由到握手/桥接逻辑，把 proxy 输出加密回发。
 final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
@@ -142,14 +169,22 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
     private let bridge: ProxyBridge
     private let context: DialoutContext
     private let lifecycle: BridgeLifecycle
-    /// #1 后遗:连接内可多次重握手,但 bridge 子进程与其 stdout 跨重握手连续存在。
-    /// pump 必须每连接恰启一次——否则每次重握手都新装 stdout readabilityHandler,
-    /// 顶掉旧 pump Task(挂起永不回收=泄漏)且交接处可能丢一行。守 handler EventLoop 单线程,裸 Bool 足矣。
-    private var pumpStarted = false
+    private let outputRouter: BridgeOutputRouter
+    private let attempt: DialoutAttemptTracker
+    private var outputAttachment: BridgeOutputRouter.Attachment?
 
-    init(bridge: ProxyBridge, context: DialoutContext) {
-        self.bridge = bridge; self.context = context
-        self.lifecycle = BridgeLifecycle(bridge: bridge)
+    init(
+        bridge: ProxyBridge,
+        context: DialoutContext,
+        lifecycle: BridgeLifecycle,
+        outputRouter: BridgeOutputRouter,
+        attempt: DialoutAttemptTracker
+    ) {
+        self.bridge = bridge
+        self.context = context
+        self.lifecycle = lifecycle
+        self.outputRouter = outputRouter
+        self.attempt = attempt
     }
 
     func channelRead(context ctx: ChannelHandlerContext, data: NIOAny) {
@@ -160,17 +195,16 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             let bytes = buf.readBytes(length: buf.readableBytes) ?? []
             handlePayload(Data(bytes), ctx: ctx)
         case .connectionClose:
-            lifecycle.shutdown()   // 只停自己 spawn 的 proxy 子进程
             ctx.close(promise: nil)
         default:
             break
         }
     }
 
-    /// #8b：channel inactive/reset（无 connectionClose 帧，如 TCP reset/网络突断）退出路径——
-    /// 补 `lifecycle.shutdown()` 精确回收自己 spawn 的 proxy 子进程，绝不遗留孤儿进程。
+    /// 瞬时 relay 断开只摘除当前输出 sink；bridge 由 supervisor 保留到终态。
     func channelInactive(context ctx: ChannelHandlerContext) {
-        lifecycle.shutdown()
+        if let outputAttachment { outputRouter.detach(outputAttachment) }
+        outputAttachment = nil
         ctx.fireChannelInactive()
     }
 
@@ -202,13 +236,15 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             do {
                 readyFrame = try context.handleClientAuth(data)
             } catch {
-                // 落盘/验签失败：不发 SecureReady、不启 bridge、不发布会话。上层错误路径负责关连接。
+                attempt.markTerminal(.trustRejected)
+                ctx.close(promise: nil)
                 return
             }
             // 握手完成：先加密回传 SecureReady（稳定 sessionId），再启桥并把 proxy 输出加密回发。
             sendFrame(readyFrame, ctx: ctx)   // 只发一次
             guard ensureBridgeStarted(ctx: ctx) else { return }   // #8a 启桥失败 fail-closed 关连接
-            pumpBridgeOutbound(ctx: ctx)
+            attachBridgeOutbound(ctx: ctx)
+            attempt.markHealthy()
             return
         case .clientHello:
             // (重)握手起始：受信任复连的 handleClientHello 每次重置在飞握手态，支持连接内多次重握手。
@@ -219,12 +255,17 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
         if let hello = try? JSONDecoder().decode(ClientHello.self, from: data) {
             if let reject = context.rejectHelloIfUnauthorized(hello) {
                 if let rejData = try? JSONEncoder().encode(reject) { sendFrame(rejData, ctx: ctx) }
+                attempt.markTerminal(.trustRejected)
                 ctx.close(promise: nil)
                 return
             }
         }
-        if let serverHelloData = try? context.handleClientHello(data) {
+        do {
+            let serverHelloData = try context.handleClientHello(data)
             sendFrame(serverHelloData, ctx: ctx)
+        } catch {
+            attempt.markTerminal(.trustRejected)
+            ctx.close(promise: nil)
         }
     }
 
@@ -236,32 +277,29 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             try lifecycle.ensureStarted()
             return true
         } catch {
-            lifecycle.shutdown()          // 回收可能的残留子进程
+            attempt.markTerminal(.bridgeFailed)
             ctx.close(promise: nil)       // 关连接：iPad 侧据此明确失败，不静默继续
             return false
         }
     }
 
-    /// proxy stdout 明文 → session.seal → SecureEnvelope → ws text frame。
-    private func pumpBridgeOutbound(ctx: ChannelHandlerContext) {
-        // 每连接恰启一次:重握手复用同一 bridge/stdout,重复启会顶掉旧 handler 并泄漏 Task。
-        guard !pumpStarted else { return }
-        pumpStarted = true
+    /// 全局 router 持续 drain proxy stdout；这里只替换当前物理连接 sink，不缓存断线数据。
+    private func attachBridgeOutbound(ctx: ChannelHandlerContext) {
+        if let outputAttachment { outputRouter.detach(outputAttachment) }
         let channel = ctx.channel
         let ctxRef = context
-        Task {
-            for await line in bridge.incoming {
-                guard let session = ctxRef.session,
-                      let env = try? session.seal(Data(line.utf8), kind: .appData),
-                      let encoded = try? env.encoded() else { continue }
-                channel.eventLoop.execute {
-                    var buf = channel.allocator.buffer(capacity: encoded.count)
-                    buf.writeBytes(encoded)
-                    let frame = WebSocketFrame(fin: true, opcode: .text, data: buf)
-                    channel.writeAndFlush(frame, promise: nil)
-                }
+        outputAttachment = outputRouter.attach { line in
+            guard let session = ctxRef.session,
+                  let env = try? session.seal(Data(line.utf8), kind: .appData),
+                  let encoded = try? env.encoded() else { return }
+            channel.eventLoop.execute {
+                var buf = channel.allocator.buffer(capacity: encoded.count)
+                buf.writeBytes(encoded)
+                let frame = WebSocketFrame(fin: true, opcode: .text, data: buf)
+                channel.writeAndFlush(frame, promise: nil)
             }
         }
+        outputRouter.start()
     }
 
     private func sendFrame(_ data: Data, ctx: ChannelHandlerContext) {
@@ -275,6 +313,39 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
 // MARK: ws 拨出
 let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
 let bridge = ProxyBridge(codexPath: codexPath, sockPath: sockPath)
+let bridgeLifecycle = BridgeLifecycle(bridge: bridge)
+
+final class DialoutStopRelay: @unchecked Sendable {
+    private let lock = NSLock()
+    private var handler: (@Sendable (DialoutStopReason) -> Void)?
+    private var pending: DialoutStopReason?
+
+    func install(_ handler: @escaping @Sendable (DialoutStopReason) -> Void) {
+        lock.lock()
+        self.handler = handler
+        let pending = self.pending
+        self.pending = nil
+        lock.unlock()
+        if let pending { handler(pending) }
+    }
+
+    func request(_ reason: DialoutStopReason) {
+        lock.lock()
+        if let handler = self.handler {
+            lock.unlock()
+            handler(reason)
+        } else {
+            if pending == nil { pending = reason }
+            lock.unlock()
+        }
+    }
+}
+
+let stopRelay = DialoutStopRelay()
+let outputRouter = BridgeOutputRouter(
+    stream: { bridge.incoming },
+    onBridgeExit: { stopRelay.request(.bridgeExited) }
+)
 
 guard let url = URL(string: relayURL), let host = url.host else {
     print("RELAY_URL 无效: \(relayURL)")
@@ -283,32 +354,6 @@ guard let url = URL(string: relayURL), let host = url.host else {
 let isTLS = url.scheme == "wss"
 let port = url.port ?? (isTLS ? 443 : 80)
 let uri = "/relay/\(sessionId)"
-
-// MARK: ws 拨出（wss：前置客户端 TLS；ws：明文，仅本地测试）
-let bootstrap = ClientBootstrap(group: group)
-    .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
-    .channelInitializer { channel in
-        let httpHandler = HTTPInitialRequestHandler(host: host, uri: uri)
-        // wss：先前置客户端 TLS handler（须最靠近 socket），再装 HTTP+ws 升级链；ws：明文（本地测试）。
-        let tlsFuture: EventLoopFuture<Void> = isTLS
-            ? DialoutTLS.addClientTLS(to: channel, serverHostname: host)
-            : channel.eventLoop.makeSucceededFuture(())
-        return tlsFuture.flatMap {
-            let upgrader = NIOWebSocketClientUpgrader(
-                upgradePipelineHandler: { (channel, _) in
-                    channel.pipeline.addHandler(DialoutWSHandler(bridge: bridge, context: context))
-                }
-            )
-            let config = NIOHTTPClientUpgradeConfiguration(
-                upgraders: [upgrader],
-                completionHandler: { _ in
-                    channel.pipeline.removeHandler(httpHandler, promise: nil)
-                }
-            )
-            return channel.pipeline.addHTTPClientHandlers(withClientUpgrade: config)
-                .flatMap { channel.pipeline.addHandler(httpHandler) }
-        }
-    }
 
 /// 发起 upgrade 的初始 HTTP 请求处理器（带 x-role: devMachine header）。
 final class HTTPInitialRequestHandler: ChannelInboundHandler, RemovableChannelHandler, @unchecked Sendable {
@@ -335,17 +380,93 @@ final class HTTPInitialRequestHandler: ChannelInboundHandler, RemovableChannelHa
     }
 }
 
-do {
-    let channel = try bootstrap.connect(host: host, port: port).wait()
-    print("relay-dialout 已拨出 \(host):\(port)\(uri) (role=devMachine)")
-    try channel.closeFuture.wait()
-} catch {
-    print("relay-dialout 拨出失败: \(error)")
-    bridge.terminate()   // 非阻塞发起精确回收
+@Sendable func shutdownEventLoopGroup(_ group: EventLoopGroup) {
     try? group.syncShutdownGracefully()
-    bridge.waitForTermination()   // 已离开 EventLoop 后等待并 reap
+}
+
+let supervisor = DialoutSupervisor(
+    connector: {
+        let attempt = DialoutAttemptTracker()
+        let pendingChannel = PendingDialoutChannel()
+        let bootstrap = ClientBootstrap(group: group)
+            .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
+            .channelInitializer { channel in
+                pendingChannel.register(channel)
+                let httpHandler = HTTPInitialRequestHandler(host: host, uri: uri)
+                let tlsFuture: EventLoopFuture<Void> = isTLS
+                    ? DialoutTLS.addClientTLS(to: channel, serverHostname: host)
+                    : channel.eventLoop.makeSucceededFuture(())
+                return tlsFuture.flatMap {
+                    let upgrader = DialoutWebSocket.makeClientUpgrader(
+                        upgradePipelineHandler: { channel, _ in
+                            channel.pipeline.addHandler(DialoutWSHandler(
+                                bridge: bridge,
+                                context: context,
+                                lifecycle: bridgeLifecycle,
+                                outputRouter: outputRouter,
+                                attempt: attempt
+                            ))
+                        }
+                    )
+                    let config = NIOHTTPClientUpgradeConfiguration(
+                        upgraders: [upgrader],
+                        completionHandler: { _ in
+                            channel.pipeline.removeHandler(httpHandler, promise: nil)
+                        }
+                    )
+                    return channel.pipeline.addHTTPClientHandlers(withClientUpgrade: config)
+                        .flatMap { channel.pipeline.addHandler(httpHandler) }
+                }
+            }
+
+        let channel = try await withTaskCancellationHandler {
+            try await bootstrap.connect(host: host, port: port).get()
+        } onCancel: {
+            pendingChannel.cancel()
+        }
+        print("relay-dialout 已拨出 \(host):\(port)\(uri) (role=devMachine)")
+        try await withTaskCancellationHandler {
+            try await channel.closeFuture.get()
+        } onCancel: {
+            pendingChannel.cancel()
+        }
+        return attempt.outcome
+    },
+    onShutdown: {
+        outputRouter.stop()
+        bridgeLifecycle.shutdown()
+        shutdownEventLoopGroup(group)
+        // EventLoop 已停止；此处可安全等待精确 PID 完成 TERM/KILL 与 reap。
+        bridge.waitForTermination()
+    }
+)
+
+stopRelay.install { reason in
+    Task { await supervisor.stop(reason) }
+}
+
+func makeSignalSource(_ signalNumber: Int32) -> DispatchSourceSignal {
+    signal(signalNumber, SIG_IGN)
+    let source = DispatchSource.makeSignalSource(signal: signalNumber, queue: .global())
+    source.setEventHandler { stopRelay.request(.cancelled) }
+    source.resume()
+    return source
+}
+
+let signalSources = [makeSignalSource(SIGINT), makeSignalSource(SIGTERM)]
+let stopReason = await supervisor.run()
+signalSources.forEach { $0.cancel() }
+
+switch stopReason {
+case .cancelled:
+    print("relay-dialout 已停止")
+case .trustRejected:
+    print("relay-dialout 因信任校验失败停止")
+    exit(1)
+case .bridgeExited:
+    print("relay-dialout 因 proxy bridge 退出停止")
+    exit(1)
+case .bridgeFailed:
+    print("relay-dialout 因 proxy bridge 启动失败停止")
     exit(1)
 }
-try? group.syncShutdownGracefully()
-bridge.terminate()
-bridge.waitForTermination()       // 顶层收口，绝不在 NIO EventLoop 内等待

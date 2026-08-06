@@ -5,6 +5,7 @@ import SwiftUI
 struct ApprovalCardView: View {
     @Environment(ApprovalStore.self) private var approvals
     let card: ApprovalCard
+    var fileContext: FileApprovalContext? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -15,28 +16,69 @@ struct ApprovalCardView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Text(card.title).font(.callout.monospaced())
+            Text(fileContext?.file ?? card.title).font(.callout.monospaced())
             // F4：权限审批展示知情要素——reason + 请求的 network/fileSystem 条目，
             // 用户批准前看清实际授权范围（守 UI 基线：文本可换行/随 Dynamic Type，无固定宽度）。
+            if let reason = card.reason, !reason.isEmpty {
+                Label(reason, systemImage: "text.bubble")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let context = card.networkApprovalContext {
+                Label("\(context.protocol.rawValue)://\(context.host)", systemImage: "network")
+                    .font(.caption.monospaced())
+            }
             if card.isPermissions {
-                if let reason = card.reason, !reason.isEmpty {
-                    Text(reason)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
                 if let net = card.requestedNetworkEnabled {
                     Label(net ? "approval.perm.network.on" : "approval.perm.network.off",
                           systemImage: "network")
                         .font(.caption)
                 }
-                if let fs = card.requestedFileSystem, !fs.isEmpty {
+                if card.permissionEntries == nil, let fs = card.requestedFileSystem, !fs.isEmpty {
                     ForEach(fs, id: \.self) { path in
                         Label(path, systemImage: "folder")
                             .font(.caption.monospaced())
                             .lineLimit(1)
                             .truncationMode(.middle)
                     }
+                }
+                if let entries = card.permissionEntries {
+                    ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
+                        HStack(spacing: 6) {
+                            Text(entry.access.rawValue.uppercased())
+                                .font(.caption2.bold())
+                                .foregroundStyle(entry.access == .deny ? Color.red : Color.secondary)
+                            Text(entry.path.displayValue)
+                                .font(.caption.monospaced())
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
+                }
+                if let depth = card.globScanMaxDepth {
+                    HStack(spacing: 4) {
+                        Text("approval.perm.globDepth")
+                        Text(depth.formatted())
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            }
+            if let root = card.grantRoot {
+                Label(root, systemImage: "folder.badge.plus")
+                    .font(.caption.monospaced())
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            if let context = fileContext {
+                Text("+\(context.added) -\(context.removed)")
+                    .font(.caption.monospaced()).foregroundStyle(.secondary)
+                if !context.diff.isEmpty {
+                    Text(context.diff)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(12)
                 }
             }
             if !card.detail.isEmpty {
@@ -54,7 +96,7 @@ struct ApprovalCardView: View {
         }
         .padding()
         .background(.orange.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     @ViewBuilder

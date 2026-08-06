@@ -2,6 +2,7 @@ import Testing
 import Foundation
 @testable import RelayDialoutCore
 
+#if canImport(CoreImage)
 @Test func qrMatrixNonEmptyAndSquare() throws {
     let m = try TerminalQRCode.matrix(for: "codexrelay://pair?relay=wss://x&sid=s&pk=p&pc=c&exp=1")
     #expect(m.count > 0)
@@ -19,3 +20,10 @@ import Foundation
     let b = try TerminalQRCode.halfBlockString(for: "codexrelay://pair?sid=B")
     #expect(a != b)
 }
+#else
+@Test func qrGenerationReportsUnsupportedPlatformWithoutCoreImage() {
+    #expect(throws: TerminalQRCode.QRError.unsupportedPlatform) {
+        try TerminalQRCode.matrix(for: "codexrelay://pair?sid=A")
+    }
+}
+#endif

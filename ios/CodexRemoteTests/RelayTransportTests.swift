@@ -49,6 +49,26 @@ final class RelayTransportTests: XCTestCase {
         XCTAssertEqual(String(decoding: opened, as: UTF8.self), "hello")
     }
 
+    func testSendRejectsOversizedFinalFrameBeforeSocketWrite() async throws {
+        let (ipad, _) = try pairedSessions()
+        let ws = MockRelayWSChannel()
+        let transport = RelayTransport(session: ipad, ws: ws)
+
+        do {
+            try await transport.send(String(repeating: "x", count: RelayWireLimits.maxMessageBytes))
+            XCTFail("oversized encrypted frame should be rejected")
+        } catch let error as TransportError {
+            guard case .messageTooLarge(let bytes, let limit) = error else {
+                return XCTFail("unexpected transport error: \(error)")
+            }
+            XCTAssertGreaterThan(bytes, limit)
+            XCTAssertEqual(limit, RelayWireLimits.maxMessageBytes)
+        }
+
+        let sentFrames = await ws.sentFrames
+        XCTAssertTrue(sentFrames.isEmpty)
+    }
+
     // MARK: incoming ← 密文解密
 
     func testIncomingDecryptsEnvelopeToPlaintext() async throws {

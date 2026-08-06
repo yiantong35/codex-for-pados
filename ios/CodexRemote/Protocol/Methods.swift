@@ -47,9 +47,22 @@ enum RPCMethod {
 enum ServerRequestMethod {
     static let cmdApprovalV2 = "item/commandExecution/requestApproval"
     static let fileApprovalV2 = "item/fileChange/requestApproval"
+    static let userInput = "item/tool/requestUserInput"
+    static let mcpElicitation = "mcpServer/elicitation/request"
     static let permsApprovalV2 = "item/permissions/requestApproval"
+    static let dynamicToolCall = "item/tool/call"
+    static let authTokensRefresh = "account/chatgptAuthTokens/refresh"
+    static let attestationGenerate = "attestation/generate"
     static let execApprovalLegacy = "execCommandApproval"
     static let applyPatchApprovalLegacy = "applyPatchApproval"
+
+    /// Mirrors protocol/schema/ServerRequest.json. Keep the router test exhaustive
+    /// so a regenerated method cannot silently become an unanswered request.
+    static let generatedMethods = [
+        cmdApprovalV2, fileApprovalV2, userInput, mcpElicitation,
+        permsApprovalV2, dynamicToolCall, authTokensRefresh,
+        attestationGenerate, applyPatchApprovalLegacy, execApprovalLegacy,
+    ]
 }
 
 enum ServerNotificationMethod {

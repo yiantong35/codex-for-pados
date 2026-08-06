@@ -7,7 +7,8 @@ final class ApprovalBoundaryTests: XCTestCase {
         let store = ApprovalStore()
         let req = JSONRPCRequest(id: .string("r1"),
             method: ServerRequestMethod.cmdApprovalV2,
-            params: AnyCodable(["threadId": "t1", "command": "ls"]))
+            params: AnyCodable(["threadId": "t1", "turnId": "turn", "itemId": "item",
+                                "startedAtMs": 1, "command": "ls"]))
         store.handle(request: req)
         return store
     }
@@ -45,7 +46,7 @@ final class ApprovalBoundaryTests: XCTestCase {
         await coord.bind(rpc: rpc)
         let store = coord.store
 
-        let frame = #"{"jsonrpc":"2.0","id":"r1","method":"item/commandExecution/requestApproval","params":{"threadId":"t1","command":"ls"}}"#
+        let frame = #"{"jsonrpc":"2.0","id":"r1","method":"item/commandExecution/requestApproval","params":{"threadId":"t1","turnId":"turn","itemId":"item","startedAtMs":1,"command":"ls"}}"#
         await mock.feed(frame)
         // 等待卡片入队
         let deadline = Date().addingTimeInterval(2)

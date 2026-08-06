@@ -11,17 +11,14 @@ struct ReviewTabView: View {
     var cwd: String?
 
     @State private var mode: ReviewSourceMode = .turn
-    @State private var fullDiff: String?
-    /// #2：fullDiff 当前所属 cwd；切 thread（cwd 变）后与选中 cwd 不符即失效重取。
-    @State private var fullDiffCwd: String?
-    @State private var fullDiffGeneration: Int?
-    @State private var loadingFull = false
+    @State private var fullSnapshot = FullDiffSnapshotModel()
     @State private var isSubmittingReview = false
     @State private var reviewFeedback: ReviewStartFeedback?
 
     private var turnDiff: String { activeConversation.state?.turnDiff ?? "" }
     private var source: ReviewDiffSource {
-        ReviewDiffSource.resolve(mode: mode, turnDiff: turnDiff, fullDiff: fullDiff, locale: locale)
+        let currentFullDiff = fullSnapshot.context == fullContext ? fullSnapshot.diff : nil
+        return ReviewDiffSource.resolve(mode: mode, turnDiff: turnDiff, fullDiff: currentFullDiff, locale: locale)
     }
 
     /// 当前数据源能否发起审查：回调已接线 + 对应数据源有效。
@@ -29,8 +26,17 @@ struct ReviewTabView: View {
         guard activeConversation.startReview != nil else { return false }
         switch mode {
         case .turn: return !turnDiff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case .full: return cwd != nil
+        case .full: return fullContext != nil && activeConversation.fetchFullDiff != nil
         }
+    }
+
+    private var fullContext: FullDiffContextKey? {
+        guard let cwd, let identity = activeConversation.contextIdentity else { return nil }
+        return .init(
+            cwd: cwd,
+            conversationIdentity: identity,
+            fetchGeneration: activeConversation.fetchGeneration
+        )
     }
 
     static func canSubmitReview(sourceAvailable: Bool, isSubmitting: Bool) -> Bool {
@@ -58,11 +64,23 @@ struct ReviewTabView: View {
                     sourceAvailable: canStartReview,
                     isSubmitting: isSubmittingReview))
                 .accessibilityLabel(Text("review.start"))
+
+                if mode == .full {
+                    Button {
+                        Task { await refreshFullDiff() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.plain)
+                    .minimumHitTarget44()
+                    .disabled(fullContext == nil || activeConversation.fetchFullDiff == nil || fullSnapshot.isLoading)
+                    .accessibilityLabel(Text("review.refresh"))
+                }
             }
             .padding(8)
 
             Group {
-                if loadingFull {
+                if mode == .full && fullSnapshot.isLoading {
                     ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ReviewPanelView(source: source)
@@ -82,38 +100,25 @@ struct ReviewTabView: View {
             }
             .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: reviewFeedback)
         }
-        // #2：绑定 mode + cwd 复合键；cwd 变即重跑 task。取指纹 String(describing:) 避免依赖 rawValue。
-        .task(id: "\(String(describing: mode))|\(cwd ?? "")|\(activeConversation.fetchGeneration)") {
-            guard mode == .full, let cwd, let fetch = activeConversation.fetchFullDiff else { return }
-            let generation = activeConversation.fetchGeneration
-            guard Self.shouldRefetchFullDiff(
-                mode: mode,
-                cachedCwd: fullDiffCwd,
-                currentCwd: cwd,
-                cachedGeneration: fullDiffGeneration,
-                currentGeneration: generation
-            ) else { return }
-            loadingFull = true
-            fullDiff = nil
-            if let fetched = await fetch(cwd) {
-                fullDiff = fetched
-                fullDiffCwd = cwd
-                fullDiffGeneration = generation
-            }
-            loadingFull = false
+        .task(id: "\(String(describing: mode))|\(fullContext?.cwd ?? "")|\(fullContext?.conversationIdentity ?? "")|\(fullContext?.fetchGeneration ?? -1)") {
+            fullSnapshot.invalidate(for: fullContext)
+            guard mode == .full, let context = fullContext,
+                  let fetch = activeConversation.fetchFullDiff else { return }
+            await fullSnapshot.ensureLoaded(context: context, fetch: fetch)
         }
     }
 
     private func submitReview() {
-        guard Self.canSubmitReview(
-            sourceAvailable: canStartReview,
-            isSubmitting: isSubmittingReview)
-        else { return }
-
+        guard Self.canSubmitReview(sourceAvailable: canStartReview, isSubmitting: isSubmittingReview) else { return }
         isSubmittingReview = true
         Task { @MainActor in
-            let ok = await activeConversation.startReview?(mode) ?? false
-            reviewFeedback = ok ? .started : .failed
+            let requestedMode = mode
+            if requestedMode == .full, !(await refreshFullDiff()) {
+                reviewFeedback = .failed
+            } else {
+                let ok = await activeConversation.startReview?(requestedMode) ?? false
+                reviewFeedback = ok ? .started : .failed
+            }
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             reviewFeedback = nil
             isSubmittingReview = false
@@ -129,6 +134,12 @@ struct ReviewTabView: View {
                                       currentGeneration: Int = 0) -> Bool {
         guard mode == .full, let currentCwd else { return false }
         return cachedCwd != currentCwd || cachedGeneration != currentGeneration
+    }
+
+    @discardableResult
+    private func refreshFullDiff() async -> Bool {
+        guard let context = fullContext, let fetch = activeConversation.fetchFullDiff else { return false }
+        return await fullSnapshot.refresh(context: context, fetch: fetch)
     }
 }
 

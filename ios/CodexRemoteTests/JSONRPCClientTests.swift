@@ -80,17 +80,18 @@ final class JSONRPCClientTests: XCTestCase {
         await fulfillment(of: [exp], timeout: 2)
     }
 
-    // ③ feed 一条 server request → server-request 处理器收到且 method/id 正确，并回 response
-    func testServerRequestDispatchedToHandler() async throws {
+    // ③ feed 一条 server request → 对应 owner 收到且 method/id 正确，并回 response
+    func testServerRequestDispatchedToOwner() async throws {
         let mock = MockTransport()
         let client = JSONRPCClient(transport: mock)
-        await client.setServerRequestHandler { req in
-            XCTAssertEqual(req.method, "item/commandExecution/requestApproval")
-            return AnyCodable(["decision": "decline"])
-        }
+        let stream = await client.serverRequests(for: .approval)
         await client.start()
+        let received = Task { await stream.first(where: { _ in true }) }
         await mock.feed(#"{"jsonrpc":"2.0","id":"r1","method":"item/commandExecution/requestApproval","params":{}}"#)
-        try await Task.sleep(nanoseconds: 150_000_000)
+        let receivedRequest = await received.value
+        let req = try XCTUnwrap(receivedRequest)
+        XCTAssertEqual(req.method, "item/commandExecution/requestApproval")
+        _ = try await client.respond(to: req.id, result: AnyCodable(["decision": "decline"]))
         let replied = await mock.sent.last
         XCTAssertNotNil(replied)
         XCTAssertTrue(replied!.contains(#""id":"r1""#))

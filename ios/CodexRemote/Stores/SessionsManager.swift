@@ -60,13 +60,14 @@ final class SessionsManager {
     /// 手动（重）连某机器（TabBarView contextMenu「连接」项用）。
     /// 用 session(for:)：若懒连从未切过去、Session 未建，会按需建实例再连。
     func connectMachine(id: UUID) {
+        setConnectionIntent(.automatic, for: id)
         session(for: id)?.connect()
     }
 
     /// 是否可（重）连某机器：未在连接中且未就绪才显示「连接」入口。
     /// 未建 Session（懒连从未切过去）→ true（表示可连），避免为判断而提前建实例。
     func canConnect(id: UUID) -> Bool {
-        cache[id]?.canConnect ?? true
+        cache[id]?.canConnectManually ?? true
     }
 
     /// 添加机器后自动切过去并连接（D13）。
@@ -113,6 +114,7 @@ final class SessionsManager {
     }
 
     func disconnect(id: UUID) {
+        setConnectionIntent(.disconnectedByUser, for: id)
         Task { await cache[id]?.disconnect() }
     }
 
@@ -135,6 +137,13 @@ final class SessionsManager {
     func setAppForegroundAll(_ active: Bool) {
         for s in cache.values { s.setAppForeground(active) }
         if active { activeSession?.autoConnect() }
+    }
+
+    private func setConnectionIntent(_ intent: ConnectionIntent, for id: UUID) {
+        guard var machine = machineStore.machines.first(where: { $0.id == id }) else { return }
+        machine.connectionIntent = intent
+        machineStore.update(machine)
+        cache[id]?.updateMachine(machine)
     }
 
     // MARK: - T7 UI 依赖桩（数据源/表单接线在 T11/T8 补）

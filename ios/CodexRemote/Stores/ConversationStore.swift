@@ -114,6 +114,7 @@ final class ConversationStore {
             guard let result = try? await self.call(RPCMethod.threadResume, params),
                   let dict = result.value as? [String: Any] else { return }
             self.reducer.ingest(resumeResult: dict, to: &self.state)
+            self.drainOutbox()
         }
     }
 

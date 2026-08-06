@@ -16,10 +16,12 @@ final class TerminalSession {
     private(set) var processId: String?
     private(set) var running = false
     private var startedCwd: String?     // 当前 shell 绑定的 cwd（用于跟随判定）
+    private var processGeneration: UInt64 = 0
 
     private var rpc: JSONRPCClient?
     private var observer: Task<Void, Never>?
     private var awaitingReconnectSuccess = false
+    private var execTask: Task<Void, Never>?
 
     /// 复用①传输：订阅 outputDelta。幂等；完整重连换新 rpc 实例时——
     ///   ① 取消旧订阅并对新 rpc 重订阅（否则 guard==nil 挡住重订阅 → 新连接 shell 输出永不显示）；
@@ -30,7 +32,7 @@ final class TerminalSession {
         self.rpc = rpc
         if rpcChanged {
             observer?.cancel(); observer = nil
-            processId = nil; startedCwd = nil; running = false   // ② stale 复位
+            invalidateExecution()   // ② stale 复位
         }
         guard observer == nil else { return }
         let stream = await rpc.notifications()
@@ -41,13 +43,16 @@ final class TerminalSession {
 
     /// cwd 跟随：未起 或 cwd 变化时(重)起 shell；同 cwd 已运行则跳过。
     func startIfNeeded(cwd: String?) {
-        if processId != nil && startedCwd == cwd { return }
+        if running, processId != nil, startedCwd == cwd { return }
         if processId != nil { terminate() }   // 切会话：终止旧 shell 再起新的
         start(cwd: cwd)
     }
 
     /// 起常驻 zsh PTY。生成连接级 processId。无 rpc（单测）仅置本地态。
     func start(cwd: String?, size: CommandExecTerminalSize = .init(rows: 24, cols: 80)) {
+        execTask?.cancel()
+        processGeneration &+= 1
+        let generation = processGeneration
         let pid = UUID().uuidString
         processId = pid
         startedCwd = cwd
@@ -55,7 +60,19 @@ final class TerminalSession {
         guard let rpc else { return }
         let params = CommandExecParams(command: ["/bin/zsh", "-i"], processId: pid, tty: true,
                                        streamStdin: true, streamStdoutStderr: true, cwd: cwd, size: size)
-        Task { await send(RPCMethod.commandExec, params) }
+        guard let encoded = encode(params) else { return }
+        execTask = Task { [weak self] in
+            do {
+                let result = try await rpc.send(method: RPCMethod.commandExec, params: encoded)
+                guard !Task.isCancelled else { return }
+                self?.completeExecution(processId: pid, generation: generation, result: result)
+            } catch is CancellationError {
+                // terminate/disconnect/cwd switch intentionally invalidated this generation.
+            } catch {
+                guard !Task.isCancelled else { return }
+                self?.completeExecution(processId: pid, generation: generation, result: nil)
+            }
+        }
     }
 
     func makeWriteParams(input: String) -> CommandExecWriteParams? {
@@ -74,8 +91,10 @@ final class TerminalSession {
     }
     func terminate() {
         guard let pid = processId else { return }
-        Task { await send(RPCMethod.commandExecTerminate, CommandExecTerminateParams(processId: pid)) }
-        running = false
+        let currentRPC = rpc
+        invalidateExecution()
+        guard let currentRPC, let params = encode(CommandExecTerminateParams(processId: pid)) else { return }
+        Task { _ = try? await currentRPC.send(method: RPCMethod.commandExecTerminate, params: params) }
     }
 
     /// internal 供单测：消费 outputDelta（仅匹配当前 processId）。字节直发给 SwiftTerm。
@@ -90,8 +109,7 @@ final class TerminalSession {
     func handleReconnecting() {
         guard !awaitingReconnectSuccess else { return }
         awaitingReconnectSuccess = true
-        running = false
-        processId = nil
+        invalidateExecution()
         let message = L10n.string("terminal.reconnecting", locale: LocaleManager.currentLocale)
         onBytes?([UInt8]("\r\n── \(message) ──\r\n".utf8))
     }
@@ -107,15 +125,50 @@ final class TerminalSession {
         awaitingReconnectSuccess = false
     }
 
+    /// Compatibility entry point for transport-driven disconnects.
+    func handleDisconnect() {
+        handleReconnecting()
+    }
+
     private func applyBroadcast(_ n: JSONRPCNotification) {
         guard n.method == ServerNotificationMethod.commandExecOutputDelta,
               let p = n.params?.value as? [String: Any],
               let pid = p["processId"] as? String, let b64 = p["deltaBase64"] as? String else { return }
         handleOutputDelta(processId: pid, base64: b64, capReached: (p["capReached"] as? Bool) ?? false)
     }
+
+    private func completeExecution(processId pid: String, generation: UInt64, result: AnyCodable?) {
+        guard generation == processGeneration, pid == processId else { return }
+        execTask = nil
+        running = false
+        processId = nil
+        startedCwd = nil
+
+        if let exitCode = (result?.value as? [String: Any])?["exitCode"] as? Int64 {
+            onBytes?([UInt8]("\r\n── 进程已退出（状态 \(exitCode)）──\r\n".utf8))
+        } else if result != nil {
+            onBytes?([UInt8]("\r\n── 进程已退出 ──\r\n".utf8))
+        } else {
+            onBytes?([UInt8]("\r\n── 进程异常结束 ──\r\n".utf8))
+        }
+    }
+
+    private func invalidateExecution() {
+        processGeneration &+= 1
+        execTask?.cancel()
+        execTask = nil
+        processId = nil
+        startedCwd = nil
+        running = false
+    }
+
+    private func encode<T: Encodable>(_ params: T) -> AnyCodable? {
+        guard let data = try? JSONEncoder().encode(params) else { return nil }
+        return try? JSONDecoder().decode(AnyCodable.self, from: data)
+    }
+
     private func send<T: Encodable>(_ method: String, _ params: T) async {
-        guard let rpc, let d = try? JSONEncoder().encode(params),
-              let any = try? JSONDecoder().decode(AnyCodable.self, from: d) else { return }
+        guard let rpc, let any = encode(params) else { return }
         _ = try? await rpc.send(method: method, params: any)
     }
 }

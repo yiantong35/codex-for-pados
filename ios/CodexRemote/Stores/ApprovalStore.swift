@@ -8,6 +8,23 @@ enum ApprovalChoice: Equatable {
     case deny                               // 否
 }
 
+struct FileApprovalContext: Equatable {
+    let file: String
+    let added: Int
+    let removed: Int
+    let diff: String
+}
+
+enum ApprovalPresentation {
+    static func fileContext(for card: ApprovalCard, in items: [ConversationItem]) -> FileApprovalContext? {
+        guard card.isFileChange, let itemId = card.itemId,
+              let item = items.first(where: { $0.id == itemId }),
+              case .fileChange(_, let file, let added, let removed, let diff) = item
+        else { return nil }
+        return .init(file: file, added: added, removed: removed, diff: diff)
+    }
+}
+
 /// 统一审批卡模型：v2 三类 + legacy 两类审批请求解析后的展示数据。
 struct ApprovalCard: Identifiable {
     let id: RequestId
@@ -25,6 +42,18 @@ struct ApprovalCard: Identifiable {
     // F4-fix：授权回显所需的完整请求档案（network/fileSystem 分列 read/write），批准时按此原样授予（最小权限）。
     var requestedProfile: RequestPermissionProfile? = nil
     var awaitingRecovery: Bool = false   // Task 19：断线未决标记
+    var turnId: String? = nil
+    var itemId: String? = nil
+    var startedAtMs: Int64? = nil
+    var networkApprovalContext: NetworkApprovalContext? = nil
+    var proposedNetworkPolicyAmendments: [NetworkPolicyAmendment]? = nil
+    var permissionEntries: [FileSystemSandboxEntry]? = nil
+    var globScanMaxDepth: UInt? = nil
+    var grantRoot: String? = nil
+    var fileChanges: [String: AnyCodable]? = nil
+    var approvalId: String? = nil
+    var commandActions: [AnyCodable]? = nil
+    var environmentId: String? = nil
 }
 
 /// 审批状态层（设计 §6）：把 server→client 审批请求统一成 ApprovalCard 入队，
@@ -46,59 +75,12 @@ final class ApprovalStore {
 
     /// 解析一条 server→client 审批请求（v2 三类 + legacy 两类）入队。
     func handle(request req: JSONRPCRequest) {
-        let p = (req.params?.value as? [String: Any]) ?? [:]
-        let threadId = p["threadId"] as? String ?? ""
-        let isFile = req.method == ServerRequestMethod.fileApprovalV2
-                  || req.method == ServerRequestMethod.applyPatchApprovalLegacy
-        let isPerms = req.method == ServerRequestMethod.permsApprovalV2
+        try? handleValidated(request: req)
+    }
 
-        // F4：解析权限请求的知情要素（reason + network/fileSystem 条目 + cwd）。
-        let permsDict = p["permissions"] as? [String: Any]
-        let netDict = permsDict?["network"] as? [String: Any]
-        let netEnabled = netDict?["enabled"] as? Bool
-        let fsDict = permsDict?["fileSystem"] as? [String: Any]
-        let fsRead = fsDict?["read"] as? [String]
-        let fsWrite = fsDict?["write"] as? [String]
-        let fsEntries = (fsRead ?? []) + (fsWrite ?? [])
-        // F4-fix：构造原样授权所需的请求档案（network 存在才承载、fileSystem 存在才承载），
-        // 使批准时按请求精确授予，杜绝硬编码 network 过授。
-        let requestedProfile: RequestPermissionProfile? = {
-            guard isPerms else { return nil }
-            let net = netDict != nil ? AdditionalNetworkPermissions(enabled: netEnabled) : nil
-            let fs = fsDict != nil ? AdditionalFileSystemPermissions(read: fsRead, write: fsWrite) : nil
-            return (net != nil || fs != nil) ? RequestPermissionProfile(network: net, fileSystem: fs) : nil
-        }()
-
-        let title: String
-        if isFile {
-            title = p["file"] as? String
-                ?? L10n.string("approval.fallback.file", locale: LocaleManager.currentLocale)
-        } else if isPerms {
-            title = L10n.string("approval.permissionTitle", locale: LocaleManager.currentLocale)
-        } else {
-            title = p["command"] as? String
-                ?? L10n.string("approval.fallback.command", locale: LocaleManager.currentLocale)
-        }
-        let detail: String
-        if isFile {
-            detail = p["diff"] as? String ?? ""
-        } else {
-            detail = p["cwd"] as? String ?? ""   // 命令与权限均以 cwd 作明细
-        }
-
-        let card = ApprovalCard(
-            id: req.id,
-            method: req.method,
-            threadId: threadId,
-            title: title,
-            detail: detail,
-            proposedPrefix: p["proposedExecpolicyAmendment"] as? [String],
-            isFileChange: isFile,
-            isPermissions: isPerms,
-            reason: isPerms ? (p["reason"] as? String) : nil,
-            requestedNetworkEnabled: isPerms ? netEnabled : nil,
-            requestedFileSystem: isPerms && !fsEntries.isEmpty ? fsEntries : nil,
-            requestedProfile: requestedProfile)
+    func handleValidated(request req: JSONRPCRequest) throws {
+        let payload = try ApprovalRequestDecoder.decode(req)
+        let card = makeCard(request: req, payload: payload)
         // reconnect-resync item 1：按 requestId 幂等收敛。
         // 命中既有卡 → 原地替换（新 card.awaitingRecovery 默认 false，等于清断线标记 + 刷新载荷）；
         // 未命中 → 保持既有 append。断线绝不在此自动批准/丢弃。
@@ -107,7 +89,57 @@ final class ApprovalStore {
         } else {
             cards.append(card)
         }
-        onPendingChange?(threadId, true)
+        onPendingChange?(card.threadId, true)
+    }
+
+    private func makeCard(request: JSONRPCRequest, payload: ApprovalRequestPayload) -> ApprovalCard {
+        switch payload {
+        case .command(let params):
+            return ApprovalCard(
+                id: request.id, method: request.method, threadId: params.threadId,
+                title: params.command ?? String(localized: "approval.fallback.command"), detail: params.cwd ?? "",
+                proposedPrefix: params.proposedExecpolicyAmendment, isFileChange: false, isPermissions: false,
+                reason: params.reason, requestedNetworkEnabled: nil, requestedFileSystem: nil,
+                turnId: params.turnId, itemId: params.itemId, startedAtMs: params.startedAtMs,
+                networkApprovalContext: params.networkApprovalContext,
+                proposedNetworkPolicyAmendments: params.proposedNetworkPolicyAmendments,
+                approvalId: params.approvalId, commandActions: params.commandActions)
+        case .file(let params):
+            return ApprovalCard(
+                id: request.id, method: request.method, threadId: params.threadId,
+                title: String(localized: "approval.fallback.file"), detail: "", proposedPrefix: nil,
+                isFileChange: true, isPermissions: false, reason: params.reason,
+                requestedNetworkEnabled: nil, requestedFileSystem: nil,
+                turnId: params.turnId, itemId: params.itemId, startedAtMs: params.startedAtMs,
+                grantRoot: params.grantRoot)
+        case .permissions(let params):
+            let fileSystem = params.permissions.fileSystem
+            let legacyPaths = (fileSystem?.read ?? []) + (fileSystem?.write ?? [])
+            let entryPaths = fileSystem?.entries?.map { $0.path.displayValue } ?? []
+            return ApprovalCard(
+                id: request.id, method: request.method, threadId: params.threadId,
+                title: String(localized: "approval.permissionTitle"), detail: params.cwd,
+                proposedPrefix: nil, isFileChange: false, isPermissions: true, reason: params.reason,
+                requestedNetworkEnabled: params.permissions.network?.enabled,
+                requestedFileSystem: (entryPaths + legacyPaths).isEmpty ? nil : entryPaths + legacyPaths,
+                requestedProfile: params.permissions, turnId: params.turnId, itemId: params.itemId,
+                startedAtMs: params.startedAtMs, permissionEntries: fileSystem?.entries,
+                globScanMaxDepth: fileSystem?.globScanMaxDepth, environmentId: params.environmentId)
+        case .legacyCommand(let params):
+            return ApprovalCard(
+                id: request.id, method: request.method, threadId: params.conversationId,
+                title: params.command.joined(separator: " "), detail: params.cwd,
+                proposedPrefix: nil, isFileChange: false, isPermissions: false, reason: params.reason,
+                requestedNetworkEnabled: nil, requestedFileSystem: nil, itemId: params.callId,
+                approvalId: params.approvalId, commandActions: params.parsedCmd)
+        case .legacyPatch(let params):
+            return ApprovalCard(
+                id: request.id, method: request.method, threadId: params.conversationId,
+                title: params.fileChanges.keys.sorted().joined(separator: ", "), detail: "",
+                proposedPrefix: nil, isFileChange: true, isPermissions: false, reason: params.reason,
+                requestedNetworkEnabled: nil, requestedFileSystem: nil, itemId: params.callId,
+                grantRoot: params.grantRoot, fileChanges: params.fileChanges)
+        }
     }
 
     // MARK: - 用户决定回传
