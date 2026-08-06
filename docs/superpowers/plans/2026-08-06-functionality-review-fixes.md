@@ -97,15 +97,15 @@ and a Linux verification script/job if the repository lacks one.
 **Files:** new `relay-dialout/Sources/RelayDialoutCore/DialoutSupervisor.swift`,
 the executable `main.swift`, bridge lifecycle code, and new supervisor tests.
 
-- [ ] RED: deterministic clock/random tests for connect failure, remote close,
+- [x] RED: deterministic clock/random tests for connect failure, remote close,
   backoff cap, jitter bounds, cancellation, trust failure, and bridge exit.
-- [ ] Extract one connection attempt behind an injectable connector and put the
+- [x] Extract one connection attempt behind an injectable connector and put the
   retry policy in `DialoutSupervisor`.
-- [ ] Retain the bridge process across transient relay closes; stop and reap only
+- [x] Retain the bridge process across transient relay closes; stop and reap only
   owned processes on terminal shutdown.
-- [ ] Reset attempts after a healthy handshake; never replay buffered app data.
-- [ ] GREEN: run relay-dialout tests plus relay reconnect E2E.
-- [ ] Commit: `fix(dialout): supervise relay reconnection lifecycle`.
+- [x] Reset attempts after a healthy handshake; never replay buffered app data.
+- [x] GREEN: run relay-dialout tests plus relay reconnect E2E.
+- [x] Commit: `fix(dialout): supervise relay reconnection lifecycle`.
 
 ## Phase 2 - Server-Initiated Requests
 
