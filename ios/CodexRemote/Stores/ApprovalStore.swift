@@ -71,11 +71,13 @@ final class ApprovalStore {
 
         let title: String
         if isFile {
-            title = p["file"] as? String ?? String(localized: "approval.fallback.file")
+            title = p["file"] as? String
+                ?? L10n.string("approval.fallback.file", locale: LocaleManager.currentLocale)
         } else if isPerms {
-            title = String(localized: "approval.permissionTitle")
+            title = L10n.string("approval.permissionTitle", locale: LocaleManager.currentLocale)
         } else {
-            title = p["command"] as? String ?? String(localized: "approval.fallback.command")
+            title = p["command"] as? String
+                ?? L10n.string("approval.fallback.command", locale: LocaleManager.currentLocale)
         }
         let detail: String
         if isFile {

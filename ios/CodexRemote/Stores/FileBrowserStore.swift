@@ -100,7 +100,7 @@ final class FileBrowserStore {
             node.entries = resp.entries
             node.isExpanded = expand
         } else {
-            node.error = "目录加载失败"
+            node.error = L10n.string("fileBrowser.loadDirFailed", locale: LocaleManager.currentLocale)
         }
         nodes[path] = node
     }
