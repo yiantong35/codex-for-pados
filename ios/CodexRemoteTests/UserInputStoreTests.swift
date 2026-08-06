@@ -105,7 +105,8 @@ final class UserInputStoreTests: XCTestCase {
 
         XCTAssertNotNil(store.autoResolutionDeadline(for: card.id))
 
-        store.userInteracted(with: card.id)
+        XCTAssertTrue(store.userInteracted(with: card.id))
+        XCTAssertFalse(store.userInteracted(with: card.id), "暂停后重复滚动不得再次发布状态")
         XCTAssertNil(store.autoResolutionDeadline(for: card.id))
         XCTAssertTrue(store.isAutoResolutionPaused(card.id))
         store.handleConnectionLost()
@@ -115,6 +116,15 @@ final class UserInputStoreTests: XCTestCase {
         try store.handle(request: request)
         XCTAssertEqual(store.cards.count, 1)
         XCTAssertFalse(store.cards[0].awaitingRecovery)
+    }
+
+    @MainActor
+    func testInteractionWithoutAutoResolutionDoesNotPublishPausedState() throws {
+        let store = UserInputStore()
+        try store.handle(request: makeRequest(id: "manual", params: singleQuestionParams))
+
+        XCTAssertFalse(store.userInteracted(with: .string("manual")))
+        XCTAssertFalse(store.isAutoResolutionPaused(.string("manual")))
     }
 
     @MainActor
