@@ -2,6 +2,52 @@ import XCTest
 @testable import CodexRemote
 
 final class ServerRequestRouterTests: XCTestCase {
+    func testDeferredRequestLimitsRejectPerOwnerAndGlobalOverflow() async throws {
+        let mock = MockTransport()
+        let client = JSONRPCClient(
+            transport: mock,
+            deferredRequestLimits: .init(maximumTotalCount: 2, maximumPerOwnerCount: 1,
+                                         maximumTotalBytes: 4_096)
+        )
+        _ = await client.serverRequests(for: .approval) // 保持一个不消费的有界缓冲订阅者。
+        await client.start()
+
+        await mock.feed(lines: [
+            #"{"id":"approval-1","method":"item/fileChange/requestApproval","params":{}}"#,
+            #"{"id":"approval-overflow","method":"item/commandExecution/requestApproval","params":{}}"#,
+            #"{"id":"input-1","method":"item/tool/requestUserInput","params":{}}"#,
+            #"{"id":"global-overflow","method":"mcpServer/elicitation/request","params":{}}"#,
+        ])
+
+        let responses = try await waitForSentFrames(mock, count: 2)
+        let errors = try responses.map(errorResponse)
+        XCTAssertEqual(Set(errors.map(\.id)), ["approval-overflow", "global-overflow"])
+        XCTAssertTrue(errors.allSatisfy { $0.code == -32000 })
+        let retainedCount = await client.deferredServerRequestCount()
+        XCTAssertEqual(retainedCount, 2)
+    }
+
+    func testDeferredRequestByteLimitRejectsPayloadWithoutRetainingIt() async throws {
+        let mock = MockTransport()
+        let client = JSONRPCClient(
+            transport: mock,
+            deferredRequestLimits: .init(maximumTotalCount: 8, maximumPerOwnerCount: 8,
+                                         maximumTotalBytes: 128)
+        )
+        await client.start()
+        let oversized = String(repeating: "x", count: 1_024)
+        await mock.feed(#"{"id":"large","method":"item/tool/requestUserInput","params":{"value":"\#(oversized)"}}"#)
+
+        let response = try await waitForSentFrames(mock, count: 1)
+        let error = try errorResponse(response[0])
+        XCTAssertEqual(error.id, "large")
+        XCTAssertEqual(error.code, -32000)
+        let retainedCount = await client.deferredServerRequestCount()
+        let retainedBytes = await client.deferredServerRequestBytes()
+        XCTAssertEqual(retainedCount, 0)
+        XCTAssertEqual(retainedBytes, 0)
+    }
+
     func testEveryGeneratedMethodHasAnExplicitOutcome() {
         let expected: [String: ServerRequestOutcome] = [
             ServerRequestMethod.cmdApprovalV2: .deferred(.approval),
@@ -174,5 +220,11 @@ final class ServerRequestRouterTests: XCTestCase {
         }
         XCTFail("timed out waiting for \(count) responses")
         return []
+    }
+
+    private func errorResponse(_ frame: String) throws -> (id: String, code: Int) {
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any])
+        let error = try XCTUnwrap(json["error"] as? [String: Any])
+        return (try XCTUnwrap(json["id"] as? String), try XCTUnwrap(error["code"] as? Int))
     }
 }

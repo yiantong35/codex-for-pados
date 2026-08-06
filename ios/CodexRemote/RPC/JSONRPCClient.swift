@@ -1,5 +1,19 @@
 import Foundation
 
+struct DeferredServerRequestLimits: Sendable {
+    let maximumTotalCount: Int
+    let maximumPerOwnerCount: Int
+    let maximumTotalBytes: Int
+
+    init(maximumTotalCount: Int = 64,
+         maximumPerOwnerCount: Int = 24,
+         maximumTotalBytes: Int = 512 * 1_024) {
+        self.maximumTotalCount = max(1, maximumTotalCount)
+        self.maximumPerOwnerCount = max(1, min(maximumPerOwnerCount, maximumTotalCount))
+        self.maximumTotalBytes = max(1, maximumTotalBytes)
+    }
+}
+
 /// JSON-RPC 客户端（actor）：消费 transport.incoming()，对每条 JSON 文本解码为
 /// JSONRPCMessage 并分发：
 ///   - .response/.error → 按 id 唤醒等待中的 send(method:params:)（pending 表）
@@ -7,6 +21,7 @@ import Foundation
 ///   - .request（server→client）→ 路由给唯一 owner，或立即回 method-not-found
 actor JSONRPCClient {
     private let transport: MessageTransport
+    private let deferredRequestLimits: DeferredServerRequestLimits
     private var pending: [RequestId: CheckedContinuation<AnyCodable, Error>] = [:]
     private enum DeferredState {
         case owned(ServerRequestOwner)
@@ -15,6 +30,9 @@ actor JSONRPCClient {
     private var deferredServerRequests: [RequestId: DeferredState] = [:]
     private var deferredServerRequestPayloads: [RequestId: JSONRPCRequest] = [:]
     private var deferredServerRequestOrder: [RequestId] = []
+    private var deferredServerRequestBytesById: [RequestId: Int] = [:]
+    private var deferredServerRequestTotalBytes = 0
+    private var deferredServerRequestCountsByOwner: [ServerRequestOwner: Int] = [:]
     /// 多播：每个 notifications() 调用方拿到**独立**的 AsyncStream，actor 内部维护其
     /// continuation；收到一条通知 yield 给所有订阅者。修复「单消费者流被三处抢占、
     /// 事件被瓜分」导致的对话流滞后 bug。serverRequests 同理多播。
@@ -31,8 +49,10 @@ actor JSONRPCClient {
         return e
     }()
 
-    init(transport: MessageTransport) {
+    init(transport: MessageTransport,
+         deferredRequestLimits: DeferredServerRequestLimits = .init()) {
         self.transport = transport
+        self.deferredRequestLimits = deferredRequestLimits
     }
 
     /// 对外通知流（item/turn/thread 等 server notification）。
@@ -41,7 +61,7 @@ actor JSONRPCClient {
         // transport 已关闭：返回一个立即结束的空流，避免新订阅者永久挂起。
         if streamsFinished { return AsyncStream { $0.finish() } }
         let id = UUID()
-        return AsyncStream(bufferingPolicy: .unbounded) { cont in
+        return AsyncStream(bufferingPolicy: .bufferingOldest(deferredRequestLimits.maximumPerOwnerCount)) { cont in
             notifContinuations[id] = cont
             cont.onTermination = { [weak self] _ in
                 Task { await self?.removeNotifContinuation(id) }
@@ -72,6 +92,7 @@ actor JSONRPCClient {
     /// 测试支持：当前存活的 notifications() 订阅数。用于回归锁「切对话不累积正文订阅」（D2）。
     func liveNotificationSubscriberCount() -> Int { notifContinuations.count }
     func deferredServerRequestCount() -> Int { deferredServerRequests.count }
+    func deferredServerRequestBytes() -> Int { deferredServerRequestTotalBytes }
 #endif
 
     private func removeNotifContinuation(_ id: UUID) { notifContinuations[id] = nil }
@@ -204,9 +225,20 @@ actor JSONRPCClient {
             guard deferredServerRequests[req.id] == nil else { return }
             switch ServerRequestRouter.outcome(for: req.method) {
             case .deferred(let owner):
+                guard canRetainDeferredRequest(owner: owner, payloadBytes: data.count) else {
+                    try? await respondWithError(
+                        to: req.id,
+                        code: -32000,
+                        message: "Server busy: too many pending interactive requests"
+                    )
+                    return
+                }
                 deferredServerRequests[req.id] = .owned(owner)
                 deferredServerRequestPayloads[req.id] = req
                 deferredServerRequestOrder.append(req.id)
+                deferredServerRequestBytesById[req.id] = data.count
+                deferredServerRequestTotalBytes += data.count
+                deferredServerRequestCountsByOwner[owner, default: 0] += 1
                 if let continuations = serverRequestContinuations[owner] {
                     for c in continuations.values { c.yield(req) }
                 }
@@ -226,16 +258,36 @@ actor JSONRPCClient {
         try await transport.send(text)
     }
 
+    private func canRetainDeferredRequest(owner: ServerRequestOwner, payloadBytes: Int) -> Bool {
+        guard deferredServerRequests.count < deferredRequestLimits.maximumTotalCount,
+              deferredServerRequestCountsByOwner[owner, default: 0]
+                < deferredRequestLimits.maximumPerOwnerCount,
+              payloadBytes <= deferredRequestLimits.maximumTotalBytes - deferredServerRequestTotalBytes
+        else { return false }
+        return true
+    }
+
     private func removeDeferredServerRequest(_ id: RequestId) {
+        guard let state = deferredServerRequests[id] else { return }
+        let owner: ServerRequestOwner
+        switch state {
+        case .owned(let value), .completing(let value): owner = value
+        }
         deferredServerRequests[id] = nil
         deferredServerRequestPayloads[id] = nil
         deferredServerRequestOrder.removeAll { $0 == id }
+        deferredServerRequestTotalBytes -= deferredServerRequestBytesById.removeValue(forKey: id) ?? 0
+        let remaining = max(0, deferredServerRequestCountsByOwner[owner, default: 0] - 1)
+        deferredServerRequestCountsByOwner[owner] = remaining == 0 ? nil : remaining
     }
 
     private func clearDeferredServerRequests() {
         deferredServerRequests.removeAll()
         deferredServerRequestPayloads.removeAll()
         deferredServerRequestOrder.removeAll()
+        deferredServerRequestBytesById.removeAll()
+        deferredServerRequestTotalBytes = 0
+        deferredServerRequestCountsByOwner.removeAll()
     }
 
     private func failPending(_ id: RequestId, _ error: Error) {
