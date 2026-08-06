@@ -1,5 +1,60 @@
 import SwiftUI
 
+struct McpURLPresentation: Equatable {
+    enum Risk: Equatable {
+        case insecureHTTP
+        case punycodeHost
+        case unsupportedScheme
+
+        var localizationKey: LocalizedStringKey {
+            switch self {
+            case .insecureHTTP: "mcpElicitation.urlRisk.http"
+            case .punycodeHost: "mcpElicitation.urlRisk.punycode"
+            case .unsupportedScheme: "mcpElicitation.urlRisk.unsupported"
+            }
+        }
+    }
+
+    let normalizedURL: URL
+    let origin: String
+    let completeURL: String
+    let risk: Risk?
+
+    var isAllowed: Bool { risk == nil }
+
+    init(url: URL) {
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let normalizedScheme = components?.scheme?.lowercased()
+        let normalizedHost = components?.host?.lowercased()
+        components?.scheme = normalizedScheme
+        components?.host = normalizedHost
+        if components?.scheme == "https", components?.port == 443 { components?.port = nil }
+        if components?.scheme == "http", components?.port == 80 { components?.port = nil }
+
+        normalizedURL = components?.url ?? url
+        completeURL = components?.string ?? url.absoluteString
+
+        var originComponents = URLComponents()
+        originComponents.scheme = components?.scheme
+        originComponents.host = components?.host
+        originComponents.port = components?.port
+        origin = originComponents.string ?? (components?.host ?? url.absoluteString)
+
+        let scheme = components?.scheme
+        let rawTarget = url.absoluteString.lowercased()
+        let hostLabels = (components?.host ?? "").lowercased().split(separator: ".")
+        if scheme == "http" {
+            risk = .insecureHTTP
+        } else if hostLabels.contains(where: { $0.hasPrefix("xn--") }) || rawTarget.contains("xn--") {
+            risk = .punycodeHost
+        } else if scheme != "https" || components?.host?.isEmpty != false {
+            risk = .unsupportedScheme
+        } else {
+            risk = nil
+        }
+    }
+}
+
 struct McpElicitationCardView: View {
     @Environment(McpElicitationStore.self) private var elicitations
     let card: McpElicitationCard
@@ -27,10 +82,28 @@ struct McpElicitationCardView: View {
 
             switch card.mode {
             case .url(let url, _):
-                Link(destination: url) {
-                    Label(url.host() ?? url.absoluteString, systemImage: "arrow.up.right.square")
+                let presentation = McpURLPresentation(url: url)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(presentation.origin)
+                        .font(.subheadline.bold().monospaced())
+                        .textSelection(.enabled)
+                    Text(presentation.completeURL)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let risk = presentation.risk {
+                        Label(risk.localizationKey, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Link(destination: presentation.normalizedURL) {
+                            Label("mcpElicitation.openURL", systemImage: "arrow.up.right.square")
+                        }
+                        .minimumHitTarget44()
+                    }
                 }
-                .minimumHitTarget44()
                 actionRow
             case .form(let fields):
                 ForEach(fields) { field in fieldView(field) }
@@ -82,7 +155,13 @@ struct McpElicitationCardView: View {
             } label: { Label("mcpElicitation.accept", systemImage: "checkmark") }
                 .buttonStyle(.borderedProminent)
                 .minimumHitTarget44()
+                .disabled(!urlTargetIsAllowed)
         }
+    }
+
+    private var urlTargetIsAllowed: Bool {
+        guard case .url(let url, _) = card.mode else { return true }
+        return McpURLPresentation(url: url).isAllowed
     }
 
     @ViewBuilder

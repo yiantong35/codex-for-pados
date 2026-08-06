@@ -48,11 +48,16 @@ final class UserInputStore {
         return await resolve(card: current, response: .init(answers: [:]))
     }
 
-    func userInteracted(with id: RequestId) {
+    @discardableResult
+    func userInteracted(with id: RequestId) -> Bool {
+        guard !pausedAutoResolutionIds.contains(id),
+              timers[id] != nil || autoResolutionDeadlines[id] != nil
+        else { return false }
         timers[id]?.cancel()
         timers[id] = nil
         autoResolutionDeadlines[id] = nil
         pausedAutoResolutionIds.insert(id)
+        return true
     }
 
     func submissionState(for id: RequestId) -> DecisionSubmissionState {

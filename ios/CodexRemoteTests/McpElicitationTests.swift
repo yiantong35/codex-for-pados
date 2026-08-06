@@ -2,6 +2,34 @@ import XCTest
 @testable import CodexRemote
 
 final class McpElicitationTests: XCTestCase {
+    func testURLPresentationShowsOriginAndCompleteNormalizedTarget() throws {
+        let url = try XCTUnwrap(URL(string: "HTTPS://Example.COM/oauth/authorize?client_id=ipad&redirect_uri=https%3A%2F%2Fevil.test%2Fcallback#consent"))
+        let presentation = McpURLPresentation(url: url)
+
+        XCTAssertEqual(presentation.origin, "https://example.com")
+        XCTAssertTrue(presentation.completeURL.contains("/oauth/authorize"))
+        XCTAssertTrue(presentation.completeURL.contains("client_id=ipad"))
+        XCTAssertTrue(presentation.completeURL.contains("redirect_uri="))
+        XCTAssertTrue(presentation.completeURL.hasSuffix("#consent"))
+        XCTAssertEqual(presentation.risk, nil)
+        XCTAssertTrue(presentation.isAllowed)
+    }
+
+    func testURLPresentationRejectsHTTPPunycodeAndUnsupportedSchemes() throws {
+        XCTAssertEqual(
+            McpURLPresentation(url: try XCTUnwrap(URL(string: "http://example.com/pay"))).risk,
+            .insecureHTTP
+        )
+        XCTAssertEqual(
+            McpURLPresentation(url: try XCTUnwrap(URL(string: "https://xn--pple-43d.com/oauth"))).risk,
+            .punycodeHost
+        )
+        XCTAssertEqual(
+            McpURLPresentation(url: try XCTUnwrap(URL(string: "custom://example.com/open"))).risk,
+            .unsupportedScheme
+        )
+    }
+
     @MainActor
     func testURLModeDecodesAndBuildsActionsWithoutContent() throws {
         let request = try makeRequest(id: "url-1", params: #"{"threadId":"t","turnId":null,"serverName":"github","mode":"url","message":"Authorize access","url":"https://example.com/auth","elicitationId":"e-1","_meta":{"trace":"x"}}"#)
@@ -76,7 +104,6 @@ final class McpElicitationTests: XCTestCase {
         var responses: [McpServerElicitationRequestResponse] = []
         store.resolver = { _, response in responses.append(response); return true }
         try store.handle(request: makeRequest(id: "decline", params: formParams))
-        let card = try XCTUnwrap(store.cards.first)
         store.handleConnectionLost()
         XCTAssertTrue(store.cards[0].awaitingRecovery)
         XCTAssertTrue(responses.isEmpty)

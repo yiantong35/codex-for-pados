@@ -7,7 +7,7 @@ import SwiftUI
 /// 环境限制（见 `RightPanelTabsLayoutTests.swift:8-17` 记录并本会话复现）：纯 SwiftUI `Button`
 /// 在离屏 XCTest 宿主里既不产生带 gestureRecognizer 的 UIKit 子视图、无障碍树也读不到——
 /// 无法直接遍历 composer 五枚图标按钮的命中框。故命中框验证收敛到**生产共用修饰符**
-/// `minimumHitTarget44()`（五枚按钮统一施加）在真实 SwiftUI 布局下的度量：裸小图标 <44pt 宽，
+/// `minimumHitTarget44()`（五枚按钮统一施加）在真实 SwiftUI 布局下的度量：20pt 基线图标 <44pt 宽，
 /// 施加后宽高均 ≥44pt。语义标签验证走本地化键可解析（缺键回落键名本身）。
 @MainActor
 final class TouchAccessibilityTests: XCTestCase {
@@ -31,7 +31,10 @@ final class TouchAccessibilityTests: XCTestCase {
     /// 基线断言（裸图标 <44pt 宽）确保修饰符确有其功、测试非空转。
     func test_minimumHitTarget44_enforces44ptOnSmallIcon() {
         // composer 主操作图标按钮字号（发送/停止/更多 = .title2）。
-        let icon = Image(systemName: "arrow.up.circle.fill").font(.title2)
+        let icon = Image(systemName: "arrow.up.circle.fill")
+            .resizable()
+            .scaledToFit()
+            .frame(width: 20, height: 20)
 
         let bare = fittingSize(icon)
         XCTAssertLessThan(bare.width, 44,

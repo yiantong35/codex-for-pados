@@ -5743,6 +5743,12 @@
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "启用" } }
       }
     },
+    "mcpElicitation.openURL": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Open secure link" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "打开安全链接" } }
+      }
+    },
     "mcpElicitation.required": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Required" } },
@@ -5849,6 +5855,24 @@
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Server input requested" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "服务器请求输入" } }
+      }
+    },
+    "mcpElicitation.urlRisk.http": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Blocked: this link uses unencrypted HTTP" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已阻止：此链接使用未加密的 HTTP" } }
+      }
+    },
+    "mcpElicitation.urlRisk.punycode": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Blocked: this domain uses Punycode and may impersonate another site" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已阻止：此域名使用 Punycode，可能冒充其他网站" } }
+      }
+    },
+    "mcpElicitation.urlRisk.unsupported": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Blocked: only HTTPS links are allowed" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已阻止：仅允许 HTTPS 链接" } }
       }
     },
     "mcpElicitation.value": {
