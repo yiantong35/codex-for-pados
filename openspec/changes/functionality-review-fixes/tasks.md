@@ -34,7 +34,7 @@
 - [x] 4.3 扩展恢复线滚动实现：流式 delta、审批卡和状态指示增长触发统一策略；自动/手动回底始终定位 bottom sentinel。
 - [x] 4.4 扩展恢复线 full-diff cache：context key + generation + stale-result guard + 显式刷新；全量 review 发起前刷新当前 snapshot。
 - [x] 4.5 TerminalSession 跟踪 exec task/generation；自然退出、terminate、断线、cwd 切换与 late response 全部正确收敛并允许重启。
-- [ ] 4.6 Composer 图片加载加入 cancellation/token；旧选择、删除后迟到和视图消失不得回写；ImageEncoder 响应取消。
+- [x] 4.6 Composer 图片加载加入 cancellation/token；旧选择、删除后迟到和视图消失不得回写；ImageEncoder 响应取消。
 
 ## 5. 全项目 Build / Verify Gate
 

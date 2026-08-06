@@ -54,6 +54,27 @@ final class ImageEncoderTests: XCTestCase {
             + "（projected=\(projectedFrame) vs cap=\(ImageEncoder.relayMaxMessageBytes)）")
     }
 
+    func test_cancellation_reaches_detached_multistage_encoder() async throws {
+        let reachedStage = expectation(description: "encoder reached compression stage")
+        let resumeStage = DispatchSemaphore(value: 0)
+        let image = Self.makeTestJPEG(width: 2000, height: 1600)
+        let task = Task {
+            await ImageEncoder.encodeForSend(image) { stage in
+                guard stage == 1 else { return }
+                reachedStage.fulfill()
+                resumeStage.wait()
+            }
+        }
+
+        await fulfillment(of: [reachedStage], timeout: 2)
+        task.cancel()
+        resumeStage.signal()
+        let result = await task.value
+        guard case .cancelled = result else {
+            return XCTFail("取消必须传播到 detached 编码任务")
+        }
+    }
+
     // MARK: - Test image helpers
 
     /// 纯色测试图，编码为 JPEG（模拟全尺寸照片，尺寸大但内容简单，仍应能落入预算）。

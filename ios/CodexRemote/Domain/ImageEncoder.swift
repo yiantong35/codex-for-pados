@@ -2,9 +2,10 @@ import UIKit
 import RelayProtocol
 
 /// F7：图片发送前有界编码的结果。`.tooLarge` 携带实测字节数与上限，供 UI 提示具体数字。
-enum ImageEncodeResult {
+enum ImageEncodeResult: Sendable {
     case ok(dataURL: String, bytes: Int)
     case tooLarge(bytes: Int, limit: Int)
+    case cancelled
 }
 
 /// 后台（非主 actor）降采样 + 迭代降质编码，杜绝全尺寸原图 base64 撑爆 relay 单帧上限致断连。
@@ -29,16 +30,27 @@ enum ImageEncoder {
 
     /// 后台降采样 + 迭代降质编码；返回可发送的 data URL 或带具体字节数的超限拒绝。
     /// 全程在 `Task.detached`（非主 actor）内完成，避免大图解码/编码阻塞 UI。
-    static func encodeForSend(_ raw: Data) async -> ImageEncodeResult {
-        await Task.detached(priority: .userInitiated) {
+    static func encodeForSend(
+        _ raw: Data,
+        onStage: (@Sendable (Int) -> Void)? = nil
+    ) async -> ImageEncodeResult {
+        let worker = Task.detached(priority: .userInitiated) {
+            guard !Task.isCancelled else { return ImageEncodeResult.cancelled }
             guard let img = UIImage(data: raw) else {
                 return ImageEncodeResult.tooLarge(bytes: raw.count, limit: byteLimit)
             }
+            onStage?(0)
+            guard !Task.isCancelled else { return .cancelled }
             let scaled = downscale(img, longestEdge: maxLongestEdge)
+            onStage?(1)
+            guard !Task.isCancelled else { return .cancelled }
             var lastBytes = 0
             for qTenth in stride(from: 7, through: 3, by: -1) {
+                guard !Task.isCancelled else { return .cancelled }
                 let quality = CGFloat(qTenth) / 10
                 guard let jpeg = scaled.jpegData(compressionQuality: quality) else { continue }
+                onStage?(qTenth)
+                guard !Task.isCancelled else { return .cancelled }
                 let dataURL = "data:image/jpeg;base64," + jpeg.base64EncodedString()
                 lastBytes = dataURL.utf8.count
                 if lastBytes <= byteLimit {
@@ -46,7 +58,12 @@ enum ImageEncoder {
                 }
             }
             return .tooLarge(bytes: lastBytes, limit: byteLimit)
-        }.value
+        }
+        return await withTaskCancellationHandler {
+            await worker.value
+        } onCancel: {
+            worker.cancel()
+        }
     }
 
     /// 最长边超出 `longestEdge` 时等比缩小；否则原样返回（不放大小图）。

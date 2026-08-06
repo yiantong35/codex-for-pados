@@ -258,12 +258,12 @@ recovered `ReviewFullDiffCacheTests.swift`.
 **Files:** `ComposerView.swift`, `ImageEncoder.swift`, and ImageEncoder/composer
 state tests.
 
-- [ ] RED: slow selection A cannot overwrite B; removed/sent attachments reject
+- [x] RED: slow selection A cannot overwrite B; removed/sent attachments reject
   late results; cancellation interrupts multi-stage encoding.
-- [ ] Add an injectable loader, task handle, and UUID token. Cancel/replace on
+- [x] Add an injectable loader, task handle, and UUID token. Cancel/replace on
   selection, removal, send, and disappearance; validate token before writeback.
-- [ ] GREEN: run deterministic image race/cancellation tests.
-- [ ] Commit: `fix(ipad): reject stale photo selection results`.
+- [x] GREEN: run deterministic image race/cancellation tests.
+- [x] Commit: `fix(ipad): reject stale photo selection results`.
 
 ## Phase 5 - Repository Gates and Release Evidence
 
