@@ -553,6 +553,86 @@
         }
       }
     },
+    "decision.failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not send the response. Try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "响应发送失败，请重试"
+          }
+        }
+      }
+    },
+    "decision.submitting": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sending response…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在发送响应…"
+          }
+        }
+      }
+    },
+    "common.retry": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试"
+          }
+        }
+      }
+    },
+    "composer.image.loadFailed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not prepare this image"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法处理这张图片"
+          }
+        }
+      }
+    },
+    "composer.image.preparing": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing image…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在处理图片…"
+          }
+        }
+      }
+    },
     "composer.imageAttached": {
       "localizations": {
         "en": {
@@ -4733,6 +4813,48 @@
         }
       }
     },
+    "terminal.outputTruncated": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Output truncated because it exceeded the limit" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "输出已截断（超出上限）" } }
+      }
+    },
+    "terminal.processExited": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Process exited" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "进程已退出" } }
+      }
+    },
+    "terminal.processExited.status": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Process exited with status %lld" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "进程已退出（状态 %lld）" } }
+      }
+    },
+    "terminal.processFailed": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Process ended unexpectedly" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "进程异常结束" } }
+      }
+    },
+    "transport.invalidRelayURL": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Invalid relay URL: %@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "Relay URL 无效：%@" } }
+      }
+    },
+    "transport.insecureRelayURL": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "The relay uses unencrypted ws. Use wss in production: %@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "Relay 地址使用明文 ws，生产环境请使用加密的 wss：%@" } }
+      }
+    },
+    "transport.missingRelayConfig": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Relay configuration is missing. Only relay connections are supported." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "缺少 Relay 配置：仅支持 Relay 连接" } }
+      }
+    },
     "terminal.input.placeholder": {
       "localizations": {
         "en": {
@@ -5403,6 +5525,38 @@
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "等待连接恢复" } }
       }
     },
+    "userInput.autoCountdown %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatically skip in %lld seconds"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 秒后自动跳过"
+          }
+        }
+      }
+    },
+    "userInput.autoPaused": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatic skip paused"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已暂停自动跳过"
+          }
+        }
+      }
+    },
     "userInput.answerPlaceholder": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Answer" } },
@@ -5419,6 +5573,30 @@
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Cancel" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "取消" } }
+      }
+    },
+    "workspace.bottomPanel.resize": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Resize terminal panel" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "调整终端面板高度" } }
+      }
+    },
+    "workspace.bottomPanel.height %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%lld points high" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "高度 %lld 点" } }
+      }
+    },
+    "review.fullDiffFailed": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Could not load the full diff" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法加载完整差异" } }
+      }
+    },
+    "review.fullDiffFailed.detail": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Check the connection and try again." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请检查连接后重试。" } }
       }
     },
     "mcpElicitation.accept": {
@@ -5461,6 +5639,102 @@
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Required" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "必填" } }
+      }
+    },
+    "mcpElicitation.constraint.date": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Use a valid date" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请输入有效日期" } }
+      }
+    },
+    "mcpElicitation.constraint.dateTime": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Use a valid date and time" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请输入有效日期和时间" } }
+      }
+    },
+    "mcpElicitation.constraint.email": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Use a valid email address" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请输入有效邮箱地址" } }
+      }
+    },
+    "mcpElicitation.constraint.integer": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Whole numbers only" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "仅支持整数" } }
+      }
+    },
+    "mcpElicitation.constraint.lengthRange %lld %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%1$lld–%2$lld characters" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "%1$lld–%2$lld 个字符" } }
+      }
+    },
+    "mcpElicitation.constraint.minLength %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "At least %lld characters" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "至少 %lld 个字符" } }
+      }
+    },
+    "mcpElicitation.constraint.maxLength %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "At most %lld characters" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最多 %lld 个字符" } }
+      }
+    },
+    "mcpElicitation.constraint.numberRange %@ %@": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Value from %1$@ to %2$@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "数值范围 %1$@–%2$@" } }
+      }
+    },
+    "mcpElicitation.constraint.minimum %@": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Minimum value %@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最小值 %@" } }
+      }
+    },
+    "mcpElicitation.constraint.maximum %@": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Maximum value %@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最大值 %@" } }
+      }
+    },
+    "mcpElicitation.constraint.selectionRange %lld %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Choose %1$lld–%2$lld options" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请选择 %1$lld–%2$lld 项" } }
+      }
+    },
+    "mcpElicitation.constraint.minSelections %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Choose at least %lld options" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "至少选择 %lld 项" } }
+      }
+    },
+    "mcpElicitation.constraint.maxSelections %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Choose at most %lld options" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最多选择 %lld 项" } }
+      }
+    },
+    "mcpElicitation.constraint.url": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Use a complete URL" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请输入完整 URL" } }
+      }
+    },
+    "mcpElicitation.error.invalid": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This value does not meet the requirement" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "该值不符合要求" } }
+      }
+    },
+    "mcpElicitation.error.required": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This field is required" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "此字段为必填项" } }
       }
     },
     "mcpElicitation.title": {

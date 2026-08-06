@@ -49,38 +49,38 @@ struct ShortcutsSettingsSectionView: View {
     @ViewBuilder
     private func row(_ action: ShortcutAction) -> some View {
         let isRecording = recordingAction == action
-        HStack {
-            Text(verbatim: localized(action.titleStringKey)).foregroundStyle(.primary)
-            Spacer()
-            if isRecording {
-                Text("shortcut.recording")
-                    .font(.caption).foregroundStyle(Color.accentColor)
-            } else {
-                Text(shortcuts.combo(for: action).displayString)
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(.secondary)
-            }
-
-            if action.isCustomizable {
-                Button(isRecording ? "common.cancel" : "shortcut.rebind") {
-                    if isRecording { exitRecording() } else { enterRecording(action) }
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(verbatim: localized(action.titleStringKey)).foregroundStyle(.primary)
+                Spacer()
+                if isRecording {
+                    Text("shortcut.recording")
+                        .font(.caption).foregroundStyle(Color.accentColor)
+                } else {
+                    Text(shortcuts.combo(for: action).displayString)
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.borderless)
-                if shortcuts.isOverridden(action) {
-                    Button("shortcut.resetDefault") {
-                        shortcuts.resetToDefault(action)
+
+                if action.isCustomizable {
+                    Button(isRecording ? "common.cancel" : "shortcut.rebind") {
+                        if isRecording { exitRecording() } else { enterRecording(action) }
                     }
                     .buttonStyle(.borderless)
+                    if shortcuts.isOverridden(action) {
+                        Button("shortcut.resetDefault") {
+                            shortcuts.resetToDefault(action)
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                } else {
+                    Text("shortcut.fixed").font(.caption).foregroundStyle(.secondary)
                 }
-            } else {
-                Text("shortcut.fixed").font(.caption).foregroundStyle(.secondary)
             }
-        }
-        // 录入态回显被拒原因。
-        .overlay(alignment: .bottomLeading) {
             if isRecording, let rejection {
                 Text(rejectionMessage(rejection))   // 已解析 String（含占用动作名），verbatim 渲染避免二次本地化
                     .font(.caption2).foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         // onKeyPress 只在录入行挂载（功耗约束 1）：捕获实键 → 校验管线。

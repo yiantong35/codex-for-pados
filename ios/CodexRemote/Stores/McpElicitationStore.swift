@@ -7,6 +7,7 @@ final class McpElicitationStore {
     typealias Resolver = @MainActor (RequestId, McpServerElicitationRequestResponse) async -> Bool
 
     private(set) var cards: [McpElicitationCard] = []
+    private(set) var submissionStates: [RequestId: DecisionSubmissionState] = [:]
     var resolver: Resolver?
 
     func handle(request: JSONRPCRequest) throws {
@@ -16,6 +17,7 @@ final class McpElicitationStore {
         } else {
             cards.append(card)
         }
+        submissionStates[card.id] = .idle
     }
 
     @discardableResult
@@ -34,15 +36,27 @@ final class McpElicitationStore {
 
     func handleServerRequestResolved(_ id: RequestId) {
         cards.removeAll { $0.id == id }
+        submissionStates[id] = nil
     }
 
     func handleConnectionLost() {
         for index in cards.indices { cards[index].awaitingRecovery = true }
+        for id in submissionStates.keys { submissionStates[id] = .idle }
+    }
+
+    func submissionState(for id: RequestId) -> DecisionSubmissionState {
+        submissionStates[id] ?? .idle
     }
 
     private func deliver(card: McpElicitationCard, response: McpServerElicitationRequestResponse) async -> Bool {
-        guard let resolver, await resolver(card.id, response) else { return false }
+        guard submissionState(for: card.id) != .submitting else { return false }
+        submissionStates[card.id] = .submitting
+        guard let resolver, await resolver(card.id, response) else {
+            submissionStates[card.id] = .failed
+            return false
+        }
         cards.removeAll { $0.id == card.id }
+        submissionStates[card.id] = nil
         return true
     }
 }

@@ -10,6 +10,12 @@ func relayRoomDecision(store: StableSessionStoring, machineKey: String, payloadS
     return (payloadSessionId, false)
 }
 
+@MainActor
+private func localizedTransportMessage(_ key: String, _ value: String? = nil) -> String {
+    let format = L10n.string(key, locale: LocaleManager.currentLocale)
+    return value.map { String(format: format, $0) } ?? format
+}
+
 /// relay transport 工厂：收已构造配对载荷 → 构造真 ws（URLSessionRelayWSChannel）+ 注入 E2E 密钥/TOFU 的 RelayTransport。
 /// `tofuMachineKey` 为该机器的稳定 TOFU 键（MachineConfig id）。
 /// 真握手（4 消息）由 RelayTransport 在 doEstablish 的 `awaitHandshake()` 内驱动。
@@ -17,13 +23,13 @@ func relayRoomDecision(store: StableSessionStoring, machineKey: String, payloadS
 func makeRelayTransport(payload: PairingPayload, tofuMachineKey: String,
                         consumePairingCode: @escaping @Sendable () async -> Void = {}) async throws -> MessageTransport {
     guard let base = URL(string: payload.relayURL) else {
-        throw TransportError.proxyFailed("relayURL 非法: \(payload.relayURL)")
+        throw TransportError.proxyFailed(localizedTransportMessage("transport.invalidRelayURL", payload.relayURL))
     }
     // 生产强制 wss：明文 ws（非 loopback）拒绝并明确提示需 wss（D6，fail-closed）。
     do {
         try RelaySchemeValidator.validate(url: base)
     } catch {
-        throw TransportError.proxyFailed("relay 地址为明文 ws，生产环境需使用加密的 wss: \(payload.relayURL)")
+        throw TransportError.proxyFailed(localizedTransportMessage("transport.insecureRelayURL", payload.relayURL))
     }
     // 房间号 + 握手模式由已持久化的 stableSessionId 决定：复连直连受信任房间免 pairingCode。
     let stableStore = UserDefaultsStableSessionStore()
@@ -57,7 +63,7 @@ func makeRelayTransport(payload: PairingPayload, tofuMachineKey: String,
 func liveTransportFactory(_ config: ConnectionConfig) async throws -> MessageTransport {
     guard let relayURL = config.relayURL else {
         // fail-closed：仅支持 relay，缺 relay 配置即配置错误，绝不回退 SSH/明文。
-        throw TransportError.proxyFailed("缺少 relay 配置：仅支持 relay 连接")
+        throw TransportError.proxyFailed(localizedTransportMessage("transport.missingRelayConfig"))
     }
     let machineId = config.relayTOFUKey.flatMap { UUID(uuidString: $0) }
     // 建连前 peek（不删）：失败可用同一 pc 直接重试不重扫（D3）。受信任复连无 pc → nil → 空 proof。

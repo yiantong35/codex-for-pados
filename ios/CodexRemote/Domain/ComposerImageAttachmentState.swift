@@ -13,6 +13,8 @@ final class ComposerImageAttachmentState {
 
     private(set) var dataURL: String?
     private(set) var error: ComposerImageAttachmentError?
+    private(set) var isLoading = false
+    private(set) var loadFailed = false
 
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var token: UUID?
@@ -26,6 +28,8 @@ final class ComposerImageAttachmentState {
         invalidateTask()
         dataURL = nil
         error = nil
+        isLoading = true
+        loadFailed = false
         let nextToken = UUID()
         token = nextToken
 
@@ -41,6 +45,8 @@ final class ComposerImageAttachmentState {
             } catch {
                 guard let self, self.token == nextToken else { return }
                 self.task = nil
+                self.isLoading = false
+                self.loadFailed = true
             }
         }
     }
@@ -49,6 +55,8 @@ final class ComposerImageAttachmentState {
         invalidateTask()
         dataURL = nil
         error = nil
+        isLoading = false
+        loadFailed = false
     }
 
 #if DEBUG
@@ -58,15 +66,18 @@ final class ComposerImageAttachmentState {
     private func apply(_ result: ImageEncodeResult, token resultToken: UUID) {
         guard token == resultToken else { return }
         task = nil
+        isLoading = false
         switch result {
         case .ok(let url, _):
             dataURL = url
             error = nil
+            loadFailed = false
         case .tooLarge(let bytes, let limit):
             dataURL = nil
             error = ComposerImageAttachmentError(bytes: bytes, limit: limit)
+            loadFailed = false
         case .cancelled:
-            break
+            loadFailed = true
         }
     }
 

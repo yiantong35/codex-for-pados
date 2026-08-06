@@ -8,6 +8,12 @@ enum ApprovalChoice: Equatable {
     case deny                               // 否
 }
 
+enum DecisionSubmissionState: Equatable {
+    case idle
+    case submitting
+    case failed
+}
+
 struct FileApprovalContext: Equatable {
     let file: String
     let added: Int
@@ -64,6 +70,7 @@ struct ApprovalCard: Identifiable {
 @MainActor
 final class ApprovalStore {
     private(set) var cards: [ApprovalCard] = []
+    private(set) var submissionStates: [RequestId: DecisionSubmissionState] = [:]
 
     /// 回传响应的回调，由接线方注入（实际调用 rpc.respond）。
     /// 返回 respond 是否送达成功：失败时 `resolve` 保留卡片供重试，绝不静默丢弃未决审批（fail-closed）。
@@ -89,6 +96,7 @@ final class ApprovalStore {
         } else {
             cards.append(card)
         }
+        submissionStates[card.id] = .idle
         onPendingChange?(card.threadId, true)
     }
 
@@ -149,18 +157,27 @@ final class ApprovalStore {
     /// 以外的状态供重试，绝不静默 `remove` 未确认的审批（#6，fail-closed）。
     @discardableResult
     func resolve(card: ApprovalCard, choice: ApprovalChoice) async -> Bool {
+        guard submissionState(for: card.id) != .submitting else { return false }
+        submissionStates[card.id] = .submitting
         let body = responseBody(for: card.method, decision: choice, requestedProfile: card.requestedProfile)
         let any = (try? JSONDecoder().decode(AnyCodable.self, from: JSONEncoder().encode(body)))
             ?? AnyCodable([String: Any]())
         let delivered = await resolver?(card.id, any) ?? false
         if delivered {
             remove(card.id, threadId: card.threadId)
+        } else {
+            submissionStates[card.id] = .failed
         }
         return delivered
     }
 
+    func submissionState(for id: RequestId) -> DecisionSubmissionState {
+        submissionStates[id] ?? .idle
+    }
+
     func remove(_ id: RequestId, threadId: String) {
         cards.removeAll { $0.id == id }
+        submissionStates[id] = nil
         if !cards.contains(where: { $0.threadId == threadId }) { onPendingChange?(threadId, false) }
     }
 
@@ -235,6 +252,7 @@ extension ApprovalStore {
     /// 重连后服务端可能重发审批请求，届时再次走 handle(request:) 重新展示。
     func handleConnectionLost() {
         for i in cards.indices { cards[i].awaitingRecovery = true }
+        for id in submissionStates.keys { submissionStates[id] = .idle }
     }
 }
 

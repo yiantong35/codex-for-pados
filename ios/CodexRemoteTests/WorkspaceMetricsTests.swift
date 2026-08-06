@@ -15,6 +15,14 @@ final class WorkspaceMetricsTests: XCTestCase {
     func testBottomPanelMinHeightConstantPositive() {
         XCTAssertGreaterThan(WorkspaceMetrics.bottomPanelMinHeight, 0)
     }
+    func testBottomResizeHandleAndAccessibilityAdjustment() {
+        XCTAssertGreaterThanOrEqual(WorkspaceMetrics.bottomResizeHandleTrackHeight, 44)
+        XCTAssertEqual(WorkspaceMetrics.adjustedBottomHeight(220, increment: true), 260)
+        XCTAssertEqual(
+            WorkspaceMetrics.adjustedBottomHeight(WorkspaceMetrics.bottomPanelMinHeight, increment: false),
+            WorkspaceMetrics.bottomPanelMinHeight
+        )
+    }
     func testRightPanelMinWidthConstantPositive() {
         XCTAssertGreaterThan(WorkspaceMetrics.rightPanelMinWidth, 0)
     }

@@ -271,11 +271,13 @@ final class ApprovalStoreTests: XCTestCase {
 
         let firstOK = await store.resolve(card: card, choice: .approve)
         XCTAssertFalse(firstOK, "首次 respond 送达失败应返回 false")
+        XCTAssertEqual(store.submissionState(for: card.id), .failed)
         XCTAssertEqual(store.cards.count, 1, "送达失败绝不移除卡片（fail-closed，可重试）")
 
         let secondOK = await store.resolve(card: store.cards.first!, choice: .approve)
         XCTAssertTrue(secondOK, "重试送达成功应返回 true")
         XCTAssertEqual(store.cards.count, 0, "送达成功后方可移除卡片")
+        XCTAssertEqual(store.submissionState(for: card.id), .idle)
         XCTAssertEqual(attempts, 2, "两次尝试")
     }
 

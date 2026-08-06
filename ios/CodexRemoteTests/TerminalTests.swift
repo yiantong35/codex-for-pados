@@ -87,7 +87,7 @@ struct TerminalTests {
         s.onBytes = { text += String(decoding: $0, as: UTF8.self) }
         s.start(cwd: "/repo")
         s.handleOutputDelta(processId: s.processId!, base64: Data("x".utf8).base64EncodedString(), capReached: true)
-        #expect(text.contains("截断"))
+        #expect(text.contains(L10n.string("terminal.outputTruncated", locale: LocaleManager.currentLocale)))
     }
 
     @MainActor @Test func disconnectForwardsBreakBytes() {

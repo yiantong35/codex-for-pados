@@ -102,7 +102,7 @@ final class TerminalSession {
         guard pid == processId, let data = Data(base64Encoded: base64) else { return }
         onBytes?([UInt8](data))
         if capReached {
-            onBytes?([UInt8]("\r\n── 输出已截断（超出上限）──\r\n".utf8))
+            writeStatus("terminal.outputTruncated")
         }
     }
     /// 断线：标失效 + 插断点行（终端语义换行 \r\n）。
@@ -145,12 +145,21 @@ final class TerminalSession {
         startedCwd = nil
 
         if let exitCode = (result?.value as? [String: Any])?["exitCode"] as? Int64 {
-            onBytes?([UInt8]("\r\n── 进程已退出（状态 \(exitCode)）──\r\n".utf8))
+            let format = L10n.string("terminal.processExited.status", locale: LocaleManager.currentLocale)
+            writeStatusText(String(format: format, exitCode))
         } else if result != nil {
-            onBytes?([UInt8]("\r\n── 进程已退出 ──\r\n".utf8))
+            writeStatus("terminal.processExited")
         } else {
-            onBytes?([UInt8]("\r\n── 进程异常结束 ──\r\n".utf8))
+            writeStatus("terminal.processFailed")
         }
+    }
+
+    private func writeStatus(_ key: String) {
+        writeStatusText(L10n.string(key, locale: LocaleManager.currentLocale))
+    }
+
+    private func writeStatusText(_ message: String) {
+        onBytes?([UInt8]("\r\n── \(message) ──\r\n".utf8))
     }
 
     private func invalidateExecution() {

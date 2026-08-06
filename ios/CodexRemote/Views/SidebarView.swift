@@ -34,6 +34,9 @@ struct SidebarView: View {
                 }
             }
         }
+        .listStyle(.plain)
+        .contentMargins(.horizontal, 4, for: .scrollContent)
+        .environment(\.defaultMinListRowHeight, 44)
         .overlay {
             if projects.projects.isEmpty && projects.looseConversations.isEmpty {
                 sidebarEmptyOverlay

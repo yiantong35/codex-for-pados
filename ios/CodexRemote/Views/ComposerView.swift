@@ -53,7 +53,12 @@ struct ComposerView: View {
     }
 
     private var canSend: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || imageDataURL != nil
+        Self.canSend(text: text, imageDataURL: imageDataURL, isImageLoading: imageAttachment.isLoading)
+    }
+
+    static func canSend(text: String, imageDataURL: String?, isImageLoading: Bool) -> Bool {
+        guard !isImageLoading else { return false }
+        return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || imageDataURL != nil
     }
 
     var body: some View {
@@ -87,6 +92,21 @@ struct ComposerView: View {
                 }
                 .foregroundStyle(.red)
                 .padding(.horizontal, 4)
+            }
+            if imageAttachment.isLoading {
+                attachmentStatusRow(
+                    label: "composer.image.preparing",
+                    systemImage: nil,
+                    isProgress: true,
+                    foreground: .secondary
+                )
+            } else if imageAttachment.loadFailed {
+                attachmentStatusRow(
+                    label: "composer.image.loadFailed",
+                    systemImage: "exclamationmark.triangle.fill",
+                    isProgress: false,
+                    foreground: .red
+                )
             }
             if imageDataURL != nil {
                 HStack(spacing: 6) {
@@ -165,9 +185,41 @@ struct ComposerView: View {
                 imageAttachment.clear()
                 return
             }
-            imageAttachment.load { try await photoDataLoader.load(item) }
+            loadImage(item)
         }
         .onDisappear { imageAttachment.clear() }
+    }
+
+    private func loadImage(_ item: PhotosPickerItem) {
+        imageAttachment.load { try await photoDataLoader.load(item) }
+    }
+
+    private func attachmentStatusRow(
+        label: LocalizedStringKey,
+        systemImage: String?,
+        isProgress: Bool,
+        foreground: Color
+    ) -> some View {
+        HStack(spacing: 8) {
+            if isProgress {
+                ProgressView().controlSize(.small)
+            } else if let systemImage {
+                Image(systemName: systemImage)
+            }
+            Text(label).font(.footnote).multilineTextAlignment(.leading)
+            Spacer()
+            if imageAttachment.loadFailed, let photoItem {
+                Button("common.retry") { loadImage(photoItem) }
+                    .font(.footnote)
+            }
+            Button("composer.remove") {
+                imageAttachment.clear()
+                photoItem = nil
+            }
+            .font(.footnote)
+        }
+        .foregroundStyle(foreground)
+        .padding(.horizontal, 4)
     }
 
     /// 字节数格式化为 MB（保留 1 位小数，如 `1.3 MB`），用于超限提示带具体数字。

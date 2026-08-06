@@ -56,6 +56,21 @@ final class McpElicitationTests: XCTestCase {
     }
 
     @MainActor
+    func testFormValidationReportsErrorsByField() throws {
+        let card = try McpElicitationCard(request: makeRequest(id: "errors", params: formParams))
+        let errors = card.validationErrors(drafts: [
+            "age": .text("12.5"),
+            "enabled": .boolean(false),
+            "name": .text("A"),
+            "region": .text("invalid"),
+            "tags": .multiple([]),
+        ])
+
+        XCTAssertEqual(Set(errors.keys), ["age", "name", "region", "tags"])
+        XCTAssertEqual(errors["name"], .invalidValue("name"))
+    }
+
+    @MainActor
     func testStoreDeclineAndDisconnectAreFailClosed() async throws {
         let store = McpElicitationStore()
         var responses: [McpServerElicitationRequestResponse] = []
@@ -71,6 +86,22 @@ final class McpElicitationTests: XCTestCase {
         let delivered = await store.resolve(card: refreshed, action: .decline)
         XCTAssertTrue(delivered)
         XCTAssertEqual(responses.map(\.action), [.decline])
+    }
+
+    @MainActor
+    func testFailedDecisionIsVisibleAndCanRetry() async throws {
+        let store = McpElicitationStore()
+        var attempts = 0
+        store.resolver = { _, _ in attempts += 1; return attempts == 2 }
+        try store.handle(request: makeRequest(id: "retry", params: formParams))
+        let card = try XCTUnwrap(store.cards.first)
+
+        let first = await store.resolve(card: card, action: .decline)
+        XCTAssertFalse(first)
+        XCTAssertEqual(store.submissionState(for: card.id), .failed)
+        let second = await store.resolve(card: card, action: .decline)
+        XCTAssertTrue(second)
+        XCTAssertTrue(store.cards.isEmpty)
     }
 
     private let formParams = #"{"threadId":"t","turnId":"turn","serverName":"forms","mode":"form","message":"Configure","requestedSchema":{"type":"object","properties":{"name":{"type":"string","title":"Name","minLength":2,"maxLength":20},"age":{"type":"integer","title":"Age","minimum":18,"maximum":120},"enabled":{"type":"boolean","title":"Enabled","default":true},"region":{"type":"string","title":"Region","oneOf":[{"const":"us","title":"US"},{"const":"eu","title":"EU"}]},"tags":{"type":"array","title":"Tags","items":{"type":"string","enum":["fast","safe","small"]},"minItems":1,"maxItems":2}},"required":["name","age","enabled","region","tags"]},"_meta":null}"#

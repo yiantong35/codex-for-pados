@@ -114,6 +114,19 @@ struct McpElicitationCard: Identifiable, Sendable {
         (try? accept(drafts: drafts)) != nil
     }
 
+    func validationErrors(drafts: [String: McpFormDraft]) -> [String: McpElicitationError] {
+        guard case .form(let fields) = mode else { return [:] }
+        return fields.reduce(into: [:]) { errors, field in
+            do {
+                _ = try Self.value(for: field, draft: drafts[field.name])
+            } catch let error as McpElicitationError {
+                errors[field.name] = error
+            } catch {
+                errors[field.name] = .invalidValue(field.name)
+            }
+        }
+    }
+
     func defaultDrafts() -> [String: McpFormDraft] {
         guard case .form(let fields) = mode else { return [:] }
         return Dictionary(uniqueKeysWithValues: fields.map { field in

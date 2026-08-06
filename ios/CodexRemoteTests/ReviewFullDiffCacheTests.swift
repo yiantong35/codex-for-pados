@@ -34,6 +34,21 @@ final class ReviewFullDiffCacheTests: XCTestCase {
         XCTAssertEqual(model.context, new)
         XCTAssertEqual(model.diff, "new")
     }
+    @MainActor
+    func test_failedFetchIsDistinctFromCleanDiffAndCanRetry() async {
+        let model = FullDiffSnapshotModel()
+        let context = FullDiffContextKey(cwd: "/A", conversationIdentity: "thread|rpc")
+
+        let failed = await model.refresh(context: context) { _ in nil }
+        XCTAssertFalse(failed)
+        XCTAssertEqual(model.loadState, .failed)
+        XCTAssertNil(model.diff)
+
+        let clean = await model.refresh(context: context) { _ in "" }
+        XCTAssertTrue(clean)
+        XCTAssertEqual(model.loadState, .loaded)
+        XCTAssertEqual(model.diff, "")
+    }
     func test_switchCwd_refetches() {
         XCTAssertTrue(ReviewTabView.shouldRefetchFullDiff(mode: .full, cachedCwd: "/A", currentCwd: "/B"))
     }

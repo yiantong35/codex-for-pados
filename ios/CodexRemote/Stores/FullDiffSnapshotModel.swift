@@ -1,6 +1,13 @@
 import Foundation
 import Observation
 
+enum FullDiffLoadState: Equatable {
+    case idle
+    case loading
+    case loaded
+    case failed
+}
+
 struct FullDiffContextKey: Equatable, Sendable {
     let cwd: String
     let conversationIdentity: String
@@ -18,7 +25,9 @@ struct FullDiffContextKey: Equatable, Sendable {
 final class FullDiffSnapshotModel {
     private(set) var diff: String?
     private(set) var context: FullDiffContextKey?
-    private(set) var isLoading = false
+    private(set) var loadState: FullDiffLoadState = .idle
+    var isLoading: Bool { loadState == .loading }
+    var hasError: Bool { loadState == .failed }
     private var generation: UInt64 = 0
 
     func invalidate(for newContext: FullDiffContextKey?) {
@@ -26,7 +35,7 @@ final class FullDiffSnapshotModel {
         generation &+= 1
         context = newContext
         diff = nil
-        isLoading = false
+        loadState = .idle
     }
 
     @discardableResult
@@ -43,11 +52,16 @@ final class FullDiffSnapshotModel {
         invalidate(for: context)
         generation &+= 1
         let owner = generation
-        isLoading = true
+        loadState = .loading
         let value = await fetch(context.cwd)
         guard owner == generation, self.context == context else { return false }
-        if let value { diff = value }
-        isLoading = false
-        return value != nil
+        if let value {
+            diff = value
+            loadState = .loaded
+            return true
+        }
+        diff = nil
+        loadState = .failed
+        return false
     }
 }

@@ -103,7 +103,11 @@ final class UserInputStoreTests: XCTestCase {
         try store.handle(request: request)
         let card = try XCTUnwrap(store.cards.first)
 
+        XCTAssertNotNil(store.autoResolutionDeadline(for: card.id))
+
         store.userInteracted(with: card.id)
+        XCTAssertNil(store.autoResolutionDeadline(for: card.id))
+        XCTAssertTrue(store.isAutoResolutionPaused(card.id))
         store.handleConnectionLost()
         XCTAssertEqual(responseCount, 0)
         XCTAssertTrue(store.cards[0].awaitingRecovery)
@@ -111,6 +115,23 @@ final class UserInputStoreTests: XCTestCase {
         try store.handle(request: request)
         XCTAssertEqual(store.cards.count, 1)
         XCTAssertFalse(store.cards[0].awaitingRecovery)
+    }
+
+    @MainActor
+    func testFailedSubmissionIsVisibleAndCanRetry() async throws {
+        let store = UserInputStore()
+        var attempts = 0
+        store.resolver = { _, _ in attempts += 1; return attempts == 2 }
+        try store.handle(request: makeRequest(id: "retry", params: singleQuestionParams))
+        let card = try XCTUnwrap(store.cards.first)
+        let drafts = ["q": UserInputDraft(selectedOption: "A", freeform: "")]
+
+        let first = await store.submit(card: card, drafts: drafts)
+        XCTAssertFalse(first)
+        XCTAssertEqual(store.submissionState(for: card.id), .failed)
+        let second = await store.submit(card: card, drafts: drafts)
+        XCTAssertTrue(second)
+        XCTAssertTrue(store.cards.isEmpty)
     }
 
     private let singleQuestionParams = #"{"threadId":"t","turnId":"turn","itemId":"item","questions":[{"id":"q","header":"Question","question":"Choose","isOther":false,"isSecret":false,"options":[{"label":"A","description":"First"}]}],"autoResolutionMs":null}"#

@@ -8,6 +8,9 @@ final class UserInputStore {
     typealias Sleeper = @Sendable (UInt64) async throws -> Void
 
     private(set) var cards: [UserInputCard] = []
+    private(set) var submissionStates: [RequestId: DecisionSubmissionState] = [:]
+    private(set) var autoResolutionDeadlines: [RequestId: Date] = [:]
+    private(set) var pausedAutoResolutionIds: Set<RequestId> = []
     var resolver: Resolver?
 
     @ObservationIgnored private let sleep: Sleeper
@@ -25,6 +28,7 @@ final class UserInputStore {
         } else {
             cards.append(card)
         }
+        submissionStates[card.id] = .idle
         scheduleAutoResolution(for: card)
     }
 
@@ -47,6 +51,20 @@ final class UserInputStore {
     func userInteracted(with id: RequestId) {
         timers[id]?.cancel()
         timers[id] = nil
+        autoResolutionDeadlines[id] = nil
+        pausedAutoResolutionIds.insert(id)
+    }
+
+    func submissionState(for id: RequestId) -> DecisionSubmissionState {
+        submissionStates[id] ?? .idle
+    }
+
+    func autoResolutionDeadline(for id: RequestId) -> Date? {
+        autoResolutionDeadlines[id]
+    }
+
+    func isAutoResolutionPaused(_ id: RequestId) -> Bool {
+        pausedAutoResolutionIds.contains(id)
     }
 
     func handleServerRequestResolved(_ id: RequestId) {
@@ -56,11 +74,15 @@ final class UserInputStore {
     func handleConnectionLost() {
         for timer in timers.values { timer.cancel() }
         timers.removeAll()
+        autoResolutionDeadlines.removeAll()
+        for id in submissionStates.keys { submissionStates[id] = .idle }
         for index in cards.indices { cards[index].awaitingRecovery = true }
     }
 
     private func scheduleAutoResolution(for card: UserInputCard) {
         guard let milliseconds = card.autoResolutionMs else { return }
+        pausedAutoResolutionIds.remove(card.id)
+        autoResolutionDeadlines[card.id] = Date().addingTimeInterval(Double(milliseconds) / 1_000)
         let nanoseconds = milliseconds.multipliedReportingOverflow(by: 1_000_000)
         let delay = nanoseconds.overflow ? UInt64.max : nanoseconds.partialValue
         timers[card.id] = Task { [weak self, sleep] in
@@ -74,9 +96,15 @@ final class UserInputStore {
     }
 
     private func resolve(card: UserInputCard, response: ToolRequestUserInputResponse) async -> Bool {
+        guard submissionState(for: card.id) != .submitting else { return false }
         timers[card.id]?.cancel()
         timers[card.id] = nil
-        guard let resolver, await resolver(card.id, response) else { return false }
+        autoResolutionDeadlines[card.id] = nil
+        submissionStates[card.id] = .submitting
+        guard let resolver, await resolver(card.id, response) else {
+            submissionStates[card.id] = .failed
+            return false
+        }
         remove(card.id)
         return true
     }
@@ -84,6 +112,9 @@ final class UserInputStore {
     private func remove(_ id: RequestId) {
         timers[id]?.cancel()
         timers[id] = nil
+        autoResolutionDeadlines[id] = nil
+        pausedAutoResolutionIds.remove(id)
+        submissionStates[id] = nil
         cards.removeAll { $0.id == id }
     }
 }

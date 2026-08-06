@@ -7,6 +7,10 @@ struct ApprovalCardView: View {
     let card: ApprovalCard
     var fileContext: FileApprovalContext? = nil
 
+    private var submissionState: DecisionSubmissionState {
+        approvals.submissionState(for: card.id)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Label(titleKey, systemImage: titleIcon)
@@ -16,6 +20,7 @@ struct ApprovalCardView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            decisionFeedback(submissionState)
             Text(fileContext?.file ?? card.title).font(.callout.monospaced())
             // F4：权限审批展示知情要素——reason + 请求的 network/fileSystem 条目，
             // 用户批准前看清实际授权范围（守 UI 基线：文本可换行/随 Dynamic Type，无固定宽度）。
@@ -92,11 +97,24 @@ struct ApprovalCardView: View {
                     .fixedSize(horizontal: true, vertical: false)
                 VStack(alignment: .leading, spacing: 8) { approvalButtons }
             }
-            .disabled(card.awaitingRecovery)
+            .disabled(card.awaitingRecovery || submissionState == .submitting)
         }
         .padding()
         .background(.orange.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    @ViewBuilder
+    private func decisionFeedback(_ state: DecisionSubmissionState) -> some View {
+        switch state {
+        case .idle: EmptyView()
+        case .submitting:
+            Label("decision.submitting", systemImage: "arrow.triangle.2.circlepath")
+                .font(.caption).foregroundStyle(.secondary)
+        case .failed:
+            Label("decision.failed", systemImage: "exclamationmark.triangle.fill")
+                .font(.caption).foregroundStyle(.red)
+        }
     }
 
     @ViewBuilder
