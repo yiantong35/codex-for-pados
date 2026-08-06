@@ -39,6 +39,6 @@
 ## 5. 全项目 Build / Verify Gate
 
 - [x] 5.1 根 Comet build/verify wrapper 覆盖四个 Swift Package + iOS xcodegen/build/test/analyze，并保留清晰分段失败信息。
-- [ ] 5.2 运行 RelayProtocol、relay-server、relay-dialout、mac-daemon 全量测试，iOS 全量测试与 analyze；`git diff --check`、OpenSpec strict validate 全绿。
-- [ ] 5.3 跑大帧 relay E2E、dialout 断开重拨、server request 交互、审批当前 schema、恢复 outbox、终端退出和图片竞态专项回归。
-- [ ] 5.4 更新 verify report 与真机验收清单；真机未执行项明确保留为待验，不得以单元测试替代手感/真实网络验收。
+- [x] 5.2 运行 RelayProtocol、relay-server、relay-dialout、mac-daemon 全量测试，iOS 全量测试与 analyze；`git diff --check`、OpenSpec strict validate 全绿。
+- [x] 5.3 跑大帧 relay E2E、dialout 断开重拨、server request 交互、审批当前 schema、恢复 outbox、终端退出和图片竞态专项回归。
+- [x] 5.4 更新 verify report 与真机验收清单；真机未执行项明确保留为待验，不得以单元测试替代手感/真实网络验收。

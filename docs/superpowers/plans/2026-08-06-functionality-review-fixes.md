@@ -282,15 +282,15 @@ change `.comet.yaml` if command paths change.
 
 ### Task 5.2: Full verification and report
 
-- [ ] Run the root build wrapper.
-- [ ] Run the root verify wrapper.
-- [ ] Run focused E2E for large frames, dialout reconnect, interactive requests,
+- [x] Run the root build wrapper.
+- [x] Run the root verify wrapper.
+- [x] Run focused E2E for large frames, dialout reconnect, interactive requests,
   typed approvals, resume/outbox, terminal restart, and photo races.
-- [ ] Run the real Linux Swift 6 gate and attach its environment/version evidence.
-- [ ] Confirm no unrelated pre-existing dirty file is staged or changed.
-- [ ] Write the Comet verification report with command, result, duration, and any
+- [x] Run the real Linux Swift 6 gate and attach its environment/version evidence.
+- [x] Confirm no unrelated pre-existing dirty file is staged or changed.
+- [x] Write the Comet verification report with command, result, duration, and any
   unexecuted device-only check; set `verify_result` truthfully.
-- [ ] Complete the real-device checklist, or leave those items explicitly pending.
+- [x] Complete the real-device checklist, or leave those items explicitly pending.
 - [ ] Strict-validate and archive `functionality-review-fixes` only after every
   required automated gate passes.
 
