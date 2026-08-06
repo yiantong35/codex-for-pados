@@ -103,6 +103,38 @@
         }
       }
     },
+    "progress.collapse": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collapse progress"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收起进度"
+          }
+        }
+      }
+    },
+    "progress.expand": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expand progress"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "展开进度"
+          }
+        }
+      }
+    },
     "progress.filesChanged %lld": {
       "localizations": {
         "en": {
@@ -195,6 +227,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "审查已发起"
+          }
+        }
+      }
+    },
+    "review.startFailed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not start review"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法发起审查"
           }
         }
       }
@@ -4401,6 +4449,42 @@
             "value": "选择一个对话"
           }
         }
+      }
+    },
+    "tab.status.none": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "No activity" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无活动" } }
+      }
+    },
+    "tab.status.unread": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Unread activity" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "有未读活动" } }
+      }
+    },
+    "tab.status.running": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Running" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在运行" } }
+      }
+    },
+    "tab.status.attention": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Needs attention" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "需要处理" } }
+      }
+    },
+    "tab.status.error": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Error" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "发生错误" } }
+      }
+    },
+    "tab.status.disconnected": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Disconnected" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接已断开" } }
       }
     },
     "tab.capReached": {

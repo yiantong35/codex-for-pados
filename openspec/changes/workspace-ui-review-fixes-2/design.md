@@ -20,7 +20,7 @@
 
 - 不碰 security / relay / E2E / transport / Keychain。
 - 不重构审查/ diff 数据模型（`DiffFile`/`DiffLine`/`ReviewDiffSource` 结构不变）。
-- 不推翻 #9 的 D4 fire-and-forget 设计（不加形同虚设的 `isStarting` 假防抖）——只补可见反馈。
+- 不改变 #9 底层 fire-and-forget 协议；UI 层使用短时提交门闩覆盖连点窗口，并同时承载反馈周期。
 - 不处理 release 线上残留的已归档 `workspace-ui-review-fixes/tasks.md`（可选清理项，另计）。
 
 ## Decisions
@@ -29,11 +29,15 @@
 - **D2（#3 窄窗档位）**：`columnVisibilityPlan` 引入「最后请求侧」概念——当 `wantRight` 为真或总宽落在 center+right 可容纳档（≥ 某阈值且 < 668）时，据实展开右栏，而非 `wantLeft` 一票否决。判定为纯函数，穷举档位单测。
 - **D3（#4 导航接线）**：在 `RootSplitView` 把「打开右栏审查 tab」的闭包注入 `SummaryPopoverView(onOpenReview:)`，复用已存在的右栏 tab 选择状态（与 review-actions 能力现有跳转信号同源）。不新增全局状态。
 - **D4（#5 i18n）**：`conv.item.unknown` 换正确本地化文案（en/zh 各自正确）；`ConnectionStore`/`FileBrowserStore` 硬编码中文改走 `String(localized:)` 并确保跟随注入 locale（与首轮 D5 注入 locale 同范式）。补一条「xcstrings 无占位假串」的守卫测试。
-- **D5（#6 a11y）**：空 `Toggle` 标签补 `accessibilityLabel(skill 名)`；`onTapGesture` 类改造为 `Button` 或补 `.accessibilityAddTraits(.isButton)`（沿用首轮 D7 触控范式）。
+- **D5（#6 a11y）**：空 `Toggle` 标签补 `accessibilityLabel(skill 名)`；手势控件优先改为原生 `Button`。`ProgressCardBar` 不把整卡声明为按钮：仅 plan 展开控件与具备路由的文件统计为按钮，避免 diff-only 伪交互。
 - **D6（#7 tab 滚动）**：`TabBarView` 外套 `ScrollViewReader`，活动 tab `.id(...)`，在选中变化时 `withAnimation { proxy.scrollTo(activeId, anchor: .center) }`。事件驱动，无定时器。
 - **D7（#8 可读性）**：四项——(a) diff/文件行左侧行号 gutter；(b) 长行改横向 `ScrollView(.horizontal)` 不折行；(c) `.textSelection(.enabled)`；(d) 字号 caption2→body/caption 适度上调 + 行高。均为视图修饰，保持横竖屏自适应。
-- **D8（#9 可见反馈）**：发起审查后给短时可见态（如按钮态切换/toast/inline「审查已发起」），基于既有事件（回调返回）驱动，不引入轮询、不改 fire-and-forget。
+- **D8（#9 可见反馈）**：发起审查后显示成功或失败 inline 状态；提交开始即设置门闩，反馈 1.5 秒后释放，使底层即使立即返回也无法被快速连点重复触发。不引入轮询，不改 fire-and-forget 协议。
 - **D9（#10 阈值接入）**：把生产近底判定接上 `ScrollAnchorPolicy.isNearBottom(threshold:120)`——最简事件驱动做法为把 sentinel 视图从 1pt 高改为 120pt 近底带（onAppear 即代表「进入近底 120pt」），或以底部锚的可见性等价映射到该策略函数；保持无几何轮询。具体取法在 design 阶段定，但必须让生产真正调用该策略函数（消灭死代码）。
+- **D10（Review 路由隔离）**：`ConversationView` 接收可选 `onOpenReview`；仅 `bindsWorkspaceState=true` 时生效。主工作区注入 `requestRightPanel(.review)`，Side Chat 保持 nil，并由生产策略二次阻断误传。
+- **D11（动态 locale）**：View 生成的错误、数字与相对时间显式传 `@Environment(\.locale)`；无 View 环境的 Store 使用 `LocaleManager.currentLocale`。不保留共享可变 formatter。
+- **D12（状态与动态效果）**：机器状态以不同 SF Symbol、颜色和 VoiceOver value 三重表达；`accessibilityReduceMotion` 为真时停止闪烁和非必要面板过渡。
+- **D13（紧凑右栏）**：低于 center+right 并排阈值时，列布局继续保护中栏，右栏以受容器约束的 trailing overlay 呈现；顶部右栏按钮保持关闭入口。≥494pt 继续使用既有单侧/三栏布局。
 
 ## Risks / Trade-offs
 

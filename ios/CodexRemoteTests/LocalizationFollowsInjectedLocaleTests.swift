@@ -27,6 +27,7 @@ final class LocalizationFollowsInjectedLocaleTests: XCTestCase {
         "conn.error.notConnected", "conn.error.handshakeFailed",
         "fileBrowser.loadDirFailed",
         "review.started",           // #9：发起审查可见反馈文案
+        "review.startFailed",
     ]
 
     func test_sharedHelper_returnsInjectedLanguage() {
@@ -44,8 +45,10 @@ final class LocalizationFollowsInjectedLocaleTests: XCTestCase {
     }
 
     /// 动态标签（审查模式名、右栏 tab 名）按注入 locale 解析，en 无中文残留。
+    @MainActor
     func test_dynamicLabels_followInjectedLocale() {
         let en = Locale(identifier: "en")
+        let zh = Locale(identifier: "zh-Hans")
         for mode in ReviewSourceMode.allCases {
             let s = mode.label(locale: en)
             XCTAssertFalse(s.isEmpty)
@@ -57,6 +60,13 @@ final class LocalizationFollowsInjectedLocaleTests: XCTestCase {
             XCTAssertFalse(s.isEmpty)
             XCTAssertFalse(s.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) })
         }
+
+        XCTAssertEqual(PairingImportError.empty.description(locale: en),
+                       L10n.string("relayImport.error.empty", locale: en))
+        XCTAssertEqual(SummaryPopoverView.statusLabel(.running, locale: en),
+                       L10n.string("workspace.env.sa.running", locale: en))
+        XCTAssertNotEqual(SidebarView.relativeTime(Date().timeIntervalSince1970 - 60, locale: en),
+                          SidebarView.relativeTime(Date().timeIntervalSince1970 - 60, locale: zh))
     }
 
     /// #5：ConnectionStore.friendlyMessage 跟随注入 locale；en 无中文残留、zh 为中文。

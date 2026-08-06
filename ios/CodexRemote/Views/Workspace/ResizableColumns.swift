@@ -30,6 +30,7 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
     // 之后用「当前绝对 x − 起点绝对 x」算增量，不用会自我干扰的 translation。
     @State private var dragStartX: CGFloat?
     @State private var dragStartWidth: CGFloat?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         GeometryReader { proxy in
@@ -42,6 +43,8 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
                 lastRequested: lastRequested)
             let effLeftVisible = plan.showLeft
             let effRightVisible = plan.showRight
+            let overlaysRight = WorkspaceMetrics.shouldOverlayRight(
+                total: total, wantRight: rightVisible, plan: plan)
             // 渲染用列宽：隐藏（含降级收起）时按 0 参与中栏 / clamp 计算，避免读到过期宽度或把
             // 已收起栏的持久宽度算进 otherColumnWidth。列宽持久化（leftWidth/rightWidth 存值）不受影响。
             let dispLeft: CGFloat = effLeftVisible ? leftWidth : 0
@@ -52,23 +55,38 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
                 total: total, left: dispLeft, right: dispRight,
                 dividerCount: dividerCount)
 
-            HStack(spacing: 0) {
-                if effLeftVisible {
-                    left()
-                        .frame(width: dispLeft)
-                        .clipped()
-                    leftDivider(total: total, dividerCount: dividerCount, otherColumnWidth: dispRight)
+            ZStack(alignment: .trailing) {
+                HStack(spacing: 0) {
+                    if effLeftVisible {
+                        left()
+                            .frame(width: dispLeft)
+                            .clipped()
+                        leftDivider(total: total, dividerCount: dividerCount, otherColumnWidth: dispRight)
+                    }
+
+                    center()
+                        .frame(width: centerWidth)
+                        .frame(maxHeight: .infinity)
+
+                    if effRightVisible {
+                        rightDivider(total: total, dividerCount: dividerCount, otherColumnWidth: dispLeft)
+                        right()
+                            .frame(width: dispRight)
+                            .clipped()
+                    }
                 }
+                .frame(width: total, alignment: .leading)
 
-                center()
-                    .frame(width: centerWidth)
-                    .frame(maxHeight: .infinity)
-
-                if effRightVisible {
-                    rightDivider(total: total, dividerCount: dividerCount, otherColumnWidth: dispLeft)
+                if overlaysRight {
                     right()
-                        .frame(width: dispRight)
-                        .clipped()
+                        .frame(width: WorkspaceMetrics.rightOverlayWidth(
+                            total: total,
+                            preferred: rightWidth))
+                        .frame(maxHeight: .infinity)
+                        .background(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.22), radius: 16, x: -6)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                        .zIndex(1)
                 }
             }
             .frame(width: total, alignment: .leading)
@@ -94,8 +112,9 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
             }
             // 固定坐标系锚在不动的容器上：分隔线 DragGesture 在此系读绝对 x，消除慢拖抖动（D2）。
             .coordinateSpace(name: Self.coordinateSpaceName)
-            .animation(.easeOut(duration: 0.22), value: effLeftVisible)   // D5 宽度动画 + D4 降级切换过渡
-            .animation(.easeOut(duration: 0.22), value: effRightVisible)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: effLeftVisible)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: effRightVisible)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: overlaysRight)
         }
     }
 

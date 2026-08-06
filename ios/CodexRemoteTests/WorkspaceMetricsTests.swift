@@ -223,10 +223,26 @@ final class WorkspaceMetricsTests: XCTestCase {
         }
     }
 
-    /// 极窄 320：仅中栏（右栏 <494 属既有 gap，已登记 BACKLOG，不在本轮修）。
+    /// 极窄 320：列布局保持中栏，但右栏意图由覆盖层承接。
     func testUltraNarrowKeepsCenterOnly() {
         let plan = WorkspaceMetrics.columnVisibilityPlan(
             total: 320, wantLeft: true, wantRight: true, lastRequested: .right)
         XCTAssertFalse(plan.showLeft); XCTAssertFalse(plan.showRight)
+        XCTAssertTrue(WorkspaceMetrics.shouldOverlayRight(
+            total: 320, wantRight: true, plan: plan))
+    }
+
+    func testRightOverlayOnlyUsedBelowSideBySideThreshold() {
+        let below = WorkspaceMetrics.columnVisibilityPlan(
+            total: 493, wantLeft: true, wantRight: true, lastRequested: .right)
+        XCTAssertTrue(WorkspaceMetrics.shouldOverlayRight(
+            total: 493, wantRight: true, plan: below))
+
+        let fits = WorkspaceMetrics.columnVisibilityPlan(
+            total: 494, wantLeft: true, wantRight: true, lastRequested: .right)
+        XCTAssertFalse(WorkspaceMetrics.shouldOverlayRight(
+            total: 494, wantRight: true, plan: fits))
+        XCTAssertFalse(WorkspaceMetrics.shouldOverlayRight(
+            total: 320, wantRight: false, plan: below))
     }
 }

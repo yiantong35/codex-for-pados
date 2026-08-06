@@ -50,4 +50,40 @@ final class TouchAccessibilityTests: XCTestCase {
             XCTAssertNotEqual(value, key, "缺少无障碍标签本地化键 \(key)")
         }
     }
+
+    /// 2.2b：只有含 plan progress 的卡片才提供展开/收起控件。
+    /// diff-only 卡片不能暴露一个点击后无动作的伪按钮。
+    func test_progressCardExpandControl_requiresPlanProgress() {
+        let empty = WorkspaceSummary.PlanProgress(steps: [])
+        let withPlan = WorkspaceSummary.PlanProgress(steps: [
+            TurnPlanStep(step: "Inspect", status: .inProgress),
+        ])
+
+        XCTAssertFalse(ProgressCardBar.showsExpandControl(for: empty))
+        XCTAssertTrue(ProgressCardBar.showsExpandControl(for: withPlan))
+    }
+
+    func test_progressCardFilesControl_requiresDiffAndNavigationAction() {
+        let empty = WorkspaceSummary.DiffLineCounts(added: 0, removed: 0, changedFiles: 0)
+        let changed = WorkspaceSummary.DiffLineCounts(added: 2, removed: 1, changedFiles: 1)
+
+        XCTAssertFalse(ProgressCardBar.showsFilesControl(diff: empty, hasAction: true))
+        XCTAssertFalse(ProgressCardBar.showsFilesControl(diff: changed, hasAction: false))
+        XCTAssertTrue(ProgressCardBar.showsFilesControl(diff: changed, hasAction: true))
+    }
+
+    func test_progressCardAccessibilityLabelKeys_areLocalized() {
+        for key in ["progress.expand", "progress.collapse"] {
+            let value = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(value, key, "缺少进度卡无障碍标签本地化键 \(key)")
+        }
+    }
+
+    func test_machineStatusAccessibilityKeys_areLocalized() {
+        for key in ["tab.status.none", "tab.status.unread", "tab.status.running",
+                    "tab.status.attention", "tab.status.error", "tab.status.disconnected"] {
+            let value = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(value, key, "缺少机器状态无障碍文案 \(key)")
+        }
+    }
 }

@@ -8,14 +8,14 @@ struct ProgressCardBar: View {
     let progress: WorkspaceSummary.PlanProgress
     let diff: WorkspaceSummary.DiffLineCounts
     /// 点击「X 文件已更改」的回调（转跳右栏）。
-    var onTapFiles: () -> Void = {}
+    var onTapFiles: (() -> Void)?
 
     @State private var expanded = false
 
     init(progress: WorkspaceSummary.PlanProgress,
          diff: WorkspaceSummary.DiffLineCounts,
          initialExpanded: Bool = false,
-         onTapFiles: @escaping () -> Void = {}) {
+         onTapFiles: (() -> Void)? = nil) {
         self.progress = progress
         self.diff = diff
         self.onTapFiles = onTapFiles
@@ -29,42 +29,76 @@ struct ProgressCardBar: View {
         Self.intFormatter.string(from: NSNumber(value: n)) ?? "\(n)"
     }
 
+    static func showsExpandControl(for progress: WorkspaceSummary.PlanProgress) -> Bool {
+        !progress.isEmpty
+    }
+
+    static func showsFilesControl(diff: WorkspaceSummary.DiffLineCounts,
+                                  hasAction: Bool) -> Bool {
+        !diff.isEmpty && hasAction
+    }
+
     var body: some View {
         collapsedBar
             .overlay(alignment: .bottom) {
-                if expanded { expandedOverlay }
+                if expanded && !progress.isEmpty { expandedOverlay }
+            }
+            .onChange(of: progress.isEmpty) { _, isEmpty in
+                if isEmpty { expanded = false }
             }
     }
 
     private var collapsedBar: some View {
         HStack(spacing: 8) {
             ProgressView().controlSize(.small).tint(Color.accentColor)
-            if !progress.isEmpty {
-                Text("progress.step \(progress.completed)/\(progress.total)")
-                    .monospacedDigit()
-                    .font(.callout)
+            if Self.showsExpandControl(for: progress) {
+                Button(action: toggleExpanded) {
+                    HStack(spacing: 5) {
+                        Text("progress.step \(progress.completed)/\(progress.total)")
+                            .monospacedDigit()
+                            .font(.callout)
+                        Image(systemName: expanded ? "chevron.down" : "chevron.up")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .minimumHitTarget44()
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(expanded ? "progress.collapse" : "progress.expand"))
+                .accessibilityValue(Text("progress.step \(progress.completed)/\(progress.total)"))
             }
             if !progress.isEmpty && !diff.isEmpty {
                 Text("·").foregroundStyle(.secondary)
             }
             if !diff.isEmpty {
-                Button(action: onTapFiles) {
-                    HStack(spacing: 6) {
-                        Text("progress.filesChanged \(diff.changedFiles)").font(.callout)
-                        Text("+\(fmt(diff.added))").foregroundStyle(.green).monospacedDigit()
-                        Text("−\(fmt(diff.removed))").foregroundStyle(.red).monospacedDigit()
+                if let onTapFiles {
+                    Button(action: onTapFiles) {
+                        fileStats
                     }
+                    .buttonStyle(.plain)
+                    .minimumHitTarget44()
+                } else {
+                    fileStats
                 }
-                .buttonStyle(.plain)
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 14).padding(.vertical, 8)
+        .padding(.horizontal, 14).padding(.vertical, 2)
         .background(.regularMaterial, in: Capsule())
         .overlay(Capsule().strokeBorder(.separator))
         .padding(.horizontal, 12)
-        .contentShape(Capsule())
-        .onTapGesture { if !progress.isEmpty { withAnimation { expanded.toggle() } } }
+    }
+
+    private var fileStats: some View {
+        HStack(spacing: 6) {
+            Text("progress.filesChanged \(diff.changedFiles)").font(.callout)
+            Text("+\(fmt(diff.added))").foregroundStyle(.green).monospacedDigit()
+            Text("−\(fmt(diff.removed))").foregroundStyle(.red).monospacedDigit()
+        }
+    }
+
+    private func toggleExpanded() {
+        withAnimation { expanded.toggle() }
     }
 
     private var expandedOverlay: some View {

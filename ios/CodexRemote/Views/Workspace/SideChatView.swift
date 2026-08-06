@@ -30,6 +30,7 @@ struct SideChatView: View {
                         .font(.caption)
                 }
                 .buttonStyle(.bordered)
+                .minimumHitTarget44()
                 .disabled(!hasMainThread)
 
                 ForEach(store.sessions) { session in
@@ -49,12 +50,14 @@ struct SideChatView: View {
                     .fontWeight(store.selectedId == session.id ? .semibold : .regular)
             }
             .buttonStyle(.plain)
+            .minimumHitTarget44()
             Button { store.close(id: session.id) } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .minimumHitTarget44()
             .accessibilityLabel("sideChat.close")
         }
         .padding(.horizontal, 8)

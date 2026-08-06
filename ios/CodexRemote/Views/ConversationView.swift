@@ -31,10 +31,25 @@ struct ConversationView: View {
     /// D1：是否绑定工作区审查状态（写入/清空 ActiveConversationHolder 并注册 resume）。
     /// 中栏主对话传 true（默认）；侧聊实例传 false，完全不碰 holder，隔离审查状态。
     var bindsWorkspaceState: Bool = true
+    /// 主工作区注入 Review 路由；侧聊即使误传，也会由隔离策略忽略。
+    var onOpenReview: (() -> Void)? = nil
     @State private var store: ConversationStore?
     /// D8：滚动位置感知（哨兵事件驱动，无轮询/定时器）。
     @State private var isNearBottom = true
     @State private var showNewBelow = false
+
+    static func allowsWorkspaceReviewNavigation(bindsWorkspaceState: Bool,
+                                                hasAction: Bool) -> Bool {
+        bindsWorkspaceState && hasAction
+    }
+
+    private var workspaceReviewAction: (() -> Void)? {
+        guard Self.allowsWorkspaceReviewNavigation(
+            bindsWorkspaceState: bindsWorkspaceState,
+            hasAction: onOpenReview != nil)
+        else { return nil }
+        return onOpenReview
+    }
 
     /// 属于当前线程的待处理审批卡（内联在对话流末尾）。
     private var threadApprovals: [ApprovalCard] {
@@ -196,9 +211,7 @@ struct ConversationView: View {
         let progress = WorkspaceSummary.planProgress(in: state)
         let diff = WorkspaceSummary.diffLineCounts(in: state)
         if !progress.isEmpty || !diff.isEmpty {
-            ProgressCardBar(progress: progress, diff: diff) {
-                activeConversation.requestRightPanel = true
-            }
+            ProgressCardBar(progress: progress, diff: diff, onTapFiles: workspaceReviewAction)
             .padding(.bottom, 6)
         }
     }

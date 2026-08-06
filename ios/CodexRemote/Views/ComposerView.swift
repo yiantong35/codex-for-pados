@@ -10,6 +10,7 @@ struct ComposerView: View {
     // 服务器驱动的模型数据（model/list + config/read）。绝不硬编码——两种登录（账号/API）
     // 可用模型不同，daemon 已按登录返回真实数据（见 memory: pados-model-server-driven）。
     @Environment(EnvironmentStore.self) private var env
+    @Environment(\.locale) private var locale
 
     @State private var text = ""
     @State private var photoItem: PhotosPickerItem?
@@ -145,8 +146,9 @@ struct ComposerView: View {
                 case .tooLarge(let bytes, let limit):
                     imageDataURL = nil
                     imageError = String(
-                        format: String(localized: "composer.image.tooLarge"),
-                        Self.mb(bytes), Self.mb(limit)
+                        format: L10n.string("composer.image.tooLarge", locale: locale),
+                        locale: locale,
+                        Self.mb(bytes, locale: locale), Self.mb(limit, locale: locale)
                     )
                 }
             }
@@ -154,8 +156,8 @@ struct ComposerView: View {
     }
 
     /// 字节数格式化为 MB（保留 1 位小数，如 `1.3 MB`），用于超限提示带具体数字。
-    static func mb(_ bytes: Int) -> String {
-        String(format: "%.1f MB", Double(bytes) / 1_048_576.0)
+    static func mb(_ bytes: Int, locale: Locale = LocaleManager.currentLocale) -> String {
+        String(format: "%.1f MB", locale: locale, Double(bytes) / 1_048_576.0)
     }
 
     /// 模型 + 推理强度选择浮层（inline picker，一屏列出，选中带勾）。

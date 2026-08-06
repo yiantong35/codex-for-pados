@@ -49,6 +49,7 @@ struct FileBrowserView: View {
                 Image(systemName: "arrow.clockwise")
             }
             .accessibilityLabel(Text("fileBrowser.refresh"))
+            .minimumHitTarget44()
         }
         .padding(.horizontal, 10).padding(.vertical, 6)
     }
@@ -104,6 +105,7 @@ struct FileBrowserView: View {
             }
             .padding(.leading, CGFloat(depth) * 14 + 10)
             .padding(.vertical, 3)
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

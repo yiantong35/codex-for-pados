@@ -9,6 +9,7 @@ struct SidebarView: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(EnvironmentStore.self) private var env
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.locale) private var locale
     @Binding var selectedThreadId: String?
     @State private var collapse = SidebarCollapseStore()
 
@@ -112,7 +113,7 @@ struct SidebarView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(displayTitle(thread)).lineLimit(1)
                     .foregroundStyle(selected ? Color.accentColor : Color.primary)
-                Text(Self.relativeTime(thread.updatedAt))
+                Text(Self.relativeTime(thread.updatedAt, locale: locale))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -140,6 +141,7 @@ struct SidebarView: View {
             }
         }
         .contentShape(Rectangle())
+        .frame(minHeight: 44)
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -159,12 +161,12 @@ struct SidebarView: View {
 
     private func displayTitle(_ thread: ThreadSummary) -> String {
         if let name = thread.name, !name.isEmpty { return name }
-        return thread.preview.isEmpty ? String(localized: "sidebar.untitled") : thread.preview
+        return thread.preview.isEmpty ? L10n.string("sidebar.untitled", locale: locale) : thread.preview
     }
 
-    private static let formatter = RelativeDateTimeFormatter()
-
-    private static func relativeTime(_ ts: Double) -> String {
-        formatter.localizedString(for: Date(timeIntervalSince1970: ts), relativeTo: Date())
+    static func relativeTime(_ ts: Double, locale: Locale) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.locale = locale
+        return formatter.localizedString(for: Date(timeIntervalSince1970: ts), relativeTo: Date())
     }
 }

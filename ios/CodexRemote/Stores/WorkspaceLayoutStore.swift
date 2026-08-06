@@ -57,4 +57,22 @@ final class WorkspaceLayoutStore {
         lastRequested = .right
         pendingRightPanelIntent = intent
     }
+
+    func toggleRightPanel() {
+        if showRight && lastRequested == .right {
+            showRight = false
+        } else {
+            showRight = true
+        }
+        lastRequested = .right
+    }
+
+    func toggleLeftPanel() {
+        if leftVisible && lastRequested == .left {
+            leftVisible = false
+        } else {
+            leftVisible = true
+        }
+        lastRequested = .left
+    }
 }

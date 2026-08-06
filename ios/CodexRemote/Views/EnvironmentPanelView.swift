@@ -6,6 +6,7 @@ struct EnvironmentPanelView: View {
     @Environment(EnvironmentStore.self) private var env
     @Environment(ConnectionStore.self) private var connection
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
 
     var body: some View {
         NavigationStack {
@@ -41,9 +42,9 @@ struct EnvironmentPanelView: View {
                 LabeledContent("env.usage.lifetime", value: "\(life)")
             }
             if let w = env.rateLimits?.primary {
-                LabeledContent("env.rate.used", value: String(format: "%.0f%%", w.usedPercent))
+                LabeledContent("env.rate.used", value: String(format: "%.0f%%", locale: locale, w.usedPercent))
                 if let r = w.resetsAt {
-                    LabeledContent("env.rate.reset", value: Self.reset(r))
+                    LabeledContent("env.rate.reset", value: Self.reset(r, locale: locale))
                 }
             }
         }
@@ -103,8 +104,9 @@ struct EnvironmentPanelView: View {
         }
     }
 
-    private static let relativeFormatter = RelativeDateTimeFormatter()
-    private static func reset(_ ts: Double) -> String {
-        relativeFormatter.localizedString(for: Date(timeIntervalSince1970: ts), relativeTo: Date())
+    static func reset(_ ts: Double, locale: Locale) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.locale = locale
+        return formatter.localizedString(for: Date(timeIntervalSince1970: ts), relativeTo: Date())
     }
 }
