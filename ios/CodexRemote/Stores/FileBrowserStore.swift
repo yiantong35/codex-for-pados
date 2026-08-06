@@ -62,6 +62,7 @@ final class FileBrowserStore {
     /// setRoot 先 removeAll 并改写 rootPath，树只从当前 rootPath 渲染，故陈旧写入是不可达
     /// 孤儿、由下次 removeAll 回收，无可见错误。（若未来需精确取消，可引入 attempt token。）
     func setRoot(_ cwd: String?) async {
+        if rootPath == cwd, cwd == nil || !nodes.isEmpty { return }
         fileOpenGeneration &+= 1
         nodes.removeAll()
         fileOpenState = .idle
@@ -82,7 +83,9 @@ final class FileBrowserStore {
 
     /// 手动刷新：清空全部缓存、收起所有层、重拉根（D3）。
     func refresh() async {
+        fileOpenGeneration &+= 1
         nodes.removeAll()
+        fileOpenState = .idle
         guard let root = rootPath else { return }
         await loadDirectory(root, expand: true)
     }

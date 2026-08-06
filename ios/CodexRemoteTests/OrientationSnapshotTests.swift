@@ -466,6 +466,7 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(TerminalSession())
             .environment(makeConnection())
             .environment(makeProjects())
+            .environment(FileBrowserStore())
             .environment(LocaleManager())
             .environment(ThemeManager())
             .environment(ShortcutStore())                 // T10

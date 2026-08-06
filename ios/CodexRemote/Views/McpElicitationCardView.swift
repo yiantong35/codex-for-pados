@@ -101,6 +101,7 @@ struct McpElicitationCardView: View {
                         Link(destination: presentation.normalizedURL) {
                             Label("mcpElicitation.openURL", systemImage: "arrow.up.right.square")
                         }
+                        .minimumHitTarget44()
                     }
                 }
                 actionRow
@@ -135,9 +136,11 @@ struct McpElicitationCardView: View {
             Button(role: .cancel) {
                 Task { await elicitations.resolve(card: card, action: .cancel) }
             } label: { Label("mcpElicitation.cancel", systemImage: "xmark") }
+                .minimumHitTarget44()
             Button {
                 Task { await elicitations.resolve(card: card, action: .decline) }
             } label: { Label("mcpElicitation.decline", systemImage: "hand.raised") }
+                .minimumHitTarget44()
             Spacer()
             Button {
                 Task {
@@ -151,6 +154,7 @@ struct McpElicitationCardView: View {
                 }
             } label: { Label("mcpElicitation.accept", systemImage: "checkmark") }
                 .buttonStyle(.borderedProminent)
+                .minimumHitTarget44()
                 .disabled(!urlTargetIsAllowed)
         }
     }
@@ -194,6 +198,7 @@ struct McpElicitationCardView: View {
                             Label(option.title, systemImage: selected(option.value, field: field.name) ? "checkmark.square.fill" : "square")
                         }
                         .buttonStyle(.plain)
+                        .minimumHitTarget44()
                     }
                 }
             }

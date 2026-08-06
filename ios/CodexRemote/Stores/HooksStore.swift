@@ -8,6 +8,7 @@ import Observation
 final class HooksStore {
     /// 跨 cwd 打平 + 按 key 去重后的 hooks（见 flatten）。
     private(set) var hooks: [HookMetadata] = []
+    private(set) var loadState: ExtensionLoadState = .idle
 
     /// 折叠头计数徽章用（列表元素数）。
     var count: Int { hooks.count }
@@ -22,10 +23,13 @@ final class HooksStore {
 
     /// 拉取 hooks 列表（rpc 为 nil 时不发请求）。首版不传 cwds（空参 → daemon 用会话 cwd）。
     func refresh() async {
+        guard rpc != nil else { return }
+        loadState = .loading
         guard let out: HooksListResponse =
             await send(RPCMethod.hooksList, params: EmptyParams(), as: HooksListResponse.self)
-        else { return }
+        else { loadState = .failed; return }
         hooks = Self.flatten(out)
+        loadState = .loaded
     }
 
     /// 跨 cwd flatMap 打平 + 按 key 去重（防 SwiftUI List 重复 id 崩溃）。纯函数供单测（nonisolated 便于同步调用）。

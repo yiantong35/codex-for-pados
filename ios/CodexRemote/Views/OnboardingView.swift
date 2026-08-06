@@ -32,10 +32,12 @@ struct OnboardingView: View {
                 Text("onboarding.title")
                     .font(.title2.weight(.semibold))
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("onboarding.subtitle")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Button {
@@ -43,6 +45,7 @@ struct OnboardingView: View {
             } label: {
                 Text("onboarding.addFirst")
                     .frame(maxWidth: .infinity)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)

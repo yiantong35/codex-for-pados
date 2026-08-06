@@ -10,6 +10,7 @@ struct BottomPanelView: View {
     var cwd: String? = nil
     @State private var hovering = false
     @State private var dragging = false
+    @State private var dragStartHeight: CGFloat?
 
     /// hover 或拖动中都算「激活」→ 把手变橙加粗（与右栏把手一致；触摸靠「拖动中变橙」反馈）。
     private var active: Bool { hovering || dragging }
@@ -60,13 +61,15 @@ struct BottomPanelView: View {
             DragGesture()
                 .onChanged { value in
                     dragging = true
-                    // 向上拖（dy<0）增高；clamp 到 [min, 屏高的合理上界]。
-                    let proposed = height - value.translation.height
-                    height = WorkspaceMetrics.clamp(proposed,
-                                                    min: WorkspaceMetrics.bottomPanelMinHeight,
-                                                    max: 900)
+                    if dragStartHeight == nil { dragStartHeight = height }
+                    height = WorkspaceMetrics.draggedBottomHeight(
+                        start: dragStartHeight ?? height,
+                        translation: value.translation.height)
                 }
-                .onEnded { _ in dragging = false }
+                .onEnded { _ in
+                    dragging = false
+                    dragStartHeight = nil
+                }
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("workspace.bottomPanel.resize"))

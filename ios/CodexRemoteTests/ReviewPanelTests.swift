@@ -90,6 +90,12 @@ struct ReviewPanelTests {
     @Test func parseEmpty() {
         #expect(UnifiedDiffParser.parse("").isEmpty)
     }
+    @MainActor @Test func selectionDefaultsAndReconcilesWithFiles() {
+        #expect(ReviewPanelView.resolvedSelection(current: nil, paths: ["a", "b"]) == "a")
+        #expect(ReviewPanelView.resolvedSelection(current: "b", paths: ["a", "b"]) == "b")
+        #expect(ReviewPanelView.resolvedSelection(current: "gone", paths: ["a", "b"]) == "a")
+        #expect(ReviewPanelView.resolvedSelection(current: "a", paths: []) == nil)
+    }
     @Test func gitDiffMethodAndDecode() throws {
         #expect(RPCMethod.gitDiffToRemote == "gitDiffToRemote")
         let r = try JSONDecoder().decode(GitDiffToRemoteResponse.self,

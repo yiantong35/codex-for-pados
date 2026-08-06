@@ -42,6 +42,7 @@ struct ConversationView: View {
     var bindsWorkspaceState: Bool = true
     /// 主工作区注入 Review 路由；侧聊即使误传，也会由隔离策略忽略。
     var onOpenReview: (() -> Void)? = nil
+    var onOpenFile: ((String) -> Void)? = nil
     /// 侧聊由 SideChatStore 持有并观察的唯一 store；nil 时由本视图创建并拥有。
     var providedStore: ConversationStore? = nil
     @State private var store: ConversationStore?
@@ -98,7 +99,7 @@ struct ConversationView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     ForEach(store?.state.items ?? []) { item in
-                        ItemCard(item: item).id(item.id)
+                        ItemCard(item: item, onOpenFile: onOpenFile).id(item.id)
                     }
                     if let card = currentUserInput {
                         UserInputCardView(card: card).id(card.id)
@@ -274,7 +275,9 @@ struct ConversationView: View {
         let progress = WorkspaceSummary.planProgress(in: state)
         let diff = WorkspaceSummary.diffLineCounts(in: state)
         if !progress.isEmpty || !diff.isEmpty {
-            ProgressCardBar(progress: progress, diff: diff, onTapFiles: workspaceReviewAction)
+            ProgressCardBar(progress: progress, diff: diff,
+                            isRunning: state.isTurnRunning,
+                            onTapFiles: workspaceReviewAction)
             .padding(.bottom, 6)
         }
     }

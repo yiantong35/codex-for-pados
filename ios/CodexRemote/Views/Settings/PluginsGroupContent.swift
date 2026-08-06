@@ -15,9 +15,14 @@ struct PluginsGroupContent: View {
         Group {
             if !isReady {
                 Text("settings.plugins.disconnected").foregroundStyle(.secondary)
+            } else if plugins.loadState == .loading && plugins.marketplaces.isEmpty {
+                ProgressView().frame(maxWidth: .infinity)
+            } else if plugins.loadState == .failed && plugins.marketplaces.isEmpty {
+                loadError
             } else if plugins.marketplaces.allSatisfy({ $0.plugins.isEmpty }) {
                 Text("settings.plugins.empty").foregroundStyle(.secondary)
             } else {
+                if plugins.loadState == .failed { loadError }
                 ForEach(plugins.marketplaces) { entry in
                     if !entry.plugins.isEmpty {
                         Text(entry.name).font(.caption).foregroundStyle(.secondary)
@@ -30,6 +35,15 @@ struct PluginsGroupContent: View {
         }
         .sheet(item: $selected) { plugin in
             PluginDetailSheet(plugin: plugin, marketplace: selectedMarketplace)
+        }
+    }
+
+    private var loadError: some View {
+        HStack {
+            Label("settings.extensions.loadFailed", systemImage: "exclamationmark.triangle")
+                .foregroundStyle(.red)
+            Spacer()
+            Button("common.retry") { Task { await plugins.refresh() } }.minimumHitTarget44()
         }
     }
 

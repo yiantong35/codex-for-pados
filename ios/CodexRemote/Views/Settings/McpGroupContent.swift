@@ -11,12 +11,26 @@ struct McpGroupContent: View {
     var body: some View {
         if !isReady {
             Text("settings.mcp.disconnected").foregroundStyle(.secondary)
+        } else if mcp.loadState == .loading && mcp.servers.isEmpty {
+            ProgressView().frame(maxWidth: .infinity)
+        } else if mcp.loadState == .failed && mcp.servers.isEmpty {
+            loadError
         } else if mcp.servers.isEmpty {
             Text("settings.mcp.empty").foregroundStyle(.secondary)
         } else {
+            if mcp.loadState == .failed { loadError }
             ForEach(mcp.servers) { server in
                 serverBlock(server)
             }
+        }
+    }
+
+    private var loadError: some View {
+        HStack {
+            Label("settings.extensions.loadFailed", systemImage: "exclamationmark.triangle")
+                .foregroundStyle(.red)
+            Spacer()
+            Button("common.retry") { Task { await mcp.refresh() } }.minimumHitTarget44()
         }
     }
 

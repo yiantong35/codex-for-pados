@@ -14,17 +14,22 @@ struct FileContentTests {
 
     @Test func nulByteIsBinary() {
         let data = Data([0x68, 0x00, 0x69]) // h NUL i
-        #expect(FileContentDecoder.classify(bytes: data) == .binary)
+        #expect(FileContentDecoder.classify(bytes: data) == .binary(data))
     }
 
     @Test func invalidUTF8IsBinary() {
         let data = Data([0xFF, 0xFE, 0x41])
-        #expect(FileContentDecoder.classify(bytes: data) == .binary)
+        #expect(FileContentDecoder.classify(bytes: data) == .binary(data))
     }
 
     @Test func overLimitIsTooLarge() {
         let data = Data(repeating: 0x61, count: 512 * 1024 + 1)
         #expect(FileContentDecoder.classify(bytes: data) == .tooLarge)
+    }
+
+    @Test func imageMagicIsInspectableImage() {
+        let png = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        #expect(FileContentDecoder.classify(bytes: png) == .image(png))
     }
 
     @Test func exactlyLimitIsText() {
@@ -39,9 +44,9 @@ struct FileContentTests {
     }
 
     @Test func decodeFromInvalidBase64IsBinary() {
-        #expect(FileContentDecoder.classify(base64: "@@@notbase64@@@") == .binary)
-        #expect(FileContentDecoder.classify(base64: "YQ=a") == .binary)
-        #expect(FileContentDecoder.classify(base64: "YQ===") == .binary)
+        #expect(FileContentDecoder.classify(base64: "@@@notbase64@@@") == .binary(Data()))
+        #expect(FileContentDecoder.classify(base64: "YQ=a") == .binary(Data()))
+        #expect(FileContentDecoder.classify(base64: "YQ===") == .binary(Data()))
     }
 
     @Test func oversizedBase64IsRejectedBeforeContentDecode() {

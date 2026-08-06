@@ -7,6 +7,7 @@ import Observation
 @MainActor
 final class PluginsStore {
     private(set) var marketplaces: [PluginMarketplaceEntry] = []
+    private(set) var loadState: ExtensionLoadState = .idle
 
     /// 折叠头计数徽章用（跨 marketplace 打平后的插件总数）。
     var count: Int { Self.count(of: marketplaces) }
@@ -26,10 +27,13 @@ final class PluginsStore {
 
     /// 拉取插件列表（rpc 为 nil 时不发请求）。首版不传 cwds（D5 fallback）。
     func refresh() async {
+        guard rpc != nil else { return }
+        loadState = .loading
         guard let out: PluginListResponse =
             await send(RPCMethod.pluginList, params: EmptyParams(), as: PluginListResponse.self)
-        else { return }
+        else { loadState = .failed; return }
         marketplaces = out.marketplaces
+        loadState = .loaded
     }
 
     /// 下钻二级：读插件详情（含内置 skills[]）。plugin/read{pluginName, remoteMarketplaceName}（D6）。

@@ -23,6 +23,12 @@ final class WorkspaceMetricsTests: XCTestCase {
             WorkspaceMetrics.bottomPanelMinHeight
         )
     }
+    func testBottomDragAlwaysUsesGestureStartHeight() {
+        XCTAssertEqual(WorkspaceMetrics.draggedBottomHeight(start: 220, translation: -20), 240)
+        XCTAssertEqual(WorkspaceMetrics.draggedBottomHeight(start: 220, translation: -40), 260)
+        XCTAssertEqual(WorkspaceMetrics.draggedBottomHeight(start: 220, translation: 500),
+                       WorkspaceMetrics.bottomPanelMinHeight)
+    }
     func testRightPanelMinWidthConstantPositive() {
         XCTAssertGreaterThan(WorkspaceMetrics.rightPanelMinWidth, 0)
     }

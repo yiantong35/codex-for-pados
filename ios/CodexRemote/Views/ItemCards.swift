@@ -5,6 +5,7 @@ import SwiftUI
 /// userMessage / agentMessage / commandExecution / fileChange。
 struct ItemCard: View {
     let item: ConversationItem
+    var onOpenFile: ((String) -> Void)? = nil
 
     var body: some View {
         switch item {
@@ -140,20 +141,13 @@ struct ItemCard: View {
                     Text(revisedPrompt).font(.footnote).foregroundStyle(.secondary).lineLimit(3)
                 }
                 if !savedPath.isEmpty {
-                    Text(savedPath).font(.caption.monospaced()).foregroundStyle(.secondary)
-                        .lineLimit(1).truncationMode(.middle)
+                    fileInspectionButton(path: savedPath)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
         case .imageView(_, let path):
-            HStack(spacing: 6) {
-                Image(systemName: "photo.on.rectangle").foregroundStyle(.secondary)
-                Text("conv.item.imageView").font(.caption).foregroundStyle(.secondary)
-                Text(path).font(.caption.monospaced()).foregroundStyle(.secondary)
-                    .lineLimit(1).truncationMode(.middle)
-                Spacer(minLength: 0)
-            }
+            fileInspectionButton(path: path)
             .frame(maxWidth: .infinity, alignment: .leading)
 
         case .plan(_, let text):
@@ -162,6 +156,31 @@ struct ItemCard: View {
         // 子智能体项聚合进右栏子智能体面板（state.subAgents），主对话流不重复渲染。
         case .collabAgentToolCall, .subAgentActivity:
             EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func fileInspectionButton(path: String) -> some View {
+        if let onOpenFile {
+            Button { onOpenFile(path) } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "photo.on.rectangle")
+                    Text(path).font(.caption.monospaced()).lineLimit(1).truncationMode(.middle)
+                    Spacer(minLength: 0)
+                    Text("conv.item.inspectFile").font(.caption)
+                    Image(systemName: "chevron.right").font(.caption2)
+                }
+                .foregroundStyle(.secondary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .minimumHitTarget44()
+        } else {
+            Label(path, systemImage: "photo.on.rectangle")
+                .font(.caption.monospaced())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
         }
     }
 

@@ -7,6 +7,7 @@ import SwiftUI
 struct ProgressCardBar: View {
     let progress: WorkspaceSummary.PlanProgress
     let diff: WorkspaceSummary.DiffLineCounts
+    let isRunning: Bool
     /// 点击「X 文件已更改」的回调（转跳右栏）。
     var onTapFiles: (() -> Void)?
 
@@ -14,10 +15,12 @@ struct ProgressCardBar: View {
 
     init(progress: WorkspaceSummary.PlanProgress,
          diff: WorkspaceSummary.DiffLineCounts,
+         isRunning: Bool = true,
          initialExpanded: Bool = false,
          onTapFiles: (() -> Void)? = nil) {
         self.progress = progress
         self.diff = diff
+        self.isRunning = isRunning
         self.onTapFiles = onTapFiles
         _expanded = State(initialValue: initialExpanded)
     }
@@ -39,10 +42,10 @@ struct ProgressCardBar: View {
     }
 
     var body: some View {
-        collapsedBar
-            .overlay(alignment: .bottom) {
-                if expanded && !progress.isEmpty { expandedOverlay }
-            }
+        VStack(spacing: 8) {
+            if expanded && !progress.isEmpty { expandedPanel }
+            collapsedBar
+        }
             .onChange(of: progress.isEmpty) { _, isEmpty in
                 if isEmpty { expanded = false }
             }
@@ -50,7 +53,11 @@ struct ProgressCardBar: View {
 
     private var collapsedBar: some View {
         HStack(spacing: 8) {
-            ProgressView().controlSize(.small).tint(Color.accentColor)
+            if isRunning {
+                ProgressView().controlSize(.small).tint(Color.accentColor)
+            } else {
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+            }
             if Self.showsExpandControl(for: progress) {
                 Button(action: toggleExpanded) {
                     HStack(spacing: 5) {
@@ -101,18 +108,18 @@ struct ProgressCardBar: View {
         withAnimation { expanded.toggle() }
     }
 
-    private var expandedOverlay: some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private var expandedPanel: some View {
+        ScrollView {
             PlanStepList(steps: progress.steps)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
         }
-        .padding(14)
+        .frame(maxHeight: 320)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))
         .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
         .padding(.horizontal, 12)
-        .offset(y: -52)
-        .alignmentGuide(.bottom) { $0[.top] }   // overlay 浮在小条上方
         .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 }

@@ -11,12 +11,26 @@ struct SkillsGroupContent: View {
     var body: some View {
         if !isReady {
             Text("settings.skills.disconnected").foregroundStyle(.secondary)
+        } else if skills.loadState == .loading && skills.skills.isEmpty {
+            ProgressView().frame(maxWidth: .infinity)
+        } else if skills.loadState == .failed && skills.skills.isEmpty {
+            loadError { await skills.refresh() }
         } else if skills.skills.isEmpty {
             Text("settings.skills.empty").foregroundStyle(.secondary)
         } else {
+            if skills.loadState == .failed { loadError { await skills.refresh() } }
             ForEach(skills.skills) { skill in
                 skillRow(skill)
             }
+        }
+    }
+
+    private func loadError(retry: @escaping @MainActor () async -> Void) -> some View {
+        HStack {
+            Label("settings.extensions.loadFailed", systemImage: "exclamationmark.triangle")
+                .foregroundStyle(.red)
+            Spacer()
+            Button("common.retry") { Task { await retry() } }.minimumHitTarget44()
         }
     }
 
