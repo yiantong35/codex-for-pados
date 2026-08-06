@@ -48,4 +48,14 @@ final class TabIndicatorTests: XCTestCase {
     func test_connectedSystemError_red() {
         XCTAssertEqual(TabIndicator.resolve(isConnected: true, statuses: [.systemError]), .error)
     }
+    func test_reduceMotionDisablesBlinking() {
+        XCTAssertTrue(TabIndicator.error.shouldAnimate(reduceMotion: false))
+        XCTAssertFalse(TabIndicator.error.shouldAnimate(reduceMotion: true))
+        XCTAssertFalse(TabIndicator.running.shouldAnimate(reduceMotion: false))
+    }
+    func test_statusesHaveDistinctNonColorSymbols() {
+        let symbols = [TabIndicator.unread, .running, .attention, .error, .disconnected]
+            .compactMap(\.symbolName)
+        XCTAssertEqual(Set(symbols).count, 5)
+    }
 }

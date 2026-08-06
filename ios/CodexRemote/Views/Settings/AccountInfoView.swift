@@ -4,6 +4,7 @@ import SwiftUI
 /// 输入 account/usage/rateLimits，产出展示行——纯展示、无数据拉取，供设置页账户分区
 /// 与（Change B 后的）环境面板复用，避免双份维护。
 struct AccountInfoView: View {
+    @Environment(\.locale) private var locale
     let account: Account?
     let usage: AccountTokenUsageSummary?
     let rateLimits: RateLimitSnapshot?
@@ -20,7 +21,8 @@ struct AccountInfoView: View {
 
     static func rows(account: Account?,
                      usage: AccountTokenUsageSummary?,
-                     rateLimits: RateLimitSnapshot?) -> [Row] {
+                     rateLimits: RateLimitSnapshot?,
+                     locale: Locale = LocaleManager.currentLocale) -> [Row] {
         var rows: [Row] = []
         switch account {
         case .chatgpt(let email, let planType):
@@ -39,16 +41,16 @@ struct AccountInfoView: View {
             rows.append(.lifetime("\(life)"))
         }
         if let w = rateLimits?.primary {
-            rows.append(.rateUsed(String(format: "%.0f%%", w.usedPercent)))
+            rows.append(.rateUsed(String(format: "%.0f%%", locale: locale, w.usedPercent)))
             if let r = w.resetsAt {
-                rows.append(.rateReset(Self.reset(r)))
+                rows.append(.rateReset(Self.reset(r, locale: locale)))
             }
         }
         return rows
     }
 
     var body: some View {
-        let rows = Self.rows(account: account, usage: usage, rateLimits: rateLimits)
+        let rows = Self.rows(account: account, usage: usage, rateLimits: rateLimits, locale: locale)
         if rows.isEmpty {
             Text("settings.account.empty").foregroundStyle(.secondary)
         } else {
@@ -70,8 +72,9 @@ struct AccountInfoView: View {
         }
     }
 
-    private static let relativeFormatter = RelativeDateTimeFormatter()
-    static func reset(_ ts: Double) -> String {
-        relativeFormatter.localizedString(for: Date(timeIntervalSince1970: ts), relativeTo: Date())
+    static func reset(_ ts: Double, locale: Locale = LocaleManager.currentLocale) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.locale = locale
+        return formatter.localizedString(for: Date(timeIntervalSince1970: ts), relativeTo: Date())
     }
 }

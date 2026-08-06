@@ -86,6 +86,20 @@ enum WorkspaceMetrics {
         return ColumnVisibilityPlan(showLeft: false, showRight: false)
     }
 
+    /// 右栏无法与中栏并排时，以覆盖层承接用户的打开意图。
+    static func shouldOverlayRight(total: CGFloat,
+                                   wantRight: Bool,
+                                   plan: ColumnVisibilityPlan) -> Bool {
+        let centerPlusRight = centerColumnMinWidth + rightColumnMinWidth + resizableDividerHitWidth
+        return wantRight && !plan.showRight && total < centerPlusRight
+    }
+
+    static func rightOverlayWidth(total: CGFloat, preferred: CGFloat) -> CGFloat {
+        Swift.min(total, clamp(preferred,
+                               min: rightColumnMinWidth,
+                               max: rightPanelMaxWidth))
+    }
+
     /// VoiceOver `accessibilityAdjustableAction` 每次增减的列宽步长（D8）。
     static let columnResizeAccessibilityStep: CGFloat = 40
 

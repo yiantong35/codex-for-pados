@@ -148,7 +148,7 @@ struct RightPanelContainerView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)          // 窄宽文字降级，不撑破
                         .frame(maxWidth: .infinity)       // 三 tab 之间等分（每个都 infinity → 均分，不再是首个独占）
-                        .padding(.vertical, 8)
+                        .frame(minHeight: 44)
                         .contentShape(Rectangle())        // 留白也可命中
                 }
                 .buttonStyle(.plain)
@@ -167,6 +167,7 @@ struct RightPanelContainerView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .minimumHitTarget44()
             .fixedSize()                                  // 固定自身尺寸，不吸收也不挤占 tab 区
             .accessibilityLabel(Text(isFullscreen ? "rightPanel.fullscreen.exit" : "rightPanel.fullscreen.enter"))
         }

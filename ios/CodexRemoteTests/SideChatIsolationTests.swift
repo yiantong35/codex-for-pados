@@ -7,6 +7,18 @@ import SwiftUI
 @MainActor
 final class SideChatIsolationTests: XCTestCase {
 
+    func test_reviewNavigation_isAvailableOnlyToWorkspaceConversation() {
+        XCTAssertTrue(ConversationView.allowsWorkspaceReviewNavigation(
+            bindsWorkspaceState: true,
+            hasAction: true))
+        XCTAssertFalse(ConversationView.allowsWorkspaceReviewNavigation(
+            bindsWorkspaceState: false,
+            hasAction: true), "侧聊不得把变更文件入口路由到主工作区 Review")
+        XCTAssertFalse(ConversationView.allowsWorkspaceReviewNavigation(
+            bindsWorkspaceState: true,
+            hasAction: false))
+    }
+
     /// 侧聊 ConversationView 参数化开关默认 true、可显式传 false——用类型层面断言开关存在，
     /// 并断言 SideChatView 内部对 ConversationView 的挂载传入 false（不共享 holder）。
     /// 结构断言：挂载 + 布局一轮后，holder 三字段仍为初始 nil（侧聊未写入）。

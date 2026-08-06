@@ -1,25 +1,50 @@
-import XCTest
+import Testing
 import Foundation
 @testable import RelayDialoutCore
 
-/// terminate() 应回收自己 spawn 的子进程（补 waitUntilExit 前，terminate 只发信号即返回，
-/// 子进程尚未退出 → isRunning 仍为 true）。用无害长驻 stub `/bin/sleep 300` 精确验证：
-/// 只对 ProxyBridge 自己持有的 `process` 句柄（精确 PID）操作，绝不按名/宽匹配 kill。
-final class ProxyBridgeTests: XCTestCase {
-    func testTerminateReapsSpawnedChildNoZombie() throws {
-        // 注入 /bin/sleep 300 作无害长驻子进程 stub（arguments 注入点仅测试用，不改生产路径）。
-        let sock = "/tmp/relay-t5-proxybridge-\(ProcessInfo.processInfo.globallyUniqueString).sock"
-        let bridge = ProxyBridge(codexPath: "/bin/sleep", arguments: ["300"], sockPath: sock)
+/// terminate() 应非阻塞地发起回收，调用方可在 EventLoop 外显式等待子进程被 reap。
+@Test func terminateReapsSpawnedChildNoZombie() throws {
+    // 注入 /bin/sleep 300 作无害长驻子进程 stub（arguments 注入点仅测试用，不改生产路径）。
+    let sock = "/tmp/relay-t5-proxybridge-\(ProcessInfo.processInfo.globallyUniqueString).sock"
+    let bridge = ProxyBridge(codexPath: "/bin/sleep", arguments: ["300"], sockPath: sock)
 
-        try bridge.start()
-        let pid = bridge.pid
-        XCTAssertGreaterThan(pid, 0)   // 确有自己 spawn 的子进程
-        XCTAssertTrue(bridge.isRunning) // 长驻 stub 确在运行
+    try bridge.start()
+    let pid = bridge.pid
+    #expect(pid > 0)               // 确有自己 spawn 的子进程
+    #expect(bridge.isRunning)      // 长驻 stub 确在运行
 
-        bridge.terminate()
+    let startedAt = ContinuousClock.now
+    bridge.terminate()
+    let elapsed = startedAt.duration(to: .now)
+    #expect(elapsed < .milliseconds(100), "terminate 不得在调用线程等待子进程")
+    bridge.waitForTermination()
 
-        // waitUntilExit 返回后子进程已退出并被 reap（无僵尸）；仍是同一自己持有的句柄，未另找进程。
-        XCTAssertFalse(bridge.isRunning)
-        XCTAssertEqual(bridge.pid, pid)
-    }
+    // 显式等待返回后子进程已退出并被 reap；仍是同一自己持有的句柄，未另找进程。
+    #expect(!bridge.isRunning)
+    #expect(bridge.pid == pid)
+}
+
+/// 忽略 SIGTERM 的子进程必须在有界宽限期后，仅按保存的 PID 收到 SIGKILL 并被 reap。
+@Test func stubbornChildIsKilledAfterGracePeriod() throws {
+    let sock = "/tmp/relay-t5-stubborn-\(ProcessInfo.processInfo.globallyUniqueString).sock"
+    let bridge = ProxyBridge(
+        codexPath: "/bin/sh",
+        arguments: ["-c", "trap '' TERM; exec /bin/sleep 300"],
+        sockPath: sock,
+        terminationGracePeriod: .milliseconds(250)
+    )
+
+    try bridge.start()
+    let pid = bridge.pid
+    #expect(pid > 0)
+    Thread.sleep(forTimeInterval: 0.05) // 等待 shell 安装 SIGTERM ignore disposition 并 exec sleep。
+    let startedAt = ContinuousClock.now
+    bridge.terminate()
+    #expect(startedAt.duration(to: .now) < .milliseconds(100), "不得在调用线程等待 250ms 宽限期")
+    bridge.terminate()
+    bridge.waitForTermination()
+
+    #expect(!bridge.isRunning)
+    #expect(bridge.pid == pid)
+    #expect(bridge.terminationSignal == SIGKILL)
 }

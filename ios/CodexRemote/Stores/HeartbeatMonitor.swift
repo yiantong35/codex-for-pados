@@ -7,7 +7,16 @@ import Foundation
 final class HeartbeatMonitor {
     struct Config: Sendable {
         var interval: Duration = .seconds(10)
+        var inactiveInterval: Duration = .seconds(60)
         var missThreshold: Int = 2
+
+        init(interval: Duration = .seconds(10),
+             inactiveInterval: Duration = .seconds(60),
+             missThreshold: Int = 2) {
+            self.interval = interval
+            self.inactiveInterval = inactiveInterval
+            self.missThreshold = missThreshold
+        }
     }
 
     private let config: Config
@@ -16,9 +25,13 @@ final class HeartbeatMonitor {
     private let sleep: @Sendable (Duration) async -> Void
 
     private var loopTask: Task<Void, Never>?
+    private var waitTask: Task<Void, Never>?
     private var consecutiveMisses = 0
     private var foreground = true
+    private(set) var tabActive = true
     private var started = false
+    private var acceleratedProbePending = false
+    private var scheduleChanged = false
 
     init(config: Config = .init(),
          probe: @escaping @Sendable () async -> Bool,
@@ -33,6 +46,7 @@ final class HeartbeatMonitor {
     func start() {
         started = true
         consecutiveMisses = 0
+        acceleratedProbePending = tabActive
         restartLoopIfNeeded()
     }
 
@@ -40,26 +54,44 @@ final class HeartbeatMonitor {
         started = false
         loopTask?.cancel()
         loopTask = nil
+        waitTask?.cancel()
+        waitTask = nil
         consecutiveMisses = 0
+        acceleratedProbePending = false
+        scheduleChanged = false
     }
 
     func setForeground(_ active: Bool) {
         foreground = active
         if active {
-            // 回前台：仅重启可取消 loop。loop 首轮不 sleep、立即探一次（见 restartLoopIfNeeded），
-            // 故「回前台立即补探」已并入 loop，无需再起游离 Task{probeOnce}——后者会造成双探针，
-            // 且 probeOnce 单次 miss 即判死、绕过 missThreshold（#11）。
+            acceleratedProbePending = tabActive
             restartLoopIfNeeded()
         } else {
-            loopTask?.cancel()           // 后台暂停：不维持前台级唤醒
+            loopTask?.cancel()
             loopTask = nil
+            waitTask?.cancel()
+            waitTask = nil
+            acceleratedProbePending = false
         }
     }
 
-    /// 带外单次探活（peer-left 核实）：未回响即判死，有回响忽略。
-    func probeOnce() async {
-        let ok = await probe()
-        if !ok { await onUnhealthy() }
+    /// Tab 活跃态与 app 前后台正交：活动 tab 10s，非活动 tab 60s；切回活动态补探一次。
+    func setTabActive(_ active: Bool) {
+        guard tabActive != active else { return }
+        tabActive = active
+        scheduleChanged = true
+        waitTask?.cancel()
+        if active { requestAcceleratedProbe() }
+    }
+
+    /// peer-left 等提示只请求一次加速探测。突发提示和探测在途提示均合并到一个 pending 位，
+    /// 结果仍进入连续 miss reducer，不具备单次判死权。
+    func requestAcceleratedProbe() {
+        guard started, foreground else { return }
+        guard !acceleratedProbePending else { return }
+        acceleratedProbePending = true
+        waitTask?.cancel()
+        restartLoopIfNeeded()
     }
 
     private func restartLoopIfNeeded() {
@@ -67,8 +99,21 @@ final class HeartbeatMonitor {
         loopTask = Task { [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
+                if !self.acceleratedProbePending {
+                    let interval = self.tabActive ? self.config.interval : self.config.inactiveInterval
+                    let waiter = Task { await self.sleep(interval) }
+                    self.waitTask = waiter
+                    await waiter.value
+                    self.waitTask = nil
+                    if Task.isCancelled || !self.started || !self.foreground { return }
+                    if self.scheduleChanged {
+                        self.scheduleChanged = false
+                        continue
+                    }
+                }
+                self.acceleratedProbePending = false
                 let ok = await self.probe()
-                if Task.isCancelled { return }
+                if Task.isCancelled || !self.started || !self.foreground { return }
                 if ok {
                     self.consecutiveMisses = 0
                 } else {
@@ -80,7 +125,6 @@ final class HeartbeatMonitor {
                         return
                     }
                 }
-                await self.sleep(self.config.interval)
             }
         }
     }

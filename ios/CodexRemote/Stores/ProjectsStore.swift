@@ -63,9 +63,15 @@ final class ProjectsStore {
     /// 注入 UserDefaults（默认 .standard）与时钟（默认 Date()）。
     /// 默认参数保证 `ProjectsStore()` 仍可用；`now` 注入供节流测试用假时钟。
     @ObservationIgnored private let now: () -> Date
-    init(unreadDefaults: UserDefaults = .standard, now: @escaping () -> Date = { Date() }) {
+    @ObservationIgnored private let pollSleep: @Sendable (UInt64) async -> Void
+    init(unreadDefaults: UserDefaults = .standard,
+         now: @escaping () -> Date = { Date() },
+         pollSleep: @escaping @Sendable (UInt64) async -> Void = {
+             try? await Task.sleep(nanoseconds: $0)
+         }) {
         self.unreadDefaults = unreadDefaults
         self.now = now
+        self.pollSleep = pollSleep
         self.lastViewedAt = (unreadDefaults.dictionary(forKey: Self.unreadKey) as? [String: Double]) ?? [:]
     }
 
@@ -92,31 +98,55 @@ final class ProjectsStore {
     private var broadcastObserver: Task<Void, Never>?
     /// D5-b：准实时轮询任务；nil = 未轮询。列表可见时启动、退后台/不可见时停止。
     @ObservationIgnored private var pollTask: Task<Void, Never>?
+    @ObservationIgnored private var pollingRequested = false
+    @ObservationIgnored private var pollBaseIntervalNanos: UInt64 = 30_000_000_000
+    @ObservationIgnored private var pollMaxIntervalNanos: UInt64 = 300_000_000_000
+    @ObservationIgnored private var fullSyncInProgress = false
 
     /// 启动周期轮询（D5-b）：列表可见时调用。幂等——已在轮询则忽略。
-    /// intervalNanos 默认 4s（3–5s 区间取中）。列表不可见/后台时须调 stopPolling。
+    /// 默认 30s；失败指数退避到 5min。每周期仅刷新首页，成本不随历史页数增长。
     /// 先 sleep 后 fetch，避免与首次 `.task` 的 loadFromServer 重复即时拉取。
-    func startPolling(intervalNanos: UInt64 = 4_000_000_000, isVisible: Bool = true) {
-        guard isVisible else { return }             // #6：不可见/后台不启动（双重防护）
-        guard pollTask == nil, let rpc else { return }
+    func startPolling(intervalNanos: UInt64 = 30_000_000_000,
+                      maxIntervalNanos: UInt64 = 300_000_000_000,
+                      isVisible: Bool = true) {
+        guard isVisible else { return }
+        pollingRequested = true
+        pollBaseIntervalNanos = intervalNanos
+        pollMaxIntervalNanos = max(maxIntervalNanos, intervalNanos)
+        restartPollingIfNeeded()
+    }
+
+    private func restartPollingIfNeeded() {
+        guard pollingRequested, pollTask == nil, rpc != nil else { return }
+        let base = pollBaseIntervalNanos
+        let maximum = pollMaxIntervalNanos
         pollTask = Task { [weak self] in
+            var delay = base
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: intervalNanos)
-                if Task.isCancelled { break }
-                await self?.loadFromServer(rpc: rpc)
+                guard let self else { return }
+                await self.pollSleep(delay)
+                guard !Task.isCancelled, self.pollingRequested, let rpc = self.rpc else { return }
+                let succeeded = await self.refreshRecentPage(rpc: rpc)
+                guard !Task.isCancelled, self.rpc === rpc else { return }
+                if succeeded {
+                    delay = base
+                } else {
+                    delay = delay >= maximum / 2 ? maximum : min(delay * 2, maximum)
+                }
             }
         }
     }
 
     /// 停止周期轮询（列表不可见/退后台）。
     func stopPolling() {
+        pollingRequested = false
         pollTask?.cancel()
         pollTask = nil
     }
 
     /// 立即刷新一次（回前台/列表获焦时调用）。
     func refreshNow() async {
-        if let rpc { await loadFromServer(rpc: rpc) }
+        if let rpc { _ = await refreshRecentPage(rpc: rpc) }
     }
 
     /// 注入 rpc 并启动官方广播监听（设计 D3：多端一致靠广播，不自建同步）。幂等；
@@ -125,14 +155,21 @@ final class ProjectsStore {
     func attach(rpc: JSONRPCClient) async {
         let rpcChanged = self.rpc !== rpc
         self.rpc = rpc
-        if rpcChanged { broadcastObserver?.cancel(); broadcastObserver = nil }
-        guard broadcastObserver == nil else { return }
-        let stream = await rpc.notifications()
-        broadcastObserver = Task { [weak self] in
-            for await n in stream {
-                await MainActor.run { self?.applyBroadcast(n) }
+        if rpcChanged {
+            broadcastObserver?.cancel()
+            broadcastObserver = nil
+            pollTask?.cancel()
+            pollTask = nil
+        }
+        if broadcastObserver == nil {
+            let stream = await rpc.notifications()
+            broadcastObserver = Task { [weak self] in
+                for await n in stream {
+                    await MainActor.run { self?.applyBroadcast(n) }
+                }
             }
         }
+        if rpcChanged { restartPollingIfNeeded() }
     }
 
     /// 官方广播 → 本地列表更新（删除/归档移除，改名就地改，取消归档重拉）。
@@ -147,7 +184,7 @@ final class ProjectsStore {
             let newName = p["threadName"] as? String
             renameLocal(tid, to: newName)
         case ServerNotificationMethod.threadUnarchived:
-            Task { if let rpc = self.rpc { await self.loadFromServer(rpc: rpc) } }
+            Task { if let rpc = self.rpc { _ = await self.refreshRecentPage(rpc: rpc) } }
         case ServerNotificationMethod.threadStarted:
             Task { await self.handleThreadStarted(n) }
         case ServerNotificationMethod.threadStatusChanged:
@@ -168,7 +205,7 @@ final class ProjectsStore {
         guard let p = n.params?.value as? [String: Any],
               let tid = p["threadId"] as? String else { return }
         if allThreadsSorted.contains(where: { $0.id == tid }) { return }   // 去重
-        if let rpc { await loadFromServer(rpc: rpc) }                       // 重拉让 ingest 归一化
+        if let rpc { _ = await refreshRecentPage(rpc: rpc) }               // 最近页重拉让 ingest 归一化
     }
 
     private func removeThread(_ id: String) {
@@ -289,6 +326,9 @@ final class ProjectsStore {
     /// 否则会话数超单页时重连恢复丢会话）。首页请求失败：静默失败保留旧 projects（既有语义）；
     /// 后续页失败：停止翻页，用已累积的页 ingest（不因某一页失败丢弃已成功拉到的页）。
     func loadFromServer(rpc: JSONRPCClient) async {
+        guard !fullSyncInProgress else { return }
+        fullSyncInProgress = true
+        defer { fullSyncInProgress = false }
         var cursor: String?
         var accumulated: [ThreadSummary] = []
         for pageIndex in 0..<Self.maxListPages {
@@ -307,7 +347,26 @@ final class ProjectsStore {
             guard let next = resp.nextCursor else { break }
             cursor = next
         }
+        if let current = self.rpc, current !== rpc { return }
         ingest(accumulated)
+    }
+
+    /// 常态刷新只取首页并与本地历史按 id 合并；删除/归档由官方广播精确移除。
+    @discardableResult
+    func refreshRecentPage(rpc: JSONRPCClient) async -> Bool {
+        let params = Self.listParamsForDesktopVisibility()
+        guard let data = try? JSONEncoder().encode(params),
+              let any = try? JSONDecoder().decode(AnyCodable.self, from: data),
+              let result = try? await rpc.send(method: RPCMethod.threadList, params: any),
+              let resData = try? JSONEncoder().encode(result),
+              let response = try? JSONDecoder().decode(ThreadListResponse.self, from: resData)
+        else { return false }
+        if let current = self.rpc, current !== rpc { return false }
+
+        var merged = Dictionary(uniqueKeysWithValues: allThreadsSorted.map { ($0.id, $0) })
+        for thread in response.data { merged[thread.id] = thread }
+        ingest(Array(merged.values))
+        return true
     }
 
     /// 启发式分类（D8）：有 gitInfo → 项目（按 originUrl ?? cwd 归组）；否则 → 对话(loose)。

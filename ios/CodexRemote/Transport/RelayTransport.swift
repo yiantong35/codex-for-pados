@@ -98,6 +98,8 @@ actor RelayTransport: MessageTransport {
     private var ws: RelayWSChannel?
     /// 造新通道的工厂（仅真握手路径给定；注入/占位路径为 nil → 不重连）。
     private let channelFactory: (@Sendable () async throws -> RelayWSChannel)?
+    /// 当前 relay 撮合 session；明文控制信号必须绑定该值，避免跨 session 注入提示。
+    private let expectedRelaySessionId: String?
     /// 主动 close 标志：read loop 见 ws 断时据此区分「主动关闭（终态）」与「瞬断（转重连）」。
     private var activeClose = false
 
@@ -149,6 +151,7 @@ actor RelayTransport: MessageTransport {
         self.session = session
         self.ws = ws
         self.channelFactory = nil
+        self.expectedRelaySessionId = nil
         self.handshakeState = .done
         self.handshakeInputs = nil
         self.reconnect = RelayReconnectPolicy()
@@ -176,6 +179,7 @@ actor RelayTransport: MessageTransport {
         self.session = nil
         self.ws = nil
         self.channelFactory = channelFactory
+        self.expectedRelaySessionId = pairing.sessionId
         self.handshakeState = .pending
         self.handshakeInputs = HandshakeInputs(
             pairing: pairing, ipadIdentity: ipadIdentity, ephemeralProvider: ephemeralProvider,
@@ -224,7 +228,8 @@ actor RelayTransport: MessageTransport {
                 // 靠 `kind` 字段与无 `kind` 的 SecureEnvelope 试解歧义（业务密文帧无 kind，解不成 RelaySignal）。
                 // 安全红线：peer-left 是提示非判决，判死权只在上层心跳；本层绝不据此断开/重连/改状态。
                 if let sig = try? RelaySignal(decoding: Data(frame.utf8)),
-                   sig.kind == RelaySignal.peerLeftKind {
+                   sig.kind == RelaySignal.peerLeftKind,
+                   sig.sessionId == expectedRelaySessionId {
                     emitControl(.peerLeft)
                     continue
                 }

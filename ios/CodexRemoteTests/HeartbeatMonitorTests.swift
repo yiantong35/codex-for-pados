@@ -32,22 +32,60 @@ final class HeartbeatMonitorTests: XCTestCase {
         XCTAssertEqual(afterPause, snapshot, "后台不再消耗探针")
     }
 
-    func test_probeOnce_singleMiss_triggersUnhealthy() async {
+    func test_acceleratedProbe_singleMiss_doesNotTriggerUnhealthy() async throws {
+        let results = ResultScript([true, false])
         let counter = Counter()
-        let m = HeartbeatMonitor(config: .init(), probe: { false },
-                                 onUnhealthy: { await counter.increment() }, sleep: { _ in })
-        await m.probeOnce()
+        let m = HeartbeatMonitor(config: .init(), probe: { await results.next() },
+                                 onUnhealthy: { await counter.increment() },
+                                 sleep: { _ in try? await Task.sleep(for: .seconds(3600)) })
+        m.start()
+        try await waitUntil { await results.consumed == 1 }
+        m.requestAcceleratedProbe()
+        try await waitUntil { await results.consumed == 2 }
+        m.stop()
         let unhealthy = await counter.value
-        XCTAssertEqual(unhealthy, 1)
+        XCTAssertEqual(unhealthy, 0, "加速提示的单次 miss 也必须服从连续 miss 阈值")
     }
 
-    func test_probeOnce_hit_ignored() async {
+    func test_acceleratedProbeBurstCoalesces() async throws {
         let counter = Counter()
-        let m = HeartbeatMonitor(config: .init(), probe: { true },
-                                 onUnhealthy: { await counter.increment() }, sleep: { _ in })
-        await m.probeOnce()
-        let unhealthy = await counter.value
-        XCTAssertEqual(unhealthy, 0)
+        let m = HeartbeatMonitor(config: .init(),
+                                 probe: { await counter.increment(); return true },
+                                 onUnhealthy: {},
+                                 sleep: { _ in try? await Task.sleep(for: .seconds(3600)) })
+        m.start()
+        try await waitUntil { await counter.value == 1 }
+        for _ in 0..<100 { m.requestAcceleratedProbe() }
+        try await waitUntil { await counter.value == 2 }
+        try? await Task.sleep(for: .milliseconds(50))
+        m.stop()
+        let finalProbeCount = await counter.value
+        XCTAssertEqual(finalProbeCount, 2, "提示突发只能合并成一个额外探针")
+    }
+
+    func test_inactiveUsesLongIntervalAndActivationProbesOnce() async throws {
+        let probes = Counter()
+        let sleeps = DurationRecorder()
+        let m = HeartbeatMonitor(
+            config: .init(interval: .seconds(10), inactiveInterval: .seconds(60), missThreshold: 2),
+            probe: { await probes.increment(); return true },
+            onUnhealthy: {},
+            sleep: { duration in await sleeps.recordAndPark(duration) })
+        m.setTabActive(false)
+        m.start()
+        try await waitUntil { await sleeps.values.count >= 1 }
+        let firstSleep = await sleeps.values.first
+        let inactiveProbeCount = await probes.value
+        XCTAssertEqual(firstSleep, .seconds(60))
+        XCTAssertEqual(inactiveProbeCount, 0, "非活动 tab 启动心跳时不应立即探测")
+
+        m.setTabActive(true)
+        try await waitUntil { await probes.value == 1 }
+        try await waitUntil { await sleeps.values.contains(.seconds(10)) }
+        try? await Task.sleep(for: .milliseconds(30))
+        m.stop()
+        let activeProbeCount = await probes.value
+        XCTAssertEqual(activeProbeCount, 1, "切为活动 tab 只补一个立即探针")
     }
 
     func test_afterDeath_start_resumesLoop() async throws {
@@ -154,4 +192,12 @@ actor ResultScript {
 actor Counter {
     private(set) var value = 0
     func increment() { value += 1 }
+}
+
+actor DurationRecorder {
+    private(set) var values: [Duration] = []
+    func recordAndPark(_ duration: Duration) async {
+        values.append(duration)
+        try? await Task.sleep(for: .seconds(3600))
+    }
 }

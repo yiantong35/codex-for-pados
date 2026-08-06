@@ -436,6 +436,8 @@ let supervisor = DialoutSupervisor(
         outputRouter.stop()
         bridgeLifecycle.shutdown()
         shutdownEventLoopGroup(group)
+        // EventLoop 已停止；此处可安全等待精确 PID 完成 TERM/KILL 与 reap。
+        bridge.waitForTermination()
     }
 )
 

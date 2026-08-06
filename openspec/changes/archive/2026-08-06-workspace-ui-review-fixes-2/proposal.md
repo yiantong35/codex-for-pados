@@ -13,6 +13,7 @@
 - **#8 diff / 文件查看器可读性**：`ReviewPanelView.diffLineRow` 与 `FileBrowserView.contentArea` 已用 monospace + 红绿 + `+/-`，但缺行号、长行折行（非横滚）、文本不可选。补：**行号栏、长行横向滚动、`textSelection(.enabled)`、字号/行高调优**（用户四项全选）。
 - **#9 审查发起无可见反馈**：`ReviewTabView` 的 startReview 为 fire-and-forget（设计 D4，`await` 微秒即返回，故不设「假防抖」），但用户点按后审查面板无任何可见反馈（结果只在主对话回显）。补**可见反馈**（不改 D4 fire-and-forget 本质、不加形同虚设的防抖态）。
 - **#10 近底阈值死代码未接入生产**：`ScrollAnchorPolicy.isNearBottom(threshold:120)` 仅被单测调用；生产用 1pt sentinel（`Color.clear.frame(height:1)` 的 onAppear/onDisappear）判定近底。把 120pt 阈值接入生产判定，保持事件驱动（不引入轮询/几何定时器）。
+- **恢复后的全面收口**：修正进度卡伪按钮语义并把变更文件入口强类型路由到 Review；隔离 Side Chat；为 AI Review 增加重复提交门闩与失败反馈；补齐动态 locale、全局 44pt 命中区、非颜色状态表达与 Reduce Motion；在 `<494pt` 用右栏覆盖层消除不可达区。
 
 非破坏性变更：均为既有 iOS SwiftUI 视图层 + Store 层行为修正/补全，不改协议、不改数据模型结构。
 
@@ -27,10 +28,10 @@
 ### Modified Capabilities
 
 - `ipad-review-panel`: 全量 diff 数据源须随工作区（cwd/thread）失效重取，不得跨工作区复用旧缓存（#2）；diff 查看器须提供行号、长行横向滚动、可选文本、适度字号（#8-diff）。
-- `ipad-right-panel-tabs`: 窄窗列可见性计划须在中间档（center+right 可容纳）与用户显式请求右栏时据实展开右栏，不得静默失效（#3）。
-- `ipad-review-actions`: 摘要浮层/进度卡须能跳转到右栏审查面板（#4）；发起审查须给出可见反馈（#9）。
+- `ipad-right-panel-tabs`: 窄窗列可见性计划须在中间档据实展开；物理宽度不足时以覆盖层保持右栏可达，首次点击即可聚焦（#3）。
+- `ipad-review-actions`: 摘要浮层/进度卡须能跳转到右栏审查面板且不污染 Side Chat；发起审查须防重复并给出成功/失败反馈（#4/#9）。
 - `ipad-localization`: 面向用户的字符串须为正确本地化文案并跟随注入 locale，不得发布占位假串或散落硬编码中文（#5）。
-- `ipad-touch-accessibility`: 开关类控件须有可被 VoiceOver 关联的语义标签，点按控件须暴露 button trait（#6）。
+- `ipad-touch-accessibility`: 开关与点按控件具备正确语义；主要图标控件达到 44pt；状态不只依赖颜色并尊重 Reduce Motion（#6）。
 - `ipad-multi-connection`: 机器 Tab 栏须在切换时把活动 tab 自动滚入可见区（#7）。
 - `ipad-file-browser`: 文件内容查看器须提供行号、长行横向滚动、可选文本、适度字号（#8-file）。
 - `ipad-conversation-ux`: 对话自动滚到底须依据「近底阈值」判定（生产接入 120pt 阈值），保持事件驱动（#10）。

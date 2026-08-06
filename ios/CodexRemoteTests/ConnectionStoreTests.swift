@@ -480,22 +480,29 @@ final class ConnectionStoreTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(count, 1, "连续错过 2 次应触发一次有界重连")
     }
 
-    /// 4.1 peer-left 提示 + 探针 miss：收到 peer-left 后补发 probeOnce，探针未回响 → 判死 → 触发重连。
-    func test_peerLeft_probeMiss_triggersReconnect() async throws {
+    /// peer-left 只是加速提示：第一次 miss 不判死，第二次连续 miss 才触发有界重连。
+    func test_peerLeft_consecutiveProbeMisses_triggerReconnectAtThreshold() async throws {
         let mock = ControlEmittingTransport()
+        let results = ResultScript([true, false, false])
         let store = await ConnectionStore(
             transportFactory: { _ in mock },
             heartbeatFactory: { cb in
-                HeartbeatMonitor(config: .init(interval: .milliseconds(1), missThreshold: 2),
-                                 probe: { false }, onUnhealthy: cb.run,
-                                 sleep: { _ in await Task.yield() }) })
+                HeartbeatMonitor(config: .init(interval: .seconds(10), missThreshold: 2),
+                                 probe: { await results.next() }, onUnhealthy: cb.run,
+                                 sleep: { _ in try? await Task.sleep(for: .seconds(3600)) }) })
+        await store.setTabActive(true)
         await feedInitializeResponse(mock)
         await store.connect(config: .stub)
         try await waitUntil { if case .ready = await store.phase { return true }; return false }
+        try await waitUntil { await results.consumed == 1 }
+        await mock.emitControl(.peerLeft)
+        try await waitUntil { await results.consumed == 2 }
+        let reconnectsAfterFirstMiss = await mock.triggerReconnectCount
+        XCTAssertEqual(reconnectsAfterFirstMiss, 0, "第一次加速 miss 不得判死")
         await mock.emitControl(.peerLeft)
         try await waitUntil { await mock.triggerReconnectCount >= 1 }
         let count = await mock.triggerReconnectCount
-        XCTAssertGreaterThanOrEqual(count, 1, "peer-left 后探针 miss 应判死并触发重连")
+        XCTAssertEqual(count, 1, "连续第二次 miss 才触发一次有界重连")
     }
 
     /// 4.1 防降级红线：peer-left 是提示非判决。健康时（探针恒 hit）收到伪造 peer-left

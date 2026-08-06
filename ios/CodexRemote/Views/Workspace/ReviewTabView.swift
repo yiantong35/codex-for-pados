@@ -6,13 +6,14 @@ import SwiftUI
 struct ReviewTabView: View {
     @Environment(ActiveConversationHolder.self) private var activeConversation
     @Environment(\.locale) private var locale
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 全量 diff 拉取所需的工作目录（取自选中 thread；缺失则「全量」不可用）。
     var cwd: String?
 
     @State private var mode: ReviewSourceMode = .turn
     @State private var fullSnapshot = FullDiffSnapshotModel()
-    /// #9：发起审查后的一次性可见反馈（true = 短时显示「审查已发起」Capsule）。
-    @State private var showReviewStarted = false
+    @State private var isSubmittingReview = false
+    @State private var reviewFeedback: ReviewStartFeedback?
 
     private var turnDiff: String { activeConversation.state?.turnDiff ?? "" }
     private var source: ReviewDiffSource {
@@ -34,6 +35,10 @@ struct ReviewTabView: View {
         return .init(cwd: cwd, conversationIdentity: identity)
     }
 
+    static func canSubmitReview(sourceAvailable: Bool, isSubmitting: Bool) -> Bool {
+        sourceAvailable && !isSubmitting
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
@@ -42,29 +47,18 @@ struct ReviewTabView: View {
                 }
                 .pickerStyle(.segmented)
 
-                // startReview 是 fire-and-forget（设计 D4）：内部 Task 发出 review/start 后立即返回，
-                // 不 await 网络往返。因此不设 isStarting 防抖态——它无法覆盖请求生命周期（await 微秒即返回），
-                // 只会是形同虚设的假防抖。快速连点最多触发多次 review/start，属 D4 已接受的低危行为。
-                Button {
-                    // #9：消费 startReview 的 Bool 返回事件驱动可见反馈；不改 D4 fire-and-forget
-                    // （内部仍立即返回），不加假防抖。
-                    Task {
-                        let requestedMode = mode
-                        if requestedMode == .full {
-                            guard await refreshFullDiff() else { return }
-                        }
-                        let ok = await activeConversation.startReview?(requestedMode) ?? false
-                        guard ok else { return }
-                        showReviewStarted = true
-                        // 一次性延时收起（单次挂起，无周期唤醒；先例 ConversationView.swift:156）。
-                        try? await Task.sleep(nanoseconds: 1_500_000_000)
-                        showReviewStarted = false
+                Button(action: submitReview) {
+                    if isSubmittingReview {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "sparkle.magnifyingglass")
                     }
-                } label: {
-                    Image(systemName: "sparkle.magnifyingglass")
                 }
                 .buttonStyle(.plain)
-                .disabled(!canStartReview)
+                .minimumHitTarget44()
+                .disabled(!Self.canSubmitReview(
+                    sourceAvailable: canStartReview,
+                    isSubmitting: isSubmittingReview))
                 .accessibilityLabel(Text("review.start"))
 
                 if mode == .full {
@@ -74,6 +68,7 @@ struct ReviewTabView: View {
                         Image(systemName: "arrow.clockwise")
                     }
                     .buttonStyle(.plain)
+                    .minimumHitTarget44()
                     .disabled(fullContext == nil || activeConversation.fetchFullDiff == nil || fullSnapshot.isLoading)
                     .accessibilityLabel(Text("review.refresh"))
                 }
@@ -88,24 +83,41 @@ struct ReviewTabView: View {
                 }
             }
             .overlay(alignment: .top) {
-                if showReviewStarted {
-                    // 连接横幅同款 Capsule 样式 inline 提示（无 toast）。
-                    Label("review.started", systemImage: "checkmark.circle.fill")
+                if let reviewFeedback {
+                    Label(reviewFeedback.labelKey, systemImage: reviewFeedback.systemImage)
                         .font(.caption)
+                        .foregroundStyle(reviewFeedback == .failed ? .red : .primary)
                         .padding(.horizontal, 12).padding(.vertical, 6)
                         .background(.regularMaterial, in: Capsule())
                         .padding(.top, 8)
                         .transition(.opacity)
-                        .accessibilityLabel(Text("review.started"))
+                        .accessibilityLabel(Text(reviewFeedback.labelKey))
                 }
             }
-            .animation(.easeOut(duration: 0.2), value: showReviewStarted)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: reviewFeedback)
         }
         .task(id: "\(String(describing: mode))|\(fullContext?.cwd ?? "")|\(fullContext?.conversationIdentity ?? "")") {
             fullSnapshot.invalidate(for: fullContext)
             guard mode == .full, let context = fullContext,
                   let fetch = activeConversation.fetchFullDiff else { return }
             await fullSnapshot.ensureLoaded(context: context, fetch: fetch)
+        }
+    }
+
+    private func submitReview() {
+        guard Self.canSubmitReview(sourceAvailable: canStartReview, isSubmitting: isSubmittingReview) else { return }
+        isSubmittingReview = true
+        Task { @MainActor in
+            let requestedMode = mode
+            if requestedMode == .full, !(await refreshFullDiff()) {
+                reviewFeedback = .failed
+            } else {
+                let ok = await activeConversation.startReview?(requestedMode) ?? false
+                reviewFeedback = ok ? .started : .failed
+            }
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            reviewFeedback = nil
+            isSubmittingReview = false
         }
     }
 
@@ -120,5 +132,24 @@ struct ReviewTabView: View {
     private func refreshFullDiff() async -> Bool {
         guard let context = fullContext, let fetch = activeConversation.fetchFullDiff else { return false }
         return await fullSnapshot.refresh(context: context, fetch: fetch)
+    }
+}
+
+private enum ReviewStartFeedback: Equatable {
+    case started
+    case failed
+
+    var labelKey: LocalizedStringKey {
+        switch self {
+        case .started: "review.started"
+        case .failed: "review.startFailed"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .started: "checkmark.circle.fill"
+        case .failed: "xmark.circle.fill"
+        }
     }
 }
