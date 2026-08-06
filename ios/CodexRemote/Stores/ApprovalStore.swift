@@ -8,6 +8,23 @@ enum ApprovalChoice: Equatable {
     case deny                               // 否
 }
 
+struct FileApprovalContext: Equatable {
+    let file: String
+    let added: Int
+    let removed: Int
+    let diff: String
+}
+
+enum ApprovalPresentation {
+    static func fileContext(for card: ApprovalCard, in items: [ConversationItem]) -> FileApprovalContext? {
+        guard card.isFileChange, let itemId = card.itemId,
+              let item = items.first(where: { $0.id == itemId }),
+              case .fileChange(_, let file, let added, let removed, let diff) = item
+        else { return nil }
+        return .init(file: file, added: added, removed: removed, diff: diff)
+    }
+}
+
 /// 统一审批卡模型：v2 三类 + legacy 两类审批请求解析后的展示数据。
 struct ApprovalCard: Identifiable {
     let id: RequestId

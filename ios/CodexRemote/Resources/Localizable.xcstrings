@@ -5097,6 +5097,12 @@
         }
       }
     },
+    "approval.perm.globDepth": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Glob scan depth" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "Glob 扫描深度" } }
+      }
+    },
     "approval.perm.network.on": {
       "localizations": {
         "en": {

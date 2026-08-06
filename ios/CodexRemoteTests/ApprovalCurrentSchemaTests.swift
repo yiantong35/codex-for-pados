@@ -43,6 +43,40 @@ final class ApprovalCurrentSchemaTests: XCTestCase {
         XCTAssertEqual((json["error"] as? [String: Any])?["code"] as? Int, -32602)
     }
 
+    @MainActor
+    func testFileApprovalCorrelatesOnlyExactItemId() throws {
+        let request = try makeRequest(id: "file", method: ServerRequestMethod.fileApprovalV2, params: #"{"threadId":"t","turnId":"turn","itemId":"target","startedAtMs":14,"reason":"Write","grantRoot":"/work"}"#)
+        let store = ApprovalStore()
+        try store.handleValidated(request: request)
+        let card = try XCTUnwrap(store.cards.first)
+        let items: [ConversationItem] = [
+            .fileChange(id: "other", file: "main.swift", added: 1, removed: 0, diff: "+ wrong"),
+            .fileChange(id: "target", file: "main.swift", added: 2, removed: 1, diff: "+ right"),
+        ]
+        let context = try XCTUnwrap(ApprovalPresentation.fileContext(for: card, in: items))
+        XCTAssertEqual(context.file, "main.swift")
+        XCTAssertEqual(context.diff, "+ right")
+        XCTAssertNil(ApprovalPresentation.fileContext(for: card, in: Array(items.prefix(1))))
+    }
+
+    @MainActor
+    func testPermissionApprovalPreservesEntriesAndDepth() async throws {
+        let request = try makeRequest(id: "perms-response", method: ServerRequestMethod.permsApprovalV2, params: #"{"threadId":"t","turnId":"turn","itemId":"item","startedAtMs":15,"cwd":"/work","permissions":{"fileSystem":{"entries":[{"access":"write","path":{"type":"path","path":"/out"}}],"globScanMaxDepth":7}}}"#)
+        let store = ApprovalStore()
+        var result: AnyCodable?
+        store.resolver = { _, response in result = response; return true }
+        try store.handleValidated(request: request)
+        let card = try XCTUnwrap(store.cards.first)
+        let delivered = await store.resolve(card: card, choice: .approveForSessionPrefix([]))
+        XCTAssertTrue(delivered)
+        let encoded = try JSONEncoder().encode(try XCTUnwrap(result))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        XCTAssertEqual(json["scope"] as? String, "session")
+        let fileSystem = try XCTUnwrap((json["permissions"] as? [String: Any])?["fileSystem"] as? [String: Any])
+        XCTAssertEqual(fileSystem["globScanMaxDepth"] as? Int, 7)
+        XCTAssertEqual(((fileSystem["entries"] as? [[String: Any]])?.first)?["access"] as? String, "write")
+    }
+
     private func makeRequest(id: String, method: String, params: String) throws -> JSONRPCRequest {
         let paramsObject = try JSONSerialization.jsonObject(with: Data(params.utf8))
         let data = try JSONSerialization.data(withJSONObject: ["id": id, "method": method, "params": paramsObject])

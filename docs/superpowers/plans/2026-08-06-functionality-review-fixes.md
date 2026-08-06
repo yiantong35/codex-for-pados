@@ -169,14 +169,14 @@ presentation wiring, localization resources, and protocol fixture tests.
 
 ### Task 3.2: Preserve informed permission/file decisions
 
-- [ ] RED: permission entries retain read/write/deny and glob depth across
+- [x] RED: permission entries retain read/write/deny and glob depth across
   presentation and response; file requests resolve the exact `itemId`.
-- [ ] Show entry paths/access, command reason/network context, and file
+- [x] Show entry paths/access, command reason/network context, and file
   reason/grantRoot/files/diff from the authoritative conversation item.
-- [ ] Cover decline, accept-for-turn, and accept-for-session responses without
+- [x] Cover decline, accept-for-turn, and accept-for-session responses without
   normalizing away server amendments.
-- [ ] GREEN: run approval store/card and thread-item fixture tests.
-- [ ] Commit: `fix(ipad): preserve approval context and file correlation`.
+- [x] GREEN: run approval store/card and thread-item fixture tests.
+- [x] Commit: `fix(ipad): preserve approval context and file correlation`.
 
 ### Task 3.3: Treat only in-progress turns as active
 

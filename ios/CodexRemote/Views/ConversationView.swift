@@ -81,7 +81,14 @@ struct ConversationView: View {
                         McpElicitationCardView(card: card).id(card.id)
                     }
                     ForEach(threadApprovals) { card in
-                        ApprovalCardView(card: card).id(card.id)
+                        ApprovalCardView(
+                            card: card,
+                            fileContext: ApprovalPresentation.fileContext(
+                                for: card,
+                                in: store?.state.items ?? []
+                            )
+                        )
+                        .id(card.id)
                     }
                     if store?.state.isTurnRunning == true {
                         turnRunningIndicator.id(Self.turnIndicatorID)
