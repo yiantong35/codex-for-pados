@@ -42,12 +42,19 @@ final class FileBrowserStore {
     }
 
     private var rpc: JSONRPCClient?
+    /// 文件选择代际：新选择、换根或换连接都会让旧请求的迟到响应失效。
+    private var fileOpenGeneration = 0
 
     /// 无根路径（无 cwd）即空态。
     var isEmpty: Bool { rootPath == nil }
 
     /// 注入 rpc（幂等）。无初始拉取——由 setRoot 触发。
-    func attach(rpc: JSONRPCClient) { self.rpc = rpc }
+    func attach(rpc: JSONRPCClient) {
+        guard self.rpc !== rpc else { return }
+        self.rpc = rpc
+        fileOpenGeneration &+= 1
+        fileOpenState = .idle
+    }
 
     /// 设根路径 = 当前 cwd。清空缓存与选中文件；非空则拉根，空则进空态不发请求。
     /// async：调用方 await 到根加载完成。thread 切换（cwd 变化）驱动的重叠 setRoot 不做
@@ -55,6 +62,7 @@ final class FileBrowserStore {
     /// setRoot 先 removeAll 并改写 rootPath，树只从当前 rootPath 渲染，故陈旧写入是不可达
     /// 孤儿、由下次 removeAll 回收，无可见错误。（若未来需精确取消，可引入 attempt token。）
     func setRoot(_ cwd: String?) async {
+        fileOpenGeneration &+= 1
         nodes.removeAll()
         fileOpenState = .idle
         rootPath = cwd
@@ -83,12 +91,16 @@ final class FileBrowserStore {
     /// 进入时置 isOpeningFile 并清空旧 selectedFile（避免预览区停留在上一个文件）；
     /// 返回（成功/失败降级）后复位（设计文档 D，与目录 loading 模式一致）。
     func openFile(_ path: String) async {
+        fileOpenGeneration &+= 1
+        let generation = fileOpenGeneration
         fileOpenState = .loading(path)
         guard let resp: FsReadFileResponse = await send(
             RPCMethod.fsReadFile, FsReadFileParams(path: path), as: FsReadFileResponse.self) else {
+            guard generation == fileOpenGeneration else { return }
             fileOpenState = .failed(path)
             return
         }
+        guard generation == fileOpenGeneration else { return }
         fileOpenState = .loaded(SelectedFile(
             path: path,
             content: FileContentDecoder.classify(base64: resp.dataBase64)))
