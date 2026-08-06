@@ -312,8 +312,12 @@ extension ConversationStore {
     func steer(input: [UserInput]) async -> Bool {
         guard let turnId = state.activeTurnId, state.activeTurnKind == nil else { return false }
         let params = TurnSteerParams(threadId: state.threadId, input: input, expectedTurnId: turnId)
-        Task { _ = try? await call(RPCMethod.turnSteer, params) }
-        return true
+        do {
+            _ = try await call(RPCMethod.turnSteer, params)
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// 排队后续输入：经统一 send 入 outbox（入队即回显、保留 model/effort）。

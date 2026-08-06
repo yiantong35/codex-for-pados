@@ -17,7 +17,51 @@ public final class RelayRooms: @unchecked Sendable {
     /// 槽已被占用则拒绝后到。
     public enum JoinResult: Equatable { case joined(UUID); case rejectedRoleOccupied }
 
-    private struct Slot { let connId: UUID; let sink: Sink }
+    /// 每个连接槽独占的串行投递器。frame 在 rooms lock 内排队，在锁外 drain；因此既保持
+    /// 缓冲 flush 与实时 frame 的严格顺序，也不会持有房间锁调用外部 sink。
+    private final class OrderedDelivery: @unchecked Sendable {
+        private let sink: Sink
+        private let lock = NSLock()
+        private var pending: [String] = []
+        private var active = false
+        private var draining = false
+
+        init(sink: @escaping Sink) { self.sink = sink }
+
+        func stage(_ frame: String) {
+            lock.lock(); pending.append(frame); lock.unlock()
+        }
+
+        func stage(contentsOf frames: [String]) {
+            guard !frames.isEmpty else { return }
+            lock.lock(); pending.append(contentsOf: frames); lock.unlock()
+        }
+
+        func activateAndDrain() {
+            lock.lock(); active = true; lock.unlock()
+            drainIfNeeded()
+        }
+
+        func drainIfNeeded() {
+            lock.lock()
+            guard active, !draining, !pending.isEmpty else { lock.unlock(); return }
+            draining = true
+            lock.unlock()
+            while true {
+                lock.lock()
+                guard !pending.isEmpty else {
+                    draining = false
+                    lock.unlock()
+                    return
+                }
+                let frame = pending.removeFirst()
+                lock.unlock()
+                sink(frame)
+            }
+        }
+    }
+
+    private struct Slot { let connId: UUID; let delivery: OrderedDelivery }
     private struct Room {
         var ipad: Slot?
         var dev: Slot?
@@ -45,11 +89,12 @@ public final class RelayRooms: @unchecked Sendable {
         lock.lock()
         var room = rooms[sessionId] ?? Room()
         let connId = UUID()
+        let delivery = OrderedDelivery(sink: sink)
         var flush: [String] = []
         switch role {
         case .iPad:
             if room.ipad != nil { lock.unlock(); return .rejectedRoleOccupied }
-            room.ipad = Slot(connId: connId, sink: sink)
+            room.ipad = Slot(connId: connId, delivery: delivery)
             // #2 reset-on-rejoin（仅 iPad 入向，不对称）：**丢弃 pendingForIpad，不 flush**。
             // pendingForIpad 里若有帧，说明 iPad 之前缺席过(断线重连)——那是 dev 用**旧会话密钥**
             // seal 的 appData 密文,重连 iPad 的 ephemeral 已重生、必然解不开 → 真 stale,必丢。
@@ -58,13 +103,14 @@ public final class RelayRooms: @unchecked Sendable {
             room.pendingForIpad = []; room.pendingForIpadBytes = 0   // 丢弃 stale 旧密钥密文(不 flush)
         case .devMachine:
             if room.dev != nil { lock.unlock(); return .rejectedRoleOccupied }
-            room.dev = Slot(connId: connId, sink: sink)
+            room.dev = Slot(connId: connId, delivery: delivery)
             flush = room.pendingForDev
             room.pendingForDev = []; room.pendingForDevBytes = 0
         }
+        delivery.stage(contentsOf: flush)                       // 暴露 slot 前先排完历史前缀
         rooms[sessionId] = room
-        lock.unlock()                                          // 显式解锁——投递前就解锁
-        for f in flush { sink(f) }                             // 锁外按序投递（避免持锁调 sink 重入/长临界区）
+        lock.unlock()
+        delivery.activateAndDrain()                            // 锁外串行 drain；并发 live frame 只能排在后面
         return .joined(connId)
     }
 
@@ -74,14 +120,15 @@ public final class RelayRooms: @unchecked Sendable {
     public func forward(sessionId: String, from: RelayPeer, frame: String) {
         lock.lock()
         guard var room = rooms[sessionId] else { lock.unlock(); return }
-        let target: Sink?
+        let target: OrderedDelivery?
         switch from {
-        case .iPad:       target = room.dev?.sink       // iPad 发的投给 dev
-        case .devMachine: target = room.ipad?.sink      // dev 发的投给 iPad
+        case .iPad:       target = room.dev?.delivery       // iPad 发的投给 dev
+        case .devMachine: target = room.ipad?.delivery      // dev 发的投给 iPad
         }
         if let target {
+            target.stage(frame)  // 在 rooms lock 内确定全局投递顺序，但不调用外部 sink
             lock.unlock()
-            target(frame)        // 对端在场 → 锁外实时投递（原实时路径不变）
+            target.drainIfNeeded()
             return
         }
         // 对端缺席 → 有界缓冲（reject-newest）。
@@ -113,7 +160,7 @@ public final class RelayRooms: @unchecked Sendable {
     /// eventLoop,不能在持锁时同步重入 `rooms`)。旧 connId 迟到 leave 未清槽 → 不通知(幂等)。
     public func leave(sessionId: String, role: RelayPeer, connId: UUID) {
         lock.lock()
-        var notifySink: Sink? = nil
+        var notifyDelivery: OrderedDelivery? = nil
         if var room = rooms[sessionId] {
             var removed = false
             switch role {
@@ -124,14 +171,15 @@ public final class RelayRooms: @unchecked Sendable {
                 rooms[sessionId] = nil
             } else {
                 rooms[sessionId] = room
-                if removed { notifySink = room.ipad?.sink ?? room.dev?.sink }   // 仍在的对端
+                if removed { notifyDelivery = room.ipad?.delivery ?? room.dev?.delivery }   // 仍在的对端
             }
         }
-        lock.unlock()
-        if let sink = notifySink,
+        if let delivery = notifyDelivery,
            let json = try? String(decoding: RelaySignal(kind: RelaySignal.peerLeftKind,
                                                          sessionId: sessionId).encoded(), as: UTF8.self) {
-            sink(json)
+            delivery.stage(json)
         }
+        lock.unlock()
+        notifyDelivery?.drainIfNeeded()
     }
 }

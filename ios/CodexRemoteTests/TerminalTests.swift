@@ -81,6 +81,29 @@ struct TerminalTests {
         #expect(received.isEmpty)
     }
 
+    @MainActor @Test func outputWhileViewIsDetachedReplaysOnNextAttachment() {
+        let s = TerminalSession()
+        s.start(cwd: "/repo")
+        let payload = Array("hidden output\r\n".utf8)
+        s.handleOutputDelta(processId: s.processId!, base64: Data(payload).base64EncodedString())
+
+        var replayed: [UInt8] = []
+        s.onBytes = { replayed.append(contentsOf: $0) }
+        #expect(replayed == payload)
+    }
+
+    @MainActor @Test func detachedOutputReplayIsBounded() {
+        let s = TerminalSession()
+        s.start(cwd: "/repo")
+        let oversized = Data(repeating: 0x61, count: TerminalSession.maxReplayBytes + 257)
+        s.handleOutputDelta(processId: s.processId!, base64: oversized.base64EncodedString())
+
+        var replayed: [UInt8] = []
+        s.onBytes = { replayed.append(contentsOf: $0) }
+        #expect(replayed.count == TerminalSession.maxReplayBytes)
+        #expect(replayed.allSatisfy { $0 == 0x61 })
+    }
+
     @MainActor @Test func capReachedForwardsTruncationBytes() {
         let s = TerminalSession()
         var text = ""

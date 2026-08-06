@@ -5,9 +5,17 @@ import Observation
 @Observable
 @MainActor
 final class TerminalSession {
+    static let maxReplayBytes = 1 << 20
+
     /// 原始输出字节发布点：SwiftTermView 的 Coordinator 注入，在主线程 feed(byteArray:)。
     /// @ObservationIgnored 避免赋值触发视图刷新。
-    @ObservationIgnored var onBytes: (([UInt8]) -> Void)?
+    @ObservationIgnored var onBytes: (([UInt8]) -> Void)? {
+        didSet {
+            if let onBytes, !outputReplayBuffer.isEmpty {
+                onBytes([UInt8](outputReplayBuffer))
+            }
+        }
+    }
 
     /// 测试观察点：sendInput/resize 的入参镜像（生产为 nil，无副作用）。
     @ObservationIgnored var onInputForTest: ((String) -> Void)?
@@ -22,6 +30,8 @@ final class TerminalSession {
     private var observer: Task<Void, Never>?
     private var awaitingReconnectSuccess = false
     private var execTask: Task<Void, Never>?
+    /// SwiftTerm 视图卸载期间继续收集输出；新视图挂载时一次性重放。严格有界，防长驻 shell 吃光内存。
+    private var outputReplayBuffer = Data()
 
     /// 复用①传输：订阅 outputDelta。幂等；完整重连换新 rpc 实例时——
     ///   ① 取消旧订阅并对新 rpc 重订阅（否则 guard==nil 挡住重订阅 → 新连接 shell 输出永不显示）；
@@ -100,7 +110,7 @@ final class TerminalSession {
     /// internal 供单测：消费 outputDelta（仅匹配当前 processId）。字节直发给 SwiftTerm。
     func handleOutputDelta(processId pid: String, base64: String, capReached: Bool = false) {
         guard pid == processId, let data = Data(base64Encoded: base64) else { return }
-        onBytes?([UInt8](data))
+        publish(data)
         if capReached {
             writeStatus("terminal.outputTruncated")
         }
@@ -111,14 +121,14 @@ final class TerminalSession {
         awaitingReconnectSuccess = true
         invalidateExecution()
         let message = L10n.string("terminal.reconnecting", locale: LocaleManager.currentLocale)
-        onBytes?([UInt8]("\r\n── \(message) ──\r\n".utf8))
+        publish(Data("\r\n── \(message) ──\r\n".utf8))
     }
 
     func handleReconnectSucceeded() {
         guard awaitingReconnectSuccess else { return }
         awaitingReconnectSuccess = false
         let message = L10n.string("terminal.reconnected", locale: LocaleManager.currentLocale)
-        onBytes?([UInt8]("\r\n── \(message) ──\r\n".utf8))
+        publish(Data("\r\n── \(message) ──\r\n".utf8))
     }
 
     func handleReconnectFailed() {
@@ -159,7 +169,15 @@ final class TerminalSession {
     }
 
     private func writeStatusText(_ message: String) {
-        onBytes?([UInt8]("\r\n── \(message) ──\r\n".utf8))
+        publish(Data("\r\n── \(message) ──\r\n".utf8))
+    }
+
+    private func publish(_ data: Data) {
+        outputReplayBuffer.append(data)
+        if outputReplayBuffer.count > Self.maxReplayBytes {
+            outputReplayBuffer.removeFirst(outputReplayBuffer.count - Self.maxReplayBytes)
+        }
+        onBytes?([UInt8](data))
     }
 
     private func invalidateExecution() {

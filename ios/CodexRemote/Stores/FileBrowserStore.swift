@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import RelayProtocol
 
 /// 文件浏览状态层（只读）：以选中 thread 的 cwd 为根，懒加载目录树、缓存每层结果、
 /// 读取文件内容并按 D4 降级。独立于 ConversationStore，模式同 EnvironmentStore（attach(rpc:) 自发请求）。
@@ -44,6 +45,9 @@ final class FileBrowserStore {
     private var rpc: JSONRPCClient?
     /// 文件选择代际：新选择、换根或换连接都会让旧请求的迟到响应失效。
     private var fileOpenGeneration = 0
+    /// 换根/刷新/换连接会作废整棵树的旧请求；同一路径并发请求再按 path generation 仲裁。
+    private var directoryEpoch = 0
+    private var directoryGenerations: [String: Int] = [:]
 
     /// 无根路径（无 cwd）即空态。
     var isEmpty: Bool { rootPath == nil }
@@ -53,6 +57,8 @@ final class FileBrowserStore {
         guard self.rpc !== rpc else { return }
         self.rpc = rpc
         fileOpenGeneration &+= 1
+        directoryEpoch &+= 1
+        directoryGenerations.removeAll()
         fileOpenState = .idle
     }
 
@@ -64,6 +70,8 @@ final class FileBrowserStore {
     func setRoot(_ cwd: String?) async {
         if rootPath == cwd, cwd == nil || !nodes.isEmpty { return }
         fileOpenGeneration &+= 1
+        directoryEpoch &+= 1
+        directoryGenerations.removeAll()
         nodes.removeAll()
         fileOpenState = .idle
         rootPath = cwd
@@ -84,6 +92,8 @@ final class FileBrowserStore {
     /// 手动刷新：清空全部缓存、收起所有层、重拉根（D3）。
     func refresh() async {
         fileOpenGeneration &+= 1
+        directoryEpoch &+= 1
+        directoryGenerations.removeAll()
         nodes.removeAll()
         fileOpenState = .idle
         guard let root = rootPath else { return }
@@ -97,10 +107,18 @@ final class FileBrowserStore {
         fileOpenGeneration &+= 1
         let generation = fileOpenGeneration
         fileOpenState = .loading(path)
-        guard let resp: FsReadFileResponse = await send(
-            RPCMethod.fsReadFile, FsReadFileParams(path: path), as: FsReadFileResponse.self) else {
+        let resp: FsReadFileResponse
+        do {
+            resp = try await sendThrowing(
+                RPCMethod.fsReadFile, FsReadFileParams(path: path), as: FsReadFileResponse.self)
+        } catch {
             guard generation == fileOpenGeneration else { return }
-            fileOpenState = .failed(path)
+            if case TransportError.proxyFailed(let message) = error,
+               message == RelayWireLimits.outboundResponseTooLargeMessage {
+                fileOpenState = .loaded(SelectedFile(path: path, content: .tooLarge))
+            } else {
+                fileOpenState = .failed(path)
+            }
             return
         }
         guard generation == fileOpenGeneration else { return }
@@ -113,6 +131,9 @@ final class FileBrowserStore {
 
     /// 拉一层目录，写入缓存（含加载/错误态）。expand 决定拉后是否展开。
     private func loadDirectory(_ path: String, expand: Bool) async {
+        let epoch = directoryEpoch
+        let generation = (directoryGenerations[path] ?? 0) + 1
+        directoryGenerations[path] = generation
         var node = nodes[path] ?? DirNode(entries: nil, isExpanded: false, isLoading: false, error: nil)
         node.isLoading = true
         node.error = nil
@@ -120,6 +141,8 @@ final class FileBrowserStore {
 
         let resp: FsReadDirectoryResponse? = await send(
             RPCMethod.fsReadDirectory, FsReadDirectoryParams(path: path), as: FsReadDirectoryResponse.self)
+
+        guard epoch == directoryEpoch, directoryGenerations[path] == generation else { return }
 
         node.isLoading = false
         if let resp {
@@ -133,12 +156,17 @@ final class FileBrowserStore {
 
     /// Encodable 参数 → AnyCodable → rpc.send → 解成强类型；失败返回 nil（同 fetchFullDiff 降级）。
     private func send<P: Encodable, R: Decodable>(_ method: String, _ params: P, as: R.Type) async -> R? {
-        guard let rpc,
-              let d = try? JSONEncoder().encode(params),
-              let any = try? JSONDecoder().decode(AnyCodable.self, from: d),
-              let res = try? await rpc.send(method: method, params: any),
-              let rd = try? JSONEncoder().encode(res),
-              let out = try? JSONDecoder().decode(R.self, from: rd) else { return nil }
-        return out
+        try? await sendThrowing(method, params, as: R.self)
+    }
+
+    private func sendThrowing<P: Encodable, R: Decodable>(
+        _ method: String, _ params: P, as: R.Type
+    ) async throws -> R {
+        guard let rpc else { throw TransportError.notConnected }
+        let data = try JSONEncoder().encode(params)
+        let any = try JSONDecoder().decode(AnyCodable.self, from: data)
+        let result = try await rpc.send(method: method, params: any)
+        let resultData = try JSONEncoder().encode(result)
+        return try JSONDecoder().decode(R.self, from: resultData)
     }
 }

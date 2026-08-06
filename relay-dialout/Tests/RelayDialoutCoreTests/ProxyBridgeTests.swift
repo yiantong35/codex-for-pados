@@ -2,6 +2,31 @@ import Testing
 import Foundation
 @testable import RelayDialoutCore
 
+@Test func bareExecutableNameResolvesThroughPATH() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("proxy-path-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let executable = directory.appendingPathComponent("codex-test")
+    try Data("#!/bin/sh\nexec /bin/sleep 300\n".utf8).write(to: executable)
+    try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+
+    let bridge = ProxyBridge(codexPath: "codex-test", arguments: [], sockPath: "/tmp/unused",
+                             environment: ["PATH": directory.path])
+    try bridge.start()
+    #expect(bridge.isRunning)
+    bridge.terminate()
+    bridge.waitForTermination()
+}
+
+@Test func missingBareExecutableFailsBeforeProcessLaunch() {
+    let bridge = ProxyBridge(codexPath: "definitely-not-installed", sockPath: "/tmp/unused",
+                             environment: ["PATH": "/nonexistent"])
+    #expect(throws: ProxyBridgeError.executableNotFound("definitely-not-installed")) {
+        try bridge.start()
+    }
+}
+
 /// terminate() 应非阻塞地发起回收，调用方可在 EventLoop 外显式等待子进程被 reap。
 @Test func terminateReapsSpawnedChildNoZombie() throws {
     // 注入 /bin/sleep 300 作无害长驻子进程 stub（arguments 注入点仅测试用，不改生产路径）。
