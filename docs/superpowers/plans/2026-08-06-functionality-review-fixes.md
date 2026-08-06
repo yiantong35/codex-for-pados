@@ -114,16 +114,16 @@ the executable `main.swift`, bridge lifecycle code, and new supervisor tests.
 **Files:** `JSONRPCClient.swift`, new server-request routing/types, generated
 protocol adapters, and `JSONRPCClientTests.swift`.
 
-- [ ] RED: assert every generated server-request method receives result, error,
+- [x] RED: assert every generated server-request method receives result, error,
   or an intentionally deferred owner; assert unknown methods get an error.
-- [ ] Add `ServerRequestOutcome` and central request-id ownership so only one
+- [x] Add `ServerRequestOutcome` and central request-id ownership so only one
   terminal response can be emitted.
-- [ ] Route approvals, user input, and MCP elicitation to distinct owners; return
+- [x] Route approvals, user input, and MCP elicitation to distinct owners; return
   method-not-supported for unimplemented tool/auth/attestation methods.
-- [ ] Fail pending deferred requests closed on disconnect and ignore duplicate
+- [x] Fail pending deferred requests closed on disconnect and ignore duplicate
   completion attempts.
-- [ ] GREEN: run JSONRPC client routing/cancellation/correlation tests.
-- [ ] Commit: `fix(rpc): make server request handling exhaustive`.
+- [x] GREEN: run JSONRPC client routing/cancellation/correlation tests.
+- [x] Commit: `fix(rpc): make server request handling exhaustive`.
 
 ### Task 2.2: Implement request-user-input
 

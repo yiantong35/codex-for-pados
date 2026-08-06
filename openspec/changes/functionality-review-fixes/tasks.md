@@ -16,7 +16,7 @@
 
 ## 2. Server-initiated JSON-RPC 请求
 
-- [ ] 2.1 扩展 JSONRPC response outcome 与穷尽路由；所有生成 ServerRequest 方法必须被支持或显式回 error，任何请求不得静默悬挂。
+- [x] 2.1 扩展 JSONRPC response outcome 与穷尽路由；所有生成 ServerRequest 方法均被支持或显式回 `-32601`，并覆盖迟订阅补发、他端解决、断线失效与重复完成。
 - [ ] 2.2 实现 `item/tool/requestUserInput` store/card/response：多问题、options、free-form、取消和 `autoResolutionMs`；补协议 fixture 与断线恢复测试。
 - [ ] 2.3 实现 `mcpServer/elicitation/request` URL/表单 schema UI 与 response；未知 schema fail-closed 回 error；补类型矩阵测试。
 

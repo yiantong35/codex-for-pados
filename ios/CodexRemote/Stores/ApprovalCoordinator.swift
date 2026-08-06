@@ -33,7 +33,7 @@ final class ApprovalCoordinator {
         // #6：respond 送达成败如实回传给 ApprovalStore。半开连接下 respond 抛错 → 返回 false
         // → 卡片保留供重试，绝不静默丢弃未确认审批（fail-closed）。
         store.resolver = { id, body in
-            do { try await rpc.respond(to: id, result: body); return true }
+            do { return try await rpc.respond(to: id, result: body) }
             catch { return false }
         }
 
@@ -59,6 +59,7 @@ final class ApprovalCoordinator {
                 let p = (n.params?.value as? [String: Any]) ?? [:]
                 guard let id = Self.requestId(from: p["requestId"]) else { continue }
                 let tid = p["threadId"] as? String ?? ""
+                await rpc.discardServerRequest(id)
                 self.store.handleServerRequestResolved(requestId: id, threadId: tid)
             }
         }
