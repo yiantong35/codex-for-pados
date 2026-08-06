@@ -143,14 +143,14 @@ presentation wiring, localization resources, and protocol fixture tests.
 
 **Files:** the shared interactive request store/UI, MCP adapters, and new tests.
 
-- [ ] RED: URL mode and form primitives, enum, array, object, cancel, and unknown
+- [x] RED: URL mode and form primitives, enum, array, object, cancel, and unknown
   schema cases.
-- [ ] Render supported generated schemas with native controls and return the
+- [x] Render supported generated schemas with native controls and return the
   generated `{action, content?, _meta?}` response.
-- [ ] Unsupported schema nodes show a non-submittable error and complete the RPC
+- [x] Unsupported schema nodes show a non-submittable error and complete the RPC
   with an explicit error.
-- [ ] GREEN: run the MCP schema matrix and router integration tests.
-- [ ] Commit: `feat(ipad): handle MCP elicitation requests`.
+- [x] GREEN: run the MCP schema matrix and router integration tests.
+- [x] Commit: `feat(ipad): handle MCP elicitation requests`.
 
 ## Phase 3 - Approval and Resume Correctness
 

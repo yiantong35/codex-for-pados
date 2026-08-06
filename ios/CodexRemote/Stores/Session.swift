@@ -22,6 +22,7 @@ final class Session: Identifiable {
     let envInspector: EnvironmentInspectorModel
     let approvals: ApprovalStore
     let userInputs: UserInputStore
+    let mcpElicitations: McpElicitationStore
 
     init(machine: MachineConfig,
          transportFactory: @escaping @Sendable (ConnectionConfig) async throws -> MessageTransport) {
@@ -40,6 +41,7 @@ final class Session: Identifiable {
         self.envInspector = EnvironmentInspectorModel()
         self.approvals = ApprovalStore()
         self.userInputs = UserInputStore()
+        self.mcpElicitations = McpElicitationStore()
     }
 
     /// 前后台标记（D6=B）。默认后台；活跃 tab 由 SessionsManager 置前台。
