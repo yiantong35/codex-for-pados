@@ -7,6 +7,7 @@ import Observation
 @MainActor
 final class ActiveConversationHolder {
     var state: ConversationState?
+    var contextIdentity: String?
     /// 进度卡片点「X 文件」请求打开右栏的信号（一次性，RootSplitView 消费后复位）。
     var requestRightPanel: Bool = false
     /// 拉取远端全量 diff 的回调（由持有 ConversationStore 的 ConversationView 注入）。

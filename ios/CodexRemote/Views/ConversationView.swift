@@ -161,8 +161,9 @@ struct ConversationView: View {
         }
         .onDisappear {
             store?.stopObserving()
-            if bindsWorkspaceState {
+            if bindsWorkspaceState, activeConversation.contextIdentity == convBindingKey {
                 activeConversation.state = nil; activeConversation.fetchFullDiff = nil; activeConversation.startReview = nil
+                activeConversation.contextIdentity = nil
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -205,6 +206,7 @@ struct ConversationView: View {
             let resumeToken = connection.addResumeHandler { [weak s] in await s?.rejoinRunningThreads() }
             defer { connection.removeResumeHandler(resumeToken) }
             if bindsWorkspaceState {
+                activeConversation.contextIdentity = convBindingKey
                 // 审查面板「全量」数据源：注入拉取回调（gitDiffToRemote），供右栏按 cwd 拉全量 diff。
                 activeConversation.fetchFullDiff = { [weak s] cwd in await s?.fetchFullDiff(cwd: cwd) }
                 // 审查 tab AI 审查发起：注入 review/start 回调（设计 D4，对齐 fetchFullDiff 注入）。

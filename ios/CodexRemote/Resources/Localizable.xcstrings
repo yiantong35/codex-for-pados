@@ -183,6 +183,12 @@
         }
       }
     },
+    "review.refresh": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Refresh full diff" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "刷新全量差异" } }
+      }
+    },
     "review.started": {
       "localizations": {
         "en": {

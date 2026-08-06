@@ -234,12 +234,12 @@ indicator integration, and `ConversationScrollAnchorTests.swift`.
 **Files:** `ReviewTabView.swift`, active-conversation review closures/state, and
 recovered `ReviewFullDiffCacheTests.swift`.
 
-- [ ] RED: same-cwd refresh changes content, thread/RPC changes clear immediately,
+- [x] RED: same-cwd refresh changes content, thread/RPC changes clear immediately,
   and an older request completing last cannot overwrite a newer snapshot.
-- [ ] Key by cwd/thread/RPC identity/generation, cancel or invalidate stale work,
+- [x] Key by cwd/thread/RPC identity/generation, cancel or invalidate stale work,
   expose Refresh, and await refresh before starting a full review.
-- [ ] GREEN: run recovered cache tests plus refresh/race/action consistency tests.
-- [ ] Commit: `fix(ipad): invalidate stale full-diff snapshots`.
+- [x] GREEN: run recovered cache tests plus refresh/race/action consistency tests.
+- [x] Commit: `fix(ipad): invalidate stale full-diff snapshots`.
 
 ### Task 4.5: Converge terminal process state
 
