@@ -38,7 +38,8 @@ final class RelayPairingImportViewModel {
     /// - 已过期 → `.expired`
     /// - `now`：当前 Unix 秒；默认取系统时间，测试可注入。
     /// pc（配对码）绝不进 MachineConfig 持久化，单独返回交调用方暂存内存 PendingPairingStore。
-    func makeMachineConfig(now: Int64 = Int64(Date().timeIntervalSince1970)) throws -> (config: MachineConfig, pairingCode: String) {
+    func makeMachineConfig(now: Int64 = Int64(Date().timeIntervalSince1970),
+                           replacing existing: MachineConfig? = nil) throws -> (config: MachineConfig, pairingCode: String) {
         let text = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { throw PairingImportError.empty }
 
@@ -58,9 +59,11 @@ final class RelayPairingImportViewModel {
 
         // displayName 回落到 relayURL 的 host（无则用 relayURL 原串），保证 MachineConfig 非空显示名。
         let name = url.host ?? payload.relayURL
-        let config = MachineConfig(displayName: name.isEmpty ? nil : name,
+        let config = MachineConfig(id: existing?.id ?? UUID(),
+            displayName: existing?.displayName ?? (name.isEmpty ? nil : name),
             relayURL: payload.relayURL, sessionId: payload.sessionId,
-            devIdentityPubB64: payload.devIdentityPubB64)
+            devIdentityPubB64: payload.devIdentityPubB64,
+            lastActiveAt: existing?.lastActiveAt)
         return (config, payload.pairingCode)   // pc 单独返回，绝不进 MachineConfig 持久化
     }
 }
@@ -79,6 +82,11 @@ struct RelayPairingImportView: View {
     @State private var vm = RelayPairingImportViewModel()
     @State private var errorText: String?
     @State private var showScanner = false
+    let replacingMachineID: UUID?
+
+    init(replacingMachineID: UUID? = nil) {
+        self.replacingMachineID = replacingMachineID
+    }
 
     var body: some View {
         ZStack {
@@ -121,25 +129,10 @@ struct RelayPairingImportView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            HStack(spacing: 16) {
-                // 扫码入口：请求相机权限；授权则 present 扫码，拒绝/不可用则回退手动粘贴（不阻断）。
-                Button {
-                    beginScan()
-                } label: {
-                    Label("relayImport.scan", systemImage: "qrcode.viewfinder")
-                        .font(.callout)
-                }
-
-                Button {
-                    if let s = UIPasteboard.general.string {
-                        vm.pasted = s
-                        errorText = nil
-                    }
-                } label: {
-                    Label("relayImport.paste", systemImage: "doc.on.clipboard")
-                        .font(.callout)
-                }
-                Spacer()
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 16) { pairingActionButtons; Spacer() }
+                    .fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: 8) { pairingActionButtons }
             }
         }
         .padding(28)
@@ -149,6 +142,24 @@ struct RelayPairingImportView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 6)
+    }
+
+    @ViewBuilder
+    private var pairingActionButtons: some View {
+        Button { beginScan() } label: {
+            Label("relayImport.scan", systemImage: "qrcode.viewfinder").font(.callout)
+        }
+        .minimumHitTarget44()
+
+        Button {
+            if let s = UIPasteboard.general.string {
+                vm.pasted = s
+                errorText = nil
+            }
+        } label: {
+            Label("relayImport.paste", systemImage: "doc.on.clipboard").font(.callout)
+        }
+        .minimumHitTarget44()
     }
 
     /// 扫码全屏：相机预览铺满 + 顶部提示 + 取消按钮；扫到即写 vm.pasted 并走既有导入。
@@ -249,10 +260,23 @@ struct RelayPairingImportView: View {
     /// 解析导入：成功交 addMachineAndConnect（切过去 + 连接），失败展示明确文案。
     private func importPairing() {
         do {
-            let (m, pc) = try vm.makeMachineConfig()
-            PendingPairingStore.shared.stash(pc, for: m.id)   // pc 仅驻内存，配 machine id
-            if sessions.addMachineAndConnect(m) {
+            let existing = replacingMachineID.flatMap { id in
+                sessions.machineStore.machines.first { $0.id == id }
+            }
+            let (m, pc) = try vm.makeMachineConfig(replacing: existing)
+            let succeeded: Bool
+            if existing != nil {
+                succeeded = sessions.replaceMachineAndConnect(m, pairingCode: pc)
+            } else if sessions.machineStore.canAddMore {
+                PendingPairingStore.shared.stash(pc, for: m.id)
+                succeeded = sessions.addMachineAndConnect(m)
+            } else {
+                succeeded = false
+            }
+            if succeeded {
                 dismiss()
+            } else {
+                errorText = L10n.string("relayImport.error.saveFailed", locale: locale)
             }
         } catch {
             errorText = (error as? PairingImportError)?.description(locale: locale)

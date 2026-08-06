@@ -95,8 +95,9 @@ struct TerminalTests {
         var text = ""
         s.onBytes = { text += String(decoding: $0, as: UTF8.self) }
         s.start(cwd: "/repo")
-        s.handleDisconnect()
+        s.handleReconnecting()
         #expect(text.contains("──"))
+        #expect(!text.contains("已重连"))
         #expect(s.processId == nil)
     }
 
@@ -104,9 +105,19 @@ struct TerminalTests {
         let s = TerminalSession()
         s.start(cwd: "/repo")
         let old = s.processId
-        s.handleDisconnect()
+        s.handleReconnecting()
         s.start(cwd: "/repo")
         #expect(s.processId != old)
+    }
+
+    @MainActor @Test func reconnectSuccessAppearsOnlyAfterReady() {
+        let s = TerminalSession()
+        var text = ""
+        s.onBytes = { text += String(decoding: $0, as: UTF8.self) }
+        s.handleReconnecting()
+        #expect(!text.contains(L10n.string("terminal.reconnected", locale: LocaleManager.currentLocale)))
+        s.handleReconnectSucceeded()
+        #expect(text.contains(L10n.string("terminal.reconnected", locale: LocaleManager.currentLocale)))
     }
 
     // #4 手动重连重绑：attach 新 rpc 实例后——

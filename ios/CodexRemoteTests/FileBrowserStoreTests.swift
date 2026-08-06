@@ -102,4 +102,13 @@ struct FileBrowserStoreTests {
         responder.cancel()
         #expect(store.selectedFile?.content == .binary)
     }
+
+    @Test func readFailureHasRetryableFailedState() async {
+        let (mock, _, store) = await makeStore()
+        let responder = respond(mock, to: RPCMethod.fsReadFile, resultJSON: #"{}"#)
+        await store.openFile("/repo/missing.txt")
+        responder.cancel()
+        #expect(store.fileOpenState == .failed("/repo/missing.txt"))
+        #expect(store.selectedFile == nil)
+    }
 }

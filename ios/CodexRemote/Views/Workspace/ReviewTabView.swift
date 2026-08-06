@@ -32,7 +32,11 @@ struct ReviewTabView: View {
 
     private var fullContext: FullDiffContextKey? {
         guard let cwd, let identity = activeConversation.contextIdentity else { return nil }
-        return .init(cwd: cwd, conversationIdentity: identity)
+        return .init(
+            cwd: cwd,
+            conversationIdentity: identity,
+            fetchGeneration: activeConversation.fetchGeneration
+        )
     }
 
     static func canSubmitReview(sourceAvailable: Bool, isSubmitting: Bool) -> Bool {
@@ -96,7 +100,7 @@ struct ReviewTabView: View {
             }
             .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: reviewFeedback)
         }
-        .task(id: "\(String(describing: mode))|\(fullContext?.cwd ?? "")|\(fullContext?.conversationIdentity ?? "")") {
+        .task(id: "\(String(describing: mode))|\(fullContext?.cwd ?? "")|\(fullContext?.conversationIdentity ?? "")|\(fullContext?.fetchGeneration ?? -1)") {
             fullSnapshot.invalidate(for: fullContext)
             guard mode == .full, let context = fullContext,
                   let fetch = activeConversation.fetchFullDiff else { return }
@@ -123,9 +127,13 @@ struct ReviewTabView: View {
 
     /// #2：全量 diff 是否需重取——`.full` 且 cwd 非空且与已缓存 cwd 不同才重取。
     /// cwd 为空不请求；`.turn` 不走全量。纯函数便于单测。
-    static func shouldRefetchFullDiff(mode: ReviewSourceMode, cachedCwd: String?, currentCwd: String?) -> Bool {
+    static func shouldRefetchFullDiff(mode: ReviewSourceMode,
+                                      cachedCwd: String?,
+                                      currentCwd: String?,
+                                      cachedGeneration: Int? = nil,
+                                      currentGeneration: Int = 0) -> Bool {
         guard mode == .full, let currentCwd else { return false }
-        return cachedCwd != currentCwd
+        return cachedCwd != currentCwd || cachedGeneration != currentGeneration
     }
 
     @discardableResult

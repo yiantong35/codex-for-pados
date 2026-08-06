@@ -33,8 +33,8 @@ struct QRScannerView: UIViewRepresentable {
 
         // #4：单一私有串行队列 + 目标运行态，保证 start/stop 顺序对齐、最终态收敛。
         private let captureQueue = DispatchQueue(label: "com.codexremote.qr.capture")
-        private var desiredRunning = false          // 仅在 captureQueue 上读写
-        private var inputConfigured = false         // 首次对齐时懒配置 input/output
+        private nonisolated(unsafe) var desiredRunning = false
+        private nonisolated(unsafe) var inputConfigured = false
 
         override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
         private var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
@@ -61,7 +61,7 @@ struct QRScannerView: UIViewRepresentable {
         }
 
         /// 仅在 captureQueue 上执行：更新目标态并把实际态对齐过去。
-        private func setDesired(_ running: Bool) {
+        private nonisolated func setDesired(_ running: Bool) {
             desiredRunning = running
             switch Self.reconcile(desired: desiredRunning, isRunning: session.isRunning) {
             case .start:
@@ -76,7 +76,7 @@ struct QRScannerView: UIViewRepresentable {
         }
 
         /// 懒配置 input/output（仅一次）。相机不可用时静默返回，session.inputs 保持空。
-        private func configureInputsIfNeeded() {
+        private nonisolated func configureInputsIfNeeded() {
             guard !inputConfigured else { return }
             inputConfigured = true
             guard let device = AVCaptureDevice.default(for: .video),

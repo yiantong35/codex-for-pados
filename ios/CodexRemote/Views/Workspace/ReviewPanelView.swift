@@ -35,10 +35,10 @@ struct ReviewPanelView: View {
             if let f = selected {
                 ScrollView(.horizontal, showsIndicators: true) {   // #8b：横滚只包正文区
                     VStack(alignment: .leading, spacing: 0) {
-                        // 逐 hunk 展平行，计算 1-based 行号（无文件行号则用序号）。
+                        // Parser 已携带真实 old/new 行号；双 gutter 便于准确引用 diff。
                         let rows = Array(f.hunks.flatMap { $0.lines }.enumerated())
-                        ForEach(rows, id: \.offset) { idx, line in
-                            diffLineRow(line, lineNumber: idx + 1)
+                        ForEach(rows, id: \.offset) { _, line in
+                            diffLineRow(line)
                         }
                     }
                     .fixedSize(horizontal: true, vertical: false)  // #8b：不折行，随内容变宽
@@ -47,7 +47,7 @@ struct ReviewPanelView: View {
         }
     }
 
-    private func diffLineRow(_ line: DiffLine, lineNumber: Int) -> some View {
+    private func diffLineRow(_ line: DiffLine) -> some View {
         let (bg, prefix): (Color, String) = {
             switch line.kind {
             case .add: return (.green.opacity(0.18), "+")
@@ -55,19 +55,26 @@ struct ReviewPanelView: View {
             case .context: return (.clear, " ")
             }
         }()
-        return HStack(alignment: .top, spacing: 6) {
-            // #8a：定宽 monospace 行号 gutter。
-            Text("\(lineNumber)")
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .frame(width: 40, alignment: .trailing)
+        return HStack(alignment: .top, spacing: 0) {
+            lineNumber(line.oldLineNo)
+            lineNumber(line.newLineNo)
             Text(prefix + line.text)
-                .font(.system(.caption, design: .monospaced))   // #8d：caption2 → caption
-                .textSelection(.enabled)                          // #8c：可选可复制
-                .lineSpacing(2)                                   // #8d：行高
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+                .lineSpacing(2)
+                .padding(.leading, 6)
         }
-        .padding(.horizontal, 6).padding(.vertical, 1)
+        .padding(.vertical, 1)
         .background(bg)
+    }
+
+    private func lineNumber(_ value: Int?) -> some View {
+        Text(value.map(String.init) ?? "")
+            .font(.system(.caption2, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .frame(width: 38, alignment: .trailing)
+            .padding(.trailing, 5)
+            .background(Color.secondary.opacity(0.06))
     }
 
     private static func icon(_ k: DiffFileKind) -> String {

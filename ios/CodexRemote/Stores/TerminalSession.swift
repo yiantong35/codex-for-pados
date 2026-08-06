@@ -20,6 +20,7 @@ final class TerminalSession {
 
     private var rpc: JSONRPCClient?
     private var observer: Task<Void, Never>?
+    private var awaitingReconnectSuccess = false
     private var execTask: Task<Void, Never>?
 
     /// 复用①传输：订阅 outputDelta。幂等；完整重连换新 rpc 实例时——
@@ -105,9 +106,28 @@ final class TerminalSession {
         }
     }
     /// 断线：标失效 + 插断点行（终端语义换行 \r\n）。
-    func handleDisconnect() {
+    func handleReconnecting() {
+        guard !awaitingReconnectSuccess else { return }
+        awaitingReconnectSuccess = true
         invalidateExecution()
-        onBytes?([UInt8]("\r\n── 连接断开，已重连 ──\r\n".utf8))
+        let message = L10n.string("terminal.reconnecting", locale: LocaleManager.currentLocale)
+        onBytes?([UInt8]("\r\n── \(message) ──\r\n".utf8))
+    }
+
+    func handleReconnectSucceeded() {
+        guard awaitingReconnectSuccess else { return }
+        awaitingReconnectSuccess = false
+        let message = L10n.string("terminal.reconnected", locale: LocaleManager.currentLocale)
+        onBytes?([UInt8]("\r\n── \(message) ──\r\n".utf8))
+    }
+
+    func handleReconnectFailed() {
+        awaitingReconnectSuccess = false
+    }
+
+    /// Compatibility entry point for transport-driven disconnects.
+    func handleDisconnect() {
+        handleReconnecting()
     }
 
     private func applyBroadcast(_ n: JSONRPCNotification) {

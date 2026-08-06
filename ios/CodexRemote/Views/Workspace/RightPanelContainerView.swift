@@ -32,6 +32,7 @@ struct RightPanelContainerView: View {
     @Environment(UserInputStore.self) private var userInputs
     @Environment(McpElicitationStore.self) private var mcpElicitations
     @Environment(EnvironmentStore.self) private var environmentStore
+    @Environment(FileBrowserStore.self) private var fileBrowser
     @Environment(SideChatStore.self) private var sideChat
     @Environment(\.locale) private var locale
     // 快捷键经布局 store 发一次性右栏意图；本容器消费即复位（设计 D6）。
@@ -40,9 +41,16 @@ struct RightPanelContainerView: View {
     // 会脱离 presenter 的响应链——退出路径必须在 cover 自身内部再挂一枚隐藏快捷键按钮才能双向切换（M1）。
     @Environment(ShortcutStore.self) private var shortcuts
 
-    @State private var selectedTab: RightPanelTab = .review
-    @State private var fileBrowser = FileBrowserStore()
+    @Binding var selectedTab: RightPanelTab
     @State private var isFullscreen = false
+
+    init(cwd: String? = nil,
+         mainThreadId: String? = nil,
+         selectedTab: Binding<RightPanelTab> = .constant(.review)) {
+        self.cwd = cwd
+        self.mainThreadId = mainThreadId
+        self._selectedTab = selectedTab
+    }
 
     var body: some View {
         baseContent

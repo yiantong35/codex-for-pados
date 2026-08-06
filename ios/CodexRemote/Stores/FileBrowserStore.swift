@@ -20,15 +20,26 @@ final class FileBrowserStore {
         let content: FileContent
     }
 
+    enum FileOpenState: Equatable {
+        case idle
+        case loading(String)
+        case loaded(SelectedFile)
+        case failed(String)
+    }
+
     private(set) var rootPath: String?
     /// 路径 → 目录节点缓存。
     private(set) var nodes: [String: DirNode] = [:]
     /// 当前选中的文件内容（只读预览）。
-    private(set) var selectedFile: SelectedFile?
-
-    /// 文件打开中标志：openFile 进入置 true、返回置 false。
-    /// UI 据此在预览区渲染 loading，避免 await 期间停留在上一个文件（设计文档 D）。
-    private(set) var isOpeningFile: Bool = false
+    private(set) var fileOpenState: FileOpenState = .idle
+    var selectedFile: SelectedFile? {
+        guard case .loaded(let file) = fileOpenState else { return nil }
+        return file
+    }
+    var isOpeningFile: Bool {
+        if case .loading = fileOpenState { return true }
+        return false
+    }
 
     private var rpc: JSONRPCClient?
 
@@ -45,7 +56,7 @@ final class FileBrowserStore {
     /// 孤儿、由下次 removeAll 回收，无可见错误。（若未来需精确取消，可引入 attempt token。）
     func setRoot(_ cwd: String?) async {
         nodes.removeAll()
-        selectedFile = nil
+        fileOpenState = .idle
         rootPath = cwd
         guard let cwd else { return }
         await loadDirectory(cwd, expand: true)
@@ -72,15 +83,15 @@ final class FileBrowserStore {
     /// 进入时置 isOpeningFile 并清空旧 selectedFile（避免预览区停留在上一个文件）；
     /// 返回（成功/失败降级）后复位（设计文档 D，与目录 loading 模式一致）。
     func openFile(_ path: String) async {
-        isOpeningFile = true
-        selectedFile = nil
-        defer { isOpeningFile = false }
+        fileOpenState = .loading(path)
         guard let resp: FsReadFileResponse = await send(
             RPCMethod.fsReadFile, FsReadFileParams(path: path), as: FsReadFileResponse.self) else {
-            selectedFile = SelectedFile(path: path, content: .binary) // 拉取失败降级为不可预览
+            fileOpenState = .failed(path)
             return
         }
-        selectedFile = SelectedFile(path: path, content: FileContentDecoder.classify(base64: resp.dataBase64))
+        fileOpenState = .loaded(SelectedFile(
+            path: path,
+            content: FileContentDecoder.classify(base64: resp.dataBase64)))
     }
 
     // MARK: - private

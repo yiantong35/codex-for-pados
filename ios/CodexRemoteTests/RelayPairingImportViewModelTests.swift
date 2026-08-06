@@ -16,6 +16,20 @@ final class RelayPairingImportViewModelTests: XCTestCase {
         XCTAssertFalse(pc.isEmpty)
     }
 
+    func testRePairPreservesMachineIdentityAndDisplayName() throws {
+        let existing = MachineConfig(
+            displayName: "My Mac", relayURL: "wss://old.example/ws",
+            sessionId: "old", devIdentityPubB64: "OLD")
+        let vm = RelayPairingImportViewModel()
+        vm.pasted = "codexrelay://pair?relay=wss://new.example/ws&sid=new&pk=NEW&pc=c&exp=9999999999"
+
+        let (config, _) = try vm.makeMachineConfig(now: 1, replacing: existing)
+
+        XCTAssertEqual(config.id, existing.id)
+        XCTAssertEqual(config.displayName, existing.displayName)
+        XCTAssertEqual(config.sessionId, "new")
+    }
+
     /// 6.2：非 loopback 明文 ws 导入即报 insecureScheme（早报错，不等到连接时才失败）。
     func testImportRejectsPlainWsWithSchemeError() {
         let vm = RelayPairingImportViewModel()

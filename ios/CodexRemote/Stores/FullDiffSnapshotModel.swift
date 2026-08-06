@@ -4,6 +4,13 @@ import Observation
 struct FullDiffContextKey: Equatable, Sendable {
     let cwd: String
     let conversationIdentity: String
+    let fetchGeneration: Int
+
+    init(cwd: String, conversationIdentity: String, fetchGeneration: Int = 0) {
+        self.cwd = cwd
+        self.conversationIdentity = conversationIdentity
+        self.fetchGeneration = fetchGeneration
+    }
 }
 
 @Observable
@@ -39,8 +46,8 @@ final class FullDiffSnapshotModel {
         isLoading = true
         let value = await fetch(context.cwd)
         guard owner == generation, self.context == context else { return false }
-        diff = value
+        if let value { diff = value }
         isLoading = false
-        return true
+        return value != nil
     }
 }

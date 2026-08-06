@@ -39,12 +39,20 @@ enum RunStateBadge: Equatable {
     }
 }
 
+enum ProjectsLoadState: Equatable {
+    case idle
+    case loading
+    case loaded
+    case failed
+}
+
 /// 状态层：拉取 `thread/list`，按 cwd 分组为项目，并维护「待批准」徽标集合。
 @Observable
 @MainActor
 final class ProjectsStore {
     private(set) var projects: [Project] = []
     private(set) var looseConversations: [ThreadSummary] = []
+    private(set) var loadState: ProjectsLoadState = .idle
     var isGrouped: Bool { projects.count >= 2 }
     var allThreadsSorted: [ThreadSummary] {
         (projects.flatMap(\.threads) + looseConversations).sorted { $0.updatedAt > $1.updatedAt }
@@ -328,6 +336,7 @@ final class ProjectsStore {
     func loadFromServer(rpc: JSONRPCClient) async {
         guard !fullSyncInProgress else { return }
         fullSyncInProgress = true
+        if allThreadsSorted.isEmpty { loadState = .loading }
         defer { fullSyncInProgress = false }
         var cursor: String?
         var accumulated: [ThreadSummary] = []
@@ -340,7 +349,10 @@ final class ProjectsStore {
                   let resData = try? JSONEncoder().encode(result),
                   let resp = try? JSONDecoder().decode(ThreadListResponse.self, from: resData)
             else {
-                if pageIndex == 0 { return }   // 首页失败：静默保留旧 projects（既有语义）
+                if pageIndex == 0 {
+                    if allThreadsSorted.isEmpty { loadState = .failed }
+                    return
+                }
                 break                          // 后续页失败：用已累积的页 ingest
             }
             accumulated.append(contentsOf: resp.data)
@@ -349,6 +361,7 @@ final class ProjectsStore {
         }
         if let current = self.rpc, current !== rpc { return }
         ingest(accumulated)
+        loadState = .loaded
     }
 
     /// 常态刷新只取首页并与本地历史按 id 合并；删除/归档由官方广播精确移除。

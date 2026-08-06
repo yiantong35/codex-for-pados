@@ -87,28 +87,36 @@ struct ApprovalCardView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(8)
             }
-            HStack {
-                Button("approval.yes") { resolve(.approve) }
-                    .buttonStyle(.borderedProminent)
-                // F5：前缀放行仅当服务端提供 amendment 时出现；按钮完整展示该 amendment
-                // 的实际授权前缀（非固定文案），使用户看清授权范围。
-                if let prefix = Self.prefixButtonState(card: card) {
-                    Button {
-                        resolve(.approveForSessionPrefix(prefix))
-                    } label: {
-                        Text("approval.yesPrefixLabel")
-                            + Text(" ")
-                            + Text(prefix.joined(separator: " ")).monospaced()
-                    }
-                }
-                Spacer()
-                Button("approval.no", role: .destructive) { resolve(.deny) }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) { approvalButtons }
+                    .fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: 8) { approvalButtons }
             }
             .disabled(card.awaitingRecovery)
         }
         .padding()
         .background(.orange.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    @ViewBuilder
+    private var approvalButtons: some View {
+        Button("approval.yes") { resolve(.approve) }
+            .buttonStyle(.borderedProminent)
+            .minimumHitTarget44()
+        if let prefix = Self.prefixButtonState(card: card) {
+            Button {
+                resolve(.approveForSessionPrefix(prefix))
+            } label: {
+                Text("approval.yesPrefixLabel")
+                    + Text(" ")
+                    + Text(prefix.joined(separator: " ")).monospaced()
+            }
+            .lineLimit(1)
+            .minimumHitTarget44()
+        }
+        Button("approval.no", role: .destructive) { resolve(.deny) }
+            .minimumHitTarget44()
     }
 
     /// 卡片标题键：权限 / 文件 / 命令三态。

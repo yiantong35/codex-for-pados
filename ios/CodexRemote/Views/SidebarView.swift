@@ -36,8 +36,7 @@ struct SidebarView: View {
         }
         .overlay {
             if projects.projects.isEmpty && projects.looseConversations.isEmpty {
-                ContentUnavailableView("sidebar.empty.title", systemImage: "tray",
-                                       description: Text("sidebar.empty.desc"))
+                sidebarEmptyOverlay
             }
         }
         .task(id: connection.phase) {
@@ -65,6 +64,29 @@ struct SidebarView: View {
                 projects.stopPolling()
             @unknown default: break
             }
+        }
+    }
+
+    @ViewBuilder
+    private var sidebarEmptyOverlay: some View {
+        switch projects.loadState {
+        case .idle, .loading:
+            ProgressView("sidebar.loading")
+        case .failed:
+            ContentUnavailableView {
+                Label("sidebar.loadFailed.title", systemImage: "wifi.exclamationmark")
+            } description: {
+                Text("sidebar.loadFailed.desc")
+            } actions: {
+                Button("sidebar.retry") {
+                    guard let rpc = connection.rpc else { return }
+                    Task { await projects.loadFromServer(rpc: rpc) }
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        case .loaded:
+            ContentUnavailableView("sidebar.empty.title", systemImage: "tray",
+                                   description: Text("sidebar.empty.desc"))
         }
     }
 

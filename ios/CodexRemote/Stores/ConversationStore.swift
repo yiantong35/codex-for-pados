@@ -9,6 +9,8 @@ import Observation
 @MainActor
 final class ConversationStore {
     private(set) var state: ConversationState
+    /// 流式内容每次合并落地递增一次。items 数量不变时，视图仍能感知正文增长。
+    private(set) var contentRevision = 0
 
     private let rpc: JSONRPCClient
     private let reducer = ThreadReducer()
@@ -98,6 +100,7 @@ final class ConversationStore {
         var s = state
         reducer.applyCoalesced(drained, &s)
         state = s   // 一次发布，非每 token。
+        contentRevision &+= 1
     }
 
     /// 恢复桌面 app 创建的会话：发 thread/resume，加载并渲染历史。

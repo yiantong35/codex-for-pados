@@ -34,4 +34,8 @@ final class UserDefaultsStableSessionStore: StableSessionStoring, @unchecked Sen
     func save(machineKey: String, stableSessionId: String) {
         defaults.set(stableSessionId, forKey: key(machineKey))
     }
+
+    func remove(machineKey: String) {
+        defaults.removeObject(forKey: key(machineKey))
+    }
 }

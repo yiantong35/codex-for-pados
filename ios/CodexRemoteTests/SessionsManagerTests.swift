@@ -538,6 +538,29 @@ final class SessionsManagerTests: XCTestCase {
         XCTAssertEqual(final, 1, "新增机器 transport factory 只应被调用一次（不并行两套建连）")
     }
 
+    func test_replaceMachine_preservesIdentityAndCount() {
+        let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
+        let manager = SessionsManager(
+            machineStore: store,
+            transportFactory: { _ in MockTransport() },
+            resetPairingTrust: { _ in })
+        let original = relayMC("old")
+        XCTAssertTrue(store.add(original))
+        let replacement = MachineConfig(
+            id: original.id,
+            displayName: original.displayName,
+            relayURL: "wss://new.example/ws",
+            sessionId: "new-session",
+            devIdentityPubB64: "new-key")
+
+        XCTAssertTrue(manager.replaceMachineAndConnect(replacement, pairingCode: "pair"))
+
+        XCTAssertEqual(store.machines.count, 1)
+        XCTAssertEqual(store.machines.first?.id, original.id)
+        XCTAssertEqual(store.machines.first?.sessionId, "new-session")
+        XCTAssertEqual(manager.activeSessionId, original.id)
+    }
+
     /// 由本测试文件路径（#filePath）推导源码 Views 目录，避免硬编码绝对路径。
     /// 结构：<repo>/ios/CodexRemoteTests/SessionsManagerTests.swift →
     ///       <repo>/ios/CodexRemote/Views/

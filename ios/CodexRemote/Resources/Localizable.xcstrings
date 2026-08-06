@@ -39,6 +39,12 @@
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "目录加载失败" } }
       }
     },
+    "fileBrowser.loadFileFailed": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Failed to load file" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "文件读取失败" } }
+      }
+    },
     "fileBrowser.refresh": {
       "localizations": {
         "en": {
@@ -53,6 +59,12 @@
             "value": "刷新"
           }
         }
+      }
+    },
+    "fileBrowser.retry": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Retry" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重试" } }
       }
     },
     "fileBrowser.selectFile": {
@@ -2029,6 +2041,12 @@
             "value": "该 relay 地址为明文 ws，生产环境需使用加密的 wss。"
           }
         }
+      }
+    },
+    "relayImport.error.saveFailed": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Could not save pairing. Try again." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法保存配对，请重试。" } }
       }
     },
     "relayImport.hint": {
@@ -4287,6 +4305,30 @@
         }
       }
     },
+    "sidebar.loadFailed.desc": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Check the connection and try again." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请检查连接后重试。" } }
+      }
+    },
+    "sidebar.loadFailed.title": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Could not load conversations" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "会话加载失败" } }
+      }
+    },
+    "sidebar.loading": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Loading conversations…" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在加载会话…" } }
+      }
+    },
+    "sidebar.retry": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Retry" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重试" } }
+      }
+    },
     "sidebar.fork": {
       "localizations": {
         "en": {
@@ -4689,6 +4731,18 @@
             "value": "输入命令…"
           }
         }
+      }
+    },
+    "terminal.reconnected": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Reconnected" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已重新连接" } }
+      }
+    },
+    "terminal.reconnecting": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Connection interrupted, reconnecting" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接中断，正在重连" } }
       }
     },
     "workspace.bottomPanel.toggle": {
