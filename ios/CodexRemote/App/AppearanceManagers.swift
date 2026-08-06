@@ -52,6 +52,14 @@ final class LocaleManager {
     }
 
     var locale: Locale { Locale(identifier: language.localeIdentifier()) }
+
+    /// D5：无 SwiftUI 环境可读的层（Store）从持久化 app_language 解析当前 locale，
+    /// 与根视图 `.environment(\.locale, locale)` 注入同源。不用 `String(localized:)`（按系统语言选表）。
+    static var currentLocale: Locale {
+        let raw = UserDefaults.standard.string(forKey: key)
+        let lang = raw.flatMap(AppLanguage.init(rawValue:)) ?? .system
+        return Locale(identifier: lang.localeIdentifier())
+    }
 }
 
 // MARK: - 主题

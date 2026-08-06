@@ -49,6 +49,7 @@ struct FileBrowserView: View {
                 Image(systemName: "arrow.clockwise")
             }
             .accessibilityLabel(Text("fileBrowser.refresh"))
+            .minimumHitTarget44()
         }
         .padding(.horizontal, 10).padding(.vertical, 6)
     }
@@ -104,13 +105,14 @@ struct FileBrowserView: View {
             }
             .padding(.leading, CGFloat(depth) * 14 + 10)
             .padding(.vertical, 3)
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 
     @ViewBuilder private var contentArea: some View {
-        ScrollView {
+        ScrollView {                                   // 外层纵向（不变）
             if store.isOpeningFile {
                 // 文件打开中：预览区显示加载指示，避免停留在上一个文件或空白（设计文档 D）。
                 ProgressView()
@@ -119,10 +121,7 @@ struct FileBrowserView: View {
             } else {
                 switch store.selectedFile?.content {
                 case .text(let s):
-                    Text(s)
-                        .font(.system(.caption2, design: .monospaced))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(8)
+                    fileTextBody(s)
                 case .tooLarge:
                     placeholder("fileBrowser.tooLarge")
                 case .binary:
@@ -131,6 +130,29 @@ struct FileBrowserView: View {
                     placeholder("fileBrowser.selectFile")
                 }
             }
+        }
+    }
+
+    /// #8：文件正文——1-based 行号 gutter + 长行横滚不折行 + 可选 + 略大字号/行高。
+    private func fileTextBody(_ s: String) -> some View {
+        ScrollView(.horizontal, showsIndicators: true) {       // #8b：横滚只包正文区
+            VStack(alignment: .leading, spacing: 0) {
+                let lines = Array(s.split(separator: "\n", omittingEmptySubsequences: false).enumerated())
+                ForEach(lines, id: \.offset) { idx, line in
+                    HStack(alignment: .top, spacing: 6) {
+                        Text("\(idx + 1)")                     // #8a：1-based 行号 gutter
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 44, alignment: .trailing)
+                        Text(String(line).isEmpty ? " " : String(line))
+                            .font(.system(.caption, design: .monospaced))   // #8d：caption2 → caption
+                            .textSelection(.enabled)                        // #8c：可选可复制
+                            .lineSpacing(2)                                  // #8d：行高
+                    }
+                }
+            }
+            .padding(8)
+            .fixedSize(horizontal: true, vertical: false)      // #8b：不折行
         }
     }
 

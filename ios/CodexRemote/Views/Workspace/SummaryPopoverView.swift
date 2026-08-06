@@ -3,10 +3,11 @@ import SwiftUI
 /// 摘要悬浮浮层内容（design D2）：diff 行数 / cwd / 进度(plan) / 任务(命令)。
 /// 输入为当前会话状态与选中线程；全无数据时显空态。内容自适应（List 高度随内容）。
 struct SummaryPopoverView: View {
+    @Environment(\.locale) private var locale
     let state: ConversationState?
     let thread: ThreadSummary?
     var env: EnvironmentInspectorModel? = nil          // 批次⑤：全量 diff + 认证
-    var onOpenReview: (() -> Void)? = nil              // 批次⑤：变更→审查面板跳转信号（后续接）
+    var onOpenReview: (() -> Void)? = nil              // #4：变更→右栏审查面板跳转（RootSplitView 注入 requestRightPanel(.review)）
 
     private var diff: WorkspaceSummary.DiffLineCounts {
         state.map(WorkspaceSummary.diffLineCounts(in:)) ?? .init(added: 0, removed: 0, changedFiles: 0)
@@ -61,7 +62,8 @@ struct SummaryPopoverView: View {
                     Section("workspace.env.auth") {
                         let ok = (auth.requiresOpenaiAuth == false) || (auth.authToken != nil)
                         LabeledContent("workspace.env.authStatus",
-                                       value: String(localized: ok ? "workspace.env.authed" : "workspace.env.unauthed"))
+                                       value: L10n.string(ok ? "workspace.env.authed" : "workspace.env.unauthed",
+                                                          locale: locale))
                     }
                 }
                 // 批次⑤：子智能体
@@ -71,7 +73,7 @@ struct SummaryPopoverView: View {
                             HStack {
                                 Text(a.displayName).lineLimit(1)
                                 Spacer()
-                                Text(Self.statusLabel(a.status)).font(.caption)
+                                Text(Self.statusLabel(a.status, locale: locale)).font(.caption)
                                     .foregroundStyle(Self.statusColor(a.status))
                             }
                         }
@@ -111,15 +113,15 @@ struct SummaryPopoverView: View {
     }
 
     // 批次⑤：子智能体状态文案/颜色
-    private static func statusLabel(_ s: CollabAgentStatus) -> String {
+    static func statusLabel(_ s: CollabAgentStatus, locale: Locale) -> String {
         switch s {
-        case .pendingInit: return String(localized: "workspace.env.sa.pending")
-        case .running:     return String(localized: "workspace.env.sa.running")
-        case .interrupted: return String(localized: "workspace.env.sa.interrupted")
-        case .completed:   return String(localized: "workspace.env.sa.completed")
-        case .errored:     return String(localized: "workspace.env.sa.errored")
-        case .shutdown:    return String(localized: "workspace.env.sa.shutdown")
-        case .notFound:    return String(localized: "workspace.env.sa.notFound")
+        case .pendingInit: return L10n.string("workspace.env.sa.pending", locale: locale)
+        case .running:     return L10n.string("workspace.env.sa.running", locale: locale)
+        case .interrupted: return L10n.string("workspace.env.sa.interrupted", locale: locale)
+        case .completed:   return L10n.string("workspace.env.sa.completed", locale: locale)
+        case .errored:     return L10n.string("workspace.env.sa.errored", locale: locale)
+        case .shutdown:    return L10n.string("workspace.env.sa.shutdown", locale: locale)
+        case .notFound:    return L10n.string("workspace.env.sa.notFound", locale: locale)
         }
     }
     private static func statusColor(_ s: CollabAgentStatus) -> Color {

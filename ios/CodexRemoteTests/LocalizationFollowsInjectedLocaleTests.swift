@@ -20,6 +20,14 @@ final class LocalizationFollowsInjectedLocaleTests: XCTestCase {
         "sideChat.pickToStart",     // 原 "点「开始侧聊」…"
         "review.mode.turn",         // 原 "本轮"
         "review.mode.full",         // 原 "全量"
+        "conv.item.unknown",
+        "conn.error.pairingMissing", "conn.error.trustRevoked",
+        "conn.error.timeout", "conn.error.timeoutDetail", "conn.error.connectionFailed",
+        "conn.error.proxyFailed", "conn.error.channelClosed", "conn.error.channelClosedUnknown",
+        "conn.error.notConnected", "conn.error.handshakeFailed",
+        "fileBrowser.loadDirFailed",
+        "review.started",           // #9：发起审查可见反馈文案
+        "review.startFailed",
     ]
 
     func test_sharedHelper_returnsInjectedLanguage() {
@@ -37,8 +45,10 @@ final class LocalizationFollowsInjectedLocaleTests: XCTestCase {
     }
 
     /// 动态标签（审查模式名、右栏 tab 名）按注入 locale 解析，en 无中文残留。
+    @MainActor
     func test_dynamicLabels_followInjectedLocale() {
         let en = Locale(identifier: "en")
+        let zh = Locale(identifier: "zh-Hans")
         for mode in ReviewSourceMode.allCases {
             let s = mode.label(locale: en)
             XCTAssertFalse(s.isEmpty)
@@ -49,6 +59,53 @@ final class LocalizationFollowsInjectedLocaleTests: XCTestCase {
             let s = tab.label(locale: en)
             XCTAssertFalse(s.isEmpty)
             XCTAssertFalse(s.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) })
+        }
+
+        XCTAssertEqual(PairingImportError.empty.description(locale: en),
+                       L10n.string("relayImport.error.empty", locale: en))
+        XCTAssertEqual(SummaryPopoverView.statusLabel(.running, locale: en),
+                       L10n.string("workspace.env.sa.running", locale: en))
+        XCTAssertNotEqual(SidebarView.relativeTime(Date().timeIntervalSince1970 - 60, locale: en),
+                          SidebarView.relativeTime(Date().timeIntervalSince1970 - 60, locale: zh))
+    }
+
+    /// #5：ConnectionStore.friendlyMessage 跟随注入 locale；en 无中文残留、zh 为中文。
+    /// friendlyMessage 为 @MainActor 静态方法，测试需在主 actor 上下文调用。
+    @MainActor
+    func test_connectionFriendlyMessage_followsInjectedLocale() {
+        // 注入 en：写持久化键，currentLocale 应解析为 en。
+        UserDefaults.standard.set(AppLanguage.en.rawValue, forKey: "app_language")
+        let en = ConnectionStore.friendlyMessage(TransportError.notConnected)
+        XCTAssertFalse(en.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) }, "en 文案含中文残留：\(en)")
+
+        UserDefaults.standard.set(AppLanguage.zh.rawValue, forKey: "app_language")
+        let zh = ConnectionStore.friendlyMessage(TransportError.notConnected)
+        XCTAssertTrue(zh.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) }, "zh 文案应为中文：\(zh)")
+
+        UserDefaults.standard.removeObject(forKey: "app_language")
+    }
+
+    /// #5：currentLocale 读持久化 app_language，与注入同源。
+    func test_currentLocale_readsPersistedLanguage() {
+        UserDefaults.standard.set(AppLanguage.en.rawValue, forKey: "app_language")
+        XCTAssertEqual(LocaleManager.currentLocale.identifier, "en")
+        UserDefaults.standard.set(AppLanguage.zh.rawValue, forKey: "app_language")
+        XCTAssertEqual(LocaleManager.currentLocale.identifier, "zh-Hans")
+        UserDefaults.standard.removeObject(forKey: "app_language")
+    }
+
+    /// #5：占位假串（如「帮紧你」）不得残留在任何面向用户键。
+    func test_noPlaceholderJokeStrings() {
+        let langs = [Locale(identifier: "en"), Locale(identifier: "zh-Hans")]
+        let banned = ["帮紧你"]
+        let sampleKeys = ["conv.item.unknown"]   // 已知曾中招的键，作显式回归锚
+        for key in sampleKeys {
+            for locale in langs {
+                let s = L10n.string(key, locale: locale)
+                for b in banned {
+                    XCTAssertFalse(s.contains(b), "占位假串残留 \(key)@\(locale.identifier)=\(s)")
+                }
+            }
         }
     }
 }

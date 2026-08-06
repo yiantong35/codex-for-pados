@@ -13,40 +13,47 @@ struct TabBarView: View {
     @State private var removeTarget: UUID?
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(sessions.machineStore.machines) { m in
-                    tab(m)
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(sessions.machineStore.machines) { m in
+                        tab(m).id(m.id)
+                    }
+                    addButton
                 }
-                addButton
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-        }
-        .background(.bar)
-        .alert("tab.capReached", isPresented: $showCapAlert) {
-            Button("common.ok", role: .cancel) {}
-        }
-        // 重命名 alert：绑定到 renameTarget（非空即present）；确认写回 SessionsManager.rename。
-        .alert("tab.rename.title", isPresented: renameAlertBinding) {
-            TextField("tab.rename.placeholder", text: $renameDraft)
-            Button("common.cancel", role: .cancel) { renameTarget = nil }
-            Button("tab.rename.confirm") {
-                if let id = renameTarget { sessions.rename(id: id, to: renameDraft) }
-                renameTarget = nil
+            // #7：活动 session 变化 → 把活动 tab 居中滚入（事件驱动，无定时器）。
+            .onChange(of: sessions.activeSessionId) { _, newId in
+                guard let newId else { return }
+                proxy.scrollTo(newId, anchor: .center)
             }
-        }
-        // 移除机器二次确认（D6）：破坏性操作不由单次点击直接执行，绑定 removeTarget。
-        .confirmationDialog("tab.remove.confirm.title",
-                            isPresented: removeConfirmBinding,
-                            titleVisibility: .visible) {
-            Button("tab.remove.confirm.action", role: .destructive) {
-                if let id = removeTarget { sessions.removeMachine(id: id) }
-                removeTarget = nil
+            .background(.bar)
+            .alert("tab.capReached", isPresented: $showCapAlert) {
+                Button("common.ok", role: .cancel) {}
             }
-            Button("common.cancel", role: .cancel) { removeTarget = nil }
-        } message: {
-            Text("tab.remove.confirm.message")
+            // 重命名 alert：绑定到 renameTarget（非空即present）；确认写回 SessionsManager.rename。
+            .alert("tab.rename.title", isPresented: renameAlertBinding) {
+                TextField("tab.rename.placeholder", text: $renameDraft)
+                Button("common.cancel", role: .cancel) { renameTarget = nil }
+                Button("tab.rename.confirm") {
+                    if let id = renameTarget { sessions.rename(id: id, to: renameDraft) }
+                    renameTarget = nil
+                }
+            }
+            // 移除机器二次确认（D6）：破坏性操作不由单次点击直接执行，绑定 removeTarget。
+            .confirmationDialog("tab.remove.confirm.title",
+                                isPresented: removeConfirmBinding,
+                                titleVisibility: .visible) {
+                Button("tab.remove.confirm.action", role: .destructive) {
+                    if let id = removeTarget { sessions.removeMachine(id: id) }
+                    removeTarget = nil
+                }
+                Button("common.cancel", role: .cancel) { removeTarget = nil }
+            } message: {
+                Text("tab.remove.confirm.message")
+            }
         }
     }
 
@@ -79,9 +86,11 @@ struct TabBarView: View {
                         .foregroundStyle(active ? Color.accentColor : Color.primary)
                 }
                 .padding(.leading, 12).padding(.trailing, 4).padding(.vertical, 8)
+                .frame(minHeight: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityValue(Text(indicator.accessibilityKey))
 
             // 可见管理入口（⋯）：触控/指针点击、外接键盘聚焦后回车/空格均可激活；不依赖长按。
             // 命中区 ≥44pt（UI 适配基线）：padding 撑起热区 + contentShape 让留白也可点。
@@ -119,6 +128,7 @@ struct TabBarView: View {
                 .padding(.horizontal, 10).padding(.vertical, 8)
         }
         .buttonStyle(.plain)
+        .minimumHitTarget44()
     }
 }
 
@@ -126,27 +136,40 @@ struct TabBarView: View {
 /// attention/error（isBlinking）在 opacity 1↔0.25 间做 easeInOut 无限往复闪烁。
 struct DotView: View {
     let indicator: TabIndicator
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dim = false
 
     var body: some View {
         Group {
-            switch indicator {
-            case .none: Color.clear.frame(width: 8, height: 8)
-            case .unread: dot(.blue)
-            case .running: dot(.green)
-            case .attention: dot(.orange)
-            case .error: dot(.red)
-            case .disconnected: dot(.gray)   // 连接异常灰点，非闪烁
+            if let symbolName = indicator.symbolName {
+                Image(systemName: symbolName)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(color)
+                    .frame(width: 12, height: 12)
+            } else {
+                Color.clear.frame(width: 12, height: 12)
             }
         }
-        .opacity(indicator.isBlinking && dim ? 0.25 : 1)
-        .animation(indicator.isBlinking ? .easeInOut(duration: 0.6).repeatForever(autoreverses: true) : .default,
+        .opacity(indicator.shouldAnimate(reduceMotion: reduceMotion) && dim ? 0.25 : 1)
+        .animation(indicator.shouldAnimate(reduceMotion: reduceMotion)
+                   ? .easeInOut(duration: 0.6).repeatForever(autoreverses: true) : nil,
                    value: dim)
         // 由 indicator 变化驱动闪烁，而非仅靠 onAppear：视图未重建但 indicator 从非闪烁跃迁到
         // .attention/.error（T11 接真实数据后同一 tab 内状态跃迁）时也能正确启停。
-        .onChange(of: indicator.isBlinking) { _, blinking in dim = blinking }
-        .onAppear { dim = indicator.isBlinking }
+        .onChange(of: indicator.isBlinking) { _, blinking in dim = blinking && !reduceMotion }
+        .onChange(of: reduceMotion) { _, reduced in dim = indicator.isBlinking && !reduced }
+        .onAppear { dim = indicator.isBlinking && !reduceMotion }
+        .accessibilityHidden(true)
     }
 
-    private func dot(_ c: Color) -> some View { Circle().fill(c).frame(width: 8, height: 8) }
+    private var color: Color {
+        switch indicator {
+        case .none: .clear
+        case .unread: .blue
+        case .running: .green
+        case .attention: .orange
+        case .error: .red
+        case .disconnected: .gray
+        }
+    }
 }

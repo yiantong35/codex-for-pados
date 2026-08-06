@@ -3,6 +3,12 @@ import Foundation
 @testable import CodexRemote
 
 struct ReviewStartTests {
+    @MainActor @Test func submissionGateRejectsRapidDuplicates() {
+        #expect(ReviewTabView.canSubmitReview(sourceAvailable: true, isSubmitting: false))
+        #expect(!ReviewTabView.canSubmitReview(sourceAvailable: true, isSubmitting: true))
+        #expect(!ReviewTabView.canSubmitReview(sourceAvailable: false, isSubmitting: false))
+    }
+
     @Test func reviewStartMethodConstant() {
         #expect(RPCMethod.reviewStart == "review/start")
     }

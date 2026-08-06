@@ -14,6 +14,9 @@ final class ConversationScrollAnchorTests: XCTestCase {
     }
     func test_nearBottomThreshold() {
         XCTAssertTrue(ScrollAnchorPolicy.isNearBottom(distanceToBottom: 40, threshold: 120))
+        XCTAssertTrue(ScrollAnchorPolicy.isNearBottom(distanceToBottom: 119, threshold: 120))
+        XCTAssertTrue(ScrollAnchorPolicy.isNearBottom(distanceToBottom: 120, threshold: 120))  // 边界含
+        XCTAssertFalse(ScrollAnchorPolicy.isNearBottom(distanceToBottom: 121, threshold: 120))
         XCTAssertFalse(ScrollAnchorPolicy.isNearBottom(distanceToBottom: 400, threshold: 120))
     }
 }

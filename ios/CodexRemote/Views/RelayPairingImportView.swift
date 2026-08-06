@@ -11,11 +11,15 @@ enum PairingImportError: LocalizedError, Equatable {
     case insecureScheme
 
     var errorDescription: String? {
+        description(locale: LocaleManager.currentLocale)
+    }
+
+    func description(locale: Locale) -> String {
         switch self {
-        case .empty:          return String(localized: "relayImport.error.empty")
-        case .badFormat:      return String(localized: "relayImport.error.badFormat")
-        case .expired:        return String(localized: "relayImport.error.expired")
-        case .insecureScheme: return String(localized: "relayImport.error.insecureScheme")
+        case .empty:          return L10n.string("relayImport.error.empty", locale: locale)
+        case .badFormat:      return L10n.string("relayImport.error.badFormat", locale: locale)
+        case .expired:        return L10n.string("relayImport.error.expired", locale: locale)
+        case .insecureScheme: return L10n.string("relayImport.error.insecureScheme", locale: locale)
         }
     }
 }
@@ -70,6 +74,7 @@ final class RelayPairingImportViewModel {
 struct RelayPairingImportView: View {
     @Environment(SessionsManager.self) private var sessions
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
 
     @State private var vm = RelayPairingImportViewModel()
     @State private var errorText: String?
@@ -219,7 +224,7 @@ struct RelayPairingImportView: View {
         errorText = nil
         // 相机不可用（模拟器 / 无摄像头设备）→ 提示 + 保留手动粘贴，不 present 扫码。
         guard AVCaptureDevice.default(for: .video) != nil else {
-            errorText = String(localized: "relayImport.error.cameraUnavailable")
+            errorText = L10n.string("relayImport.error.cameraUnavailable", locale: locale)
             return
         }
         switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -231,13 +236,13 @@ struct RelayPairingImportView: View {
                     if granted {
                         showScanner = true
                     } else {
-                        errorText = String(localized: "relayImport.error.cameraDenied")
+                        errorText = L10n.string("relayImport.error.cameraDenied", locale: locale)
                     }
                 }
             }
         default:
             // denied / restricted → 明确提示前往设置或手动粘贴，手动入口始终可用。
-            errorText = String(localized: "relayImport.error.cameraDenied")
+            errorText = L10n.string("relayImport.error.cameraDenied", locale: locale)
         }
     }
 
@@ -250,8 +255,8 @@ struct RelayPairingImportView: View {
                 dismiss()
             }
         } catch {
-            errorText = (error as? LocalizedError)?.errorDescription
-                ?? String(localized: "relayImport.error.badFormat")
+            errorText = (error as? PairingImportError)?.description(locale: locale)
+                ?? L10n.string("relayImport.error.badFormat", locale: locale)
         }
     }
 }

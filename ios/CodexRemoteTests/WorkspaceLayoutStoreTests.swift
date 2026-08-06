@@ -3,6 +3,17 @@ import XCTest
 
 @MainActor
 final class WorkspaceLayoutStoreTests: XCTestCase {
+    func test_toggleRight_focusesHiddenRequestedPanelBeforeClosingIt() {
+        let s = WorkspaceLayoutStore(showRight: true)
+        s.lastRequested = .left
+
+        s.toggleRightPanel()
+        XCTAssertTrue(s.showRight)
+        XCTAssertEqual(s.lastRequested, .right)
+
+        s.toggleRightPanel()
+        XCTAssertFalse(s.showRight)
+    }
     func test_defaultValues() {
         let s = WorkspaceLayoutStore()
         XCTAssertTrue(s.leftVisible)
