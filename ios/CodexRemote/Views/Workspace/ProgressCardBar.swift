@@ -65,6 +65,7 @@ struct ProgressCardBar: View {
         .padding(.horizontal, 12)
         .contentShape(Capsule())
         .onTapGesture { if !progress.isEmpty { withAnimation { expanded.toggle() } } }
+        .accessibilityAddTraits(.isButton)
     }
 
     private var expandedOverlay: some View {

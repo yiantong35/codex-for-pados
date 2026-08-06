@@ -50,4 +50,8 @@ final class TouchAccessibilityTests: XCTestCase {
             XCTAssertNotEqual(value, key, "缺少无障碍标签本地化键 \(key)")
         }
     }
+
+    // SwiftUI's off-screen XCTest host does not expose a traversable
+    // accessibility tree. ProgressCardBar therefore applies the button trait
+    // directly to the same view that owns its tap gesture.
 }
