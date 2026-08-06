@@ -48,7 +48,7 @@ final class SessionsManager {
         guard let s = session(for: id) else { return }
         s.setForeground(true)                    // 新前台
         // 懒连（D7）：切到尚未连接/已断开/失败的 tab 时发起连接；连接中/已就绪不重复触发。
-        if s.shouldAutoConnect { s.connect() }
+        s.autoConnect()
     }
 
     /// 手动（重）连某机器（TabBarView contextMenu「连接」项用）。
@@ -60,12 +60,12 @@ final class SessionsManager {
     /// 是否可（重）连某机器：未在连接中且未就绪才显示「连接」入口。
     /// 未建 Session（懒连从未切过去）→ true（表示可连），避免为判断而提前建实例。
     func canConnect(id: UUID) -> Bool {
-        cache[id]?.shouldAutoConnect ?? true
+        cache[id]?.canConnect ?? true
     }
 
     /// 添加机器后自动切过去并连接（D13）。
-    /// setActive 内 `if s.shouldAutoConnect { s.connect() }` 已负责懒连（新增机器 Session 初始
-    /// .disconnected → shouldAutoConnect 真 → 已 connect），故此处不再重复 connect（能耗 D4）。
+    /// setActive 内 `autoConnect()` 已负责懒连（新增机器 Session 初始 .disconnected，且未被用户
+    /// 暂停），故此处不再重复 connect（能耗 D4）。
     @discardableResult
     func addMachineAndConnect(_ m: MachineConfig) -> Bool {
         guard machineStore.add(m) else { return false }
@@ -101,7 +101,7 @@ final class SessionsManager {
         guard let m = machineStore.lastActiveMachine else { return }
         machineStore.setActive(m.id)
         let s = session(for: m.id)
-        s?.connect()
+        s?.autoConnect()
         s?.setForeground(true)
     }
 
@@ -110,11 +110,11 @@ final class SessionsManager {
     /// 的轮询开关）正交，不改任何 tab 的 isForeground / 轮询。
     /// #7：回前台时，若**当前活跃** Session 的首连曾在后台被取消而落 .disconnected/.failed
     /// （setForeground(false) 主动暂停在途首连的终态），此处按需重连——与 setActive 的懒连同构
-    /// （`shouldAutoConnect` 真才连：连接中/已就绪不重复触发，主动 disconnect 的终态不在此路径），
+    /// （`autoConnect()` 尊重连接状态及用户暂停：连接中/已就绪不重复触发，主动 disconnect 不重连），
     /// 仅限活跃 tab 一条连接（能耗 D4，不批量唤醒后台 tab）。使 spec「回前台重试成功」真正自动生效。
     func setAppForegroundAll(_ active: Bool) {
         for s in cache.values { s.setAppForeground(active) }
-        if active, let s = activeSession, s.shouldAutoConnect { s.connect() }
+        if active { activeSession?.autoConnect() }
     }
 
     // MARK: - T7 UI 依赖桩（数据源/表单接线在 T11/T8 补）

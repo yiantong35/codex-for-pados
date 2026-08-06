@@ -43,9 +43,17 @@ final class Session: Identifiable {
     /// 前后台标记（D6=B）。默认后台；活跃 tab 由 SessionsManager 置前台。
     private(set) var isForeground = false
 
-    /// 是否应发起（重）连：未在连接中且未就绪。用于切 tab 懒连（D7）与 tab 菜单重连入口。
+    /// 用户显式断开后保持暂停，避免 tab/app 生命周期把连接自动拉起。
+    private(set) var userPaused = false
+
+    /// 是否应自动发起（重）连：用户未暂停，且当前未在连接中或就绪。
     /// `.failed`/`.disconnected` → 可（重）连；`.connecting`/`.initializing`/`.reconnecting`/`.ready` → 不重复触发。
     var shouldAutoConnect: Bool {
+        !userPaused && canConnect
+    }
+
+    /// 当前连接状态是否允许显式（重）连。用户暂停不隐藏 tab 菜单的连接入口。
+    var canConnect: Bool {
         switch connection.phase {
         case .ready, .connecting, .initializing, .reconnecting: return false
         case .disconnected, .failed: return true
@@ -53,8 +61,20 @@ final class Session: Identifiable {
     }
 
     func updateMachine(_ m: MachineConfig) { machine = m }
-    func connect() { connection.connect(config: machine.connectionConfig) }
-    func disconnect() async { await connection.disconnect() }
+    func connect() {
+        userPaused = false
+        connection.connect(config: machine.connectionConfig)
+    }
+
+    func autoConnect() {
+        guard shouldAutoConnect else { return }
+        connection.connect(config: machine.connectionConfig)
+    }
+
+    func disconnect() async {
+        userPaused = true
+        await connection.disconnect()
+    }
 
     /// 前后台切换（D6=B「后台保连+降频」）。
     /// 前台：开列表轮询 + 补拉最终态；后台：停轮询降频。
