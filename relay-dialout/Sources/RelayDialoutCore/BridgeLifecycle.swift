@@ -27,7 +27,8 @@ public final class BridgeLifecycle {
         started = true
     }
 
-    /// 精确回收自己启过的子进程（幂等）：从未启桥或已回收则无副作用。
+    /// 非阻塞地发起精确回收（幂等）：从未启桥或已回收则无副作用。
+    /// 子进程完成等待由顶层在 NIO EventLoop 外通过 `ProxyBridge.waitForTermination()` 执行。
     public func shutdown() {
         guard started else { return }
         started = false

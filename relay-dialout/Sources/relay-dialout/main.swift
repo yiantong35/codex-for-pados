@@ -341,8 +341,11 @@ do {
     try channel.closeFuture.wait()
 } catch {
     print("relay-dialout 拨出失败: \(error)")
-    bridge.terminate()   // 精确停自己 spawn 的 proxy 子进程
+    bridge.terminate()   // 非阻塞发起精确回收
     try? group.syncShutdownGracefully()
+    bridge.waitForTermination()   // 已离开 EventLoop 后等待并 reap
     exit(1)
 }
 try? group.syncShutdownGracefully()
+bridge.terminate()
+bridge.waitForTermination()       // 顶层收口，绝不在 NIO EventLoop 内等待

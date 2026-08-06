@@ -1,6 +1,14 @@
 import Foundation
 import Observation
 
+private struct LossyMachineConfig: Decodable {
+    let value: MachineConfig?
+
+    init(from decoder: Decoder) throws {
+        value = try? MachineConfig(from: decoder)
+    }
+}
+
 /// 机器列表持久化（relay-only）+ 上限 10。
 /// 凭据不在此管（relay pairing 串仅驻内存、编码时剥离，见 load()/persist()）。
 @Observable
@@ -60,22 +68,35 @@ final class MachineStore {
 
     private func load() {
         if let data = defaults.data(forKey: Self.machinesKey),
-           let list = try? JSONDecoder().decode([MachineConfig].self, from: data) {
-            machines = list
-            // 首次读取即自愈：若磁盘字节与规范化编码不一致（旧/非规范格式，如 relay 的
-            // pairing 串仍含明文 pc），立即回写剥离后的规范 JSON，使磁盘不再滞留 pairingCode。
-            // encode 只写非密三字段；重写后字节一致，后续启动不再触发（幂等）。
-            if let normalized = try? JSONEncoder().encode(machines), normalized != data {
+           let decoded = try? JSONDecoder().decode([LossyMachineConfig].self, from: data) {
+            let valid = decoded.compactMap(\.value)
+            machines = valid
+
+            // 非空输入若全都无效，保留原始数据，避免一次兼容性问题造成不可恢复的数据清空。
+            if decoded.isEmpty || !valid.isEmpty,
+               let normalized = try? JSONEncoder().encode(valid), normalized != data {
                 defaults.set(normalized, forKey: Self.machinesKey)
             }
         }
         if let s = defaults.string(forKey: Self.activeKey) { activeMachineId = UUID(uuidString: s) }
+        if let activeMachineId, !machines.contains(where: { $0.id == activeMachineId }) {
+            self.activeMachineId = machines.first?.id
+            persistActiveMachineID()
+        }
+    }
+
+    private func persistActiveMachineID() {
+        if let activeMachineId {
+            defaults.set(activeMachineId.uuidString, forKey: Self.activeKey)
+        } else {
+            defaults.removeObject(forKey: Self.activeKey)
+        }
     }
 
     private func persist() {
         if let data = try? JSONEncoder().encode(machines) {
             defaults.set(data, forKey: Self.machinesKey)
         }
-        defaults.set(activeMachineId?.uuidString, forKey: Self.activeKey)
+        persistActiveMachineID()
     }
 }

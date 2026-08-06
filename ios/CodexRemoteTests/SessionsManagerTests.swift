@@ -139,6 +139,37 @@ final class SessionsManagerTests: XCTestCase {
                        "#7：连接中的会话回前台不应被重复 connect 或改变 phase")
     }
 
+    func test_manualDisconnectSurvivesTabAndAppLifecycleUntilExplicitConnect() async {
+        let factory = IntentFactoryCounter()
+        let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
+        let manager = SessionsManager(machineStore: store,
+                                      transportFactory: { config in await factory.make(config) })
+        let a = relayMC("a"); store.add(a)
+        let b = relayMC("b"); store.add(b)
+
+        manager.setActive(a.id)
+        _ = await waitUntil { await factory.count(for: "s-a") == 1 }
+        let sessionA = manager.session(for: a.id)!
+        manager.disconnect(id: a.id)
+        _ = await waitUntil { sessionA.connection.phase == .disconnected }
+        XCTAssertTrue(sessionA.userPaused, "手动断开应记录用户暂停意图")
+
+        manager.setActive(b.id)
+        manager.setActive(a.id)
+        manager.setAppForegroundAll(false)
+        manager.setAppForegroundAll(true)
+        try? await Task.sleep(for: .milliseconds(80))
+        let afterLifecycle = await factory.count(for: "s-a")
+        XCTAssertEqual(afterLifecycle, 1, "切 tab/回前台不得绕过用户暂停自动重连")
+        XCTAssertTrue(manager.canConnect(id: a.id), "暂停态仍应显示显式连接入口")
+
+        manager.connectMachine(id: a.id)
+        _ = await waitUntil { await factory.count(for: "s-a") == 2 }
+        let afterExplicitConnect = await factory.count(for: "s-a")
+        XCTAssertEqual(afterExplicitConnect, 2, "显式连接应解除暂停并只新建一次连接")
+        XCTAssertFalse(sessionA.userPaused)
+    }
+
 
     /// （间接保证 workspace(for:) 注入路径依赖的 store 都存在，防未来漏注入）。
     /// 12 个均为非可选 let，故以 ObjectIdentifier 收集去重断言全部存在且互为独立实例。
@@ -218,11 +249,15 @@ final class SessionsManagerTests: XCTestCase {
 
         m.setActive(a.id)
         XCTAssertTrue(sa.isForeground, "新活跃 a 应转前台")
+        XCTAssertTrue(sa.connection.tabActive, "活跃 tab 应使用活动心跳节奏")
         XCTAssertFalse(sb.isForeground, "b 从未活跃，仍在后台")
+        XCTAssertFalse(sb.connection.tabActive, "非活动 tab 应使用低频心跳节奏")
 
         m.setActive(b.id)
         XCTAssertFalse(sa.isForeground, "旧前台 a 切走后应转后台")
+        XCTAssertFalse(sa.connection.tabActive, "切走后应降为低频心跳")
         XCTAssertTrue(sb.isForeground, "新活跃 b 应转前台")
+        XCTAssertTrue(sb.connection.tabActive, "切入后应恢复活动心跳节奏")
     }
 
     // MARK: - final C1 懒连/重连入口
@@ -430,6 +465,15 @@ final class SessionsManagerTests: XCTestCase {
         func bump() { count += 1 }
     }
 
+    private actor IntentFactoryCounter {
+        private var counts: [String: Int] = [:]
+        func make(_ config: ConnectionConfig) -> MockTransport {
+            counts[config.relaySessionId, default: 0] += 1
+            return MockTransport()
+        }
+        func count(for sessionId: String) -> Int { counts[sessionId, default: 0] }
+    }
+
     func test_addMachineAndConnect_invokesFactoryExactlyOnce() async {
         let counter = FactoryCounter()
         let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
@@ -464,12 +508,12 @@ final class SessionsManagerTests: XCTestCase {
 
     /// 轮询等待条件成立（默认最多 ~2s），用于等 removeMachine 内的断连 Task 跑完。
     private func waitUntil(timeout: TimeInterval = 2.0,
-                           _ condition: @MainActor () -> Bool) async -> Bool {
+                           _ condition: @MainActor () async -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if condition() { return true }
+            if await condition() { return true }
             try? await Task.sleep(nanoseconds: 5_000_000)   // 5ms
         }
-        return condition()
+        return await condition()
     }
 }

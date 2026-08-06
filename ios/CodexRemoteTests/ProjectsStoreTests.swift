@@ -76,6 +76,24 @@ final class ProjectsStoreTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(listCalls, 2, "应跟随 nextCursor 翻页而非只读首页")
     }
 
+    func test_refreshRecentPage_mergesWithoutDeletingDeepHistory() async throws {
+        let s = ProjectsStore()
+        s.ingest([thread("deep", cwd: "/repo/deep", updatedAt: 1)])
+        let mock = MockTransport()
+        await mock.setThreadListResponse(#"{"data":[{"id":"recent","sessionId":"recent","preview":"","modelProvider":"openai","createdAt":0,"updatedAt":20,"cwd":"/repo/recent","cliVersion":"0.133.0","name":null,"gitInfo":null}],"nextCursor":"p2","backwardsCursor":null}"#)
+        await mock.setAutoRespond(true)
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+
+        let succeeded = await s.refreshRecentPage(rpc: rpc)
+
+        XCTAssertTrue(succeeded)
+        XCTAssertEqual(Set(s.allThreadsSorted.map(\.id)), Set(["recent", "deep"]),
+                       "最近页刷新不得删除首页之外的深历史")
+        let calls = await mock.sent.filter { $0.contains("thread/list") }.count
+        XCTAssertEqual(calls, 1, "最近页刷新只能请求首页")
+    }
+
     func test_isGrouped_false_when_single_project() {
         let s = ProjectsStore()
         s.ingest([ thread("a", cwd: "/repo/x", updatedAt: 1, origin: "o/x", git: true),
