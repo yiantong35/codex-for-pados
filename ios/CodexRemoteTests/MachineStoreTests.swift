@@ -50,4 +50,72 @@ final class MachineStoreTests: XCTestCase {
         store.remove(id: m.id)
         XCTAssertTrue(store.machines.isEmpty)
     }
+
+    func test_loadKeepsValidRelayRecordsWhenLegacyArrayContainsSSHAndMalformedEntries() throws {
+        let defaults = freshDefaults()
+        let nestedRelayID = UUID()
+        let legacySSHID = UUID()
+        let currentRelayID = UUID()
+        let records: [[String: Any]] = [
+            [
+                "id": nestedRelayID.uuidString,
+                "displayName": "nested",
+                "connection": [
+                    "kind": "relay",
+                    "relayURL": "wss://nested.example/ws",
+                    "sessionId": "nested-session",
+                    "devIdentityPubB64": "NESTED-PK",
+                ],
+            ],
+            [
+                "id": legacySSHID.uuidString,
+                "displayName": "removed-ssh",
+                "connection": [
+                    "kind": "ssh",
+                    "host": "old.example",
+                    "user": "old-user",
+                    "sshPort": 22,
+                    "sockPath": "/tmp/old.sock",
+                ],
+            ],
+            [
+                "id": UUID().uuidString,
+                "displayName": "broken-relay",
+                "connection": ["kind": "relay"],
+            ],
+            [
+                "id": currentRelayID.uuidString,
+                "displayName": "current",
+                "relayURL": "wss://current.example/ws",
+                "sessionId": "current-session",
+                "devIdentityPubB64": "CURRENT-PK",
+            ],
+        ]
+        defaults.set(try JSONSerialization.data(withJSONObject: records), forKey: "machines")
+        defaults.set(legacySSHID.uuidString, forKey: "activeMachineId")
+
+        let store = MachineStore(defaults: defaults)
+
+        XCTAssertEqual(store.machines.map(\.id), [nestedRelayID, currentRelayID])
+        XCTAssertEqual(store.activeMachineId, nestedRelayID)
+
+        let normalizedData = try XCTUnwrap(defaults.data(forKey: "machines"))
+        let normalized = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: normalizedData) as? [[String: Any]]
+        )
+        XCTAssertEqual(normalized.count, 2)
+        XCTAssertTrue(normalized.allSatisfy { $0["relayURL"] != nil })
+        XCTAssertTrue(normalized.allSatisfy { $0["connection"] == nil })
+    }
+
+    func test_loadDoesNotOverwriteNonemptyDataWhenEveryRecordIsInvalid() throws {
+        let defaults = freshDefaults()
+        let original = try JSONSerialization.data(withJSONObject: [["bad": true]])
+        defaults.set(original, forKey: "machines")
+
+        let store = MachineStore(defaults: defaults)
+
+        XCTAssertTrue(store.machines.isEmpty)
+        XCTAssertEqual(defaults.data(forKey: "machines"), original)
+    }
 }
