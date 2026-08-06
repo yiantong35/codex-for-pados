@@ -221,7 +221,7 @@ actor RelayTransport: MessageTransport {
     private func runReadLoop() async {
         do {
             while true {
-                guard let ws else { finishIncoming(nil); return }
+                guard let ws else { await finishIncoming(nil); return }
                 guard let frame = try await ws.receiveText() else {
                     await handleDisconnect(nil)   // ws 关闭（可能瞬断，可能主动）
                     return
@@ -261,7 +261,7 @@ actor RelayTransport: MessageTransport {
     /// 否则**瞬断** → 不 finish incoming，转重连循环（incoming 静态挂起存活）。
     private func handleDisconnect(_ error: Error?) async {
         if activeClose || channelFactory == nil {
-            finishIncoming(error)
+            await finishIncoming(error)
             return
         }
         await reconnectLoop()
@@ -275,9 +275,10 @@ actor RelayTransport: MessageTransport {
         controlContinuation?.yield(ev)
     }
 
-    private func finishIncoming(_ error: Error?) {
+    private func finishIncoming(_ error: Error?) async {
         if case .pending = handshakeState {
-            markHandshakeFailed(TransportError.channelClosed(reason: error.map { "\($0)" } ?? "通道在握手完成前关闭"))
+            let fallback = await localizedMessage("transport.channelClosedBeforeHandshake")
+            markHandshakeFailed(TransportError.channelClosed(reason: error.map { "\($0)" } ?? fallback))
         }
         if let error {
             incomingContinuation?.finish(throwing: TransportError.channelClosed(reason: "\(error)"))
@@ -301,7 +302,7 @@ actor RelayTransport: MessageTransport {
     /// - 试满 `maxAttempts` 仍失败 → 发 `.connectionFailed` + 终结 incoming（4.3 终态，绝不无限重连）。
     /// - 主动 close / 任务取消 → 静默退出（不发终态、不再造通道）。
     private func reconnectLoop() async {
-        guard let factory = channelFactory else { finishIncoming(nil); return }
+        guard let factory = channelFactory else { await finishIncoming(nil); return }
         var attempt = 0
         while attempt < reconnect.maxAttempts {
             if activeClose || Task.isCancelled { return }
@@ -334,7 +335,8 @@ actor RelayTransport: MessageTransport {
                 return
             } catch is RejectHelloError {
                 emitControl(.trustRevoked)
-                finishIncomingTerminal(TransportError.channelClosed(reason: "信任已被撤销（RejectHello）"))
+                finishIncomingTerminal(TransportError.channelClosed(
+                    reason: await localizedMessage("transport.trustRevokedReason")))
                 return
             } catch {
                 rtLog.error("重连尝试 \(attempt) 失败: \(String(describing: error), privacy: .public)")
@@ -342,7 +344,8 @@ actor RelayTransport: MessageTransport {
             }
         }
         emitControl(.connectionFailed)
-        finishIncomingTerminal(TransportError.channelClosed(reason: "重连重试达上限仍失败"))
+        finishIncomingTerminal(TransportError.channelClosed(
+            reason: await localizedMessage("transport.reconnectExhausted")))
     }
 
     // MARK: 前台/后台能耗管理
@@ -416,8 +419,9 @@ actor RelayTransport: MessageTransport {
             // 亦兜住「仅 Task 取消而未经 close」的边角，避免 awaitHandshake/incoming 永挂。
             if activeClose || Task.isCancelled {
                 await ch.close()
-                markHandshakeFailed(TransportError.channelClosed(reason: "连接主动关闭"))
-                incomingContinuation?.finish(throwing: TransportError.channelClosed(reason: "连接主动关闭"))
+                let message = await localizedMessage("transport.connectionClosed")
+                markHandshakeFailed(TransportError.channelClosed(reason: message))
+                incomingContinuation?.finish(throwing: TransportError.channelClosed(reason: message))
                 incomingContinuation = nil
                 return
             }
@@ -465,10 +469,19 @@ actor RelayTransport: MessageTransport {
             group.addTask { try await ch.receiveText() }
             group.addTask {
                 await timeoutSleep(seconds)
-                throw TransportError.handshakeFailed("握手接收超时（等 \(what)，\(seconds)s 未到）")
+                let message = await MainActor.run {
+                    String(format: L10n.string("transport.handshakeTimeout %1$@ %2$@",
+                                              locale: LocaleManager.currentLocale),
+                           what, seconds.formatted())
+                }
+                throw TransportError.handshakeFailed(message)
             }
             guard let first = try await group.next() else {
-                throw TransportError.handshakeFailed("握手接收超时竞速无结果（等 \(what)）")
+                let message = await MainActor.run {
+                    String(format: L10n.string("transport.handshakeRaceFailed %@",
+                                              locale: LocaleManager.currentLocale), what)
+                }
+                throw TransportError.handshakeFailed(message)
             }
             return first
         }
@@ -478,7 +491,10 @@ actor RelayTransport: MessageTransport {
         guard let inputs = handshakeInputs else { throw TransportError.notConnected }
         let p = inputs.pairing
         guard let devIdentityPub = Data(base64Encoded: p.devIdentityPubB64) else {
-            throw TransportError.proxyFailed("配对载荷开发机公钥非法")
+            let message = await MainActor.run {
+                L10n.string("transport.invalidDeveloperKey", locale: LocaleManager.currentLocale)
+            }
+            throw TransportError.proxyFailed(message)
         }
         let ephemeral = inputs.ephemeralProvider()   // 每次握手新 ephemeral（前向保密），身份复用
         let clientNonce = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
@@ -494,7 +510,8 @@ actor RelayTransport: MessageTransport {
         try await ch.sendText(String(decoding: try JSONEncoder().encode(clientHello), as: UTF8.self))
 
         guard let shText = try await receiveTextWithTimeout(ch, waiting: "ServerHello") else {
-            throw TransportError.channelClosed(reason: "握手中连接关闭（等 ServerHello）")
+            throw TransportError.channelClosed(
+                reason: await localizedMessage("transport.handshakeClosed %@", "ServerHello"))
         }
         // 先判 RejectHello（独有 `kind` tag；ServerHello 无 kind 故互不误解）：命中 → 抛错，
         // 首连冒泡为握手失败，重连触发 .trustRevoked 终态不再重连。首连与重连都判。
@@ -521,12 +538,14 @@ actor RelayTransport: MessageTransport {
         // 发 ClientAuth 后、回填 session 前，多收一条 SecureReady（msg 4，加密帧）并消费：
         // dev 首配与复连都发。必须在启 read loop 之前消费，否则 read loop 会把这条加密帧当业务帧 yield。
         guard let readyText = try await receiveTextWithTimeout(ch, waiting: "SecureReady") else {
-            throw TransportError.channelClosed(reason: "握手中连接关闭（等 SecureReady）")
+            throw TransportError.channelClosed(
+                reason: await localizedMessage("transport.handshakeClosed %@", "SecureReady"))
         }
         let readyEnv = try SecureEnvelope(decoding: Data(readyText.utf8))
         guard readyEnv.kind == .secureReady else {
             // 握手期只接受 SecureReady 帧；非预期 kind fail-closed 拒绝，不误当业务/其它帧处理。
-            throw TransportError.channelClosed(reason: "握手期期望 SecureReady 帧，实际 kind=\(readyEnv.kind)")
+            throw TransportError.channelClosed(
+                reason: await localizedMessage("transport.unexpectedSecureReady %@", "\(readyEnv.kind)"))
         }
         let readyPlain = try secure.open(readyEnv)
         let secureReady = try JSONDecoder().decode(SecureReady.self, from: readyPlain)
@@ -595,11 +614,19 @@ actor RelayTransport: MessageTransport {
         foregroundWaiter = nil
         await ws?.close()
         if case .pending = handshakeState {
-            markHandshakeFailed(TransportError.channelClosed(reason: "连接主动关闭"))
+            markHandshakeFailed(TransportError.channelClosed(
+                reason: await localizedMessage("transport.connectionClosed")))
         }
         incomingContinuation?.finish()
         incomingContinuation = nil
         controlContinuation?.finish()
         controlContinuation = nil
+    }
+
+    private func localizedMessage(_ key: String, _ argument: String? = nil) async -> String {
+        await MainActor.run {
+            let format = L10n.string(key, locale: LocaleManager.currentLocale)
+            return argument.map { String(format: format, $0) } ?? format
+        }
     }
 }

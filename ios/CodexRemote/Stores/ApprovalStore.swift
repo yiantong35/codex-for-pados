@@ -105,7 +105,7 @@ final class ApprovalStore {
         case .command(let params):
             return ApprovalCard(
                 id: request.id, method: request.method, threadId: params.threadId,
-                title: params.command ?? String(localized: "approval.fallback.command"), detail: params.cwd ?? "",
+                title: params.command ?? L10n.string("approval.fallback.command", locale: LocaleManager.currentLocale), detail: params.cwd ?? "",
                 proposedPrefix: params.proposedExecpolicyAmendment, isFileChange: false, isPermissions: false,
                 reason: params.reason, requestedNetworkEnabled: nil, requestedFileSystem: nil,
                 turnId: params.turnId, itemId: params.itemId, startedAtMs: params.startedAtMs,
@@ -115,7 +115,7 @@ final class ApprovalStore {
         case .file(let params):
             return ApprovalCard(
                 id: request.id, method: request.method, threadId: params.threadId,
-                title: String(localized: "approval.fallback.file"), detail: "", proposedPrefix: nil,
+                title: L10n.string("approval.fallback.file", locale: LocaleManager.currentLocale), detail: "", proposedPrefix: nil,
                 isFileChange: true, isPermissions: false, reason: params.reason,
                 requestedNetworkEnabled: nil, requestedFileSystem: nil,
                 turnId: params.turnId, itemId: params.itemId, startedAtMs: params.startedAtMs,
@@ -126,7 +126,7 @@ final class ApprovalStore {
             let entryPaths = fileSystem?.entries?.map { $0.path.displayValue } ?? []
             return ApprovalCard(
                 id: request.id, method: request.method, threadId: params.threadId,
-                title: String(localized: "approval.permissionTitle"), detail: params.cwd,
+                title: L10n.string("approval.permissionTitle", locale: LocaleManager.currentLocale), detail: params.cwd,
                 proposedPrefix: nil, isFileChange: false, isPermissions: true, reason: params.reason,
                 requestedNetworkEnabled: params.permissions.network?.enabled,
                 requestedFileSystem: (entryPaths + legacyPaths).isEmpty ? nil : entryPaths + legacyPaths,

@@ -112,6 +112,10 @@ enum WorkspaceMetrics {
         )
     }
 
+    static func draggedBottomHeight(start: CGFloat, translation: CGFloat) -> CGFloat {
+        clamp(start - translation, min: bottomPanelMinHeight, max: 900)
+    }
+
     /// 单栏最大宽 = 容器总宽的 2/3（随总宽动态，SHALL NOT 固定像素）。
     static func maxColumnWidth(total: CGFloat) -> CGFloat {
         total * 2.0 / 3.0

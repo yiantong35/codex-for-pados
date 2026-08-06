@@ -10,17 +10,21 @@ struct ReviewPanelView: View {
     private var selected: DiffFile? { files.first { $0.path == selectedPath } ?? files.first }
 
     var body: some View {
-        if source.isEmpty {
-            PanelEmptyState()
-        } else {
-            GeometryReader { geo in
-                if geo.size.width >= Self.threshold {
-                    HStack(spacing: 0) { diffArea; Divider(); fileTree.frame(width: 200) }
-                } else {
-                    VStack(spacing: 0) { fileTree.frame(maxHeight: 180); Divider(); diffArea }
+        Group {
+            if source.isEmpty {
+                PanelEmptyState()
+            } else {
+                GeometryReader { geo in
+                    if geo.size.width >= Self.threshold {
+                        HStack(spacing: 0) { diffArea; Divider(); fileTree.frame(width: 200) }
+                    } else {
+                        VStack(spacing: 0) { fileTree.frame(maxHeight: 180); Divider(); diffArea }
+                    }
                 }
             }
         }
+        .onAppear { reconcileSelection() }
+        .onChange(of: files.map(\.path)) { _, _ in reconcileSelection() }
     }
 
     private var fileTree: some View {
@@ -33,6 +37,14 @@ struct ReviewPanelView: View {
     private var diffArea: some View {
         ScrollView {                                   // 外层纵向（不变）
             if let f = selected {
+                if f.kind == .binary {
+                    ContentUnavailableView {
+                        Label("review.binaryChange", systemImage: "doc.zipper")
+                    } description: {
+                        Text(f.path).font(.caption.monospaced())
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 180)
+                } else {
                 ScrollView(.horizontal, showsIndicators: true) {   // #8b：横滚只包正文区
                     VStack(alignment: .leading, spacing: 0) {
                         // Parser 已携带真实 old/new 行号；双 gutter 便于准确引用 diff。
@@ -43,8 +55,18 @@ struct ReviewPanelView: View {
                     }
                     .fixedSize(horizontal: true, vertical: false)  // #8b：不折行，随内容变宽
                 }
+                }
             }
         }
+    }
+
+    private func reconcileSelection() {
+        selectedPath = Self.resolvedSelection(current: selectedPath, paths: files.map(\.path))
+    }
+
+    static func resolvedSelection(current: String?, paths: [String]) -> String? {
+        guard !paths.isEmpty else { return nil }
+        return current.flatMap { paths.contains($0) ? $0 : nil } ?? paths[0]
     }
 
     private func diffLineRow(_ line: DiffLine) -> some View {

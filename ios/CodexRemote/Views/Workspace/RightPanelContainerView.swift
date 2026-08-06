@@ -35,6 +35,7 @@ struct RightPanelContainerView: View {
     @Environment(FileBrowserStore.self) private var fileBrowser
     @Environment(SideChatStore.self) private var sideChat
     @Environment(\.locale) private var locale
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     // 快捷键经布局 store 发一次性右栏意图；本容器消费即复位（设计 D6）。
     @Environment(WorkspaceLayoutStore.self) private var layout
     // 全屏切换快捷键：进入路径由 base 层 ShortcutLayer 承载，但覆盖层为 .fullScreenCover 模态，
@@ -149,7 +150,13 @@ struct RightPanelContainerView: View {
                 Button {
                     selectedTab = tab
                 } label: {
-                    Text(tab.label(locale: locale))
+                    Group {
+                        if dynamicTypeSize.isAccessibilitySize {
+                            Image(systemName: tab.icon)
+                        } else {
+                            Text(tab.label(locale: locale))
+                        }
+                    }
                         .font(.subheadline)
                         .fontWeight(selectedTab == tab ? .semibold : .regular)
                         .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
@@ -162,6 +169,7 @@ struct RightPanelContainerView: View {
                 .buttonStyle(.plain)
                 .layoutPriority(1)                        // tab 优先于尾部入口占据 tab 区
                 .accessibilityAddTraits(selectedTab == tab ? [.isSelected] : [])
+                .accessibilityLabel(Text(tab.label(locale: locale)))
             }
             // 全屏 / 收起入口（容器级，三 tab 通用，设计 D5）：固定占位、不参与 tab 等分、不挤占 tab 命中区。
             Button {
@@ -180,5 +188,15 @@ struct RightPanelContainerView: View {
             .accessibilityLabel(Text(isFullscreen ? "rightPanel.fullscreen.exit" : "rightPanel.fullscreen.enter"))
         }
         .background(.bar)
+    }
+}
+
+private extension RightPanelTab {
+    var icon: String {
+        switch self {
+        case .review: return "doc.text.magnifyingglass"
+        case .files: return "folder"
+        case .sideChat: return "bubble.left.and.bubble.right"
+        }
     }
 }

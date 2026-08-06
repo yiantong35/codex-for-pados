@@ -5,6 +5,7 @@ import SwiftUI
 /// 对话标题取 `name ?? preview`，副标题为相对时间；待批准的对话显示橙色徽标（复刻 desktop）。
 /// 选中态通过 `selectedThreadId` 绑定回 RootSplitView（自绘三栏，已移除 NavigationSplitView）。
 struct SidebarView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(ProjectsStore.self) private var projects
     @Environment(ConnectionStore.self) private var connection
     @Environment(EnvironmentStore.self) private var env
@@ -138,9 +139,12 @@ struct SidebarView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(displayTitle(thread)).lineLimit(1)
                     .foregroundStyle(selected ? Color.accentColor : Color.primary)
-                Text(Self.relativeTime(thread.updatedAt, locale: locale))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Text(Self.relativeTime(thread.updatedAt, locale: locale))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
             Spacer()
             // 运行态徽标（批次②，daemon ThreadStatus 来源）

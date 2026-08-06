@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 有界文本预览：只扫描并保留渲染所需的前缀，避免极端多行文件创建海量 SwiftUI 视图。
 struct FileTextPreview {
@@ -127,7 +128,8 @@ struct FileBrowserView: View {
     }
 
     private func row(entry: FsReadDirectoryEntry, path: String, depth: Int) -> some View {
-        Button {
+        let selected = store.fileOpenState.path == path
+        return Button {
             Task {
                 if entry.isDirectory { await store.toggleExpand(path) }
                 else { await store.openFile(path) }
@@ -143,12 +145,25 @@ struct FileBrowserView: View {
             .padding(.vertical, 3)
             .frame(minHeight: 44)
             .contentShape(Rectangle())
+            .background(selected ? Color.accentColor.opacity(0.14) : Color.clear)
         }
         .buttonStyle(.plain)
     }
 
     @ViewBuilder private var contentArea: some View {
-        ScrollView {                                   // 外层纵向（不变）
+        VStack(spacing: 0) {
+            if let path = store.fileOpenState.path {
+                HStack(spacing: 6) {
+                    Image(systemName: "doc")
+                    Text(path).font(.caption.monospaced()).lineLimit(1).truncationMode(.middle)
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 10)
+                .frame(minHeight: 44)
+                Divider()
+            }
+            ScrollView {
             if case .loading = store.fileOpenState {
                 // 文件打开中：预览区显示加载指示，避免停留在上一个文件或空白（设计文档 D）。
                 ProgressView()
@@ -160,10 +175,12 @@ struct FileBrowserView: View {
                     switch file.content {
                 case .text(let s):
                     fileTextBody(s)
+                case .image(let data):
+                    imagePreview(data)
                 case .tooLarge:
                     placeholder("fileBrowser.tooLarge")
-                case .binary:
-                    placeholder("fileBrowser.binary")
+                case .binary(let data):
+                    binaryPreview(byteCount: data.count)
                     }
                 case .failed(let path):
                     VStack(spacing: 10) {
@@ -180,6 +197,31 @@ struct FileBrowserView: View {
                 }
             }
         }
+        }
+    }
+
+    private func imagePreview(_ data: Data) -> some View {
+        Group {
+            if let image = UIImage(data: data) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .accessibilityLabel(Text("fileBrowser.imagePreview"))
+            } else {
+                binaryPreview(byteCount: data.count)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 180, alignment: .top)
+    }
+
+    private func binaryPreview(byteCount: Int) -> some View {
+        ContentUnavailableView {
+            Label("fileBrowser.binary", systemImage: "doc.zipper")
+        } description: {
+            Text("fileBrowser.binaryBytes \(byteCount)")
+        }
+        .padding(.vertical, 24)
     }
 
     /// #8：文件正文——1-based 行号 gutter + 长行横滚不折行 + 可选 + 略大字号/行高。
@@ -219,5 +261,15 @@ struct FileBrowserView: View {
         Text(key).font(.callout).foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.vertical, 24)
+    }
+}
+
+private extension FileBrowserStore.FileOpenState {
+    var path: String? {
+        switch self {
+        case .loading(let path), .failed(let path): return path
+        case .loaded(let file): return file.path
+        case .idle: return nil
+        }
     }
 }

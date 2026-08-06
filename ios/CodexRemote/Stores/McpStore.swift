@@ -9,6 +9,7 @@ import Observation
 @MainActor
 final class McpStore {
     private(set) var servers: [McpServerStatus] = []
+    private(set) var loadState: ExtensionLoadState = .idle
 
     /// 折叠头计数徽章用（server 数）。
     var count: Int { servers.count }
@@ -33,17 +34,21 @@ final class McpStore {
 
     /// 拉取 server 列表（rpc 为 nil 时直接返回，不发请求）。
     func refresh() async {
+        guard rpc != nil else { return }
+        loadState = .loading
         guard let r: ListMcpServerStatusResponse =
             await sendDecode(RPCMethod.mcpServerStatusList, as: ListMcpServerStatusResponse.self)
-        else { return }
+        else { loadState = .failed; return }
         servers = r.data   // D5：nextCursor 忽略，不分页
+        loadState = .loaded
     }
 
     /// 触发 desktop 端重载 MCP 配置。无返回体（D4）→ 完成后 refresh 兜底 + 等通知。
     func reload() async {
         guard let rpc else { return }
         let empty = try? JSONDecoder().decode(AnyCodable.self, from: Data("{}".utf8))
-        _ = try? await rpc.send(method: RPCMethod.mcpServerReload, params: empty)
+        do { _ = try await rpc.send(method: RPCMethod.mcpServerReload, params: empty) }
+        catch { loadState = .failed; return }
         await refresh()
     }
 

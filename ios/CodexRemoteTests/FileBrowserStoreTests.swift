@@ -76,6 +76,18 @@ struct FileBrowserStoreTests {
         #expect(await count(mock, method: RPCMethod.fsReadDirectory) == 1)
     }
 
+    @Test func settingSameRootPreservesBrowserState() async {
+        let (mock, _, store) = await makeStore()
+        let responder = respond(mock, to: RPCMethod.fsReadDirectory,
+            resultJSON: #"{"entries":[{"fileName":"src","isDirectory":true,"isFile":false}]}"#)
+        await store.setRoot("/repo")
+        await store.setRoot("/repo")
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        responder.cancel()
+        #expect(await count(mock, method: RPCMethod.fsReadDirectory) == 1)
+        #expect(store.nodes["/repo"]?.entries?.count == 1)
+    }
+
     @Test func expandLoadedDirReusesCache() async {
         let (mock, _, store) = await makeStore()
         let responder = respond(mock, to: RPCMethod.fsReadDirectory,
@@ -116,7 +128,7 @@ struct FileBrowserStoreTests {
         let responder = respond(mock, to: RPCMethod.fsReadFile, resultJSON: #"{"dataBase64":"AA=="}"#)
         await store.openFile("/repo/blob.bin")
         responder.cancel()
-        #expect(store.selectedFile?.content == .binary)
+        #expect(store.selectedFile?.content == .binary(Data([0])))
     }
 
     @Test func readFailureHasRetryableFailedState() async {

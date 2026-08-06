@@ -32,6 +32,7 @@ struct UserInputCardView: View {
                 } label: {
                     Label("userInput.cancel", systemImage: "xmark")
                 }
+                .minimumHitTarget44()
                 Spacer()
                 Button {
                     Task { await userInputs.submit(card: card, drafts: drafts) }
@@ -39,6 +40,7 @@ struct UserInputCardView: View {
                     Label("userInput.submit", systemImage: "paperplane.fill")
                 }
                 .buttonStyle(.borderedProminent)
+                .minimumHitTarget44()
                 .disabled(!card.isSubmittable(drafts: drafts))
             }
             .disabled(card.awaitingRecovery || submissionState == .submitting)
@@ -119,6 +121,7 @@ struct UserInputCardView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .minimumHitTarget44()
                         .accessibilityLabel("\(option.label). \(option.description)")
                     }
                 }

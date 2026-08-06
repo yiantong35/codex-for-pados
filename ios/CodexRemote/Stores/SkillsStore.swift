@@ -1,6 +1,10 @@
 import Foundation
 import Observation
 
+enum ExtensionLoadState: Equatable {
+    case idle, loading, loaded, failed
+}
+
 /// Skills 数据域（设计 D2）：只读展示本地 skills + 启用开关 + skills/changed 刷新。
 /// attach/notifications/`self.rpc !== rpc` 重订阅模式克隆自 McpStore；与 McpStore/PluginsStore 并列，
 /// 各自订阅同一 rpc.notifications() 流（现有架构支持多订阅者）。
@@ -8,6 +12,7 @@ import Observation
 @MainActor
 final class SkillsStore {
     private(set) var skills: [SkillMetadata] = []
+    private(set) var loadState: ExtensionLoadState = .idle
 
     /// 折叠头计数徽章用（skill 数）。
     var count: Int { skills.count }
@@ -34,13 +39,18 @@ final class SkillsStore {
     /// 跨 cwd 打平 + 按 path 去重（避免 SwiftUI List 重复 id 崩溃）。
     func refresh() async {
         guard let rpc else { return }
-        let empty = try? JSONDecoder().decode(AnyCodable.self, from: Data("{}".utf8))
-        guard let res = try? await rpc.send(method: RPCMethod.skillsList, params: empty),
-              let rd = try? JSONEncoder().encode(res),
-              let out = try? JSONDecoder().decode(SkillsListResponse.self, from: rd)
-        else { return }
-        var seen = Set<String>()
-        skills = out.data.flatMap { $0.skills }.filter { seen.insert($0.path).inserted }
+        loadState = .loading
+        do {
+            let empty = try JSONDecoder().decode(AnyCodable.self, from: Data("{}".utf8))
+            let res = try await rpc.send(method: RPCMethod.skillsList, params: empty)
+            let rd = try JSONEncoder().encode(res)
+            let out = try JSONDecoder().decode(SkillsListResponse.self, from: rd)
+            var seen = Set<String>()
+            skills = out.data.flatMap { $0.skills }.filter { seen.insert($0.path).inserted }
+            loadState = .loaded
+        } catch {
+            loadState = .failed
+        }
     }
 
     /// 切换 skill 启用态：skills/config/write 后 refresh 兜底（D4；首版不做乐观回显）。
@@ -49,7 +59,12 @@ final class SkillsStore {
         let params = SkillsConfigWriteParams(enabled: enabled, name: name, path: path)
         guard let data = try? JSONEncoder().encode(params),
               let any = try? JSONDecoder().decode(AnyCodable.self, from: data) else { return }
-        _ = try? await rpc.send(method: RPCMethod.skillsConfigWrite, params: any)
+        do {
+            _ = try await rpc.send(method: RPCMethod.skillsConfigWrite, params: any)
+        } catch {
+            loadState = .failed
+            return
+        }
         await refresh()
     }
 

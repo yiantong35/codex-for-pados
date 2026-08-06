@@ -44,6 +44,7 @@ struct RootSplitView: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(ProjectsStore.self) private var projects
     @Environment(EnvironmentInspectorModel.self) private var envInspector
+    @Environment(FileBrowserStore.self) private var fileBrowser
     // 真实系统深浅值：theme=.system 时本视图跟随系统，此值即真实系统外观，传给设置 sheet
     // 以正确解析 .system（规避 sheet .preferredColorScheme(nil) 无法重置强制值）。
     @Environment(\.colorScheme) private var systemColorScheme
@@ -264,11 +265,24 @@ struct RootSplitView: View {
         if let id = selectedThreadId {
             ConversationView(
                 threadId: id,
-                onOpenReview: { layout.requestRightPanel(.review) }
+                onOpenReview: { layout.requestRightPanel(.review) },
+                onOpenFile: { path in openFileInBrowser(path) }
             )
             .id(id)
         } else {
             ContentUnavailableView("split.selectConversation", systemImage: "bubble.left.and.bubble.right")
+        }
+    }
+
+    private func openFileInBrowser(_ path: String) {
+        layout.requestRightPanel(.files)
+        guard connection.phase == .ready, let rpc = connection.rpc else { return }
+        let cwd = selectedThread?.cwd
+        let resolvedPath = path.hasPrefix("/") ? path : [cwd, path].compactMap { $0 }.joined(separator: "/")
+        fileBrowser.attach(rpc: rpc)
+        Task {
+            await fileBrowser.setRoot(cwd)
+            await fileBrowser.openFile(resolvedPath)
         }
     }
 }

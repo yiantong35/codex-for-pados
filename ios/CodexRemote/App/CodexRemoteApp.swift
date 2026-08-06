@@ -130,7 +130,7 @@ private struct WorkspaceHost: View {
         // TabBarView 已上提到 RootView（`.id(s.id)` 外层，常驻不重建）；本视图只承接
         // RootSplitView + 重连横幅 + coordinator 接线。切 tab 由外层 `.id(s.id)` 重建本子树。
         RootSplitView(workspaceState: workspaceState)
-            .overlay(alignment: .top) { reconnectBanner }
+            .safeAreaInset(edge: .top, spacing: 0) { reconnectBanner }
             .sheet(isPresented: $showRePairing) {
                 NavigationStack { RelayPairingImportView(replacingMachineID: sessions.activeSessionId) }
             }

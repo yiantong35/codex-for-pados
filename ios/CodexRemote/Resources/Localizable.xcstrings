@@ -1,6 +1,30 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
+    "settings.extensions.loadFailed": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Could not load extensions" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "扩展加载失败" } }
+      }
+    },
+    "settings.plugins.skill.failed": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Could not load skill content" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "Skill 内容加载失败" } }
+      }
+    },
+    "approval.showAll": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Show all" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "展开全部" } }
+      }
+    },
+    "approval.showLess": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Show less" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "收起" } }
+      }
+    },
     "fileBrowser.binary": {
       "localizations": {
         "en": {
@@ -17,6 +41,18 @@
         }
       }
     },
+    "conv.item.inspectFile": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Inspect" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "查看" } }
+      }
+    },
+    "fileBrowser.binaryBytes %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%lld bytes; text diff unavailable" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "%lld 字节；无法生成文本差异" } }
+      }
+    },
     "fileBrowser.empty": {
       "localizations": {
         "en": {
@@ -31,6 +67,12 @@
             "value": "无选中会话，暂无可浏览目录"
           }
         }
+      }
+    },
+    "fileBrowser.imagePreview": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Image preview" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "图片预览" } }
       }
     },
     "fileBrowser.loadDirFailed": {
@@ -211,6 +253,12 @@
         }
       }
     },
+    "review.binaryChange": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Binary file changed" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "二进制文件已更改" } }
+      }
+    },
     "review.mode.turn": {
       "localizations": {
         "en": {
@@ -225,6 +273,66 @@
             "value": "本轮"
           }
         }
+      }
+    },
+    "review.turnInstructions": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Review the following changes:\n%@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请审查以下改动：\n%@" } }
+      }
+    },
+    "transport.handshakeTimeout %1$@ %2$@": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Timed out waiting for %1$@ after %2$@s" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "等待 %1$@ 超时（%2$@ 秒未收到）" } }
+      }
+    },
+    "transport.handshakeRaceFailed %@": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Handshake wait ended without a result for %@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "等待 %@ 的握手竞速未返回结果" } }
+      }
+    },
+    "transport.invalidDeveloperKey": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "The paired developer public key is invalid" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "配对载荷中的开发机公钥无效" } }
+      }
+    },
+    "transport.channelClosedBeforeHandshake": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "The channel closed before the handshake completed" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "通道在握手完成前关闭" } }
+      }
+    },
+    "transport.connectionClosed": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "The connection was closed" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接已关闭" } }
+      }
+    },
+    "transport.handshakeClosed %@": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "The connection closed while waiting for %@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "握手期间连接关闭（等待 %@）" } }
+      }
+    },
+    "transport.reconnectExhausted": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Reconnect attempts were exhausted" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已达到重连重试上限" } }
+      }
+    },
+    "transport.trustRevokedReason": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Trust was revoked by the paired machine" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "配对机器已撤销信任" } }
+      }
+    },
+    "transport.unexpectedSecureReady %@": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Expected SecureReady during handshake, received %@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "握手期间应收到 SecureReady，实际收到 %@" } }
       }
     },
     "review.source": {

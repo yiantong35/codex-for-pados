@@ -11,12 +11,12 @@ struct PluginDetailSheet: View {
     let marketplace: String
 
     @State private var detail: PluginDetail?
-    @State private var loading = true
+    @State private var loadState: ExtensionLoadState = .loading
 
     var body: some View {
         NavigationStack {
             List {
-                if loading {
+                if loadState == .loading {
                     HStack { Spacer(); ProgressView(); Spacer() }
                 } else if let detail {
                     if detail.skills.isEmpty {
@@ -47,8 +47,8 @@ struct PluginDetailSheet: View {
                             ForEach(detail.mcpServers, id: \.self) { Text($0) }
                         }
                     }
-                } else {
-                    Text("settings.plugins.detail.failed").foregroundStyle(.secondary)
+                } else if loadState == .failed {
+                    loadError { await loadDetail() }
                 }
             }
             .navigationTitle(plugin.name)
@@ -58,11 +58,25 @@ struct PluginDetailSheet: View {
                     Button { dismiss() } label: { Image(systemName: "xmark") }
                 }
             }
-            .task {
-                detail = await plugins.readPluginDetail(pluginName: plugin.name, marketplace: marketplace)
-                loading = false
-            }
+            .task { await loadDetail() }
         }
+    }
+
+    private func loadDetail() async {
+        loadState = .loading
+        detail = await plugins.readPluginDetail(pluginName: plugin.name, marketplace: marketplace)
+        loadState = detail == nil ? .failed : .loaded
+    }
+
+    private func loadError(retry: @escaping @MainActor () async -> Void) -> some View {
+        VStack(spacing: 10) {
+            Label("settings.plugins.detail.failed", systemImage: "exclamationmark.triangle")
+                .foregroundStyle(.secondary)
+            Button("common.retry") { Task { await retry() } }
+                .buttonStyle(.borderedProminent)
+                .minimumHitTarget44()
+        }
+        .frame(maxWidth: .infinity)
     }
 
     // 按 id（=name）去重，防 SwiftUI ForEach 重复 id 崩溃（与 SkillMetadata 侧对称兜底）。
@@ -81,11 +95,11 @@ struct PluginSkillContentView: View {
     let skill: SkillSummary
 
     @State private var contents: String?
-    @State private var loading = true
+    @State private var loadState: ExtensionLoadState = .loading
 
     var body: some View {
         ScrollView {
-            if loading {
+            if loadState == .loading {
                 ProgressView().padding()
             } else if let contents, !contents.isEmpty {
                 Text(contents)
@@ -93,16 +107,28 @@ struct PluginSkillContentView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
                     .textSelection(.enabled)
-            } else {
+            } else if loadState == .loaded {
                 Text("settings.plugins.skill.empty").foregroundStyle(.secondary).padding()
+            } else {
+                VStack(spacing: 10) {
+                    Label("settings.plugins.skill.failed", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.secondary)
+                    Button("common.retry") { Task { await loadContents() } }
+                        .buttonStyle(.borderedProminent)
+                        .minimumHitTarget44()
+                }
+                .padding()
             }
         }
         .navigationTitle(skill.name)
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            contents = await plugins.readPluginSkill(
-                marketplace: marketplace, pluginId: pluginId, skillName: skill.name)
-            loading = false
-        }
+        .task { await loadContents() }
+    }
+
+    private func loadContents() async {
+        loadState = .loading
+        contents = await plugins.readPluginSkill(
+            marketplace: marketplace, pluginId: pluginId, skillName: skill.name)
+        loadState = contents == nil ? .failed : .loaded
     }
 }

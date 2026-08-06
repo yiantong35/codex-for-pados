@@ -6,6 +6,8 @@ struct ApprovalCardView: View {
     @Environment(ApprovalStore.self) private var approvals
     let card: ApprovalCard
     var fileContext: FileApprovalContext? = nil
+    @State private var showsFullDiff = false
+    @State private var showsFullDetail = false
 
     private var submissionState: DecisionSubmissionState {
         approvals.submissionState(for: card.id)
@@ -80,17 +82,11 @@ struct ApprovalCardView: View {
                 Text("+\(context.added) -\(context.removed)")
                     .font(.caption.monospaced()).foregroundStyle(.secondary)
                 if !context.diff.isEmpty {
-                    Text(context.diff)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .lineLimit(12)
+                    approvalText(context.diff, previewLines: 12, expanded: $showsFullDiff)
                 }
             }
             if !card.detail.isEmpty {
-                Text(card.detail)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(8)
+                approvalText(card.detail, previewLines: 8, expanded: $showsFullDetail)
             }
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 8) { approvalButtons }
@@ -102,6 +98,32 @@ struct ApprovalCardView: View {
         .padding()
         .background(.orange.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func approvalText(_ text: String,
+                              previewLines: Int,
+                              expanded: Binding<Bool>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ScrollView {
+                Text(text)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .lineLimit(expanded.wrappedValue ? nil : previewLines)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: expanded.wrappedValue ? 320 : nil)
+
+            Button {
+                withAnimation { expanded.wrappedValue.toggle() }
+            } label: {
+                Label(expanded.wrappedValue ? "approval.showLess" : "approval.showAll",
+                      systemImage: expanded.wrappedValue ? "chevron.up" : "chevron.down")
+                    .font(.caption)
+            }
+            .buttonStyle(.plain)
+            .minimumHitTarget44()
+        }
     }
 
     @ViewBuilder

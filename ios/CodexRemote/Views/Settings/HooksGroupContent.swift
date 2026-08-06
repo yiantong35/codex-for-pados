@@ -12,12 +12,26 @@ struct HooksGroupContent: View {
     var body: some View {
         if !isReady {
             Text("settings.hooks.disconnected").foregroundStyle(.secondary)
+        } else if hooks.loadState == .loading && hooks.hooks.isEmpty {
+            ProgressView().frame(maxWidth: .infinity)
+        } else if hooks.loadState == .failed && hooks.hooks.isEmpty {
+            loadError
         } else if hooks.hooks.isEmpty {
             Text("settings.hooks.empty").foregroundStyle(.secondary)
         } else {
+            if hooks.loadState == .failed { loadError }
             ForEach(hooks.hooks) { hook in
                 hookRow(hook)
             }
+        }
+    }
+
+    private var loadError: some View {
+        HStack {
+            Label("settings.extensions.loadFailed", systemImage: "exclamationmark.triangle")
+                .foregroundStyle(.red)
+            Spacer()
+            Button("common.retry") { Task { await hooks.refresh() } }.minimumHitTarget44()
         }
     }
 

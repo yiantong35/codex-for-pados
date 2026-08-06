@@ -288,7 +288,8 @@ extension ConversationStore {
         case .turn:
             let diff = state.turnDiff.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !diff.isEmpty else { return false }
-            target = .custom(instructions: "请审查以下改动：\n\(state.turnDiff)")
+            let format = L10n.string("review.turnInstructions", locale: LocaleManager.currentLocale)
+            target = .custom(instructions: String(format: format, state.turnDiff))
         }
 
         let params = ReviewStartParams(threadId: threadId, target: target, delivery: .inline)
