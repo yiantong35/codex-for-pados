@@ -40,6 +40,13 @@ struct FileContentTests {
 
     @Test func decodeFromInvalidBase64IsBinary() {
         #expect(FileContentDecoder.classify(base64: "@@@notbase64@@@") == .binary)
+        #expect(FileContentDecoder.classify(base64: "YQ=a") == .binary)
+        #expect(FileContentDecoder.classify(base64: "YQ===") == .binary)
+    }
+
+    @Test func oversizedBase64IsRejectedBeforeContentDecode() {
+        let base64 = Data(repeating: 0x61, count: FileContentDecoder.maxBytes + 1).base64EncodedString()
+        #expect(FileContentDecoder.classify(base64: base64) == .tooLarge)
     }
 
     @Test func multibyteUTF8IsText() {

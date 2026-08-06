@@ -101,6 +101,36 @@ final class SessionsManagerTests: XCTestCase {
         XCTAssertEqual(m.activeSession?.id, b.id)
     }
 
+    func test_workspaceContextIsIsolatedAndSurvivesMachineSwitches() {
+        let m = mgr()
+        let a = relayMC("workspace-a"); m.machineStore.add(a)
+        let b = relayMC("workspace-b"); m.machineStore.add(b)
+
+        m.setActive(a.id)
+        let stateA = m.activeSession!.workspaceState
+        stateA.selectedThreadId = "thread-a"
+        stateA.layout.showRight = true
+        stateA.layout.showBottom = true
+        stateA.bottomHeight = 321
+        stateA.rightPanelTab = .files
+
+        m.setActive(b.id)
+        let stateB = m.activeSession!.workspaceState
+        XCTAssertFalse(stateA === stateB)
+        XCTAssertNil(stateB.selectedThreadId)
+        XCTAssertFalse(stateB.layout.showRight)
+        XCTAssertEqual(stateB.rightPanelTab, .review)
+        stateB.selectedThreadId = "thread-b"
+
+        m.setActive(a.id)
+        XCTAssertTrue(m.activeSession!.workspaceState === stateA)
+        XCTAssertEqual(stateA.selectedThreadId, "thread-a")
+        XCTAssertTrue(stateA.layout.showRight)
+        XCTAssertTrue(stateA.layout.showBottom)
+        XCTAssertEqual(stateA.bottomHeight, 321)
+        XCTAssertEqual(stateA.rightPanelTab, .files)
+    }
+
     func test_removeDropsSessionAndMachine() {
         let m = mgr()
         let mc = relayMC("h"); m.machineStore.add(mc)

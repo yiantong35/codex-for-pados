@@ -40,6 +40,22 @@ struct FileBrowserStoreTests {
         }.count
     }
 
+    private func requestID(_ mock: MockTransport, method: String, path: String) async -> String? {
+        for _ in 0..<200 {
+            let sent = await mock.sent
+            for frame in sent {
+                guard let obj = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any],
+                      obj["method"] as? String == method,
+                      let params = obj["params"] as? [String: Any],
+                      params["path"] as? String == path
+                else { continue }
+                return obj["id"] as? String
+            }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+        return nil
+    }
+
     @Test func noCwdIsEmptyAndSendsNothing() async {
         let (mock, _, store) = await makeStore()
         await store.setRoot(nil)
@@ -110,5 +126,30 @@ struct FileBrowserStoreTests {
         responder.cancel()
         #expect(store.fileOpenState == .failed("/repo/missing.txt"))
         #expect(store.selectedFile == nil)
+    }
+
+    @Test func lateResponseFromPreviousSelectionCannotReplaceCurrentFile() async {
+        let (mock, _, store) = await makeStore()
+        let first = Task { await store.openFile("/repo/a.txt") }
+        guard let firstID = await requestID(mock, method: RPCMethod.fsReadFile, path: "/repo/a.txt") else {
+            Issue.record("first file request was not sent")
+            first.cancel()
+            return
+        }
+
+        let second = Task { await store.openFile("/repo/b.txt") }
+        guard let secondID = await requestID(mock, method: RPCMethod.fsReadFile, path: "/repo/b.txt") else {
+            Issue.record("second file request was not sent")
+            first.cancel(); second.cancel()
+            return
+        }
+
+        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(secondID)","result":{"dataBase64":"Qg=="}}"#)
+        await second.value
+        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(firstID)","result":{"dataBase64":"QQ=="}}"#)
+        await first.value
+
+        #expect(store.selectedFile?.path == "/repo/b.txt")
+        #expect(store.selectedFile?.content == .text("B"))
     }
 }

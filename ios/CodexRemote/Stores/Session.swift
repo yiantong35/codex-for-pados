@@ -23,6 +23,8 @@ final class Session: Identifiable {
     let approvals: ApprovalStore
     let userInputs: UserInputStore
     let mcpElicitations: McpElicitationStore
+    /// 与机器 Session 同寿命的工作区选择/面板上下文；切机器后返回时不复位。
+    let workspaceState: WorkspaceSessionState
 
     init(machine: MachineConfig,
          transportFactory: @escaping @Sendable (ConnectionConfig) async throws -> MessageTransport) {
@@ -42,6 +44,7 @@ final class Session: Identifiable {
         self.approvals = ApprovalStore()
         self.userInputs = UserInputStore()
         self.mcpElicitations = McpElicitationStore()
+        self.workspaceState = WorkspaceSessionState()
     }
 
     /// 前后台标记（D6=B）。默认后台；活跃 tab 由 SessionsManager 置前台。

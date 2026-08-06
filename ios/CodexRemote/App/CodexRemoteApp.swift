@@ -89,7 +89,7 @@ struct RootView: View {
     /// `@Environment(XxxStore.self)`）写法保持不变；`.id(s.id)` 强制切 tab 重建整棵子树
     /// （连同 WorkspaceHost 的 approval coordinator 一起重建，避免跨连接串台）。
     @ViewBuilder private func workspace(for s: Session) -> some View {
-        WorkspaceHost()
+        WorkspaceHost(workspaceState: s.workspaceState)
             .environment(s.connection)
             .environment(s.projects)
             .environment(s.approvals)
@@ -113,6 +113,7 @@ struct RootView: View {
 /// 它读的是**当前 Session** 的 connection/projects/approvals（方案②由 workspace(for:) 注入），
 /// 故 coordinator 绑定到当前连接的 rpc；`.id(s.id)` 挂在本视图 → 切 Session 时 coordinator 一并重建。
 private struct WorkspaceHost: View {
+    let workspaceState: WorkspaceSessionState
     @Environment(SessionsManager.self) private var sessions
     @Environment(ConnectionStore.self) private var connection
     @Environment(ProjectsStore.self) private var projects
@@ -128,7 +129,7 @@ private struct WorkspaceHost: View {
     var body: some View {
         // TabBarView 已上提到 RootView（`.id(s.id)` 外层，常驻不重建）；本视图只承接
         // RootSplitView + 重连横幅 + coordinator 接线。切 tab 由外层 `.id(s.id)` 重建本子树。
-        RootSplitView()
+        RootSplitView(workspaceState: workspaceState)
             .overlay(alignment: .top) { reconnectBanner }
             .sheet(isPresented: $showRePairing) {
                 NavigationStack { RelayPairingImportView(replacingMachineID: sessions.activeSessionId) }

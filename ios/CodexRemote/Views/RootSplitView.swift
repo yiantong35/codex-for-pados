@@ -18,6 +18,23 @@ final class ActiveConversationHolder {
     var startReview: ((_ mode: ReviewSourceMode) async -> Bool)?
 }
 
+/// 每台机器独立的工作区 UI 上下文。实例由 `Session` 持有，因此切走机器导致
+/// `RootSplitView` 重建时，选中会话和面板状态仍会随该机器保留。
+@Observable
+@MainActor
+final class WorkspaceSessionState {
+    var selectedThreadId: String?
+    let layout: WorkspaceLayoutStore
+    var bottomHeight: CGFloat
+    var rightPanelTab: RightPanelTab
+
+    init(initialRightOpen: Bool = false, initialBottomOpen: Bool = false) {
+        layout = WorkspaceLayoutStore(showRight: initialRightOpen, showBottom: initialBottomOpen)
+        bottomHeight = WorkspaceMetrics.bottomPanelIdealHeight
+        rightPanelTab = .review
+    }
+}
+
 /// 主界面（复刻 Codex desktop 五窗口工作区骨架，自绘三栏重构 custom-resizable-columns）：
 /// 顶栏用 safeAreaInset(.top)、摘要用常驻 overlay，均挂在自绘三栏容器 ResizableColumns 外层（design D6）。
 /// - 左边栏 = ResizableColumns 左列（条件渲染，leftVisible 承接，D5）；右边栏 = 右列（showRight 承接）。
@@ -31,12 +48,7 @@ struct RootSplitView: View {
     // 以正确解析 .system（规避 sheet .preferredColorScheme(nil) 无法重置强制值）。
     @Environment(\.colorScheme) private var systemColorScheme
     @Environment(SessionsManager.self) private var sessions
-    @State private var selectedThreadId: String?
-
-    /// 面板布局状态（设计 D4，方案 A）：从私有 @State 抬升，顶栏按钮 + 面板快捷键共享同一份。
-    @State private var layout: WorkspaceLayoutStore
-    // 下栏高度（自绘纵向拖 + clamp）。下栏为外层 VStack 底部兄弟槽（design D2）。
-    @State private var bottomHeight: CGFloat = WorkspaceMetrics.bottomPanelIdealHeight
+    @State private var workspaceState: WorkspaceSessionState
 
     /// 当前活跃会话 state 的共享持有者：ConversationView 写入、摘要 popover 读出。
     @State private var activeConversation = ActiveConversationHolder()
@@ -46,14 +58,16 @@ struct RootSplitView: View {
 
     /// 每次外部载入列宽（切 tab / 冷启动）自增，驱动 ResizableColumns 用真实总宽重新收敛（修复窄屏恢复溢出）。
     @State private var widthLoadRevision = 0
-    /// 右栏条件卸载时仍保留用户所选 tab。
-    @State private var rightPanelTab: RightPanelTab = .review
-
     /// 便利初始化：允许注入面板初始展开态（供快照测试覆盖全开布局）。
-    init(initialRightOpen: Bool = false, initialBottomOpen: Bool = false) {
-        _layout = State(initialValue: WorkspaceLayoutStore(showRight: initialRightOpen,
-                                                           showBottom: initialBottomOpen))
+    init(initialRightOpen: Bool = false, initialBottomOpen: Bool = false,
+         workspaceState: WorkspaceSessionState? = nil) {
+        _workspaceState = State(initialValue: workspaceState ?? WorkspaceSessionState(
+            initialRightOpen: initialRightOpen,
+            initialBottomOpen: initialBottomOpen))
     }
+
+    private var layout: WorkspaceLayoutStore { workspaceState.layout }
+    private var selectedThreadId: String? { workspaceState.selectedThreadId }
 
     private var selectedThread: ThreadSummary? {
         guard let id = selectedThreadId else { return nil }
@@ -106,7 +120,10 @@ struct RootSplitView: View {
             // 下栏：VStack 底部兄弟槽，横跨左+中+右、把 resizableColumns 挤压上移（design D2 目标，改用 VStack 实现）。
             if layout.showBottom {
                 Divider()
-                BottomPanelView(height: $bottomHeight, cwd: selectedThread?.cwd)
+                BottomPanelView(height: Binding(
+                    get: { workspaceState.bottomHeight },
+                    set: { workspaceState.bottomHeight = $0 }
+                ), cwd: selectedThread?.cwd)
                     // 从底部滑入/滑出，配合顶栏按钮的 withAnimation，弹出不再僵硬（#1）。
                     .transition(.move(edge: .bottom))
             }
@@ -137,7 +154,7 @@ struct RootSplitView: View {
                 guard let rpc = connection.rpc else { return }
                 Task {
                     guard let newId = await projects.createThread(rpc: rpc) else { return }
-                    selectedThreadId = newId
+                    workspaceState.selectedThreadId = newId
                     projects.markViewed(threadId: newId, updatedAt: Date().timeIntervalSince1970)
                 }
             } label: { Image(systemName: "plus.rectangle") }
@@ -201,7 +218,10 @@ struct RootSplitView: View {
             loadRevision: widthLoadRevision,
             onResizeEnded: { saveColumnWidths() }
         ) {
-            SidebarView(selectedThreadId: $selectedThreadId)
+            SidebarView(selectedThreadId: Binding(
+                get: { workspaceState.selectedThreadId },
+                set: { workspaceState.selectedThreadId = $0 }
+            ))
         } center: {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -209,7 +229,10 @@ struct RootSplitView: View {
             RightPanelContainerView(
                 cwd: selectedThread?.cwd,
                 mainThreadId: selectedThreadId,
-                selectedTab: $rightPanelTab
+                selectedTab: Binding(
+                    get: { workspaceState.rightPanelTab },
+                    set: { workspaceState.rightPanelTab = $0 }
+                )
             )
                 // 右栏在自绘列内仍显式注入环境（对齐原 .inspector 注入），
                 // 否则 RightPanelContainerView 读环境时运行时崩溃。

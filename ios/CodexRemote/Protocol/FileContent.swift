@@ -23,7 +23,35 @@ enum FileContentDecoder {
 
     /// 从 base64 字符串解码后判定；base64 本身非法则视为不可预览的二进制。
     static func classify(base64: String) -> FileContent {
+        guard let decodedByteCount = decodedByteCountIfValid(base64) else { return .binary }
+        // JSON 解码已经持有 base64 字符串；先用编码长度判限，避免超限文件再产生一份
+        // 最多约为编码体积 3/4 的 Data 峰值。服务端预读限制仍需协议本身支持。
+        if decodedByteCount > maxBytes { return .tooLarge }
         guard let data = Data(base64Encoded: base64) else { return .binary }
         return classify(bytes: data)
+    }
+
+    /// 严格校验标准 base64，并在不解码内容的情况下计算原始字节数。
+    private static func decodedByteCountIfValid(_ base64: String) -> Int? {
+        var count = 0
+        var padding = 0
+        var sawPadding = false
+
+        for byte in base64.utf8 {
+            count += 1
+            switch byte {
+            case 65...90, 97...122, 48...57, 43, 47: // A-Z a-z 0-9 + /
+                if sawPadding { return nil }
+            case 61: // =
+                sawPadding = true
+                padding += 1
+                if padding > 2 { return nil }
+            default:
+                return nil
+            }
+        }
+
+        guard count.isMultiple(of: 4) else { return nil }
+        return (count / 4) * 3 - padding
     }
 }
