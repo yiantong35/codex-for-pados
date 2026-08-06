@@ -27,7 +27,8 @@ final class OrientationSnapshotTests: XCTestCase {
 
     /// 把 view 在指定尺寸渲染成 PNG 写到 /tmp/orient/<name>.png，返回承载视图的 window。
     @discardableResult
-    private func snapshot(_ view: some View, size: CGSize, name: String, dir: String? = nil) -> UIWindow {
+    private func snapshot(_ view: some View, size: CGSize, name: String, dir: String? = nil,
+                          keepWindowAlive: Bool = false) -> UIWindow {
         let outDir = dir ?? self.outDir
         try? FileManager.default.createDirectory(atPath: outDir, withIntermediateDirectories: true)
         let hc = UIHostingController(rootView: view)
@@ -39,6 +40,12 @@ final class OrientationSnapshotTests: XCTestCase {
         let window = UIWindow(frame: CGRect(origin: .zero, size: size))
         window.rootViewController = hc
         window.makeKeyAndVisible()
+        defer {
+            if !keepWindowAlive {
+                window.isHidden = true
+                window.rootViewController = nil
+            }
+        }
 
         hc.view.setNeedsLayout()
         hc.view.layoutIfNeeded()
@@ -54,14 +61,10 @@ final class OrientationSnapshotTests: XCTestCase {
         // 恒返回空白（需真实屏幕渲染通道）。齿轮已不走系统 toolbar：现挂在自绘顶栏 topBar 的
         // HStack 内（RootSplitView），随 layer 树同步渲染即可捕获，两个朝向同一份自绘顶栏均接入（见报告）。
         let renderer = UIGraphicsImageRenderer(size: size)
-        let image = renderer.image { ctx in
+        let png = renderer.pngData { ctx in
             window.layer.render(in: ctx.cgContext)
         }
 
-        guard let png = image.pngData() else {
-            XCTFail("PNG 编码失败: \(name)")
-            return window
-        }
         let path = "\(outDir)/\(name).png"
         FileManager.default.createFile(atPath: path, contents: png)
         XCTAssertGreaterThan(png.count, 1000, "PNG 过小疑似空白: \(name)")
@@ -292,7 +295,11 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(ShortcutStore())          // M1：右栏读快捷键 store 承载全屏退出键
             .frame(width: 320, height: 600)
         let window = snapshot(view, size: CGSize(width: 320, height: 600),
-                              name: "right-panel", dir: "/tmp/workspace")
+                              name: "right-panel", dir: "/tmp/workspace", keepWindowAlive: true)
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+        }
 
         // D9：不再止于「PNG 非空」——断言窄宽(320pt)下右栏无横向溢出/裁剪（P1#2 逃逸根因）。
         // 环境约束（见 RightPanelTabsLayoutTests）：离屏 host 下纯 SwiftUI Button 不稳定暴露 UIKit 命中区，
