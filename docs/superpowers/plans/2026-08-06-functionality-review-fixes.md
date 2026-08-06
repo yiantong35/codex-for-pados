@@ -159,13 +159,13 @@ presentation wiring, localization resources, and protocol fixture tests.
 **Files:** `ApprovalTypes.swift`, `ApprovalCoordinator.swift`,
 `ApprovalStore.swift`, `ApprovalCardView.swift`, and approval tests/fixtures.
 
-- [ ] RED: current generated fixtures for command, file, and permissions requests,
+- [x] RED: current generated fixtures for command, file, and permissions requests,
   plus malformed and missing-required-field cases.
-- [ ] Decode method-specific DTOs and retain every decision-relevant field.
-- [ ] Present malformed requests as protocol errors with approvals disabled and
+- [x] Decode method-specific DTOs and retain every decision-relevant field.
+- [x] Present malformed requests as protocol errors with approvals disabled and
   send an error response.
-- [ ] GREEN: run ApprovalBoundaryTests and ApprovalStoreTests.
-- [ ] Commit: `fix(ipad): decode approvals with current protocol types`.
+- [x] GREEN: run ApprovalBoundaryTests and ApprovalStoreTests.
+- [x] Commit: `fix(ipad): decode approvals with current protocol types`.
 
 ### Task 3.2: Preserve informed permission/file decisions
 

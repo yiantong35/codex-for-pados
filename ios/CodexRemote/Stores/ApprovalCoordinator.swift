@@ -46,7 +46,14 @@ final class ApprovalCoordinator {
             for await req in serverRequestStream {
                 guard let self else { return }
                 if Self.isApproval(req.method) {
-                    self.store.handle(request: req)
+                    do {
+                        try self.store.handleValidated(request: req)
+                    } catch {
+                        _ = try? await rpc.respond(
+                            to: req.id,
+                            error: JSONRPCErrorBody(code: -32602, message: "Invalid approval params")
+                        )
+                    }
                 }
             }
         }

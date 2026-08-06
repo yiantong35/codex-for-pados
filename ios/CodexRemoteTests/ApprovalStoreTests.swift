@@ -7,7 +7,8 @@ final class ApprovalStoreTests: XCTestCase {
         let store = ApprovalStore()
         let req = JSONRPCRequest(id: .string("r1"),
             method: ServerRequestMethod.cmdApprovalV2,
-            params: AnyCodable(["threadId": "t1", "turnId": "T1", "itemId": "I1", "command": "rm -rf x"]))
+            params: AnyCodable(["threadId": "t1", "turnId": "T1", "itemId": "I1",
+                                "startedAtMs": 1, "command": "rm -rf x"]))
         store.handle(request: req)
         XCTAssertEqual(store.cards.count, 1)
         XCTAssertEqual(store.cards.first?.threadId, "t1")
@@ -53,9 +54,12 @@ final class ApprovalStoreTests: XCTestCase {
         let store = ApprovalStore()
         let req = JSONRPCRequest(id: .string("f1"),
             method: ServerRequestMethod.fileApprovalV2,
-            params: AnyCodable(["threadId": "t1", "file": "main.swift", "diff": "+ line"]))
+            params: AnyCodable(["threadId": "t1", "turnId": "turn", "itemId": "item",
+                                "startedAtMs": 1, "reason": "Update main.swift", "grantRoot": "/work"]))
         store.handle(request: req)
         XCTAssertEqual(store.cards.first?.isFileChange, true)
+        XCTAssertEqual(store.cards.first?.itemId, "item")
+        XCTAssertEqual(store.cards.first?.grantRoot, "/work")
     }
 
     // 端到端：经 JSONRPCClient.serverRequests() feed → 真实 coordinator 接线 → resolve → mock.sent 含正确 response。
@@ -67,7 +71,7 @@ final class ApprovalStoreTests: XCTestCase {
         await coord.bind(rpc: rpc)
         let store = coord.store
 
-        let frame = #"{"jsonrpc":"2.0","id":"r9","method":"item/commandExecution/requestApproval","params":{"threadId":"t1","command":"ls"}}"#
+        let frame = #"{"jsonrpc":"2.0","id":"r9","method":"item/commandExecution/requestApproval","params":{"threadId":"t1","turnId":"turn","itemId":"item","startedAtMs":1,"command":"ls"}}"#
         await mock.feed(frame)
         // 等待 server-request 流送达
         try await waitUntil { store.cards.count == 1 }
@@ -88,7 +92,7 @@ final class ApprovalStoreTests: XCTestCase {
         let store = ApprovalStore()
         let req = JSONRPCRequest(id: .string("p1"),
             method: ServerRequestMethod.permsApprovalV2,
-            params: AnyCodable(["threadId": "t1", "reason": "需要联网",
+            params: AnyCodable(["threadId": "t1", "turnId": "turn", "itemId": "item", "startedAtMs": 1, "reason": "需要联网",
                                 "permissions": ["network": ["enabled": true]],
                                 "cwd": "/work"]))
         store.handle(request: req)
@@ -133,7 +137,7 @@ final class ApprovalStoreTests: XCTestCase {
         let store = ApprovalStore()
         let req = JSONRPCRequest(id: .string("p2"),
             method: ServerRequestMethod.permsApprovalV2,
-            params: AnyCodable(["threadId": "t1", "reason": "需要读写文件",
+            params: AnyCodable(["threadId": "t1", "turnId": "turn", "itemId": "item", "startedAtMs": 1, "reason": "需要读写文件",
                                 "permissions": ["network": ["enabled": true],
                                                 "fileSystem": ["read": ["/a"], "write": ["/b"]]],
                                 "cwd": "/work"]))
@@ -157,7 +161,7 @@ final class ApprovalStoreTests: XCTestCase {
         store.resolver = { _, body in captured = body; return true }
         let req = JSONRPCRequest(id: .string("p3"),
             method: ServerRequestMethod.permsApprovalV2,
-            params: AnyCodable(["threadId": "t1", "reason": "需要读写文件",
+            params: AnyCodable(["threadId": "t1", "turnId": "turn", "itemId": "item", "startedAtMs": 1, "reason": "需要读写文件",
                                 "permissions": ["fileSystem": ["read": ["/a"], "write": ["/b"]]],
                                 "cwd": "/work"]))
         store.handle(request: req)
@@ -180,7 +184,7 @@ final class ApprovalStoreTests: XCTestCase {
         store.resolver = { _, body in captured = body; return true }
         let req = JSONRPCRequest(id: .string("p4"),
             method: ServerRequestMethod.permsApprovalV2,
-            params: AnyCodable(["threadId": "t1", "reason": "需要联网",
+            params: AnyCodable(["threadId": "t1", "turnId": "turn", "itemId": "item", "startedAtMs": 1, "reason": "需要联网",
                                 "permissions": ["network": ["enabled": true]],
                                 "cwd": "/work"]))
         store.handle(request: req)
@@ -200,7 +204,7 @@ final class ApprovalStoreTests: XCTestCase {
         let store = ApprovalStore()
         let req = JSONRPCRequest(id: .string("r1"),
             method: ServerRequestMethod.cmdApprovalV2,
-            params: AnyCodable(["threadId": "t1", "command": "rm -rf x"]))
+            params: AnyCodable(["threadId": "t1", "turnId": "turn", "itemId": "item", "startedAtMs": 1, "command": "rm -rf x"]))
         store.handle(request: req)
         XCTAssertEqual(store.cards.count, 1)
 
@@ -218,24 +222,24 @@ final class ApprovalStoreTests: XCTestCase {
         let store = ApprovalStore()
         store.handle(request: JSONRPCRequest(id: .string("r1"),
             method: ServerRequestMethod.cmdApprovalV2,
-            params: AnyCodable(["threadId": "t1", "command": "a"])))
+            params: AnyCodable(["threadId": "t1", "turnId": "turn", "itemId": "item-1", "startedAtMs": 1, "command": "a"])))
         store.handle(request: JSONRPCRequest(id: .string("r2"),
             method: ServerRequestMethod.cmdApprovalV2,
-            params: AnyCodable(["threadId": "t1", "command": "b"])))
+            params: AnyCodable(["threadId": "t1", "turnId": "turn", "itemId": "item-2", "startedAtMs": 2, "command": "b"])))
         XCTAssertEqual(store.cards.count, 2)
     }
 
-    /// 同 id 重放载荷变化（diff 更新）→ 原地替换取新载荷。
+    /// 同 id 重放载荷变化（reason 更新）→ 原地替换取新载荷。
     func test_replay_same_id_updates_payload() {
         let store = ApprovalStore()
         store.handle(request: JSONRPCRequest(id: .string("f1"),
             method: ServerRequestMethod.fileApprovalV2,
-            params: AnyCodable(["threadId": "t1", "file": "main.swift", "diff": "+ old"])))
+            params: AnyCodable(["threadId": "t1", "turnId": "turn", "itemId": "item", "startedAtMs": 1, "reason": "old"])))
         store.handle(request: JSONRPCRequest(id: .string("f1"),
             method: ServerRequestMethod.fileApprovalV2,
-            params: AnyCodable(["threadId": "t1", "file": "main.swift", "diff": "+ new"])))
+            params: AnyCodable(["threadId": "t1", "turnId": "turn", "itemId": "item", "startedAtMs": 1, "reason": "new"])))
         XCTAssertEqual(store.cards.count, 1)
-        XCTAssertEqual(store.cards.first?.detail, "+ new", "同 id 重放应刷新为新载荷")
+        XCTAssertEqual(store.cards.first?.reason, "new", "同 id 重放应刷新为新载荷")
     }
 
     /// 边界回归：断线只标记，绝不自动批准（不调用 resolver）。
@@ -245,7 +249,7 @@ final class ApprovalStoreTests: XCTestCase {
         store.resolver = { _, _ in resolverCalled = true; return true }
         store.handle(request: JSONRPCRequest(id: .string("r1"),
             method: ServerRequestMethod.cmdApprovalV2,
-            params: AnyCodable(["threadId": "t1", "command": "rm"])))
+            params: AnyCodable(["threadId": "t1", "turnId": "turn", "itemId": "item", "startedAtMs": 1, "command": "rm"])))
         store.handleConnectionLost()
         XCTAssertFalse(resolverCalled, "断线绝不自动批准")
         XCTAssertEqual(store.cards.count, 1, "断线不移除卡片")
@@ -262,7 +266,7 @@ final class ApprovalStoreTests: XCTestCase {
         store.resolver = { _, _ in attempts += 1; return attempts >= 2 }
         store.handle(request: JSONRPCRequest(id: .string("r1"),
             method: ServerRequestMethod.cmdApprovalV2,
-            params: AnyCodable(["threadId": "t1", "command": "rm -rf x"])))
+            params: AnyCodable(["threadId": "t1", "turnId": "turn", "itemId": "item", "startedAtMs": 1, "command": "rm -rf x"])))
         let card = store.cards.first!
 
         let firstOK = await store.resolve(card: card, choice: .approve)
@@ -280,7 +284,7 @@ final class ApprovalStoreTests: XCTestCase {
         let store = ApprovalStore()
         store.handle(request: JSONRPCRequest(id: .string("r1"),
             method: ServerRequestMethod.cmdApprovalV2,
-            params: AnyCodable(["threadId": "t1", "command": "ls"])))
+            params: AnyCodable(["threadId": "t1", "turnId": "turn", "itemId": "item", "startedAtMs": 1, "command": "ls"])))
         let card = store.cards.first!
         let ok = await store.resolve(card: card, choice: .approve)
         XCTAssertFalse(ok)
