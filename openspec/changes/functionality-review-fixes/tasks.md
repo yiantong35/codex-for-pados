@@ -30,7 +30,7 @@
 ## 4. Session 与工作区生命周期
 
 - [x] 4.1 引入持久 `ConnectionIntent`，主动 Disconnect 后 tab 切换、回前台、bootstrap 均不自动连接；显式 Connect 恢复自动意图。
-- [ ] 4.2 SideChatSession 收敛为 metadata，移除隐藏 ConversationStore；每个可见 side chat 仅一个通知订阅和 resume owner。
+- [x] 4.2 SideChatSession 收敛为 metadata，移除隐藏 ConversationStore；每个可见 side chat 仅一个通知订阅和 resume owner。
 - [ ] 4.3 扩展恢复线滚动实现：流式 delta、审批卡和状态指示增长触发统一策略；自动/手动回底始终定位 bottom sentinel。
 - [ ] 4.4 扩展恢复线 full-diff cache：context key + generation + stale-result guard + 显式刷新；全量 review 发起前刷新当前 snapshot。
 - [ ] 4.5 TerminalSession 跟踪 exec task/generation；自然退出、terminate、断线、cwd 切换与 late response 全部正确收敛并允许重启。

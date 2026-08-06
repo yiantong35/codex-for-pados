@@ -209,13 +209,13 @@ and `SessionsManagerTests.swift`.
 **Files:** `SideChatStore.swift`, `SideChatView.swift`, `ConversationView.swift`,
 and side-chat isolation/store tests.
 
-- [ ] RED: one visible side chat creates one notification continuation and one
+- [x] RED: one visible side chat creates one notification continuation and one
   resume call; switching/closing cancels them; reselecting resumes authoritative
   history.
-- [ ] Keep fork metadata in `SideChatStore`; construct and own ConversationStore
+- [x] Keep fork metadata in `SideChatStore`; construct and own ConversationStore
   only in the visible ConversationView lifecycle.
-- [ ] GREEN: run side-chat isolation, ownership, and resume tests.
-- [ ] Commit: `fix(ipad): remove duplicate side-chat conversation stores`.
+- [x] GREEN: run side-chat isolation, ownership, and resume tests.
+- [x] Commit: `fix(ipad): remove duplicate side-chat conversation stores`.
 
 ### Task 4.3: Scroll on content growth to the real bottom
 
