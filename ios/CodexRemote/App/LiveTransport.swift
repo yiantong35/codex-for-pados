@@ -43,7 +43,7 @@ func makeRelayTransport(payload: PairingPayload, tofuMachineKey: String,
     let identity = try e2e.identityKey()   // 持久身份，跨重连复用；落盘失败则配对以明确失败告终
     let tofu = KeychainTOFUStore()
     return RelayTransport(
-        channelFactory: channelFactory, pairing: payload,
+        channelFactory: channelFactory, pairing: payload, relayRoomId: decision.room,
         ipadIdentity: identity,
         ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },   // 每次握手新 ephemeral（前向保密）
         tofu: tofu, tofuMachineKey: tofuMachineKey,

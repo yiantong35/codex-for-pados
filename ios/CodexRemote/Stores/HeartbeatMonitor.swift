@@ -9,13 +9,16 @@ final class HeartbeatMonitor {
         var interval: Duration = .seconds(10)
         var inactiveInterval: Duration = .seconds(60)
         var missThreshold: Int = 2
+        var minimumAcceleratedProbeInterval: Duration = .seconds(10)
 
         init(interval: Duration = .seconds(10),
              inactiveInterval: Duration = .seconds(60),
-             missThreshold: Int = 2) {
+             missThreshold: Int = 2,
+             minimumAcceleratedProbeInterval: Duration = .seconds(10)) {
             self.interval = interval
             self.inactiveInterval = inactiveInterval
             self.missThreshold = missThreshold
+            self.minimumAcceleratedProbeInterval = minimumAcceleratedProbeInterval
         }
     }
 
@@ -23,6 +26,7 @@ final class HeartbeatMonitor {
     private let probe: @Sendable () async -> Bool
     private let onUnhealthy: @Sendable () async -> Void
     private let sleep: @Sendable (Duration) async -> Void
+    private let now: @Sendable () -> ContinuousClock.Instant
 
     private var loopTask: Task<Void, Never>?
     private var waitTask: Task<Void, Never>?
@@ -32,15 +36,18 @@ final class HeartbeatMonitor {
     private var started = false
     private var acceleratedProbePending = false
     private var scheduleChanged = false
+    private var lastProbeStartedAt: ContinuousClock.Instant?
 
     init(config: Config = .init(),
          probe: @escaping @Sendable () async -> Bool,
          onUnhealthy: @escaping @Sendable () async -> Void,
-         sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }) {
+         sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) },
+         now: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock.now }) {
         self.config = config
         self.probe = probe
         self.onUnhealthy = onUnhealthy
         self.sleep = sleep
+        self.now = now
     }
 
     func start() {
@@ -89,6 +96,10 @@ final class HeartbeatMonitor {
     func requestAcceleratedProbe() {
         guard started, foreground else { return }
         guard !acceleratedProbePending else { return }
+        if let lastProbeStartedAt,
+           lastProbeStartedAt.duration(to: now()) < config.minimumAcceleratedProbeInterval {
+            return
+        }
         acceleratedProbePending = true
         waitTask?.cancel()
         restartLoopIfNeeded()
@@ -112,6 +123,7 @@ final class HeartbeatMonitor {
                     }
                 }
                 self.acceleratedProbePending = false
+                self.lastProbeStartedAt = self.now()
                 let ok = await self.probe()
                 if Task.isCancelled || !self.started || !self.foreground { return }
                 if ok {

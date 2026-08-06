@@ -98,7 +98,7 @@ actor RelayTransport: MessageTransport {
     private var ws: RelayWSChannel?
     /// 造新通道的工厂（仅真握手路径给定；注入/占位路径为 nil → 不重连）。
     private let channelFactory: (@Sendable () async throws -> RelayWSChannel)?
-    /// 当前 relay 撮合 session；明文控制信号必须绑定该值，避免跨 session 注入提示。
+    /// 当前实际连接的 relay room；明文控制信号必须绑定该值，避免跨 room 注入提示。
     private let expectedRelaySessionId: String?
     /// 主动 close 标志：read loop 见 ws 断时据此区分「主动关闭（终态）」与「瞬断（转重连）」。
     private var activeClose = false
@@ -168,6 +168,7 @@ actor RelayTransport: MessageTransport {
     /// SecureSession。read loop 检测瞬断即调工厂造新通道重握手（退避 + 上限，见 `reconnect`）。
     init(channelFactory: @escaping @Sendable () async throws -> RelayWSChannel,
          pairing: PairingPayload,
+         relayRoomId: String? = nil,
          ipadIdentity: Curve25519.Signing.PrivateKey,
          ephemeralProvider: @escaping @Sendable () -> Curve25519.KeyAgreement.PrivateKey,
          tofu: TOFUStoring,
@@ -179,7 +180,8 @@ actor RelayTransport: MessageTransport {
         self.session = nil
         self.ws = nil
         self.channelFactory = channelFactory
-        self.expectedRelaySessionId = pairing.sessionId
+        // 受信任复连连接 stable room，它可能与首次配对载荷里的 sessionId 不同。
+        self.expectedRelaySessionId = relayRoomId ?? pairing.sessionId
         self.handshakeState = .pending
         self.handshakeInputs = HandshakeInputs(
             pairing: pairing, ipadIdentity: ipadIdentity, ephemeralProvider: ephemeralProvider,
@@ -228,9 +230,11 @@ actor RelayTransport: MessageTransport {
                 // 靠 `kind` 字段与无 `kind` 的 SecureEnvelope 试解歧义（业务密文帧无 kind，解不成 RelaySignal）。
                 // 安全红线：peer-left 是提示非判决，判死权只在上层心跳；本层绝不据此断开/重连/改状态。
                 if let sig = try? RelaySignal(decoding: Data(frame.utf8)),
-                   sig.kind == RelaySignal.peerLeftKind,
-                   sig.sessionId == expectedRelaySessionId {
-                    emitControl(.peerLeft)
+                   sig.kind == RelaySignal.peerLeftKind {
+                    if sig.sessionId == expectedRelaySessionId {
+                        emitControl(.peerLeft)
+                    }
+                    // 已识别的控制帧无论 room 是否匹配都到此为止；不得再按加密信封解析并中断连接。
                     continue
                 }
                 guard let session else {

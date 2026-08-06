@@ -11,6 +11,7 @@ final class LocalizationFollowsInjectedLocaleTests: XCTestCase {
         "fileBrowser.empty",        // 原 "无选中会话，暂无可浏览目录"
         "fileBrowser.title",        // 原 "文件"
         "fileBrowser.refresh",      // 原 "刷新"
+        "fileBrowser.previewTruncated",
         "fileBrowser.tooLarge",     // 原 "文件过大，不支持预览"
         "fileBrowser.binary",       // 原 "二进制文件，不支持预览"
         "fileBrowser.selectFile",   // 原 "选择文件查看"

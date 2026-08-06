@@ -35,7 +35,8 @@ final class HeartbeatMonitorTests: XCTestCase {
     func test_acceleratedProbe_singleMiss_doesNotTriggerUnhealthy() async throws {
         let results = ResultScript([true, false])
         let counter = Counter()
-        let m = HeartbeatMonitor(config: .init(), probe: { await results.next() },
+        let m = HeartbeatMonitor(config: .init(minimumAcceleratedProbeInterval: .zero),
+                                 probe: { await results.next() },
                                  onUnhealthy: { await counter.increment() },
                                  sleep: { _ in try? await Task.sleep(for: .seconds(3600)) })
         m.start()
@@ -49,7 +50,7 @@ final class HeartbeatMonitorTests: XCTestCase {
 
     func test_acceleratedProbeBurstCoalesces() async throws {
         let counter = Counter()
-        let m = HeartbeatMonitor(config: .init(),
+        let m = HeartbeatMonitor(config: .init(minimumAcceleratedProbeInterval: .zero),
                                  probe: { await counter.increment(); return true },
                                  onUnhealthy: {},
                                  sleep: { _ in try? await Task.sleep(for: .seconds(3600)) })
@@ -61,6 +62,38 @@ final class HeartbeatMonitorTests: XCTestCase {
         m.stop()
         let finalProbeCount = await counter.value
         XCTAssertEqual(finalProbeCount, 2, "提示突发只能合并成一个额外探针")
+    }
+
+    func test_acceleratedProbeSignalsAcrossProbeCompletionRespectMinimumInterval() async throws {
+        let clock = ManualHeartbeatClock()
+        let probes = GatedProbe()
+        let m = HeartbeatMonitor(
+            config: .init(interval: .seconds(10), inactiveInterval: .seconds(60),
+                          missThreshold: 2, minimumAcceleratedProbeInterval: .seconds(10)),
+            probe: { await probes.run() },
+            onUnhealthy: {},
+            sleep: { _ in try? await Task.sleep(for: .seconds(3600)) },
+            now: { clock.now })
+
+        m.start()
+        try await waitUntil { await probes.count == 1 }
+        for _ in 0..<20 { m.requestAcceleratedProbe() } // 第一探针仍在执行。
+        await probes.releaseOne()
+        try? await Task.sleep(for: .milliseconds(30))
+        for _ in 0..<20 { m.requestAcceleratedProbe() } // 第一探针已完成。
+        try? await Task.sleep(for: .milliseconds(30))
+        let countBeforeMinimumInterval = await probes.count
+        XCTAssertEqual(countBeforeMinimumInterval, 1, "最短间隔内持续 peer-left 不得按 RPC 速度追加探针")
+
+        clock.advance(by: .seconds(10))
+        m.requestAcceleratedProbe()
+        try await waitUntil { await probes.count == 2 }
+        for _ in 0..<20 { m.requestAcceleratedProbe() } // 第二探针执行期间继续攻击。
+        await probes.releaseOne()
+        try? await Task.sleep(for: .milliseconds(30))
+        let finalCount = await probes.count
+        XCTAssertEqual(finalCount, 2, "每个最短间隔至多允许一个加速探针")
+        m.stop()
     }
 
     func test_inactiveUsesLongIntervalAndActivationProbesOnce() async throws {
@@ -199,5 +232,32 @@ actor DurationRecorder {
     func recordAndPark(_ duration: Duration) async {
         values.append(duration)
         try? await Task.sleep(for: .seconds(3600))
+    }
+}
+
+final class ManualHeartbeatClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var instant = ContinuousClock.now
+    var now: ContinuousClock.Instant {
+        lock.withLock { instant }
+    }
+    func advance(by duration: Duration) {
+        lock.withLock { instant = instant.advanced(by: duration) }
+    }
+}
+
+actor GatedProbe {
+    private(set) var count = 0
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func run() async -> Bool {
+        count += 1
+        await withCheckedContinuation { waiters.append($0) }
+        return true
+    }
+
+    func releaseOne() {
+        guard !waiters.isEmpty else { return }
+        waiters.removeFirst().resume()
     }
 }

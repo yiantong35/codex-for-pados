@@ -147,6 +147,40 @@ final class RelayTrustedHandshakeTests: XCTestCase {
         XCTAssertFalse(d.isTrustedReconnect)
     }
 
+    func testTrustedReconnectPeerLeftBindsToActualStableRoom() async throws {
+        let dev = DevResponder(pairingCode: "unused", stableSessionId: "room-stable")
+        let ws = LoopbackRelayWSChannel { try dev.handle($0) }
+        let payload = PairingPayload(relayURL: "wss://relay.test", sessionId: "payload-sid",
+                                     devIdentityPubB64: dev.devIdentityPubB64,
+                                     pairingCode: "unused", expiresAt: 9_999_999_999)
+        let transport = RelayTransport(
+            channelFactory: { ws }, pairing: payload, relayRoomId: "room-stable",
+            ipadIdentity: Curve25519.Signing.PrivateKey(),
+            ephemeralProvider: { Curve25519.KeyAgreement.PrivateKey() },
+            tofu: InMemoryTOFUStore(), tofuMachineKey: "machine-room",
+            isTrustedReconnect: true, stableSessionStore: InMemoryStableSessionStore())
+
+        try await transport.awaitHandshake()
+        let collected = Task { () -> [TransportControlEvent] in
+            var events: [TransportControlEvent] = []
+            for await event in transport.control() { events.append(event) }
+            return events
+        }
+
+        let stale = try RelaySignal(kind: RelaySignal.peerLeftKind,
+                                    sessionId: "payload-sid").encoded()
+        await ws.inject(String(decoding: stale, as: UTF8.self))
+        let actual = try RelaySignal(kind: RelaySignal.peerLeftKind,
+                                     sessionId: "room-stable").encoded()
+        await ws.inject(String(decoding: actual, as: UTF8.self))
+        try? await Task.sleep(for: .milliseconds(50))
+        await transport.close()
+
+        let events = await collected.value
+        XCTAssertEqual(events.filter { $0 == .peerLeft }.count, 1,
+                       "只接受实际 stable room 的 peer-left，旧 payload session 必须忽略")
+    }
+
     // MARK: 生产 StableSessionStore（UserDefaults）往返
 
     func testUserDefaultsStableSessionStoreRoundTrip() {
