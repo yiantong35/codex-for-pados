@@ -54,7 +54,7 @@ TBD - created by archiving change review-actions-panel-fullscreen. Update Purpos
 - **THEN** 文件统计不触发主工作区导航，也不暴露无动作按钮语义
 
 ### Requirement: 发起审查给出可见反馈
-在审查面板发起 AI 审查后 SHALL 给出短时可见反馈（发起态提示），基于发起调用的返回事件驱动。反馈 SHALL 为一次性短时呈现后自动收起，不引入轮询/周期定时器，不改变 fire-and-forget 的发起本质。
+在审查面板发起 AI 审查后 SHALL 给出短时可见反馈，并以 `review/start` RPC 的成功响应或错误作为反馈依据。请求进行期间 SHALL 锁定入口并显示进行态；反馈 SHALL 为一次性短时呈现后自动收起，不引入轮询/周期定时器。
 
 #### Scenario: 发起后短时提示
 - **WHEN** 用户点击发起本轮/全量审查
@@ -69,5 +69,5 @@ TBD - created by archiving change review-actions-panel-fullscreen. Update Purpos
 - **THEN** 仅首次点击发起请求，按钮保持锁定直到反馈收起
 
 #### Scenario: 发起失败明确反馈
-- **WHEN** 发起回调返回失败
+- **WHEN** `review/start` 因断线、服务端拒绝或协议错误失败
 - **THEN** 面板短时显示本地化失败反馈，而非静默无响应
