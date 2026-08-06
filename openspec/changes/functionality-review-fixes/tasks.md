@@ -11,7 +11,7 @@
 ## 1. Relay 线协议与开发机可用性
 
 - [x] 1.1 新增 RelayProtocol 共享 wire limit；relay-server、dialout upgrader、iOS ImageEncoder/RelayTransport 全部引用；真实 NIO 端到端测试覆盖 16 KiB < frame <= 1 MiB，最终序列化帧超限在发送前显式失败。
-- [ ] 1.2 将 Linux `SymmetricKey: Sendable` 条件兼容纳入版本控制；在真实 Linux Swift 6 环境跑 RelayProtocol、relay-server、relay-dialout build/tests。
+- [x] 1.2 将 Linux `SymmetricKey: Sendable` 条件兼容纳入版本控制；在真实 Linux Swift 6.1 容器完成 RelayProtocol 42、relay-server 43、relay-dialout 48 个测试，并在 macOS 回归对应 42/43/50 个测试。
 - [ ] 1.3 抽取并实现 `DialoutSupervisor`，对 relay close/网络失败做可取消的 capped exponential backoff+jitter 重拨；信任拒绝、bridge 退出和用户信号为终态；补确定性生命周期测试。
 
 ## 2. Server-initiated JSON-RPC 请求

@@ -53,7 +53,7 @@ minimal production change, a GREEN check, and its own reviewable commit.
 - [x] Confirm the recovered cwd-diff and 120 pt near-bottom tests in the full suite.
 - [x] Update `base-ref` here, `base_ref` in the change `.comet.yaml`, and the
   technical-design front matter to `19acfda2`.
-- [ ] Re-run `openspec validate functionality-review-fixes --strict` after the
+- [x] Re-run `openspec validate functionality-review-fixes --strict` after the
   planning artifact commit is present on the implementation branch.
 
 ## Phase 1 - Relay Contract and Dialout Availability
@@ -83,14 +83,14 @@ upgrader configuration, `relay-dialout` client upgrader, `RelayTransport.swift`,
 **Files:** `SymmetricKeySendable+Linux.swift`, package manifests only if required,
 and a Linux verification script/job if the repository lacks one.
 
-- [ ] Review the existing untracked conditional conformance for correctness,
+- [x] Review the existing untracked conditional conformance for correctness,
   isolation, and Swift-version guards.
-- [ ] RED: reproduce the Swift 6 Linux compiler failure in a real Linux runner or
+- [x] RED: reproduce the Swift 6 Linux compiler failure in a real Linux runner or
   container and retain the failing log.
-- [ ] Add the smallest conditional compatibility implementation; do not weaken
+- [x] Add the smallest conditional compatibility implementation; do not weaken
   Sendable checking globally.
-- [ ] GREEN: build/test RelayProtocol, relay-server, and relay-dialout on Linux.
-- [ ] Commit: `fix(relay): support Swift 6 Linux sendability`.
+- [x] GREEN: build/test RelayProtocol, relay-server, and relay-dialout on Linux.
+- [x] Commit: `fix(relay): support Swift 6 Linux sendability`.
 
 ### Task 1.3: Supervise dialout reconnects
 

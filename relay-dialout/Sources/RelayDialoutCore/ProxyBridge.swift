@@ -9,7 +9,10 @@ import Foundation
 ///
 /// ⚠️ 进程安全：只记住并管理**自己 spawn 的这个子进程 PID**，`terminate()` 仅停它，
 /// 绝不使用 pkill/wide-match kill（会误杀 desktop GUI 私有的 app-server）。
-public final class ProxyBridge {
+/// The dialout connection owner serializes lifecycle and stdin writes. Foundation's
+/// Process/Pipe types do not declare Sendable even though stdout delivery crosses
+/// into the AsyncStream task, so the ownership invariant is expressed explicitly.
+public final class ProxyBridge: @unchecked Sendable {
     private let codexPath: String
     private let sockPath: String
     private let overrideArguments: [String]?

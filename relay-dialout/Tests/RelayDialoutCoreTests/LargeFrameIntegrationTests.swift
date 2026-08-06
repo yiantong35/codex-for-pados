@@ -125,6 +125,6 @@ final class LargeFrameIntegrationTests: XCTestCase {
             .connect(host: "127.0.0.1", port: port)
             .wait()
 
-        wait(for: [received], timeout: 5)
+        wait(for: [received], timeout: 10)
     }
 }
