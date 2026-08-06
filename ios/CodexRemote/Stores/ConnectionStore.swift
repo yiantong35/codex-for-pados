@@ -464,6 +464,11 @@ final class ConnectionStore {
                 return String(format: L10n.string("conn.error.handshakeFailed", locale: loc), m)
             case .trustRevoked:
                 return L10n.string("conn.error.trustRevoked", locale: loc)
+            case .messageTooLarge(let bytes, let limit):
+                return String(
+                    format: L10n.string("conn.error.messageTooLarge", locale: loc),
+                    Int64(bytes), Int64(limit)
+                )
             }
         }
         if let to = error as? ConnectionTimeoutError {

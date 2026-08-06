@@ -7,4 +7,5 @@ enum TransportError: Error, Equatable {
     case notConnected
     case handshakeFailed(String)      // ws 握手失败（无 101 / Accept 校验不过）
     case trustRevoked                 // 开发机移除信任（收 RejectHello）：可判别类型，供 connect 引导重新配对
+    case messageTooLarge(bytes: Int, limit: Int)
 }

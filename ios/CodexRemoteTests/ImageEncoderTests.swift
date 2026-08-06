@@ -1,11 +1,16 @@
 import XCTest
 import UIKit
+import RelayProtocol
 @testable import CodexRemote
 
 /// F7：图片发送前有界编码。relay 单帧上限 1 MiB（镜像 relay-server
 /// `FrameAccumulator.swift:8`）；普通照片全尺寸 base64 后远超此限会致 relay 断连。
 /// 覆盖：大图降采样落上限内 / 无法落入上限时带具体数字拒绝 / 非 JPEG 原图重编码后如实标注 MIME。
 final class ImageEncoderTests: XCTestCase {
+
+    func test_relay_limit_comes_from_shared_protocol_contract() {
+        XCTAssertEqual(ImageEncoder.relayMaxMessageBytes, RelayWireLimits.maxMessageBytes)
+    }
 
     func test_large_image_downscaled_within_limit() async throws {
         let big = Self.makeTestJPEG(width: 4032, height: 3024)
@@ -103,4 +108,3 @@ final class ImageEncoderTests: XCTestCase {
         }
     }
 }
-

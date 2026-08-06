@@ -1221,6 +1221,12 @@
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "未连接" } }
       }
     },
+    "conn.error.messageTooLarge": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Message is too large (%lld bytes; maximum %lld)" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "消息过大（%lld 字节，上限 %lld）" } }
+      }
+    },
     "conn.error.pairingMissing": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Relay pairing info missing" } },

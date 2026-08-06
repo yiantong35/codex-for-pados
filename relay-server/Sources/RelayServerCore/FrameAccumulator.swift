@@ -1,11 +1,12 @@
 import Foundation
+import RelayProtocol
 
 /// relay 面向公网的资源上限常量（决策 D3：纯加法防御，不碰零知识转发）。
 ///
 /// 均为进程内单值——relay 是单进程服务，计数/配额用内存即可。
 public enum RelayLimits {
     /// 单消息（分片累积后）字节上限：1 MiB。超限连接被关闭，内存不无界增长。
-    public static let maxMessageBytes = 1 << 20
+    public static let maxMessageBytes = RelayWireLimits.maxMessageBytes
     /// 空闲（无数据往来）连接超时秒数：超时后回收连接。
     /// 仅适用于 **upgrade 之前**的慢连接/只连不发/被遗弃连接（握手期短空闲）。
     public static let idleTimeoutSeconds: Int64 = 120

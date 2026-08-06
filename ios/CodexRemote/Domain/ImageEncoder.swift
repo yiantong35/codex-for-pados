@@ -1,4 +1,5 @@
 import UIKit
+import RelayProtocol
 
 /// F7：图片发送前有界编码的结果。`.tooLarge` 携带实测字节数与上限，供 UI 提示具体数字。
 enum ImageEncodeResult {
@@ -16,8 +17,8 @@ enum ImageEncodeResult {
 /// 膨胀：`明文上限 ≈ 帧上限 / (4/3) − envelope`（≈ 帧上限的 ¾）。若按帧上限直接
 /// 卡明文，近上限图片密文化后 ≈1.3 MiB 会撑爆 1 MiB 帧上限致 relay 断连。
 enum ImageEncoder {
-    /// 镜像 relay-server `FrameAccumulator.swift:8` 的单帧上限。
-    static let relayMaxMessageBytes = 1 << 20
+    /// 三端共享的 relay 单帧上限。
+    static let relayMaxMessageBytes = RelayWireLimits.maxMessageBytes
     /// JSON-RPC envelope 包装余量。
     static let envelopeHeadroom = 64 * 1024
     /// 降采样目标最长边（像素）。

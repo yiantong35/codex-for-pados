@@ -66,17 +66,17 @@ minimal production change, a GREEN check, and its own reviewable commit.
 upgrader configuration, `relay-dialout` client upgrader, `RelayTransport.swift`,
 `TransportError.swift`, `ImageEncoder.swift`, and focused package/iOS tests.
 
-- [ ] RED: add a real NIO client/server upgrade test that sends a text frame
+- [x] RED: add a real NIO client/server upgrade test that sends a text frame
   above 16 KiB and below/equal to 1 MiB; prove current dialout closes/rejects it.
-- [ ] RED: add iOS tests for final serialized frame overflow, including a large
+- [x] RED: add iOS tests for final serialized frame overflow, including a large
   text-only payload and envelope overhead.
-- [ ] Implement `RelayWireLimits.maxMessageBytes = 1 << 20` and replace local
+- [x] Implement `RelayWireLimits.maxMessageBytes = 1 << 20` and replace local
   production constants/configuration with it.
-- [ ] Check final UTF-8 frame bytes immediately before socket write and return a
+- [x] Check final UTF-8 frame bytes immediately before socket write and return a
   typed user-facing error on overflow.
-- [ ] GREEN: run RelayProtocol, relay-server, relay-dialout, RelayTransport, and
+- [x] GREEN: run RelayProtocol, relay-server, relay-dialout, RelayTransport, and
   ImageEncoder focused tests.
-- [ ] Commit: `fix(relay): align end-to-end message size limits`.
+- [x] Commit: `fix(relay): align end-to-end message size limits`.
 
 ### Task 1.2: Make Linux compatibility real and tracked
 

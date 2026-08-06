@@ -294,7 +294,7 @@ let bootstrap = ClientBootstrap(group: group)
             ? DialoutTLS.addClientTLS(to: channel, serverHostname: host)
             : channel.eventLoop.makeSucceededFuture(())
         return tlsFuture.flatMap {
-            let upgrader = NIOWebSocketClientUpgrader(
+            let upgrader = DialoutWebSocket.makeClientUpgrader(
                 upgradePipelineHandler: { (channel, _) in
                     channel.pipeline.addHandler(DialoutWSHandler(bridge: bridge, context: context))
                 }
