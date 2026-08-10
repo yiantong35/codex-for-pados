@@ -85,7 +85,7 @@ final class WorkspaceSummaryTests: XCTestCase {
 
     func testCommandTasksEmpty() {
         var state = ConversationState(threadId: "t")
-        state.items = [.userMessage(id: "u1", text: "hi")]
+        state.items = [.userMessage(id: "u1", text: "hi", attachments: [])]
         XCTAssertTrue(WorkspaceSummary.commandTasks(in: state).isEmpty)
     }
 }

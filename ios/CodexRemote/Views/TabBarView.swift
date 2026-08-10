@@ -98,6 +98,7 @@ struct TabBarView: View {
             }
             .buttonStyle(.plain)
             .accessibilityValue(Text(indicator.accessibilityKey))
+            .accessibilityAddTraits(active ? [.isSelected] : [])
 
             // 可见管理入口（⋯）：触控/指针点击、外接键盘聚焦后回车/空格均可激活；不依赖长按。
             // 命中区 ≥44pt（UI 适配基线）：padding 撑起热区 + contentShape 让留白也可点。

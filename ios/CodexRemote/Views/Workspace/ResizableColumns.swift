@@ -121,7 +121,8 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
     // MARK: - 左分隔线（只改 leftWidth，右栏不受影响 → 解耦）
 
     private func leftDivider(total: CGFloat, dividerCount: Int, otherColumnWidth: CGFloat) -> some View {
-        divider(accessibilityLabel: "workspace.column.left.resize") { absX in
+        divider(accessibilityLabel: "workspace.column.left.resize",
+                accessibilityValue: "workspace.column.width \(Int(leftWidth))") { absX in
             if dragStartX == nil { dragStartX = absX; dragStartWidth = leftWidth }
             let dx = absX - (dragStartX ?? absX)
             let base = dragStartWidth ?? leftWidth
@@ -143,7 +144,8 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
     // 拖右分隔线向左（absX 减小）→ 右栏变宽，故用「起点绝对宽 − dx」。
 
     private func rightDivider(total: CGFloat, dividerCount: Int, otherColumnWidth: CGFloat) -> some View {
-        divider(accessibilityLabel: "workspace.column.right.resize") { absX in
+        divider(accessibilityLabel: "workspace.column.right.resize",
+                accessibilityValue: "workspace.column.width \(Int(rightWidth))") { absX in
             if dragStartX == nil { dragStartX = absX; dragStartWidth = rightWidth }
             let dx = absX - (dragStartX ?? absX)
             let base = dragStartWidth ?? rightWidth
@@ -166,6 +168,7 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
     /// onDrag 回传固定坐标系里的绝对 x；调用方用起点锚差分算增量。
     /// onAdjust 承接 VoiceOver 增 / 减宽（D8）。
     private func divider(accessibilityLabel: LocalizedStringKey,
+                         accessibilityValue: LocalizedStringKey,
                          onDrag: @escaping (CGFloat) -> Void,
                          onAdjust: @escaping (AccessibilityAdjustmentDirection) -> Void) -> some View {
         ZStack {
@@ -188,7 +191,7 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
         )
         .accessibilityElement()
         .accessibilityLabel(Text(accessibilityLabel))
-        .accessibilityAddTraits(.allowsDirectInteraction)
+        .accessibilityValue(Text(accessibilityValue))
         .accessibilityAdjustableAction(onAdjust)
     }
 

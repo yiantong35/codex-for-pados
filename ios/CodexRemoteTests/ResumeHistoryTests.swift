@@ -21,7 +21,7 @@ final class ResumeHistoryTests: XCTestCase {
 
         // 至少包含两条 userMessage（两个 turn 各一条）、若干 agentMessage、一条 fileChange。
         let userMsgs = state.items.compactMap { item -> String? in
-            if case .userMessage(_, let t) = item { return t } else { return nil }
+            if case .userMessage(_, let t, _) = item { return t } else { return nil }
         }
         XCTAssertGreaterThanOrEqual(userMsgs.count, 2, "应摄入历史 userMessage，实际 items=\(state.items)")
         XCTAssertTrue(userMsgs.contains { $0.contains("已完成交接整理") },
@@ -49,7 +49,7 @@ final class ResumeHistoryTests: XCTestCase {
         let result = try loadResumeResult("threadResumeHistory")
         var state = ConversationState(threadId: "t")
         ThreadReducer().ingest(resumeResult: result, to: &state)
-        guard case .userMessage(let id, _)? = state.items.first else {
+        guard case .userMessage(let id, _, _)? = state.items.first else {
             return XCTFail("首条应为 userMessage，实际：\(state.items)")
         }
         XCTAssertEqual(id, "item-1")

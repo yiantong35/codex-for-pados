@@ -45,6 +45,7 @@ struct RootSplitView: View {
     @Environment(ProjectsStore.self) private var projects
     @Environment(EnvironmentInspectorModel.self) private var envInspector
     @Environment(FileBrowserStore.self) private var fileBrowser
+    @Environment(SideChatStore.self) private var sideChat
     // 真实系统深浅值：theme=.system 时本视图跟随系统，此值即真实系统外观，传给设置 sheet
     // 以正确解析 .system（规避 sheet .preferredColorScheme(nil) 无法重置强制值）。
     @Environment(\.colorScheme) private var systemColorScheme
@@ -60,6 +61,7 @@ struct RootSplitView: View {
     /// 每次外部载入列宽（切 tab / 冷启动）自增，驱动 ResizableColumns 用真实总宽重新收敛（修复窄屏恢复溢出）。
     @State private var widthLoadRevision = 0
     @State private var fileOpenTask: Task<Void, Never>?
+    @State private var operationError: String?
     /// 便利初始化：允许注入面板初始展开态（供快照测试覆盖全开布局）。
     init(initialRightOpen: Bool = false, initialBottomOpen: Bool = false,
          workspaceState: WorkspaceSessionState? = nil) {
@@ -84,8 +86,9 @@ struct RootSplitView: View {
         // 下栏改为 VStack 兄弟槽（不再用 split 的 .safeAreaInset(.bottom)）：
         // 顶栏与摘要 overlay 迁到自绘三栏容器 resizableColumns 外层（design D6）：顶栏用
         // .safeAreaInset(.top) 挂外层横跨三栏，摘要用常驻 overlay 落在顶栏下方内容区。
-        VStack(spacing: 0) {
-            resizableColumns
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                resizableColumns
                 // 摘要：常驻悬浮浮层（design D2 改）。用 overlay 而非 .popover，故点击别处不收回，
                 // 仅由顶栏摘要按钮显隐。overlay 放在 safeAreaInset 之前 → 浮层落在顶栏「下方」内容区，
                 // 不会遮挡顶栏按钮（否则会盖住摘要按钮本身导致收不回）。
@@ -120,23 +123,40 @@ struct RootSplitView: View {
                 }
 
             // 下栏：VStack 底部兄弟槽，横跨左+中+右、把 resizableColumns 挤压上移（design D2 目标，改用 VStack 实现）。
-            if layout.showBottom {
-                Divider()
-                BottomPanelView(height: Binding(
-                    get: { workspaceState.bottomHeight },
-                    set: { workspaceState.bottomHeight = $0 }
-                ), cwd: selectedThread?.cwd)
+                if layout.showBottom {
+                    Divider()
+                    BottomPanelView(height: Binding(
+                        get: { workspaceState.bottomHeight },
+                        set: { workspaceState.bottomHeight = $0 }
+                    ), maximumHeight: WorkspaceMetrics.bottomPanelMaximumHeight(
+                        containerHeight: geometry.size.height
+                    ), cwd: selectedThread?.cwd)
                     // 从底部滑入/滑出，配合顶栏按钮的 withAnimation，弹出不再僵硬（#1）。
                     .transition(.move(edge: .bottom))
+                }
             }
         }
         .background { ShortcutLayer(layout: layout) }   // T10：隐藏快捷键层挂稳定独立视图（不随 body 重算重建）
         .environment(activeConversation)
         .sheet(isPresented: $layout.showSettings) { SettingsPageView(systemColorScheme: systemColorScheme) }
+        .alert("operation.failed.title", isPresented: Binding(
+            get: { operationError != nil },
+            set: { if !$0 { operationError = nil } }
+        )) {
+            Button("common.ok", role: .cancel) { operationError = nil }
+        } message: {
+            Text(operationError ?? "")
+        }
         .onChange(of: sessions.activeSessionId) { _, newId in
             loadColumnWidths(for: newId)
         }
         .onChange(of: selectedThreadId) { _, _ in fileOpenTask?.cancel() }
+        .onChange(of: projects.allThreadsSorted.map(\.id)) { _, ids in
+            reconcileSelectedThread(availableIDs: Set(ids))
+        }
+        .onChange(of: projects.loadState) { _, _ in
+            reconcileSelectedThread(availableIDs: Set(projects.allThreadsSorted.map(\.id)))
+        }
         .task {
             loadColumnWidths(for: sessions.activeSessionId)
         }
@@ -154,16 +174,22 @@ struct RootSplitView: View {
             // 新建会话：SidebarView 无导航栏（已移除 NavigationSplitView），故新建入口挂在此自定义顶栏（design D1 深挖）。点击发 thread/start，切 selectedThreadId 进入新会话。
             // rpc 从 connection 显式取（projects.self.rpc 未经 attach 注入，对齐 loadFromServer(rpc:) 模式）。
             Button {
-                guard let rpc = connection.rpc else { return }
+                guard connection.phase == .ready, let rpc = connection.rpc else {
+                    operationError = L10n.string("operation.unavailable.offline", locale: LocaleManager.currentLocale)
+                    return
+                }
                 Task {
-                    guard let newId = await projects.createThread(rpc: rpc) else { return }
+                    guard let newId = await projects.createThread(rpc: rpc) else {
+                        if let error = projects.createThreadError { operationError = error }
+                        return
+                    }
                     workspaceState.selectedThreadId = newId
                     projects.markViewed(threadId: newId, updatedAt: Date().timeIntervalSince1970)
                 }
             } label: { Image(systemName: "plus.rectangle") }
             .minimumHitTarget44()
             .accessibilityLabel(Text("sidebar.newThread"))
-            .disabled(projects.isCreatingThread)   // 防抖：创建进行中禁用，避免连点建多个会话
+            .disabled(connection.phase != .ready || projects.isCreatingThread)
 
             // 左面板：切换 layout.leftVisible 显隐自绘左列（无系统 columnVisibility / sidebarToggle）。
             Button {
@@ -289,6 +315,30 @@ struct RootSplitView: View {
             guard !Task.isCancelled, selectedThreadId == threadId else { return }
             await fileBrowser.openFile(resolvedPath)
         }
+    }
+
+    private func reconcileSelectedThread(availableIDs: Set<String>) {
+        let resolved = Self.resolvedSelection(
+            current: workspaceState.selectedThreadId,
+            availableIDs: availableIDs,
+            loadState: projects.loadState
+        )
+        guard workspaceState.selectedThreadId != resolved else { return }
+        workspaceState.selectedThreadId = resolved
+        activeConversation.state = nil
+        activeConversation.contextIdentity = nil
+        activeConversation.fetchFullDiff = nil
+        activeConversation.startReview = nil
+        activeConversation.fetchGeneration &+= 1
+        fileOpenTask?.cancel()
+        sideChat.reset()
+        Task { await fileBrowser.setRoot(nil) }
+    }
+
+    static func resolvedSelection(current: String?, availableIDs: Set<String>,
+                                  loadState: ProjectsLoadState) -> String? {
+        guard loadState == .loaded, let current else { return current }
+        return availableIDs.contains(current) ? current : nil
     }
 }
 

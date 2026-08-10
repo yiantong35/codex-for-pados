@@ -16,6 +16,8 @@ struct SideChatSession: Identifiable {
 final class SideChatStore {
     private(set) var sessions: [SideChatSession] = []
     var selectedId: String?
+    private(set) var isStarting = false
+    private(set) var startFailed = false
 
     private var rpc: JSONRPCClient?
     /// 已开侧聊计数（只增），用于标题 #序号，与 close 无关（关掉不回收序号，避免标题跳变）。
@@ -28,15 +30,31 @@ final class SideChatStore {
 
     /// 从主对话 fork 一个 ephemeral 侧聊。无 rpc / 无主对话 threadId → 直接返回，不发请求。
     func start(fromThreadId mainThreadId: String?) async {
-        guard let rpc, let mainThreadId, !mainThreadId.isEmpty else { return }
+        guard !isStarting else { return }
+        startFailed = false
+        guard let rpc, let mainThreadId, !mainThreadId.isEmpty else {
+            startFailed = true
+            return
+        }
+        isStarting = true
+        defer { isStarting = false }
         let forker = ConversationStore(rpc: rpc, threadId: mainThreadId)
-        guard let result = await forker.fork(ephemeral: true) else { return }
+        guard let result = await forker.fork(ephemeral: true) else {
+            startFailed = true
+            return
+        }
 
         startedCount += 1
         let title = Self.makeTitle(forkedFromId: result.forkedFromId, index: startedCount)
         let session = SideChatSession(id: result.threadId, forkedFromId: result.forkedFromId, title: title)
         sessions.append(session)
         selectedId = session.id
+    }
+
+    func reset() {
+        sessions.removeAll()
+        selectedId = nil
+        startFailed = false
     }
 
     /// 关闭侧聊：移除 metadata；可见 ConversationView 随选择变化销毁并取消自己的订阅。

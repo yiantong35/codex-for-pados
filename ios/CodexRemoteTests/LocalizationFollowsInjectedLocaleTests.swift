@@ -29,6 +29,13 @@ final class LocalizationFollowsInjectedLocaleTests: XCTestCase {
         "fileBrowser.loadDirFailed",
         "review.started",           // #9：发起审查可见反馈文案
         "review.startFailed",
+        "review.start",
+        "rightPanel.fullscreen.enter",
+        "rightPanel.fullscreen.exit",
+        "operation.failed.title",
+        "operation.failed.description",
+        "operation.unavailable.offline",
+        "workspace.column.width %lld",
         "mcpElicitation.openURL",
         "mcpElicitation.urlRisk.http",
         "mcpElicitation.urlRisk.punycode",

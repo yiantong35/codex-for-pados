@@ -108,6 +108,7 @@ struct ExtensionsSectionView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
+                .minimumHitTarget44()
                 .disabled(!isReady)
                 .accessibilityLabel("settings.extensions.group.refresh")
             }

@@ -156,6 +156,16 @@ final class ProjectsStoreTests: XCTestCase {
 
         let newId = await s.createThread(rpc: rpc)
         XCTAssertNil(newId, "响应无 thread.id 时应返回 nil")
+        XCTAssertNotNil(s.createThreadError)
+    }
+
+    func testSelectionClearsOnlyAfterLoadedListRemovesThread() {
+        XCTAssertEqual(RootSplitView.resolvedSelection(
+            current: "t1", availableIDs: [], loadState: .idle), "t1")
+        XCTAssertEqual(RootSplitView.resolvedSelection(
+            current: "t1", availableIDs: ["t1"], loadState: .loaded), "t1")
+        XCTAssertNil(RootSplitView.resolvedSelection(
+            current: "t1", availableIDs: ["t2"], loadState: .loaded))
     }
 
     // Task 0.5 防抖：创建进行中，第二次调用被拒（返回 nil，不发第二个 thread/start）。

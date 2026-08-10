@@ -148,6 +148,7 @@ struct FileBrowserView: View {
             .background(selected ? Color.accentColor.opacity(0.14) : Color.clear)
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
     @ViewBuilder private var contentArea: some View {

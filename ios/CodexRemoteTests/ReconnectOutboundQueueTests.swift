@@ -16,7 +16,7 @@ final class ReconnectOutboundQueueTests: XCTestCase {
         await store.send(input: [.text("c")], model: nil, effort: nil)
 
         let texts = store.state.items.compactMap { i -> String? in
-            if case .userMessage(_, let t) = i { return t } else { return nil }
+            if case .userMessage(_, let t, _) = i { return t } else { return nil }
         }
         XCTAssertEqual(texts, ["a", "b", "c"], "断线期间应乐观回显 3 条")
         // 关键：未 fire turn/start（给足时间让任何 Task 写出帧）

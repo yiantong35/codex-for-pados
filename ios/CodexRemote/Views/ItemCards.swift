@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 按 ConversationItem 类型分发渲染的卡片（设计 §3 中栏对话流）。
 /// 真实结构见 Domain/ConversationModels.swift：
@@ -9,11 +10,17 @@ struct ItemCard: View {
 
     var body: some View {
         switch item {
-        case .userMessage(_, let text):
+        case .userMessage(_, let text, let attachments):
             HStack {
                 Spacer(minLength: 40)
-                Text(text)
-                    .textSelection(.enabled)
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(attachments.enumerated()), id: \.offset) { _, attachment in
+                        userAttachment(attachment)
+                    }
+                    if !text.isEmpty {
+                        Text(text).textSelection(.enabled)
+                    }
+                }
                     .padding(10)
                     // 用户气泡用主题色淡底（accentColor 橙），不用系统蓝。
                     .background(Color.accentColor.opacity(0.15))
@@ -157,6 +164,40 @@ struct ItemCard: View {
         case .collabAgentToolCall, .subAgentActivity:
             EmptyView()
         }
+    }
+
+    @ViewBuilder
+    private func userAttachment(_ attachment: UserMessageAttachment) -> some View {
+        if attachment.kind == .image,
+           let data = Self.imageData(from: attachment.source),
+           let image = UIImage(data: data) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 220, maxHeight: 220)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .accessibilityLabel(Text("composer.imageAttached"))
+        } else {
+            Label {
+                Text(attachment.source)
+                    .font(.caption.monospaced())
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+            } icon: {
+                Image(systemName: "photo")
+            }
+            .foregroundStyle(.secondary)
+            .accessibilityLabel(Text("composer.imageAttached"))
+        }
+    }
+
+    private static func imageData(from source: String) -> Data? {
+        guard source.hasPrefix("data:image/"),
+              let comma = source.firstIndex(of: ","),
+              source[..<comma].hasSuffix(";base64")
+        else { return nil }
+        return Data(base64Encoded: String(source[source.index(after: comma)...]),
+                    options: .ignoreUnknownCharacters)
     }
 
     @ViewBuilder

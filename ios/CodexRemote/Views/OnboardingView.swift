@@ -27,6 +27,7 @@ struct OnboardingView: View {
             Image(systemName: "macbook.and.iphone")
                 .font(.system(size: 48, weight: .regular))
                 .foregroundStyle(.tint)
+                .accessibilityHidden(true)
 
             VStack(spacing: 8) {
                 Text("onboarding.title")
