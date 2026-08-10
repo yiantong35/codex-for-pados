@@ -127,3 +127,30 @@ enum FileImageThumbnailDecoder {
         return (width, height)
     }
 }
+
+enum MessageImageAttachmentDecoder {
+    static let maximumDataURLBytes = 1 * 1_024 * 1_024
+
+    static func thumbnail(from source: String) async -> FileImageThumbnail? {
+        let worker = Task.detached(priority: .userInitiated) {
+            guard !Task.isCancelled, let data = imageData(from: source) else {
+                return nil as FileImageThumbnail?
+            }
+            return FileImageThumbnailDecoder.makeThumbnail(from: data)
+        }
+        return await withTaskCancellationHandler {
+            await worker.value
+        } onCancel: {
+            worker.cancel()
+        }
+    }
+
+    static func imageData(from source: String) -> Data? {
+        guard source.utf8.count <= maximumDataURLBytes,
+              source.hasPrefix("data:image/"),
+              let comma = source.firstIndex(of: ","),
+              source[..<comma].hasSuffix(";base64")
+        else { return nil }
+        return Data(base64Encoded: String(source[source.index(after: comma)...]))
+    }
+}

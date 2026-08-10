@@ -10,12 +10,13 @@ struct ItemCard: View {
 
     var body: some View {
         switch item {
-        case .userMessage(_, let text, let attachments):
+        case .userMessage(let itemID, let text, let attachments):
             HStack {
                 Spacer(minLength: 40)
                 VStack(alignment: .leading, spacing: 8) {
-                    ForEach(Array(attachments.enumerated()), id: \.offset) { _, attachment in
-                        userAttachment(attachment)
+                    ForEach(Array(attachments.enumerated()), id: \.offset) { index, attachment in
+                        UserMessageAttachmentView(attachment: attachment)
+                            .id("\(itemID):\(index)")
                     }
                     if !text.isEmpty {
                         Text(text).textSelection(.enabled)
@@ -167,40 +168,6 @@ struct ItemCard: View {
     }
 
     @ViewBuilder
-    private func userAttachment(_ attachment: UserMessageAttachment) -> some View {
-        if attachment.kind == .image,
-           let data = Self.imageData(from: attachment.source),
-           let image = UIImage(data: data) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: 220, maxHeight: 220)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .accessibilityLabel(Text("composer.imageAttached"))
-        } else {
-            Label {
-                Text(attachment.source)
-                    .font(.caption.monospaced())
-                    .lineLimit(2)
-                    .truncationMode(.middle)
-            } icon: {
-                Image(systemName: "photo")
-            }
-            .foregroundStyle(.secondary)
-            .accessibilityLabel(Text("composer.imageAttached"))
-        }
-    }
-
-    private static func imageData(from source: String) -> Data? {
-        guard source.hasPrefix("data:image/"),
-              let comma = source.firstIndex(of: ","),
-              source[..<comma].hasSuffix(";base64")
-        else { return nil }
-        return Data(base64Encoded: String(source[source.index(after: comma)...]),
-                    options: .ignoreUnknownCharacters)
-    }
-
-    @ViewBuilder
     private func fileInspectionButton(path: String) -> some View {
         if let onOpenFile {
             Button { onOpenFile(path) } label: {
@@ -318,6 +285,50 @@ struct ItemCard: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct UserMessageAttachmentView: View {
+    let attachment: UserMessageAttachment
+    @State private var image: UIImage?
+    @State private var decodeFailed = false
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 220, maxHeight: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            } else if attachment.kind == .image, !decodeFailed {
+                ProgressView()
+                    .frame(width: 44, height: 44)
+            } else if attachment.kind == .localImage {
+                Label {
+                    Text(attachment.source)
+                        .font(.caption.monospaced())
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                } icon: {
+                    Image(systemName: "photo")
+                }
+                .foregroundStyle(.secondary)
+            } else {
+                Label("composer.imageAttached", systemImage: "photo")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityLabel(Text("composer.imageAttached"))
+        .task {
+            guard attachment.kind == .image else { return }
+            guard let thumbnail = await MessageImageAttachmentDecoder.thumbnail(from: attachment.source),
+                  !Task.isCancelled else {
+                if !Task.isCancelled { decodeFailed = true }
+                return
+            }
+            image = UIImage(cgImage: thumbnail.cgImage)
+        }
     }
 }
 
