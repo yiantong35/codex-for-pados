@@ -77,7 +77,7 @@ struct SideChatStoreTests {
         await store.start(fromThreadId: "main-1")
         await store.start(fromThreadId: "main-1")
         let selected = store.selectedId!
-        store.close(id: selected)
+        await store.close(id: selected)
         #expect(store.sessions.count == 1)
         #expect(store.selectedId == store.sessions.first?.id)
     }
@@ -86,7 +86,7 @@ struct SideChatStoreTests {
         let (mock, _, store) = await makeStore()
         let r = respondFork(mock); defer { r.cancel() }
         await store.start(fromThreadId: "main-1")
-        store.close(id: store.selectedId!)
+        await store.close(id: store.selectedId!)
         #expect(store.sessions.isEmpty)
         #expect(store.selectedId == nil)
     }
@@ -112,7 +112,7 @@ struct SideChatStoreTests {
         let outbox = registry.outbox(for: id)
         _ = try outbox.enqueue(input: [.text("queued")], model: nil, effort: nil)
 
-        store.close(id: id)
+        await store.close(id: id)
 
         #expect(oldDraft.text.isEmpty)
         #expect(!oldDraft.imageAttachment.hasActiveTaskForTesting)
@@ -149,5 +149,41 @@ struct SideChatStoreTests {
         await store.start(fromThreadId: "main-1")
         await store.start(fromThreadId: "main-1")
         #expect(await rpc.liveNotificationSubscriberCount() == 0)
+    }
+
+    @Test func runningSessionRequiresInterruptAndCloseSendsInterrupt() async throws {
+        let (mock, _, store) = await makeStore()
+        let r = respondFork(mock); defer { r.cancel() }
+        await store.start(fromThreadId: "main-1")
+        let id = try #require(store.selectedId)
+        let conversation = try #require(store.conversationStore(for: id))
+        await conversation.startObserving()
+        await mock.feed(#"{"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"fork-1","turn":{"id":"T1","status":"inProgress"}}}"#)
+        for _ in 0..<100 where !conversation.state.isTurnRunning {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        #expect(store.isRunning(id: id))
+
+        await store.close(id: id)
+        #expect(store.sessions.count == 1)
+
+        await mock.setAutoRespond(true)
+        await store.close(id: id, interruptIfRunning: true)
+        #expect(store.sessions.isEmpty)
+        #expect(await mock.sent.contains { $0.contains(RPCMethod.turnInterrupt) })
+    }
+
+    @Test func closeClearsThreadOutbox() async throws {
+        let (mock, _, store) = await makeStore()
+        let r = respondFork(mock); defer { r.cancel() }
+        await store.start(fromThreadId: "main-1")
+        let id = try #require(store.selectedId)
+        let conversation = try #require(store.conversationStore(for: id))
+        conversation.isReady = { false }
+        await conversation.send(input: [.text("pending")], model: nil, effort: nil)
+        #expect(conversation.outbox.count == 1)
+
+        await store.close(id: id)
+        #expect(store.conversationOutboxes.outbox(for: id).entries.isEmpty)
     }
 }

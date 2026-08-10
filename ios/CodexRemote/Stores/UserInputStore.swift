@@ -99,6 +99,10 @@ final class UserInputStore {
         for index in cards.indices { cards[index].awaitingRecovery = true }
     }
 
+    func removeAll(threadId: String) {
+        for id in cards.filter({ $0.threadId == threadId }).map(\.id) { remove(id) }
+    }
+
     private func scheduleAutoResolution(for card: UserInputCard,
                                         delayMilliseconds: UInt64? = nil) {
         guard let milliseconds = delayMilliseconds ?? card.autoResolutionMs else { return }

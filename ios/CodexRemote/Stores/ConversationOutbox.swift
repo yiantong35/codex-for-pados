@@ -69,6 +69,7 @@ fileprivate final class ConversationOutboxBudget {
 final class ConversationOutbox {
     private(set) var entries: [PendingConversationMessage] = []
     private var sendingClientId: String?
+    private(set) var failedClientId: String?
     private var rpcIdentity: ObjectIdentifier?
     @ObservationIgnored private let budget: ConversationOutboxBudget
     @ObservationIgnored private let limits: ConversationOutboxLimits
@@ -88,6 +89,11 @@ final class ConversationOutbox {
     }
 
     var totalByteCount: Int { entries.reduce(0) { $0 + $1.byteCount } }
+
+    var failedEntry: PendingConversationMessage? {
+        guard let failedClientId else { return nil }
+        return entries.first { $0.clientId == failedClientId }
+    }
 
     func attach(to rpc: JSONRPCClient) {
         let identity = ObjectIdentifier(rpc)
@@ -143,7 +149,7 @@ final class ConversationOutbox {
     }
 
     func beginSending() -> PendingConversationMessage? {
-        guard sendingClientId == nil, let entry = entries.first else { return nil }
+        guard sendingClientId == nil, failedClientId == nil, let entry = entries.first else { return nil }
         sendingClientId = entry.clientId
         return entry
     }
@@ -151,6 +157,7 @@ final class ConversationOutbox {
     /// An authoritative userMessage echo proves acceptance, but the RPC may still be in flight.
     func acknowledge(clientId: String) {
         removeEntry(clientId: clientId)
+        if failedClientId == clientId { failedClientId = nil }
     }
 
     /// RPC success acknowledges the entry; completion or authoritative resume opens the next window.
@@ -178,8 +185,22 @@ final class ConversationOutbox {
     func failSending(clientId: String) -> Bool {
         let remainsPending = entries.contains { $0.clientId == clientId }
         if sendingClientId == clientId { sendingClientId = nil }
+        if remainsPending { failedClientId = clientId }
         return remainsPending
     }
+
+    func retryFailed() -> Bool {
+        guard failedEntry != nil else { return false }
+        failedClientId = nil
+        return true
+    }
+
+    func discardFailed() -> PendingConversationMessage? {
+        guard let entry = failedEntry else { return nil }
+        acknowledge(clientId: entry.clientId)
+        return entry
+    }
+
 
     func reconcileAuthoritativeState() {
         sendingClientId = nil
@@ -190,12 +211,14 @@ final class ConversationOutbox {
         let count = entries.count
         entries.removeAll()
         sendingClientId = nil
+        failedClientId = nil
         budget.release(messages: count, bytes: bytes)
     }
 
     private func removeEntry(clientId: String) {
         guard let index = entries.firstIndex(where: { $0.clientId == clientId }) else { return }
         let entry = entries.remove(at: index)
+        if failedClientId == clientId { failedClientId = nil }
         budget.release(messages: 1, bytes: entry.byteCount)
     }
 }

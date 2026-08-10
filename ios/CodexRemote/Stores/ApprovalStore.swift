@@ -180,6 +180,13 @@ final class ApprovalStore {
         if !cards.contains(where: { $0.threadId == threadId }) { onPendingChange?(threadId, false) }
     }
 
+    func removeAll(threadId: String) {
+        let ids = cards.filter { $0.threadId == threadId }.map(\.id)
+        cards.removeAll { $0.threadId == threadId }
+        for id in ids { submissionStates[id] = nil }
+        onPendingChange?(threadId, false)
+    }
+
     /// 按请求方法把统一选项映射到正确的 decision 形状（v2 用 CommandExecution/FileChange，legacy 用 ReviewDecision）。
     func responseBody(for method: String, decision: ApprovalChoice,
                       requestedProfile: RequestPermissionProfile? = nil) -> AnyEncodable {

@@ -1,6 +1,13 @@
 import Foundation
 import Observation
 
+enum ConversationLoadState: Equatable {
+    case idle
+    case loading
+    case loaded
+    case failed
+}
+
 /// 当前 thread 的会话状态层：持有 JSONRPCClient，发起 resume/start/turn 请求，
 /// 并订阅 notifications() 把每条流式事件经 ThreadReducer 归约进 `state`（@Observable 暴露给 UI）。
 ///
@@ -11,6 +18,7 @@ final class ConversationStore {
     private(set) var state: ConversationState
     /// 流式内容每次合并落地递增一次。items 数量不变时，视图仍能感知正文增长。
     private(set) var contentRevision = 0
+    private(set) var loadState: ConversationLoadState = .idle
 
     private let rpc: JSONRPCClient
     private let reducer = ThreadReducer()
@@ -31,6 +39,7 @@ final class ConversationStore {
     /// Compatibility/UI view of messages not yet fired. The shared owner also retains the in-flight entry
     /// internally until the RPC or authoritative clientId confirms it.
     var outbox: [PendingConversationMessage] { outbound.queuedEntries }
+    var failedOutbound: PendingConversationMessage? { outbound.failedEntry }
     /// 当前连接是否 .ready 的信号源（装配时由 ConversationView 用 connection.phase 注入）。
     /// 默认 { true }：保持既有单测「无注入即视为在线直发」语义不变。
     var isReady: @MainActor () -> Bool = { true }
@@ -127,20 +136,25 @@ final class ConversationStore {
     /// 恢复桌面 app 创建的会话：发 thread/resume，加载并渲染历史。
     /// thread/resume 的同步响应里**携带完整历史**（thread.turns[].items[]）；
     /// 捕获该响应并经 ThreadReducer.ingest 灌入 state，UI 即可看到历史对话。
-    /// 发出请求后立即返回，历史摄入在响应到达后于主线程异步完成，不阻塞 UI。
     func resume(model: String? = nil, cwd: String? = nil) async {
+        loadState = .loading
         let params = ThreadResumeParams(threadId: state.threadId, model: model, cwd: cwd)
-        Task { [weak self] in
-            guard let self else { return }
-            guard let result = try? await self.call(RPCMethod.threadResume, params),
-                  let dict = result.value as? [String: Any] else { return }
-            self.reducer.ingest(resumeResult: dict, to: &self.state)
-            self.acknowledgeOutbox(fromResumeResult: dict)
-            if Self.hasAuthoritativeTurnState(dict) {
-                self.reconcileOutboundAfterAuthoritativeResume()
-            } else {
-                self.drainOutbox()
+        do {
+            let result = try await call(RPCMethod.threadResume, params)
+            guard let dict = result.value as? [String: Any] else {
+                loadState = .failed
+                return
             }
+            reducer.ingest(resumeResult: dict, to: &state)
+            acknowledgeOutbox(fromResumeResult: dict)
+            if Self.resumeHasNoTurns(dict) { markAuthoritativeIdle() }
+            authoritativeRecoveryComplete = true
+            reconcileOutboundAfterAuthoritativeResume()
+            loadState = .loaded
+        } catch is CancellationError {
+            loadState = .idle
+        } catch {
+            loadState = .failed
         }
     }
 
@@ -249,7 +263,24 @@ final class ConversationStore {
 
     /// D2：失败重发（失败项已原样留在 outbox 头且已回显）——重发即再 drain 一次，
     /// 不再二次回显、不再二次入队（#2 修复：旧实现经 send() 重发会重复 upsert 用户消息）。
-    func retryLastSend() async { drainOutbox() }
+    func retryLastSend() async {
+        guard outbound.retryFailed() else { return }
+        state.lastSendError = nil
+        drainOutbox()
+    }
+
+    @discardableResult
+    func discardFailedSend() -> PendingConversationMessage? {
+        guard let entry = outbound.discardFailed() else { return nil }
+        state.items.removeAll { $0.id == entry.localId }
+        state.lastSendError = nil
+        drainOutbox()
+        return entry
+    }
+
+    func takeFailedSendForEditing() -> PendingConversationMessage? {
+        discardFailedSend()
+    }
 
     /// Close the send window before a new RPC binding or physical reconnect becomes usable.
     func requireAuthoritativeRecovery() {
@@ -271,25 +302,35 @@ final class ConversationStore {
     ///    → 用 `try?` 吞掉并跳过，继续处理其余 thread，绝不因单个失败中断整批恢复（spike-findings §5）。
     /// 仅把命中当前 threadId 的 resume 历史灌入本 store 的 state；其余 thread 的订阅副作用仍生效。
     func rejoinRunningThreads() async {
+        loadState = .loading
         requireAuthoritativeRecovery()
         recoveryGeneration &+= 1
         let generation = recoveryGeneration
         guard let listResult = try? await call(RPCMethod.threadLoadedList, EmptyParams()),
-              let list = try? decode(LoadedThreadList.self, from: listResult) else { return }
+              let list = try? decode(LoadedThreadList.self, from: listResult) else {
+            if generation == recoveryGeneration { loadState = .failed }
+            return
+        }
         // 首页 data 已覆盖当前活跃 thread；翻页（nextCursor）留待需要时再实现。
         if !state.threadId.isEmpty {
             let params = ThreadResumeParams(threadId: state.threadId, model: nil, cwd: nil)
             do {
                 let result = try await call(RPCMethod.threadResume, params)
-                guard generation == recoveryGeneration,
-                      let dict = result.value as? [String: Any] else { return }
+                guard generation == recoveryGeneration else { return }
+                guard let dict = result.value as? [String: Any] else {
+                    loadState = .failed
+                    return
+                }
                 reducer.ingest(resumeResult: dict, to: &state)
                 acknowledgeOutbox(fromResumeResult: dict)
                 if Self.resumeHasNoTurns(dict) { markAuthoritativeIdle() }
                 finishAuthoritativeRecovery(generation: generation)
             } catch {
                 guard generation == recoveryGeneration else { return }
-                guard Self.isNoRollout(error) else { return }
+                guard Self.isNoRollout(error) else {
+                    loadState = .failed
+                    return
+                }
                 markAuthoritativeIdle()
                 finishAuthoritativeRecovery(generation: generation)
             }
@@ -372,6 +413,7 @@ final class ConversationStore {
     private func finishAuthoritativeRecovery(generation: UInt64) {
         guard generation == recoveryGeneration else { return }
         authoritativeRecoveryComplete = true
+        loadState = .loaded
         reconcileOutboundAfterAuthoritativeResume()
     }
 
@@ -471,6 +513,8 @@ extension ConversationStore {
     /// 中断进行中的 turn：发 turn/interrupt（threadId）。
     func interrupt() async {
         let params = TurnInterruptParams(threadId: state.threadId)
-        Task { _ = try? await call(RPCMethod.turnInterrupt, params) }
+        guard let data = try? JSONEncoder().encode(params),
+              let any = try? JSONDecoder().decode(AnyCodable.self, from: data) else { return }
+        try? await rpc.sendWithoutWaiting(method: RPCMethod.turnInterrupt, params: any)
     }
 }

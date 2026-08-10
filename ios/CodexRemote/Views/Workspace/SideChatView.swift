@@ -6,7 +6,11 @@ import SwiftUI
 struct SideChatView: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(SessionsManager.self) private var sessions
+    @Environment(ApprovalStore.self) private var approvals
+    @Environment(UserInputStore.self) private var userInputs
+    @Environment(McpElicitationStore.self) private var mcpElicitations
     @Bindable var store: SideChatStore
+    @State private var pendingCloseID: String?
     /// 当前主对话 threadId：侧聊从它 fork。nil/空 → 无主对话空态。
     var mainThreadId: String?
 
@@ -28,6 +32,23 @@ struct SideChatView: View {
             }
             Divider()
             content
+        }
+        .confirmationDialog(
+            "sideChat.closeRunning.title",
+            isPresented: Binding(
+                get: { pendingCloseID != nil },
+                set: { if !$0 { pendingCloseID = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("sideChat.closeRunning.confirm", role: .destructive) {
+                guard let id = pendingCloseID else { return }
+                pendingCloseID = nil
+                Task { await closeSession(id: id, interrupt: true) }
+            }
+            Button("common.cancel", role: .cancel) { pendingCloseID = nil }
+        } message: {
+            Text("sideChat.closeRunning.message")
         }
     }
 
@@ -63,7 +84,7 @@ struct SideChatView: View {
             .buttonStyle(.plain)
             .minimumHitTarget44()
             .accessibilityAddTraits(store.selectedId == session.id ? [.isSelected] : [])
-            Button { store.close(id: session.id) } label: {
+            Button { requestClose(id: session.id) } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -83,11 +104,12 @@ struct SideChatView: View {
         if !hasMainThread {
             emptyState("sideChat.noMainThread")
         } else if let id = store.selectedId,
-                  let session = store.sessions.first(where: { $0.id == id }) {
+                  let session = store.sessions.first(where: { $0.id == id }),
+                  let conversation = store.conversationStore(for: session.id) {
             ConversationView(
                 threadId: session.id,
-                outbox: store.conversationOutboxes.outbox(for: session.id),
                 bindsWorkspaceState: false,
+                providedStore: conversation,
                 draftStore: sessions.activeSession?.composerDrafts
             )
             .id(Self.contentIdentity(for: session))
@@ -107,5 +129,21 @@ struct SideChatView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func requestClose(id: String) {
+        if store.isRunning(id: id) {
+            pendingCloseID = id
+        } else {
+            Task { await closeSession(id: id, interrupt: false) }
+        }
+    }
+
+    private func closeSession(id: String, interrupt: Bool) async {
+        await store.close(id: id, interruptIfRunning: interrupt)
+        approvals.removeAll(threadId: id)
+        userInputs.removeAll(threadId: id)
+        mcpElicitations.removeAll(threadId: id)
+        sessions.activeSession?.composerDrafts.removeDraft(for: id)
     }
 }

@@ -75,6 +75,22 @@ final class TouchAccessibilityTests: XCTestCase {
         XCTAssertTrue(ProgressCardBar.showsFilesControl(diff: changed, hasAction: true))
     }
 
+    func test_progressCardExpandedHeightFitsContentUntilCapped() {
+        XCTAssertEqual(ProgressCardBar.expandedHeight(stepCount: 0), 64)
+        XCTAssertEqual(ProgressCardBar.expandedHeight(stepCount: 3), 160)
+        XCTAssertEqual(ProgressCardBar.expandedHeight(stepCount: 100), 320)
+    }
+
+    func test_newWorkspaceStateKeysAreLocalized() {
+        for key in ["workspace.panel.shown", "workspace.panel.hidden",
+                    "composer.model.reset", "sidebar.search.placeholder",
+                    "sidebar.rename", "sidebar.archive", "sidebar.goal",
+                    "sidebar.rollback", "sidebar.compact", "sidebar.delete"] {
+            let value = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(value, key, "缺少工作区状态文案 \(key)")
+        }
+    }
+
     func test_progressCardAccessibilityLabelKeys_areLocalized() {
         for key in ["progress.expand", "progress.collapse"] {
             let value = String(localized: String.LocalizationValue(key), bundle: .main)

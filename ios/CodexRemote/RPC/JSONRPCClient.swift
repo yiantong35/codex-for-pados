@@ -181,6 +181,14 @@ actor JSONRPCClient {
         }
     }
 
+    /// 发送带 request id 的命令，但不保留 pending continuation 等待响应。
+    /// 用于 interrupt 这类离开页面前必须写入 transport、又不能被半开连接阻塞的操作。
+    func sendWithoutWaiting(method: String, params: AnyCodable?) async throws {
+        let req = JSONRPCRequest(id: RequestIdGenerator.next(), method: method, params: params)
+        let text = String(data: try encoder.encode(req), encoding: .utf8)!
+        try await transport.send(text)
+    }
+
     /// 发送 notification（如 initialized）。
     func notify(method: String, params: AnyCodable?) async throws {
         let n = JSONRPCNotification(method: method, params: params)

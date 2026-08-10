@@ -91,6 +91,26 @@ final class ItemCardRenderTests: XCTestCase {
         XCTAssertEqual(ItemCard.protocolStatusLocalizationKey("RPC_INTERNAL_42"), "conv.status.unknown")
     }
 
+    func testCommandOutputBudgetBoundsLinesAndBytes() {
+        let lines = (0..<800).map { "line-\($0)-" + String(repeating: "x", count: 400) }
+        let presentation = TextRenderBudget.commandOutput(lines.joined(separator: "\n"))
+
+        XCTAssertTrue(presentation.isTruncated)
+        XCTAssertLessThanOrEqual(presentation.displayedLines, TextRenderBudget.maximumCommandLines)
+        XCTAssertLessThanOrEqual(presentation.text.utf8.count, TextRenderBudget.maximumCommandBytes)
+        XCTAssertEqual(presentation.totalLines, 800)
+    }
+
+    func testDiffBudgetsKeepInlineSmallerThanDedicatedReview() {
+        XCTAssertGreaterThan(DiffRenderBudget.maximumInlineLines, 0)
+        XCTAssertGreaterThan(DiffRenderBudget.maximumReviewLines, DiffRenderBudget.maximumInlineLines)
+    }
+
+    func testAgentTextDoesNotTreatProtocolLikeTextAsLocalizationKey() {
+        XCTAssertEqual(String(ItemCard.agentText("common.cancel").characters), "common.cancel")
+        XCTAssertEqual(String(ItemCard.agentText("**bold**").characters), "bold")
+    }
+
     // MARK: - F5（P1）会话前缀放行仅源自服务端 amendment
 
     private func cmdCard(title: String, prefix: [String]?, isFile: Bool = false) -> ApprovalCard {

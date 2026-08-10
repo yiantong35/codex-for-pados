@@ -44,6 +44,12 @@ final class McpElicitationStore {
         for id in submissionStates.keys { submissionStates[id] = .idle }
     }
 
+    func removeAll(threadId: String) {
+        let ids = cards.filter { $0.threadId == threadId }.map(\.id)
+        cards.removeAll { $0.threadId == threadId }
+        for id in ids { submissionStates[id] = nil }
+    }
+
     func submissionState(for id: RequestId) -> DecisionSubmissionState {
         submissionStates[id] ?? .idle
     }

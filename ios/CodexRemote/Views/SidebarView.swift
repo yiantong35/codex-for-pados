@@ -14,12 +14,38 @@ struct SidebarView: View {
     @Binding var selectedThreadId: String?
     @State private var collapse = SidebarCollapseStore()
     @State private var operationError: String?
+    @State private var searchText = ""
+    @State private var renameTarget: ThreadSummary?
+    @State private var deleteTarget: ThreadSummary?
+    @State private var rollbackTarget: ThreadSummary?
+    @State private var rollbackTurns = 1
+    @State private var goalTarget: ThreadSummary?
 
     var body: some View {
         // 不用 List(selection:)：系统 sidebar 选中会画一个方框（用户嫌丑 #4），且列隐藏再显示后丢失（#5）。
         // 改为自渲染选中态（threadRow 内点按选择 + 主题色），完全可控、持久、无方框。
-        List {
-            if projects.isGrouped {
+        VStack(spacing: 0) {
+            HStack(spacing: 7) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("sidebar.search.placeholder", text: $searchText)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                if !searchText.isEmpty {
+                    Button { searchText = "" } label: { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel(Text("common.clear"))
+                }
+            }
+            .padding(.horizontal, 10)
+            .frame(minHeight: 44)
+
+            List {
+            if !searchText.isEmpty {
+                ForEach(filteredThreads) { thread in
+                    threadRow(thread).tag(thread.id)
+                }
+            } else if projects.isGrouped {
                 ForEach(projects.projects) { project in
                     projectSection(project)
                 }
@@ -35,12 +61,15 @@ struct SidebarView: View {
                     threadRow(thread).tag(thread.id)
                 }
             }
+            }
+            .listStyle(.plain)
+            .contentMargins(.horizontal, 4, for: .scrollContent)
+            .environment(\.defaultMinListRowHeight, 44)
         }
-        .listStyle(.plain)
-        .contentMargins(.horizontal, 4, for: .scrollContent)
-        .environment(\.defaultMinListRowHeight, 44)
         .overlay {
-            if projects.projects.isEmpty && projects.looseConversations.isEmpty {
+            if !searchText.isEmpty && filteredThreads.isEmpty {
+                ContentUnavailableView.search(text: searchText)
+            } else if projects.projects.isEmpty && projects.looseConversations.isEmpty {
                 sidebarEmptyOverlay
             }
         }
@@ -77,6 +106,43 @@ struct SidebarView: View {
             Button("common.ok", role: .cancel) { operationError = nil }
         } message: {
             Text(operationError ?? "")
+        }
+        .sheet(item: $renameTarget) { thread in
+            ThreadRenameSheet(thread: thread) { name in
+                await projects.rename(threadId: thread.id, name: name)
+            }
+        }
+        .sheet(item: $goalTarget) { thread in
+            ThreadGoalEditorSheet(thread: thread)
+                .environment(projects)
+        }
+        .confirmationDialog("sidebar.delete.confirm.title", isPresented: Binding(
+            get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } }
+        ), titleVisibility: .visible) {
+            Button("sidebar.delete", role: .destructive) {
+                guard let thread = deleteTarget else { return }
+                deleteTarget = nil
+                perform(thread: thread, clearsSelection: true) {
+                    await projects.delete(threadId: thread.id)
+                }
+            }
+            Button("common.cancel", role: .cancel) { deleteTarget = nil }
+        } message: {
+            Text("sidebar.delete.confirm.message")
+        }
+        .confirmationDialog("sidebar.rollback.confirm.title", isPresented: Binding(
+            get: { rollbackTarget != nil }, set: { if !$0 { rollbackTarget = nil } }
+        ), titleVisibility: .visible) {
+            Button("sidebar.rollback.confirm \(rollbackTurns)", role: .destructive) {
+                guard let thread = rollbackTarget else { return }
+                rollbackTarget = nil
+                perform(thread: thread) {
+                    await projects.rollback(threadId: thread.id, numTurns: rollbackTurns)
+                }
+            }
+            Button("common.cancel", role: .cancel) { rollbackTarget = nil }
+        } message: {
+            Text("sidebar.rollback.confirm.message \(rollbackTurns)")
         }
     }
 
@@ -196,6 +262,31 @@ struct SidebarView: View {
         .accessibilityAddTraits(selected ? [.isSelected] : [])
         .contextMenu {
             Button {
+                renameTarget = thread
+            } label: { Label("sidebar.rename", systemImage: "pencil") }
+
+            Button {
+                perform(thread: thread) { await projects.archive(threadId: thread.id) }
+            } label: { Label("sidebar.archive", systemImage: "archivebox") }
+
+            Button {
+                goalTarget = thread
+            } label: { Label("sidebar.goal", systemImage: "target") }
+
+            Menu("sidebar.rollback", systemImage: "arrow.uturn.backward") {
+                ForEach([1, 2, 5], id: \.self) { turns in
+                    Button("sidebar.rollback.turns \(turns)") {
+                        rollbackTurns = turns
+                        rollbackTarget = thread
+                    }
+                }
+            }
+
+            Button {
+                perform(thread: thread) { await projects.compact(threadId: thread.id) }
+            } label: { Label("sidebar.compact", systemImage: "arrow.down.right.and.arrow.up.left") }
+
+            Button {
                 guard connection.phase == .ready, let rpc = connection.rpc else {
                     operationError = L10n.string("operation.unavailable.offline", locale: locale)
                     return
@@ -216,6 +307,37 @@ struct SidebarView: View {
                 }
             } label: { Label("sidebar.fork", systemImage: "arrow.triangle.branch") }
                 .disabled(connection.phase != .ready)
+
+            Divider()
+            Button(role: .destructive) {
+                deleteTarget = thread
+            } label: { Label("sidebar.delete", systemImage: "trash") }
+        }
+    }
+
+    private var filteredThreads: [ThreadSummary] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return projects.allThreadsSorted }
+        return projects.allThreadsSorted.filter { thread in
+            [thread.name, thread.preview, thread.cwd]
+                .compactMap { $0 }
+                .contains { $0.localizedCaseInsensitiveContains(query) }
+        }
+    }
+
+    private func perform(thread: ThreadSummary,
+                         clearsSelection: Bool = false,
+                         action: @escaping @MainActor () async -> Bool) {
+        guard connection.phase == .ready else {
+            operationError = L10n.string("operation.unavailable.offline", locale: locale)
+            return
+        }
+        Task {
+            if await action() {
+                if clearsSelection, selectedThreadId == thread.id { selectedThreadId = nil }
+            } else {
+                operationError = L10n.string("operation.failed.description", locale: locale)
+            }
         }
     }
 
@@ -228,5 +350,127 @@ struct SidebarView: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.locale = locale
         return formatter.localizedString(for: Date(timeIntervalSince1970: ts), relativeTo: Date())
+    }
+}
+
+private struct ThreadRenameSheet: View {
+    let thread: ThreadSummary
+    let save: @MainActor (String) async -> Bool
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+    @State private var isSaving = false
+    @State private var failed = false
+
+    init(thread: ThreadSummary, save: @escaping @MainActor (String) async -> Bool) {
+        self.thread = thread
+        self.save = save
+        _name = State(initialValue: thread.name ?? thread.preview)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form { TextField("sidebar.rename.placeholder", text: $name) }
+                .navigationTitle("sidebar.rename")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("common.cancel") { dismiss() }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("common.save") {
+                            isSaving = true
+                            Task {
+                                if await save(name.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                                    dismiss()
+                                } else {
+                                    failed = true
+                                    isSaving = false
+                                }
+                            }
+                        }
+                        .disabled(isSaving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+                .alert("operation.failed.title", isPresented: $failed) {
+                    Button("common.ok", role: .cancel) {}
+                } message: { Text("operation.failed.description") }
+        }
+        .presentationDetents([.medium])
+    }
+}
+
+private struct ThreadGoalEditorSheet: View {
+    let thread: ThreadSummary
+    @Environment(ProjectsStore.self) private var projects
+    @Environment(\.dismiss) private var dismiss
+    @State private var objective = ""
+    @State private var status: ThreadGoalStatus = .active
+    @State private var isLoading = true
+    @State private var isSaving = false
+    @State private var hasGoal = false
+    @State private var failed = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if isLoading {
+                    ProgressView("common.loading")
+                } else {
+                    Section("sidebar.goal.objective") {
+                        TextEditor(text: $objective).frame(minHeight: 100)
+                    }
+                    Picker("sidebar.goal.status", selection: $status) {
+                        ForEach(ThreadGoalStatus.allCases, id: \.self) { value in
+                            Text(LocalizedStringKey("sidebar.goal.status.\(value.rawValue)"))
+                                .tag(value)
+                        }
+                    }
+                    if hasGoal {
+                        Button("sidebar.goal.clear", role: .destructive) {
+                            isSaving = true
+                            Task {
+                                if await projects.clearGoal(threadId: thread.id) { dismiss() }
+                                else { failed = true; isSaving = false }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("sidebar.goal")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("common.cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("common.save") {
+                        isSaving = true
+                        Task {
+                            let value = objective.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if await projects.setGoal(threadId: thread.id, objective: value, status: status) {
+                                dismiss()
+                            } else { failed = true; isSaving = false }
+                        }
+                    }
+                    .disabled(isLoading || isSaving || objective.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .task {
+                if let goal = await projects.fetchGoal(threadId: thread.id) {
+                    objective = goal.objective
+                    status = goal.status
+                    hasGoal = true
+                }
+                isLoading = false
+            }
+            .alert("operation.failed.title", isPresented: $failed) {
+                Button("common.ok", role: .cancel) {}
+            } message: { Text("operation.failed.description") }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+private extension ThreadGoalStatus {
+    static var allCases: [ThreadGoalStatus] {
+        [.active, .paused, .blocked, .usageLimited, .budgetLimited, .complete]
     }
 }

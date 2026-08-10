@@ -39,6 +39,8 @@ actor MockTransport: MessageTransport {
     func setThreadListPages(_ pages: [String: String]) { threadListPages = pages }
     private var threadListFailuresRemaining = 0
     func failNextThreadListRequests(_ count: Int) { threadListFailuresRemaining = count }
+    private var turnStartFailuresRemaining = 0
+    func failNextTurnStartRequests(_ count: Int) { turnStartFailuresRemaining = count }
 
     /// thread/start 响应延迟（纳秒，默认 0）。用于测试并发防抖：首个请求延迟应答，
     /// 制造「创建进行中」窗口，验证第二次调用被拦下——且请求最终会回，测试不悬挂。
@@ -73,6 +75,10 @@ actor MockTransport: MessageTransport {
               let data = text.data(using: .utf8),
               case .request(let req)? = try? JSONDecoder().decode(JSONRPCMessage.self, from: data)
         else { return }
+        if req.method == RPCMethod.turnStart, turnStartFailuresRemaining > 0 {
+            turnStartFailuresRemaining -= 1
+            throw MockTransportError.scriptedFailure
+        }
         // thread/list 回空列表（满足 loadFromServer 的 ThreadListResponse 解码）；
         // thread/start 回定制体（若设了 threadStartResponse）；其余回空对象。
         let resultJSON: String
