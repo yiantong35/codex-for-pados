@@ -217,7 +217,7 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             guard let plaintext = try? session.open(env) else { return }
             guard ensureBridgeStarted(ctx: ctx) else { return }   // 启桥失败已关连接，不再写
             if let s = String(data: plaintext, encoding: .utf8) {
-                bridge.write(s)
+                if !bridge.write(s) { ctx.close(promise: nil) }
             }
             return
         }
@@ -299,7 +299,9 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             case .frame(let frame):
                 encoded = frame
             case .rejectUpstream(let response):
-                bridgeRef.write(response)
+                if !bridgeRef.write(response) {
+                    channel.eventLoop.execute { channel.close(promise: nil) }
+                }
                 return
             case .dropped:
                 return

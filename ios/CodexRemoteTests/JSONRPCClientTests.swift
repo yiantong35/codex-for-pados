@@ -65,6 +65,27 @@ final class JSONRPCClientTests: XCTestCase {
         await fulfillment(of: [expA, expB], timeout: 2)
     }
 
+    func testNotificationBurstPreservesControlEventBeyondOldBufferLimit() async throws {
+        let mock = MockTransport()
+        let client = JSONRPCClient(transport: mock)
+        await client.start()
+        let stream = await client.notifications()
+
+        await mock.feed(lines: (0..<40).map { index in
+            #"{"jsonrpc":"2.0","method":"burst/\#(index)","params":{}}"#
+        })
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        var iterator = stream.makeAsyncIterator()
+        var methods: [String] = []
+        for _ in 0..<40 {
+            let next = await iterator.next()
+            methods.append(try XCTUnwrap(next).method)
+        }
+        XCTAssertEqual(methods, (0..<40).map { "burst/\($0)" })
+        XCTAssertEqual(methods.last, "burst/39")
+    }
+
     // ②c 多播订阅者在底层 transport 关闭后流应结束（ConnectionStore 的断线探测依赖此）。
     func testNotificationStreamFinishesOnTransportClose() async throws {
         let mock = MockTransport()

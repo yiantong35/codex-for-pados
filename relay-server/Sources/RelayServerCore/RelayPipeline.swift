@@ -191,7 +191,13 @@ public final class RelayConnectionHandler: ChannelInboundHandler, @unchecked Sen
                 break
             case .complete(let payload):
                 // 零知识:不解析 payload,原样转给对端。
-                rooms.forward(sessionId: sessionId, from: role, frame: payload)
+                switch rooms.forward(sessionId: sessionId, from: role, frame: payload) {
+                case .delivered, .buffered:
+                    break
+                case .rejectedBufferFull, .rejectedRoomMissing:
+                    // 不能静默丢请求：关闭来源连接，让客户端统一失败所有在途 RPC 并重连。
+                    context.close(promise: nil)
+                }
             case .overflow:
                 context.close(promise: nil)   // 超单消息上限:关连接,内存不无界增长
             }

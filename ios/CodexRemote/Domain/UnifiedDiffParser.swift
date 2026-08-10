@@ -37,7 +37,7 @@ enum UnifiedDiffParser {
             } else if raw.hasPrefix("+++ ") {
                 let path = decodePathField(String(raw.dropFirst(4)))
                 if path == "/dev/null" { cur?.kind = .delete }
-                else if let p = cur, p.path.isEmpty { cur?.path = stripPrefix(path) }
+                else { cur?.path = stripPrefix(path) } // +++ 是普通修改/新增文件的新路径权威来源
             } else if raw.hasPrefix("@@") {
                 closeHunk()
                 (oldNo, newNo) = parseHunkHeader(raw)

@@ -76,4 +76,39 @@ struct McpStoreTests {
         let after = await mock.sent.filter { $0.contains("mcpServerStatus/list") }.count
         #expect(after > before)
     }
+
+    @MainActor @Test func subscribesBeforeInitialSnapshotCompletes() async {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = McpStore()
+        let attach = Task { await store.attach(rpc: rpc) }
+
+        guard let firstID = await requestID(mock, method: RPCMethod.mcpServerStatusList, ordinal: 0) else {
+            Issue.record("initial MCP snapshot was not requested"); attach.cancel(); return
+        }
+        await mock.feed(#"{"method":"mcpServer/startupStatus/updated"}"#)
+        await mock.feed(#"{"id":"\#(firstID)","result":{"data":[{"name":"old"}]}}"#)
+
+        guard let secondID = await requestID(mock, method: RPCMethod.mcpServerStatusList, ordinal: 1) else {
+            Issue.record("notification in snapshot window did not trigger refresh"); attach.cancel(); return
+        }
+        await mock.feed(#"{"id":"\#(secondID)","result":{"data":[{"name":"new"}]}}"#)
+        await attach.value
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        #expect(store.servers.map(\.name) == ["new"])
+    }
+
+    private func requestID(_ mock: MockTransport, method: String, ordinal: Int) async -> String? {
+        for _ in 0..<200 {
+            let ids = await mock.sent.compactMap { frame -> String? in
+                guard let object = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any],
+                      object["method"] as? String == method else { return nil }
+                return object["id"] as? String
+            }
+            if ids.indices.contains(ordinal) { return ids[ordinal] }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+        return nil
+    }
 }

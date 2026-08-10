@@ -28,6 +28,12 @@ public final class ProxyBridge: @unchecked Sendable {
     private let stdinPipe = Pipe()
     private let stdoutPipe = Pipe()
     private let processQueue = DispatchQueue(label: "com.codexremote.relay-dialout.proxy-process")
+    private let writerQueue = DispatchQueue(label: "com.codexremote.relay-dialout.proxy-stdin")
+    private let writerLock = NSLock()
+    private let maximumPendingWriteBytes: Int
+    private var pendingWrites: [Data] = []
+    private var pendingWriteBytes = 0
+    private var writerScheduled = false
     private var didStart = false
 
     /// - Parameters:
@@ -39,11 +45,13 @@ public final class ProxyBridge: @unchecked Sendable {
                 arguments: [String]? = nil,
                 sockPath: String,
                 environment: [String: String] = ProcessInfo.processInfo.environment,
+                maximumPendingWriteBytes: Int = 4 * 1024 * 1024,
                 terminationGracePeriod: Duration = .seconds(2)) {
         self.codexPath = codexPath
         self.overrideArguments = arguments
         self.sockPath = sockPath
         self.environment = environment
+        self.maximumPendingWriteBytes = max(1, maximumPendingWriteBytes)
         self.terminationGracePeriod = terminationGracePeriod
     }
 
@@ -97,10 +105,45 @@ public final class ProxyBridge: @unchecked Sendable {
     }
 
     /// 往 proxy stdin 写一行 JSON-RPC（按行协议，自动补换行）。
-    public func write(_ jsonrpc: String) {
+    @discardableResult
+    public func write(_ jsonrpc: String) -> Bool {
         let line = jsonrpc.hasSuffix("\n") ? jsonrpc : jsonrpc + "\n"
-        if let data = line.data(using: .utf8) {
-            stdinPipe.fileHandleForWriting.write(data)
+        guard let data = line.data(using: .utf8) else { return false }
+        writerLock.lock()
+        guard data.count <= maximumPendingWriteBytes - pendingWriteBytes else {
+            writerLock.unlock()
+            return false
+        }
+        pendingWrites.append(data)
+        pendingWriteBytes += data.count
+        let shouldSchedule = !writerScheduled
+        writerScheduled = true
+        writerLock.unlock()
+        if shouldSchedule { writerQueue.async { [self] in drainWrites() } }
+        return true
+    }
+
+    private func drainWrites() {
+        while true {
+            writerLock.lock()
+            guard !pendingWrites.isEmpty else {
+                writerScheduled = false
+                writerLock.unlock()
+                return
+            }
+            let data = pendingWrites.removeFirst()
+            pendingWriteBytes -= data.count
+            writerLock.unlock()
+            do {
+                try stdinPipe.fileHandleForWriting.write(contentsOf: data)
+            } catch {
+                writerLock.lock()
+                pendingWrites.removeAll()
+                pendingWriteBytes = 0
+                writerScheduled = false
+                writerLock.unlock()
+                return
+            }
         }
     }
 

@@ -65,4 +65,39 @@ struct SkillsStoreTests {
         let after = await mockB.sent.filter { $0.contains("skills/list") }.count
         #expect(after > before)
     }
+
+    @MainActor @Test func subscribesBeforeInitialSnapshotCompletes() async {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = SkillsStore()
+        let attach = Task { await store.attach(rpc: rpc) }
+
+        guard let firstID = await requestID(mock, ordinal: 0) else {
+            Issue.record("initial skills snapshot was not requested"); attach.cancel(); return
+        }
+        await mock.feed(#"{"method":"skills/changed"}"#)
+        await mock.feed(#"{"id":"\#(firstID)","result":{"data":[{"cwd":"/","errors":[],"skills":[{"name":"old","path":"/old","enabled":true,"scope":"user"}]}]}}"#)
+
+        guard let secondID = await requestID(mock, ordinal: 1) else {
+            Issue.record("skills notification in snapshot window did not trigger refresh"); attach.cancel(); return
+        }
+        await mock.feed(#"{"id":"\#(secondID)","result":{"data":[{"cwd":"/","errors":[],"skills":[{"name":"new","path":"/new","enabled":true,"scope":"user"}]}]}}"#)
+        await attach.value
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        #expect(store.skills.map(\.name) == ["new"])
+    }
+
+    private func requestID(_ mock: MockTransport, ordinal: Int) async -> String? {
+        for _ in 0..<200 {
+            let ids = await mock.sent.compactMap { frame -> String? in
+                guard let object = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any],
+                      object["method"] as? String == RPCMethod.skillsList else { return nil }
+                return object["id"] as? String
+            }
+            if ids.indices.contains(ordinal) { return ids[ordinal] }
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+        return nil
+    }
 }
