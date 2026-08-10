@@ -87,6 +87,12 @@
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "文件读取失败" } }
       }
     },
+    "fileBrowser.loading": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Loading preview" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在加载预览" } }
+      }
+    },
     "fileBrowser.refresh": {
       "localizations": {
         "en": {

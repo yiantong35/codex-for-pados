@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import UIKit
 @testable import CodexRemote
 
 struct FileContentTests {
@@ -79,5 +80,33 @@ struct FileContentTests {
 
         #expect(preview.lines.map(String.init) == ["first", "", "third", ""])
         #expect(!preview.isTruncated)
+    }
+
+    @Test func imagePixelBudgetRejectsHugeDimensionsAndOverflow() {
+        #expect(FileImageThumbnailDecoder.isWithinPixelBudget(width: 4_000, height: 3_000))
+        #expect(!FileImageThumbnailDecoder.isWithinPixelBudget(width: 40_000, height: 100))
+        #expect(!FileImageThumbnailDecoder.isWithinPixelBudget(width: 20_000, height: 20_000))
+        #expect(!FileImageThumbnailDecoder.isWithinPixelBudget(width: Int.max, height: Int.max))
+    }
+
+    @Test @MainActor func imageDecoderDownsamplesLongestEdge() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let source = UIGraphicsImageRenderer(
+            size: CGSize(width: 3_000, height: 300), format: format
+        ).pngData { context in
+            UIColor.systemGreen.setFill()
+            context.cgContext.fill(CGRect(x: 0, y: 0, width: 3_000, height: 300))
+        }
+
+        let thumbnail = try #require(FileImageThumbnailDecoder.makeThumbnail(from: source))
+        #expect(max(thumbnail.cgImage.width, thumbnail.cgImage.height)
+                <= FileImageThumbnailDecoder.maximumThumbnailDimension)
+    }
+
+    @Test func malformedImageCannotProduceThumbnail() {
+        let headerOnly = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        #expect(FileImageThumbnailDecoder.makeThumbnail(from: headerOnly) == nil)
     }
 }

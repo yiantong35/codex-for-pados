@@ -176,7 +176,7 @@ struct FileBrowserView: View {
                 case .text(let s):
                     fileTextBody(s)
                 case .image(let data):
-                    imagePreview(data)
+                    FileImagePreview(data: data, path: file.path)
                 case .tooLarge:
                     placeholder("fileBrowser.tooLarge")
                 case .binary(let data):
@@ -198,21 +198,6 @@ struct FileBrowserView: View {
             }
         }
         }
-    }
-
-    private func imagePreview(_ data: Data) -> some View {
-        Group {
-            if let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .accessibilityLabel(Text("fileBrowser.imagePreview"))
-            } else {
-                binaryPreview(byteCount: data.count)
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 180, alignment: .top)
     }
 
     private func binaryPreview(byteCount: Int) -> some View {
@@ -261,6 +246,45 @@ struct FileBrowserView: View {
         Text(key).font(.callout).foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.vertical, 24)
+    }
+}
+
+private struct FileImagePreview: View {
+    let data: Data
+    let path: String
+    @State private var image: UIImage?
+    @State private var failed = false
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .accessibilityLabel(Text("fileBrowser.imagePreview"))
+            } else if failed {
+                ContentUnavailableView {
+                    Label("fileBrowser.binary", systemImage: "doc.zipper")
+                } description: {
+                    Text("fileBrowser.binaryBytes \(data.count)")
+                }
+            } else {
+                ProgressView()
+                    .accessibilityLabel(Text("fileBrowser.loading"))
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 180, alignment: .top)
+        .task(id: path) {
+            image = nil
+            failed = false
+            guard let thumbnail = await FileImageThumbnailDecoder.thumbnail(from: data),
+                  !Task.isCancelled else {
+                if !Task.isCancelled { failed = true }
+                return
+            }
+            image = UIImage(cgImage: thumbnail.cgImage)
+        }
     }
 }
 
