@@ -53,6 +53,18 @@ final class ProjectsStoreTests: XCTestCase {
         XCTAssertEqual(s.projects.last?.threads.map(\.id), ["b", "a"])
     }
 
+    func test_ingest_deduplicates_overlapping_pages_by_thread_id() {
+        let s = ProjectsStore()
+        s.ingest([
+            thread("same", cwd: "/old", updatedAt: 10),
+            thread("same", cwd: "/new", updatedAt: 20),
+            thread("other", cwd: "/other", updatedAt: 15),
+        ])
+
+        XCTAssertEqual(s.allThreadsSorted.map(\.id), ["same", "other"])
+        XCTAssertEqual(s.allThreadsSorted.first?.cwd, "/new")
+    }
+
     // #7：会话列表分页——loadFromServer 应跟随 nextCursor 翻页，合并全部页后 ingest，
     // 而非只读首页 100 条（重连恢复也只读首页 → 100 条外的活跃会话永不出现）。
     func test_loadFromServer_follows_nextCursor_paginates_all_pages() async throws {

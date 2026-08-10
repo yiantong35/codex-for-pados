@@ -385,8 +385,11 @@ final class ProjectsStore {
         else { return false }
         if let current = self.rpc, current !== rpc { return false }
 
-        var merged = Dictionary(uniqueKeysWithValues: allThreadsSorted.map { ($0.id, $0) })
-        for thread in response.data { merged[thread.id] = thread }
+        var merged: [String: ThreadSummary] = [:]
+        for thread in allThreadsSorted + response.data {
+            if let existing = merged[thread.id], existing.updatedAt > thread.updatedAt { continue }
+            merged[thread.id] = thread
+        }
         ingest(Array(merged.values))
         return true
     }
@@ -394,8 +397,14 @@ final class ProjectsStore {
     /// 启发式分类（D8）：有 gitInfo → 项目（按 originUrl ?? cwd 归组）；否则 → 对话(loose)。
     /// 项目间按组内最近 updatedAt 倒序；项目内 / loose 按 updatedAt 倒序。
     func ingest(_ threads: [ThreadSummary]) {
-        let projectThreads = threads.filter { $0.gitInfo != nil }
-        let loose = threads.filter { $0.gitInfo == nil }
+        var threadsByID: [String: ThreadSummary] = [:]
+        for thread in threads {
+            if let existing = threadsByID[thread.id], existing.updatedAt > thread.updatedAt { continue }
+            threadsByID[thread.id] = thread
+        }
+        let uniqueThreads = Array(threadsByID.values)
+        let projectThreads = uniqueThreads.filter { $0.gitInfo != nil }
+        let loose = uniqueThreads.filter { $0.gitInfo == nil }
         let grouped = Dictionary(grouping: projectThreads) { t in
             (t.gitInfo?.originUrl?.isEmpty == false) ? t.gitInfo!.originUrl! : t.cwd
         }

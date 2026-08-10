@@ -151,6 +151,27 @@ final class ApprovalStoreTests: XCTestCase {
         XCTAssertEqual(card?.detail, "/work")
     }
 
+    func test_mixed_permissions_keep_legacy_paths_visible_alongside_entries() throws {
+        let store = ApprovalStore()
+        let req = JSONRPCRequest(id: .string("mixed"),
+            method: ServerRequestMethod.permsApprovalV2,
+            params: AnyCodable([
+                "threadId": "t1", "turnId": "turn", "itemId": "item", "startedAtMs": 1,
+                "permissions": ["fileSystem": [
+                    "entries": [["access": "read", "path": ["type": "path", "path": "/entry"]]],
+                    "read": ["/legacy-read"], "write": ["/legacy-write"],
+                ]],
+                "cwd": "/work",
+            ]))
+
+        store.handle(request: req)
+
+        let card = try XCTUnwrap(store.cards.first)
+        XCTAssertEqual(card.permissionEntries?.map(\.path.displayValue), ["/entry"])
+        XCTAssertEqual(ApprovalCardView.legacyPermissionPaths(card: card),
+                       ["/legacy-read", "/legacy-write"])
+    }
+
     // F4-fix：批准授予档案 MUST 回显请求，杜绝硬编码 network 过授（最小权限）。
 
     /// 仅请求 fileSystem 的权限请求，批准后授予档案回显请求的 fileSystem，
