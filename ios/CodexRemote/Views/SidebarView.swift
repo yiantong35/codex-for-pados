@@ -211,7 +211,7 @@ struct SidebarView: View {
                             operationError = L10n.string("operation.failed.description", locale: locale)
                         }
                     } catch {
-                        operationError = String(describing: error)
+                        operationError = L10n.string("operation.failed.description", locale: locale)
                     }
                 }
             } label: { Label("sidebar.fork", systemImage: "arrow.triangle.branch") }

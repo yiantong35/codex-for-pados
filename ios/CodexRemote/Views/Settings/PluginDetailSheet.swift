@@ -56,6 +56,8 @@ struct PluginDetailSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark") }
+                        .minimumHitTarget44()
+                        .accessibilityLabel(Text("settings.close"))
                 }
             }
             .task { await loadDetail() }

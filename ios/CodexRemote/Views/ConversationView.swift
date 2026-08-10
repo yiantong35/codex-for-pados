@@ -47,6 +47,7 @@ struct ConversationView: View {
     var onOpenFile: ((String) -> Void)? = nil
     /// 侧聊由 SideChatStore 持有并观察的唯一 store；nil 时由本视图创建并拥有。
     var providedStore: ConversationStore? = nil
+    var draftStore: ComposerDraftStore? = nil
     @State private var store: ConversationStore?
     /// D8：滚动位置感知（哨兵事件驱动，无轮询/定时器）。
     @State private var isNearBottom = true
@@ -196,7 +197,7 @@ struct ConversationView: View {
             if let store {
                 VStack(spacing: 0) {
                     progressCard(for: store.state)
-                    ComposerView(store: store)
+                    ComposerView(store: store, draft: draftStore?.draft(for: threadId))
                 }
             }
         }

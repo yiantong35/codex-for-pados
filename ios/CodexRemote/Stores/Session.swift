@@ -23,6 +23,7 @@ final class Session: Identifiable {
     let approvals: ApprovalStore
     let userInputs: UserInputStore
     let mcpElicitations: McpElicitationStore
+    let composerDrafts: ComposerDraftStore
     /// 与机器 Session 同寿命的工作区选择/面板上下文；切机器后返回时不复位。
     let workspaceState: WorkspaceSessionState
 
@@ -44,6 +45,7 @@ final class Session: Identifiable {
         self.approvals = ApprovalStore()
         self.userInputs = UserInputStore()
         self.mcpElicitations = McpElicitationStore()
+        self.composerDrafts = ComposerDraftStore()
         self.workspaceState = WorkspaceSessionState()
     }
 

@@ -5,6 +5,8 @@ import SwiftUI
 /// 无设置齿轮（D13——引导态不给设置入口）。
 struct OnboardingView: View {
     @Environment(SessionsManager.self) private var sessions
+    @Environment(\.colorScheme) private var systemColorScheme
+    @State private var showSettings = false
 
     var body: some View {
         ZStack {
@@ -19,6 +21,21 @@ struct OnboardingView: View {
                         .frame(minHeight: geo.size.height)
                 }
             }
+        }
+        .safeAreaInset(edge: .top) {
+            HStack {
+                Spacer()
+                Button { showSettings = true } label: {
+                    Image(systemName: "gearshape")
+                }
+                .minimumHitTarget44()
+                .accessibilityLabel(Text("settings.accessibility"))
+            }
+            .padding(.horizontal, 16)
+            .background(.bar)
+        }
+        .sheet(isPresented: $showSettings) {
+            PrePairingSettingsView(systemColorScheme: systemColorScheme)
         }
     }
 

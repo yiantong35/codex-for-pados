@@ -56,16 +56,20 @@ struct UserInputCardView: View {
         .onChange(of: focusedQuestionId) { _, newValue in
             if newValue != nil { userInputs.userInteracted(with: card.id) }
         }
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0).onChanged { _ in userInputs.userInteracted(with: card.id) }
-        )
     }
 
     @ViewBuilder
     private var autoResolutionStatus: some View {
         if userInputs.isAutoResolutionPaused(card.id) {
-            Label("userInput.autoPaused", systemImage: "pause.circle")
-                .font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Label("userInput.autoPaused", systemImage: "pause.circle")
+                    .font(.caption).foregroundStyle(.secondary)
+                Button("userInput.autoResume") {
+                    userInputs.resumeAutoResolution(for: card.id)
+                }
+                .font(.caption)
+                .minimumHitTarget44()
+            }
         } else if let deadline = userInputs.autoResolutionDeadline(for: card.id) {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let seconds = max(0, Int(ceil(deadline.timeIntervalSince(context.date))))
@@ -100,12 +104,12 @@ struct UserInputCardView: View {
             if let options = question.options, !options.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(options, id: \.label) { option in
+                        let isSelected = drafts[question.id]?.selectedOption == option.label
                         Button {
                             select(option.label, for: question.id)
                         } label: {
                             HStack(alignment: .top, spacing: 8) {
-                                Image(systemName: drafts[question.id]?.selectedOption == option.label
-                                      ? "largecircle.fill.circle" : "circle")
+                                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
                                     .frame(width: 20, height: 20)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(option.label).font(.callout.weight(.medium))
@@ -123,6 +127,8 @@ struct UserInputCardView: View {
                         .buttonStyle(.plain)
                         .minimumHitTarget44()
                         .accessibilityLabel("\(option.label). \(option.description)")
+                        .accessibilityValue(Text(isSelected ? "accessibility.selected" : "accessibility.notSelected"))
+                        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
                     }
                 }
             }
@@ -132,6 +138,8 @@ struct UserInputCardView: View {
                     SecureField("userInput.answerPlaceholder", text: freeformBinding(for: question.id))
                         .textFieldStyle(.roundedBorder)
                         .focused($focusedQuestionId, equals: question.id)
+                        .accessibilityLabel(Text(question.header))
+                        .accessibilityHint(Text(question.question))
                 } else {
                     TextField(
                         question.options == nil ? "userInput.answerPlaceholder" : "userInput.otherPlaceholder",
@@ -141,6 +149,8 @@ struct UserInputCardView: View {
                     .lineLimit(1...4)
                     .textFieldStyle(.roundedBorder)
                     .focused($focusedQuestionId, equals: question.id)
+                    .accessibilityLabel(Text(question.header))
+                    .accessibilityHint(Text(question.question))
                 }
             }
         }

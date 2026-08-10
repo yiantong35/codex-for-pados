@@ -7,6 +7,7 @@ import UIKit
 struct ItemCard: View {
     let item: ConversationItem
     var onOpenFile: ((String) -> Void)? = nil
+    @Environment(\.locale) private var locale
 
     var body: some View {
         switch item {
@@ -15,8 +16,11 @@ struct ItemCard: View {
                 Spacer(minLength: 40)
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(Array(attachments.enumerated()), id: \.offset) { index, attachment in
-                        UserMessageAttachmentView(attachment: attachment)
-                            .id("\(itemID):\(index)")
+                        UserMessageAttachmentView(
+                            attachment: attachment,
+                            cacheKey: "\(itemID):\(index)"
+                        )
+                        .id("\(itemID):\(index)")
                     }
                     if !text.isEmpty {
                         Text(text).textSelection(.enabled)
@@ -142,7 +146,10 @@ struct ItemCard: View {
                 HStack(spacing: 6) {
                     Image(systemName: "photo").foregroundStyle(.secondary)
                     Text("conv.item.imageGen").font(.caption).foregroundStyle(.secondary)
-                    if !status.isEmpty { Text(status).font(.caption).foregroundStyle(.secondary) }
+                    if !status.isEmpty {
+                        Text(verbatim: localizedProtocolStatus(status))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                     Spacer(minLength: 0)
                 }
                 if !revisedPrompt.isEmpty {
@@ -258,7 +265,8 @@ struct ItemCard: View {
                 Text(title).font(.callout.monospaced()).lineLimit(1).truncationMode(.middle)
                 Spacer(minLength: 8)
                 if !status.isEmpty {
-                    Text(status).font(.caption).foregroundStyle(.secondary)
+                    Text(verbatim: localizedProtocolStatus(status))
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 if let durationMs {
                     Text("conv.cmd.duration \(durationMs)")
@@ -271,6 +279,23 @@ struct ItemCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func localizedProtocolStatus(_ raw: String) -> String {
+        L10n.string(Self.protocolStatusLocalizationKey(raw), locale: locale)
+    }
+
+    static func protocolStatusLocalizationKey(_ raw: String) -> String {
+        let normalized = raw.lowercased().filter(\.isLetter)
+        switch normalized {
+        case "inprogress", "running", "started": return "conv.status.running"
+        case "completed", "complete", "success", "succeeded": return "conv.status.completed"
+        case "failed", "failure", "error": return "conv.status.failed"
+        case "pending", "queued": return "conv.status.pending"
+        case "cancelled", "canceled": return "conv.status.cancelled"
+        case "declined", "rejected": return "conv.status.declined"
+        default: return "conv.status.unknown"
+        }
     }
 
     /// 事件类单行提示条：[icon] 文案 · 可选详情，次要色。
@@ -288,8 +313,32 @@ struct ItemCard: View {
     }
 }
 
+@MainActor
+private enum MessageImageThumbnailCache {
+    private final class Entry: NSObject {
+        let image: UIImage
+        init(_ image: UIImage) { self.image = image }
+    }
+
+    private static let cache = NSCache<NSString, Entry>()
+    private static let costLimit = 32 * 1_024 * 1_024
+
+    static func image(cacheKey: String, source: String) async -> UIImage? {
+        cache.totalCostLimit = costLimit
+        let key = cacheKey as NSString
+        if let cached = cache.object(forKey: key) { return cached.image }
+        guard let thumbnail = await MessageImageAttachmentDecoder.thumbnail(from: source),
+              !Task.isCancelled else { return nil }
+        let image = UIImage(cgImage: thumbnail.cgImage)
+        let cost = thumbnail.cgImage.bytesPerRow * thumbnail.cgImage.height
+        cache.setObject(Entry(image), forKey: key, cost: cost)
+        return image
+    }
+}
+
 private struct UserMessageAttachmentView: View {
     let attachment: UserMessageAttachment
+    let cacheKey: String
     @State private var image: UIImage?
     @State private var decodeFailed = false
 
@@ -315,19 +364,20 @@ private struct UserMessageAttachmentView: View {
                 }
                 .foregroundStyle(.secondary)
             } else {
-                Label("composer.imageAttached", systemImage: "photo")
+                Label("conv.image.unavailable", systemImage: "photo.badge.exclamationmark")
                     .foregroundStyle(.secondary)
             }
         }
         .accessibilityLabel(Text("composer.imageAttached"))
-        .task {
+        .task(id: cacheKey) {
             guard attachment.kind == .image else { return }
-            guard let thumbnail = await MessageImageAttachmentDecoder.thumbnail(from: attachment.source),
-                  !Task.isCancelled else {
+            guard let decoded = await MessageImageThumbnailCache.image(
+                cacheKey: cacheKey, source: attachment.source
+            ), !Task.isCancelled else {
                 if !Task.isCancelled { decodeFailed = true }
                 return
             }
-            image = UIImage(cgImage: thumbnail.cgImage)
+            image = decoded
         }
     }
 }

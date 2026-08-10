@@ -26,27 +26,25 @@ struct ComposerView: View {
     @Environment(EnvironmentStore.self) private var env
     @Environment(\.locale) private var locale
 
-    @State private var text = ""
-    @State private var photoItem: PhotosPickerItem?
-    @State private var imageAttachment = ComposerImageAttachmentState()
-    /// 模型/强度选择：nil override = 跟随账号默认（config），用户可显式覆盖。
-    @State private var selection = ModelSelection()
+    @State private var draft: ComposerDraft
     @State private var showModelPopover = false
 
-    init(store: ConversationStore, photoDataLoader: PhotoDataLoader = .live) {
+    init(store: ConversationStore, draft: ComposerDraft? = nil,
+         photoDataLoader: PhotoDataLoader = .live) {
         self.store = store
         self.photoDataLoader = photoDataLoader
+        _draft = State(initialValue: draft ?? ComposerDraft())
     }
 
     /// 推理强度可选项（ReasoningEffort 全部 case）。
     private static let efforts: [ReasoningEffort] = [.none, .minimal, .low, .medium, .high, .xhigh]
 
     /// 当前生效模型 slug（显式选择或账号默认），用于 UI 显示与发送。
-    private var effectiveModel: String? { selection.effectiveModel(config: env.config) }
-    private var effectiveEffort: ReasoningEffort? { selection.effectiveEffort(config: env.config) }
-    private var imageDataURL: String? { imageAttachment.dataURL }
+    private var effectiveModel: String? { draft.selection.effectiveModel(config: env.config) }
+    private var effectiveEffort: ReasoningEffort? { draft.selection.effectiveEffort(config: env.config) }
+    private var imageDataURL: String? { draft.imageAttachment.dataURL }
     private var imageError: String? {
-        guard let error = imageAttachment.error else { return nil }
+        guard let error = draft.imageAttachment.error else { return nil }
         return String(
             format: L10n.string("composer.image.tooLarge", locale: locale),
             Self.mb(error.bytes), Self.mb(error.limit)
@@ -54,7 +52,8 @@ struct ComposerView: View {
     }
 
     private var canSend: Bool {
-        Self.canSend(text: text, imageDataURL: imageDataURL, isImageLoading: imageAttachment.isLoading)
+        Self.canSend(text: draft.text, imageDataURL: imageDataURL,
+                     isImageLoading: draft.imageAttachment.isLoading)
     }
 
     static func canSend(text: String, imageDataURL: String?, isImageLoading: Bool) -> Bool {
@@ -63,6 +62,7 @@ struct ComposerView: View {
     }
 
     var body: some View {
+        @Bindable var draft = draft
         VStack(spacing: 6) {
             if let err = store.state.lastSendError {
                 // D2：发送失败显式提示，点按清错并重发上次输入（不再假"生成中"）。
@@ -94,14 +94,14 @@ struct ComposerView: View {
                 .foregroundStyle(.red)
                 .padding(.horizontal, 4)
             }
-            if imageAttachment.isLoading {
+            if draft.imageAttachment.isLoading {
                 attachmentStatusRow(
                     label: "composer.image.preparing",
                     systemImage: nil,
                     isProgress: true,
                     foreground: .secondary
                 )
-            } else if imageAttachment.loadFailed {
+            } else if draft.imageAttachment.loadFailed {
                 attachmentStatusRow(
                     label: "composer.image.loadFailed",
                     systemImage: "exclamationmark.triangle.fill",
@@ -115,8 +115,8 @@ struct ComposerView: View {
                     Text("composer.imageAttached").font(.footnote).foregroundStyle(.secondary)
                     Spacer()
                     Button("composer.remove") {
-                        imageAttachment.clear()
-                        photoItem = nil
+                        draft.imageAttachment.clear()
+                        draft.photoItem = nil
                     }
                     .font(.footnote)
                     .minimumHitTarget44()
@@ -124,7 +124,7 @@ struct ComposerView: View {
             }
             HStack(spacing: 8) {
                 // 次级控件用中性色（选择性用橙：只有主操作发送用主题色）。
-                PhotosPicker(selection: $photoItem, matching: .images) {
+                PhotosPicker(selection: $draft.photoItem, matching: .images) {
                     Image(systemName: "plus.circle").font(.title3)
                 }
                 .foregroundStyle(.secondary)
@@ -142,7 +142,7 @@ struct ComposerView: View {
                     modelPopover.presentationCompactAdaptation(.popover)
                 }
 
-                TextField("composer.placeholder", text: $text, axis: .vertical)
+                TextField("composer.placeholder", text: $draft.text, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(1...5)
 
@@ -182,18 +182,17 @@ struct ComposerView: View {
         }
         .padding(8)
         .background(.bar)
-        .onChange(of: photoItem) { _, item in
+        .onChange(of: draft.photoItem) { _, item in
             guard let item else {
-                imageAttachment.clear()
+                draft.imageAttachment.clear()
                 return
             }
             loadImage(item)
         }
-        .onDisappear { imageAttachment.clear() }
     }
 
     private func loadImage(_ item: PhotosPickerItem) {
-        imageAttachment.load { try await photoDataLoader.load(item) }
+        draft.imageAttachment.load { try await photoDataLoader.load(item) }
     }
 
     private func attachmentStatusRow(
@@ -210,14 +209,14 @@ struct ComposerView: View {
             }
             Text(label).font(.footnote).multilineTextAlignment(.leading)
             Spacer()
-            if imageAttachment.loadFailed, let photoItem {
+            if draft.imageAttachment.loadFailed, let photoItem = draft.photoItem {
                 Button("common.retry") { loadImage(photoItem) }
                     .font(.footnote)
                     .minimumHitTarget44()
             }
             Button("composer.remove") {
-                imageAttachment.clear()
-                photoItem = nil
+                draft.imageAttachment.clear()
+                draft.photoItem = nil
             }
             .font(.footnote)
             .minimumHitTarget44()
@@ -236,7 +235,7 @@ struct ComposerView: View {
     private var modelPopover: some View {
         List {
             Section("composer.model") {
-                Picker("composer.model", selection: $selection.modelOverride) {
+                Picker("composer.model", selection: $draft.selection.modelOverride) {
                     // nil = 跟随账号默认；显示当前默认 slug 便于用户知道会用哪个。
                     Text("composer.model.default \(env.config?.model ?? "—")")
                         .tag(String?.none)
@@ -248,11 +247,11 @@ struct ComposerView: View {
                 .labelsHidden()
             }
             Section("composer.effort") {
-                Picker("composer.effort", selection: $selection.effortOverride) {
-                    Text("composer.effort.default \(env.config?.modelReasoningEffort ?? "—")")
+                Picker("composer.effort", selection: $draft.selection.effortOverride) {
+                    Text("composer.effort.default \(defaultEffortLabel)")
                         .tag(ReasoningEffort?.none)
                     ForEach(Self.efforts, id: \.self) { e in
-                        Text(e.rawValue).tag(ReasoningEffort?.some(e))
+                        Text(verbatim: effortLabel(e)).tag(ReasoningEffort?.some(e))
                     }
                 }
                 .pickerStyle(.inline)
@@ -263,19 +262,27 @@ struct ComposerView: View {
         .frame(width: 260, height: 380)
     }
 
+    private func effortLabel(_ effort: ReasoningEffort) -> String {
+        L10n.string("composer.effort.\(effort.rawValue)", locale: locale)
+    }
+
+    private var defaultEffortLabel: String {
+        guard let raw = env.config?.modelReasoningEffort,
+              let effort = ReasoningEffort(rawValue: raw) else { return "—" }
+        return effortLabel(effort)
+    }
+
     /// 构造当前输入（文本 + 可选图片），供 send/steer/enqueue 复用。
     private func currentInput() -> [UserInput] {
         var input: [UserInput] = []
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = draft.text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty { input.append(.text(trimmed)) }
         if let url = imageDataURL { input.append(.image(url: url, detail: .high)) }
         return input
     }
 
     private func clearComposer() {
-        text = ""
-        imageAttachment.clear()
-        photoItem = nil
+        draft.clearInput()
     }
 
     private func send() async {
