@@ -42,8 +42,9 @@ struct ApprovalCardView: View {
                           systemImage: "network")
                         .font(.caption)
                 }
-                if card.permissionEntries == nil, let fs = card.requestedFileSystem, !fs.isEmpty {
-                    ForEach(fs, id: \.self) { path in
+                let legacyPaths = Self.legacyPermissionPaths(card: card)
+                if !legacyPaths.isEmpty {
+                    ForEach(Array(legacyPaths.enumerated()), id: \.offset) { _, path in
                         permissionPath(path, systemImage: "folder")
                     }
                 }
@@ -187,5 +188,9 @@ struct ApprovalCardView: View {
     static func prefixButtonState(card: ApprovalCard) -> [String]? {
         guard !card.isFileChange else { return nil }
         return card.proposedPrefix
+    }
+
+    static func legacyPermissionPaths(card: ApprovalCard) -> [String] {
+        card.requestedFileSystem ?? []
     }
 }

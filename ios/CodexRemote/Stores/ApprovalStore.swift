@@ -44,7 +44,7 @@ struct ApprovalCard: Identifiable {
     let isPermissions: Bool
     let reason: String?                     // 请求携带的授权理由（若有）
     let requestedNetworkEnabled: Bool?      // 请求的 network.enabled（若有）
-    let requestedFileSystem: [String]?      // 请求的 fileSystem read+write 合并条目（若有，仅用于知情展示）
+    let requestedFileSystem: [String]?      // legacy fileSystem read+write 路径（entries 单独展示）
     // F4-fix：授权回显所需的完整请求档案（network/fileSystem 分列 read/write），批准时按此原样授予（最小权限）。
     var requestedProfile: RequestPermissionProfile? = nil
     var awaitingRecovery: Bool = false   // Task 19：断线未决标记
@@ -123,13 +123,12 @@ final class ApprovalStore {
         case .permissions(let params):
             let fileSystem = params.permissions.fileSystem
             let legacyPaths = (fileSystem?.read ?? []) + (fileSystem?.write ?? [])
-            let entryPaths = fileSystem?.entries?.map { $0.path.displayValue } ?? []
             return ApprovalCard(
                 id: request.id, method: request.method, threadId: params.threadId,
                 title: L10n.string("approval.permissionTitle", locale: LocaleManager.currentLocale), detail: params.cwd,
                 proposedPrefix: nil, isFileChange: false, isPermissions: true, reason: params.reason,
                 requestedNetworkEnabled: params.permissions.network?.enabled,
-                requestedFileSystem: (entryPaths + legacyPaths).isEmpty ? nil : entryPaths + legacyPaths,
+                requestedFileSystem: legacyPaths.isEmpty ? nil : legacyPaths,
                 requestedProfile: params.permissions, turnId: params.turnId, itemId: params.itemId,
                 startedAtMs: params.startedAtMs, permissionEntries: fileSystem?.entries,
                 globScanMaxDepth: fileSystem?.globScanMaxDepth, environmentId: params.environmentId)

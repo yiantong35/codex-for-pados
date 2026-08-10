@@ -35,6 +35,31 @@ final class ItemCardRenderTests: XCTestCase {
         _ = ItemCard(item: .subAgentActivity(id: "5")).body
     }
 
+    func testMessageImageDataURLIsStrictAndSizeBounded() {
+        let bytes = Data("image".utf8)
+        let valid = "data:image/png;base64," + bytes.base64EncodedString()
+        XCTAssertEqual(MessageImageAttachmentDecoder.imageData(from: valid), bytes)
+        XCTAssertNil(MessageImageAttachmentDecoder.imageData(from: valid + "!"))
+
+        let oversized = "data:image/png;base64,"
+            + String(repeating: "A", count: MessageImageAttachmentDecoder.maximumDataURLBytes)
+        XCTAssertNil(MessageImageAttachmentDecoder.imageData(from: oversized))
+    }
+
+    func testMessageImageBuildsPixelBudgetedThumbnail() async throws {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 3_000, height: 300))
+        let png = renderer.pngData { context in
+            UIColor.systemBlue.setFill()
+            context.cgContext.fill(CGRect(x: 0, y: 0, width: 3_000, height: 300))
+        }
+        let source = "data:image/png;base64," + png.base64EncodedString()
+
+        let decoded = await MessageImageAttachmentDecoder.thumbnail(from: source)
+        let thumbnail = try XCTUnwrap(decoded)
+        XCTAssertLessThanOrEqual(max(thumbnail.cgImage.width, thumbnail.cgImage.height),
+                                 FileImageThumbnailDecoder.maximumThumbnailDimension)
+    }
+
     // MARK: - F5（P1）会话前缀放行仅源自服务端 amendment
 
     private func cmdCard(title: String, prefix: [String]?, isFile: Bool = false) -> ApprovalCard {

@@ -449,7 +449,8 @@ final class ConnectionStore {
                 case .peerLeft:
                     // 非判决（防降级红线）：relay 连接层「对端已离开」只是**提示**，不是判死依据。
                     // 恶意/误报 relay 不能凭空杀健康连接——不改 phase、不断开、不重连，
-                    // 只带外补发一次心跳探针核实：探针 miss 才由心跳判死走有界重连；探针 hit 则忽略。
+                    // 仅活动 tab 带外补发一次心跳探针核实；非活动 tab 继续遵守 60s 下限，避免
+                    // 未认证 relay 信号放大后台连接能耗。探针 miss 才由心跳判死，hit 则忽略。
                     self.heartbeat?.requestAcceleratedProbe()
                 }
             }
