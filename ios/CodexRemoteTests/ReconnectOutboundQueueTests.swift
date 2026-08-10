@@ -321,6 +321,49 @@ final class ReconnectOutboundQueueTests: XCTestCase {
         XCTAssertEqual(store.outbox.count, 1, "重发不得二次入队")
     }
 
+    func test_failed_head_can_be_discarded_and_next_message_drains() async throws {
+        let mock = MockTransport()
+        await mock.setAutoRespond(true)
+        await mock.failNextTurnStartRequests(1)
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "t1")
+
+        await store.send(input: [.text("bad")], model: nil, effort: nil)
+        try await waitUntil { store.failedOutbound != nil }
+        await store.send(input: [.text("next")], model: nil, effort: nil)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        let sendsBeforeDiscard = await mock.sent.filter { $0.contains("turn/start") }.count
+        XCTAssertEqual(sendsBeforeDiscard, 1)
+
+        let discarded = store.discardFailedSend()
+        guard case .text(let discardedText)? = discarded?.input.first else {
+            return XCTFail("expected failed text input")
+        }
+        XCTAssertEqual(discardedText, "bad")
+        try await waitUntil { await mock.sent.filter { $0.contains("turn/start") }.count == 2 }
+        XCTAssertNil(store.failedOutbound)
+        XCTAssertFalse(store.state.items.contains { $0.id == discarded?.localId })
+    }
+
+    func test_failed_message_can_be_retried_without_duplicate_echo() async throws {
+        let mock = MockTransport()
+        await mock.setAutoRespond(true)
+        await mock.failNextTurnStartRequests(1)
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "t1")
+
+        await store.send(input: [.text("retry")], model: nil, effort: nil)
+        try await waitUntil { store.failedOutbound != nil }
+        await store.retryLastSend()
+        try await waitUntil { await mock.sent.filter { $0.contains("turn/start") }.count == 2 }
+
+        let echoes = store.state.items.filter { if case .userMessage = $0 { return true }; return false }
+        XCTAssertEqual(echoes.count, 1)
+        XCTAssertNil(store.failedOutbound)
+    }
+
     private func waitUntil(timeout: TimeInterval = 2.0,
                            _ condition: () async -> Bool) async throws {
         let deadline = Date().addingTimeInterval(timeout)

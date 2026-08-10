@@ -41,6 +41,10 @@ struct ProgressCardBar: View {
         !diff.isEmpty && hasAction
     }
 
+    static func expandedHeight(stepCount: Int) -> CGFloat {
+        min(320, max(64, CGFloat(stepCount) * 44 + 28))
+    }
+
     var body: some View {
         VStack(spacing: 8) {
             if expanded && !progress.isEmpty { expandedPanel }
@@ -114,7 +118,7 @@ struct ProgressCardBar: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(14)
         }
-        .frame(maxHeight: 320)
+        .frame(height: Self.expandedHeight(stepCount: progress.steps.count))
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))

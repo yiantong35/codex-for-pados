@@ -20,6 +20,7 @@ private enum PhotoDataLoaderError: Error { case noData }
 /// 中途控制（turn 进行中 steer/排队/interrupt）在 Task 17 实现，本视图只做基础发送。
 struct ComposerView: View {
     let store: ConversationStore
+    let isEnabled: Bool
     private let photoDataLoader: PhotoDataLoader
     // 服务器驱动的模型数据（model/list + config/read）。绝不硬编码——两种登录（账号/API）
     // 可用模型不同，daemon 已按登录返回真实数据（见 memory: pados-model-server-driven）。
@@ -29,9 +30,10 @@ struct ComposerView: View {
     @State private var draft: ComposerDraft
     @State private var showModelPopover = false
 
-    init(store: ConversationStore, draft: ComposerDraft? = nil,
+    init(store: ConversationStore, draft: ComposerDraft? = nil, isEnabled: Bool = true,
          photoDataLoader: PhotoDataLoader = .live) {
         self.store = store
+        self.isEnabled = isEnabled
         self.photoDataLoader = photoDataLoader
         _draft = State(initialValue: draft ?? ComposerDraft())
     }
@@ -64,28 +66,24 @@ struct ComposerView: View {
     var body: some View {
         @Bindable var draft = draft
         VStack(spacing: 6) {
-            if let err = store.state.lastSendError, store.lastSendErrorIsRetryable {
-                // D2：发送失败显式提示，点按清错并重发上次输入（不再假"生成中"）。
-                Button {
-                    Task { await store.retryLastSend() }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
+            if let err = store.state.lastSendError {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label {
                         Text("composer.sendFailed \(err)")
                             .font(.footnote).multilineTextAlignment(.leading)
-                        Spacer()
-                        Image(systemName: "arrow.clockwise")
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill")
                     }
-                    .foregroundStyle(.red)
-                    .padding(.horizontal, 4)
-                }
-                .buttonStyle(.plain)
-            } else if let err = store.state.lastSendError {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                    Text("composer.sendFailed \(err)")
-                        .font(.footnote).multilineTextAlignment(.leading)
-                    Spacer()
+                    if store.lastSendErrorIsRetryable {
+                        HStack(spacing: 8) {
+                            Button("common.retry") { Task { await store.retryLastSend() } }
+                            Button("common.edit") {
+                                if let entry = store.takeFailedSendForEditing() { draft.restore(entry) }
+                            }
+                            Button("common.discard", role: .destructive) { store.discardFailedSend() }
+                        }
+                        .buttonStyle(.borderless)
+                    }
                 }
                 .foregroundStyle(.red)
                 .padding(.horizontal, 4)
@@ -142,11 +140,20 @@ struct ComposerView: View {
                 // 模型/推理用 .popover 而非 Menu：Menu+Picker 收起时会闪现（#7），且会遮挡按钮（#8）。
                 // popover 带箭头指向按钮、不遮挡，inline picker 一屏列出可选项。
                 Button { showModelPopover.toggle() } label: {
-                    Image(systemName: "slider.horizontal.3").font(.title3)
+                    HStack(spacing: 4) {
+                        Image(systemName: "slider.horizontal.3")
+                        Text(verbatim: modelChipLabel)
+                            .font(.caption)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .padding(.horizontal, 7)
+                    .background(Color.secondary.opacity(0.12), in: Capsule())
                 }
                 .foregroundStyle(.secondary)
                 .minimumHitTarget44()
                 .accessibilityLabel(Text("composer.a11y.model"))
+                .accessibilityValue(Text(verbatim: modelChipLabel))
                 .popover(isPresented: $showModelPopover) {
                     modelPopover.presentationCompactAdaptation(.popover)
                 }
@@ -188,6 +195,7 @@ struct ComposerView: View {
                     .accessibilityLabel(Text("composer.a11y.send"))
                 }
             }
+            .disabled(!isEnabled)
         }
         .padding(8)
         .background(.bar)
@@ -243,6 +251,9 @@ struct ComposerView: View {
     /// 模型列表来自服务器 model/list（env.models），含「跟随账号默认」项（override=nil）。
     private var modelPopover: some View {
         List {
+            Button("composer.model.reset") {
+                draft.selection = ModelSelection()
+            }
             Section("composer.model") {
                 Picker("composer.model", selection: $draft.selection.modelOverride) {
                     // nil = 跟随账号默认；显示当前默认 slug 便于用户知道会用哪个。
@@ -279,6 +290,14 @@ struct ComposerView: View {
         guard let raw = env.config?.modelReasoningEffort,
               let effort = ReasoningEffort(rawValue: raw) else { return "—" }
         return effortLabel(effort)
+    }
+
+    private var modelChipLabel: String {
+        let model = effectiveModel.flatMap { slug in
+            env.models.first(where: { $0.slug == slug })?.displayName ?? slug
+        } ?? L10n.string("composer.model.followDefault", locale: locale)
+        let effort = effectiveEffort.map(effortLabel) ?? defaultEffortLabel
+        return "\(model) · \(effort)"
     }
 
     /// 构造当前输入（文本 + 可选图片），供 send/steer/enqueue 复用。

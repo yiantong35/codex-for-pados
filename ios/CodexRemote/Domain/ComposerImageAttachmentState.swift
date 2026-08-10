@@ -61,6 +61,14 @@ final class ComposerImageAttachmentState {
         loadFailed = false
     }
 
+    func restore(dataURL: String?) {
+        invalidateTask()
+        self.dataURL = dataURL
+        error = nil
+        isLoading = false
+        loadFailed = false
+    }
+
 #if DEBUG
     var hasActiveTaskForTesting: Bool { task != nil }
 #endif
@@ -108,6 +116,21 @@ final class ComposerDraft {
         text = ""
         photoItem = nil
         imageAttachment.clear()
+    }
+
+    func restore(_ message: PendingConversationMessage) {
+        text = message.input.compactMap {
+            if case .text(let value) = $0 { return value }
+            return nil
+        }.joined()
+        let imageURL = message.input.compactMap { input -> String? in
+            if case .image(let url, _) = input { return url }
+            return nil
+        }.first
+        photoItem = nil
+        imageAttachment.restore(dataURL: imageURL)
+        selection.modelOverride = message.model
+        selection.effortOverride = message.effort
     }
 }
 

@@ -1,6 +1,156 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
+    "common.clear": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Clear" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "清除" } }
+      }
+    },
+    "common.loading": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Loading…" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在加载…" } }
+      }
+    },
+    "common.save": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Save" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "保存" } }
+      }
+    },
+    "composer.model.followDefault": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Default model" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "默认模型" } }
+      }
+    },
+    "composer.model.reset": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Restore defaults" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "恢复默认" } }
+      }
+    },
+    "workspace.panel.shown": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Shown" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已显示" } }
+      }
+    },
+    "workspace.panel.hidden": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Hidden" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已隐藏" } }
+      }
+    },
+    "sidebar.search.placeholder": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Search conversations" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "搜索对话" } }
+      }
+    },
+    "sidebar.rename": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Rename" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重命名" } }
+      }
+    },
+    "sidebar.rename.placeholder": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Conversation name" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "对话名称" } }
+      }
+    },
+    "sidebar.archive": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Archive" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "归档" } }
+      }
+    },
+    "sidebar.delete": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Delete" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "删除" } }
+      }
+    },
+    "sidebar.delete.confirm.title": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Delete this conversation?" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "删除这个对话？" } }
+      }
+    },
+    "sidebar.delete.confirm.message": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This action cannot be undone." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "此操作无法撤销。" } }
+      }
+    },
+    "sidebar.rollback": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Roll back" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "回滚" } }
+      }
+    },
+    "sidebar.rollback.turns %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Last %lld turns" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最近 %lld 轮" } }
+      }
+    },
+    "sidebar.rollback.confirm.title": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Roll back this conversation?" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "回滚这个对话？" } }
+      }
+    },
+    "sidebar.rollback.confirm %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Roll back %lld turns" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "回滚 %lld 轮" } }
+      }
+    },
+    "sidebar.rollback.confirm.message %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "The last %lld turns and their output will be removed." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最近 %lld 轮及其输出将被移除。" } }
+      }
+    },
+    "sidebar.compact": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Compact context" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "压缩上下文" } }
+      }
+    },
+    "sidebar.goal": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Manage goal" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "管理目标" } }
+      }
+    },
+    "sidebar.goal.objective": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Objective" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "目标" } }
+      }
+    },
+    "sidebar.goal.status": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Status" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "状态" } }
+      }
+    },
+    "sidebar.goal.clear": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Clear goal" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "清除目标" } }
+      }
+    },
+    "sidebar.goal.status.active": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Active" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "进行中" } } } },
+    "sidebar.goal.status.paused": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Paused" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "已暂停" } } } },
+    "sidebar.goal.status.blocked": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Blocked" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "受阻" } } } },
+    "sidebar.goal.status.usageLimited": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Usage limited" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "用量受限" } } } },
+    "sidebar.goal.status.budgetLimited": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Budget limited" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "预算受限" } } } },
+    "sidebar.goal.status.complete": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Complete" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "已完成" } } } },
     "accessibility.notSelected": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Not selected" } },
@@ -11,6 +161,66 @@
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Selected" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "已选中" } }
+      }
+    },
+    "common.discard": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Discard" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "丢弃" } }
+      }
+    },
+    "common.edit": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Edit" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "编辑" } }
+      }
+    },
+    "conv.loadFailed": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Conversation could not be loaded" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法加载对话" } }
+      }
+    },
+    "conv.loading": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Loading conversation…" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在加载对话…" } }
+      }
+    },
+    "sideChat.closeRunning.confirm": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Interrupt and close" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "中断并关闭" } }
+      }
+    },
+    "sideChat.closeRunning.message": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This side conversation is still running. Closing it will interrupt the active turn and discard its pending state." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "该侧聊仍在运行。关闭会中断当前回合并丢弃其待处理状态。" } }
+      }
+    },
+    "sideChat.closeRunning.title": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Close running side conversation?" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "关闭正在运行的侧聊？" } }
+      }
+    },
+    "conv.output.lines %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%lld output lines" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "%lld 行输出" } }
+      }
+    },
+    "conv.output.truncated %lld %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Showing %1$lld of %2$lld lines" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "显示 %1$lld / %2$lld 行" } }
+      }
+    },
+    "review.diffTruncated %lld %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Showing %1$lld of %2$lld diff lines" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "显示 %1$lld / %2$lld 行差异" } }
       }
     },
     "composer.effort.none": {

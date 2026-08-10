@@ -178,6 +178,11 @@ struct ConversationView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .overlay {
+            if let store, store.loadState != .loaded {
+                conversationLoadOverlay(store)
+            }
+        }
         .onChange(of: store?.state) { _, newValue in
             if bindsWorkspaceState { activeConversation.state = newValue }
         }
@@ -198,7 +203,11 @@ struct ConversationView: View {
             if let store {
                 VStack(spacing: 0) {
                     progressCard(for: store.state)
-                    ComposerView(store: store, draft: draftStore?.draft(for: threadId))
+                    ComposerView(
+                        store: store,
+                        draft: draftStore?.draft(for: threadId),
+                        isEnabled: store.loadState == .loaded
+                    )
                 }
             }
         }
@@ -206,7 +215,17 @@ struct ConversationView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                if store?.state.isTurnRunning == true {
+                if store?.loadState == .loading {
+                    Label("conv.loading", systemImage: "arrow.clockwise")
+                        .labelStyle(.titleAndIcon)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if store?.loadState == .failed {
+                    Label("conv.loadFailed", systemImage: "exclamationmark.triangle.fill")
+                        .labelStyle(.titleAndIcon)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                } else if store?.state.isTurnRunning == true {
                     Label("conv.running", systemImage: "circle.fill")
                         .labelStyle(.titleAndIcon)
                         .font(.caption)
@@ -220,7 +239,6 @@ struct ConversationView: View {
             }
         }
         .task(id: convBindingKey) {
-            let ownsStore = providedStore == nil
             let s: ConversationStore
             if let providedStore {
                 s = providedStore
@@ -231,9 +249,9 @@ struct ConversationView: View {
             // reconnect-resync item 3：注入连接就绪信号，供 send 判定在线/离线分支。
             s.isReady = { [weak connection] in connection?.phase == .ready }
             s.requireAuthoritativeRecovery()
-            if ownsStore { await s.startObserving() }
+            await s.startObserving()
             store = s
-            defer { if ownsStore { s.stopObserving() } }
+            defer { s.stopObserving() }
             // D2：resume 注册不再受 bindsWorkspaceState 限制——主对话与每个侧聊各自 thread
             // 都需在重连后 rejoin 恢复；改 add/remove 精确配对，.task 结束/取消时注销自己的订阅，
             // 与 s.stopObserving() 两个 defer 并存。多订阅互不覆盖（Task 2 能力）。
@@ -266,6 +284,25 @@ struct ConversationView: View {
             Text("conv.generating").font(.footnote).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func conversationLoadOverlay(_ store: ConversationStore) -> some View {
+        switch store.loadState {
+        case .idle, .loading:
+            ProgressView("conv.loading")
+                .padding(16)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        case .failed:
+            ContentUnavailableView {
+                Label("conv.loadFailed", systemImage: "exclamationmark.triangle")
+            } actions: {
+                Button("common.retry") { Task { await store.resume() } }
+                    .buttonStyle(.borderedProminent)
+            }
+        case .loaded:
+            EmptyView()
+        }
     }
 
     @ViewBuilder

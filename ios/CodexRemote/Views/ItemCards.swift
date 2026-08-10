@@ -8,6 +8,7 @@ struct ItemCard: View {
     let item: ConversationItem
     var onOpenFile: ((String) -> Void)? = nil
     @Environment(\.locale) private var locale
+    @State private var isCommandExpanded = false
 
     var body: some View {
         switch item {
@@ -33,8 +34,7 @@ struct ItemCard: View {
             }
 
         case .agentMessage(_, let text):
-            // MVP：Markdown 行内渲染（代码块/格式）。空串时占位，避免抖动。
-            Text(text.isEmpty ? " " : LocalizedStringKey(text))
+            Text(Self.agentText(text))
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -44,15 +44,38 @@ struct ItemCard: View {
                 Image(systemName: "brain")
                     .foregroundStyle(.secondary)
                     .font(.footnote)
-                Text(text.isEmpty ? LocalizedStringKey("conv.reasoning.thinking") : LocalizedStringKey(text))
-                    .font(.callout.italic())
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
+                if text.isEmpty {
+                    Text("conv.reasoning.thinking")
+                        .font(.callout.italic())
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(verbatim: text)
+                        .font(.callout.italic())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
         case .commandExecution(_, let command, let output, let status, let exitCode, let durationMs):
-            VStack(alignment: .leading, spacing: 4) {
+            DisclosureGroup(isExpanded: $isCommandExpanded) {
+                if !output.isEmpty {
+                    let presentation = TextRenderBudget.commandOutput(output)
+                    Text(presentation.text)
+                        .font(.footnote.monospaced())
+                        .textSelection(.enabled)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.black.opacity(0.05))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    if presentation.isTruncated {
+                        Label("conv.output.truncated \(presentation.displayedLines) \(presentation.totalLines)",
+                              systemImage: "scissors")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } label: {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Label {
                         Text(command).font(.callout.monospaced())
@@ -63,13 +86,9 @@ struct ItemCard: View {
                     commandStatusBadge(status: status, exitCode: exitCode, durationMs: durationMs)
                 }
                 if !output.isEmpty {
-                    Text(output)
-                        .font(.footnote.monospaced())
-                        .textSelection(.enabled)
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.black.opacity(0.05))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    Text("conv.output.lines \(TextRenderBudget.lineCount(output))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -172,6 +191,11 @@ struct ItemCard: View {
         case .collabAgentToolCall, .subAgentActivity:
             EmptyView()
         }
+    }
+
+    static func agentText(_ text: String) -> AttributedString {
+        guard !text.isEmpty else { return AttributedString(" ") }
+        return (try? AttributedString(markdown: text)) ?? AttributedString(text)
     }
 
     @ViewBuilder
@@ -406,13 +430,21 @@ struct DiffView: View {
     let diff: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(diff.split(separator: "\n", omittingEmptySubsequences: false).enumerated()), id: \.offset) { _, line in
+        let allLines = diff.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let lines = Array(allLines.prefix(DiffRenderBudget.maximumInlineLines))
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                 Text(String(line).isEmpty ? " " : String(line))
                     .font(.caption.monospaced())
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(lineColor(String(line)))
+            }
+            if allLines.count > lines.count {
+                Label("review.diffTruncated \(lines.count) \(allLines.count)", systemImage: "scissors")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 6)
             }
         }
         .padding(.top, 4)
@@ -423,4 +455,43 @@ struct DiffView: View {
         if l.hasPrefix("-") { return .red.opacity(0.15) }
         return .clear
     }
+}
+
+struct BoundedTextPresentation: Equatable {
+    let text: String
+    let displayedLines: Int
+    let totalLines: Int
+    let isTruncated: Bool
+}
+
+enum TextRenderBudget {
+    static let maximumCommandLines = 500
+    static let maximumCommandBytes = 128 * 1_024
+
+    static func lineCount(_ text: String) -> Int {
+        text.isEmpty ? 0 : text.split(separator: "\n", omittingEmptySubsequences: false).count
+    }
+
+    static func commandOutput(_ output: String) -> BoundedTextPresentation {
+        let allLines = output.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        var selected: [String] = []
+        var byteCount = 0
+        for line in allLines.prefix(maximumCommandLines) {
+            let addedBytes = line.utf8.count + (selected.isEmpty ? 0 : 1)
+            guard byteCount + addedBytes <= maximumCommandBytes else { break }
+            selected.append(line)
+            byteCount += addedBytes
+        }
+        return BoundedTextPresentation(
+            text: selected.joined(separator: "\n"),
+            displayedLines: selected.count,
+            totalLines: allLines.count,
+            isTruncated: selected.count < allLines.count
+        )
+    }
+}
+
+enum DiffRenderBudget {
+    static let maximumInlineLines = 600
+    static let maximumReviewLines = 5_000
 }

@@ -199,28 +199,36 @@ struct RootSplitView: View {
                 withAnimation { layout.leftVisible.toggle(); layout.lastRequested = .left }
             } label: { Image(systemName: "rectangle.leadinghalf.inset.filled") }
             .minimumHitTarget44()
+            .panelToggleState(isOn: layout.leftVisible)
             .accessibilityLabel(Text("workspace.leftPanel.toggle"))
+            .accessibilityValue(Text(layout.leftVisible ? "workspace.panel.shown" : "workspace.panel.hidden"))
 
             // 下面板。
             Button { withAnimation { layout.showBottom.toggle() } } label: {
                 Image(systemName: "rectangle.bottomthird.inset.filled")
             }
             .minimumHitTarget44()
+            .panelToggleState(isOn: layout.showBottom)
             .accessibilityLabel(Text("workspace.bottomPanel.toggle"))
+            .accessibilityValue(Text(layout.showBottom ? "workspace.panel.shown" : "workspace.panel.hidden"))
 
             // 摘要(:≡ = list.bullet)：常驻悬浮浮层由 body 的 overlay 渲染。
             Button { withAnimation { layout.showSummary.toggle() } } label: {
                 Image(systemName: "list.bullet")
             }
             .minimumHitTarget44()
+            .panelToggleState(isOn: layout.showSummary)
             .accessibilityLabel(Text("workspace.summary.toggle"))
+            .accessibilityValue(Text(layout.showSummary ? "workspace.panel.shown" : "workspace.panel.hidden"))
 
             // 右面板。
             Button { withAnimation { layout.showRight.toggle(); layout.lastRequested = .right } } label: {
                 Image(systemName: "rectangle.trailinghalf.inset.filled")
             }
             .minimumHitTarget44()
+            .panelToggleState(isOn: layout.showRight)
             .accessibilityLabel(Text("workspace.rightPanel.toggle"))
+            .accessibilityValue(Text(layout.showRight ? "workspace.panel.shown" : "workspace.panel.hidden"))
 
             // 设置：gear 直接打开设置页 .sheet（移除旧 popover，设计 D3）。
             Button { layout.showSettings = true } label: {
@@ -336,6 +344,12 @@ struct RootSplitView: View {
         activeConversation.startReview = nil
         activeConversation.fetchGeneration &+= 1
         fileOpenTask?.cancel()
+        for id in sideChat.sessions.map(\.id) {
+            sessions.activeSession?.approvals.removeAll(threadId: id)
+            sessions.activeSession?.userInputs.removeAll(threadId: id)
+            sessions.activeSession?.mcpElicitations.removeAll(threadId: id)
+            sessions.activeSession?.composerDrafts.removeDraft(for: id)
+        }
         sideChat.reset()
         Task { await fileBrowser.setRoot(nil) }
     }
@@ -344,6 +358,16 @@ struct RootSplitView: View {
                                   loadState: ProjectsLoadState) -> String? {
         guard loadState == .loaded, let current else { return current }
         return availableIDs.contains(current) ? current : nil
+    }
+}
+
+private extension View {
+    func panelToggleState(isOn: Bool) -> some View {
+        self
+            .foregroundStyle(isOn ? Color.accentColor : Color.primary)
+            .background(isOn ? Color.accentColor.opacity(0.14) : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 6))
+            .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
 

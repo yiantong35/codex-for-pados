@@ -22,6 +22,8 @@ final class SideChatStore {
     private var rpc: JSONRPCClient?
     let conversationOutboxes: ConversationOutboxRegistry
     @ObservationIgnored private let draftStore: ComposerDraftStore?
+    private var rpcIdentity: ObjectIdentifier?
+    private var conversationStores: [String: ConversationStore] = [:]
     /// 已开侧聊计数（只增），用于标题 #序号，与 close 无关（关掉不回收序号，避免标题跳变）。
     private var startedCount = 0
 
@@ -33,7 +35,29 @@ final class SideChatStore {
 
     /// 注入共享 rpc（幂等）。重连时保留 metadata；可见 ConversationView 会按新 rpc identity 重建。
     func attach(rpc: JSONRPCClient) {
+        let identity = ObjectIdentifier(rpc)
+        if let rpcIdentity, rpcIdentity != identity {
+            for store in conversationStores.values { store.stopObserving() }
+            conversationStores.removeAll()
+        }
+        rpcIdentity = identity
         self.rpc = rpc
+    }
+
+    func conversationStore(for threadId: String) -> ConversationStore? {
+        if let existing = conversationStores[threadId] { return existing }
+        guard let rpc else { return nil }
+        let created = ConversationStore(
+            rpc: rpc,
+            threadId: threadId,
+            outbox: conversationOutboxes.outbox(for: threadId)
+        )
+        conversationStores[threadId] = created
+        return created
+    }
+
+    func isRunning(id: String) -> Bool {
+        conversationStores[id]?.state.isTurnRunning == true
     }
 
     /// 从主对话 fork 一个 ephemeral 侧聊。无 rpc / 无主对话 threadId → 直接返回，不发请求。
@@ -60,19 +84,33 @@ final class SideChatStore {
     }
 
     func reset() {
+        let stores = Array(conversationStores.values)
         sessions.forEach {
             draftStore?.removeDraft(for: $0.id)
             conversationOutboxes.remove(threadId: $0.id)
         }
+        conversationStores.removeAll()
         sessions.removeAll()
         selectedId = nil
         startFailed = false
+        Task {
+            for store in stores where store.state.isTurnRunning { await store.interrupt() }
+            for store in stores { store.stopObserving() }
+        }
     }
 
     /// 关闭侧聊：移除 metadata；可见 ConversationView 随选择变化销毁并取消自己的订阅。
-    func close(id: String) {
+    func close(id: String, interruptIfRunning: Bool = false) async {
         guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return }
+        if let conversation = conversationStores[id] {
+            if conversation.state.isTurnRunning {
+                guard interruptIfRunning else { return }
+                await conversation.interrupt()
+            }
+            conversation.stopObserving()
+        }
         sessions.remove(at: idx)
+        conversationStores[id] = nil
         conversationOutboxes.remove(threadId: id)
         draftStore?.removeDraft(for: id)
         if selectedId == id {

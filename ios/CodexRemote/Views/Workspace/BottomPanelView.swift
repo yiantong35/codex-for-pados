@@ -52,18 +52,20 @@ struct BottomPanelView: View {
     /// 可拖把手：纵向拖动改高，松手 clamp 到 [min, max]。
     /// 拖动效果（手势）靠模拟器/UI 测试确认；clamp 逻辑已在 WorkspaceMetricsTests 单测。
     private var dragHandle: some View {
-        ZStack(alignment: .top) {
+        ZStack {
             // 透明轨道撑满命中区，配合下方 .contentShape 保证透明区仍可命中 DragGesture。
             Color.clear
             // 顶部 1pt 主题橙分界线：与竖直列分隔线（accentColor）统一，标出下栏与上方列的分界。
             Rectangle().fill(Color.accentColor).frame(height: 1)
+                .frame(maxHeight: .infinity, alignment: .top)
+            Capsule()
+                .fill(active ? Color.accentColor : Color.secondary.opacity(0.55))
+                .frame(width: active ? 42 : 36, height: active ? 5 : 3)
         }
         .frame(height: WorkspaceMetrics.bottomResizeHandleTrackHeight)
         .contentShape(Rectangle())
         .hoverEffect(.highlight)
         .onHover { hovering = $0 }
-        // 可见 Capsule 删除后 active/hovering/dragging 不再驱动任何可见样式（保留见 plan Task B2）；
-        // hoverEffect(.highlight) 仍给 iPad 触控板悬停一个系统命中反馈，其余为保守保留的惰性状态。
         .animation(.easeOut(duration: 0.12), value: active)
         .gesture(
             DragGesture()

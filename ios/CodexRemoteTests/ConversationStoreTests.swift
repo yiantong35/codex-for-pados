@@ -62,6 +62,7 @@ final class ConversationStoreTests: XCTestCase {
     /// resume() 发出 thread/resume。
     func testResumeIssuesThreadResume() async throws {
         let mock = MockTransport()
+        await mock.setAutoRespond(true)
         let rpc = JSONRPCClient(transport: mock)
         await rpc.start()
         let store = ConversationStore(rpc: rpc, threadId: "t1")
@@ -71,31 +72,37 @@ final class ConversationStoreTests: XCTestCase {
         try await waitUntil { await mock.sent.contains { $0.contains("thread/resume") } }
         let sent = await mock.sent.first { $0.contains("thread/resume") }!
         XCTAssertTrue(sent.contains(#""threadId":"t1""#), sent)
+        XCTAssertEqual(store.loadState, .loaded)
     }
 
     /// resume() 必须捕获响应并把历史 turn/item 灌入 state（修复「恢复桌面会话看不到历史」）。
     func testResumeIngestsHistoryFromResponse() async throws {
         let mock = MockTransport()
+        await mock.setAutoRespond(true)
+        await mock.setThreadResumeResponse(#"{"thread":{"id":"t1","turns":[{"id":"turn-1","items":[{"type":"userMessage","id":"u1","content":[{"type":"text","text":"历史问题","text_elements":[]}]},{"type":"agentMessage","id":"a1","text":"历史回答"}]}]}}"#)
         let rpc = JSONRPCClient(transport: mock)
         await rpc.start()
         let store = ConversationStore(rpc: rpc, threadId: "t1")
 
         await store.resume()
-        // 等 resume 请求发出，并解出其实际 id（Task 6 起 id 为 ipad-<UUID>，不再是整型 1）。
-        try await waitUntil { await mock.sent.contains { $0.contains("thread/resume") } }
-        let resumeReq = await mock.sent.first { $0.contains("thread/resume") }!
-        let reqObj = try JSONSerialization.jsonObject(with: Data(resumeReq.utf8)) as! [String: Any]
-        let resumeId = reqObj["id"] as! String
-
-        // 模拟服务端用带历史的 result 响应该 id。
-        let response = #"{"jsonrpc":"2.0","id":"\#(resumeId)","result":{"thread":{"id":"t1","turns":[{"id":"turn-1","items":[{"type":"userMessage","id":"u1","content":[{"type":"text","text":"历史问题","text_elements":[]}]},{"type":"agentMessage","id":"a1","text":"历史回答"}]}]}}}"#
-        await mock.feed(response)
-
-        try await waitUntil {
-            store.state.items.contains { if case .agentMessage(_, let t) = $0 { return t == "历史回答" } else { return false } }
-        }
+        XCTAssertEqual(store.loadState, .loaded)
         XCTAssertTrue(store.state.items.contains { if case .userMessage(_, let t, _) = $0 { return t == "历史问题" } else { return false } },
                       "resume 历史 userMessage 应进入 state，实际：\(store.state.items)")
+        XCTAssertTrue(store.state.items.contains { if case .agentMessage(_, let t) = $0 { return t == "历史回答" } else { return false } })
+    }
+
+    func testResumeFailureIsVisibleAndRetryable() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "t1")
+
+        let resume = Task { await store.resume() }
+        try await waitUntil { await mock.sent.contains { $0.contains("thread/resume") } }
+        await mock.fail(MockTransportError.scriptedFailure)
+        await resume.value
+
+        XCTAssertEqual(store.loadState, .failed)
     }
 
     // MARK: - §5 重连恢复：thread/loaded/list + thread/resume(rejoin)

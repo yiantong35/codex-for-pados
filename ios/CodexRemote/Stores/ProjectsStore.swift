@@ -301,32 +301,37 @@ final class ProjectsStore {
         }
     }
 
-    func archive(threadId: String) async {
+    func archive(threadId: String) async -> Bool {
         await sendThenRefresh(RPCMethod.threadArchive, ThreadArchiveParams(threadId: threadId))
     }
-    func unarchive(threadId: String) async {
+    func unarchive(threadId: String) async -> Bool {
         await sendThenRefresh(RPCMethod.threadUnarchive, ThreadUnarchiveParams(threadId: threadId))
     }
-    func delete(threadId: String) async {
-        if await sendThenRefresh(RPCMethod.threadDelete, ThreadDeleteParams(threadId: threadId)) {
+    func delete(threadId: String) async -> Bool {
+        let succeeded = await sendThenRefresh(
+            RPCMethod.threadDelete,
+            ThreadDeleteParams(threadId: threadId)
+        )
+        if succeeded {
             onThreadDeleted?(threadId)
         }
+        return succeeded
     }
-    func rename(threadId: String, name: String) async {
+    func rename(threadId: String, name: String) async -> Bool {
         await sendThenRefresh(RPCMethod.threadNameSet, ThreadSetNameParams(threadId: threadId, name: name))
     }
-    func rollback(threadId: String, numTurns: Int) async {
+    func rollback(threadId: String, numTurns: Int) async -> Bool {
         await sendThenRefresh(RPCMethod.threadRollback,
                               ThreadRollbackParams(threadId: threadId, numTurns: max(1, numTurns)))
     }
-    func compact(threadId: String) async {
+    func compact(threadId: String) async -> Bool {
         await sendThenRefresh(RPCMethod.threadCompactStart, ThreadCompactStartParams(threadId: threadId))
     }
-    func setGoal(threadId: String, objective: String?, status: ThreadGoalStatus?) async {
+    func setGoal(threadId: String, objective: String?, status: ThreadGoalStatus?) async -> Bool {
         await sendThenRefresh(RPCMethod.threadGoalSet,
                               ThreadGoalSetParams(threadId: threadId, objective: objective, status: status, tokenBudget: nil))
     }
-    func clearGoal(threadId: String) async {
+    func clearGoal(threadId: String) async -> Bool {
         await sendThenRefresh(RPCMethod.threadGoalClear, ThreadGoalClearParams(threadId: threadId))
     }
     /// 查目标：返回当前 goal（nil = 未设）。供 UI 打开 goal 编辑面板时预填。
