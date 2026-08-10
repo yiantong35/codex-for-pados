@@ -91,6 +91,37 @@ struct SideChatStoreTests {
         #expect(store.selectedId == nil)
     }
 
+    @Test func closeClearsAndRemovesSessionDraft() async {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let drafts = ComposerDraftStore()
+        let store = SideChatStore(draftStore: drafts)
+        store.attach(rpc: rpc)
+        let responder = respondFork(mock); defer { responder.cancel() }
+        await store.start(fromThreadId: "main-1")
+        let id = store.selectedId!
+        let oldDraft = drafts.draft(for: id)
+        oldDraft.text = "discard me"
+        oldDraft.imageAttachment.load {
+            try await Task.sleep(nanoseconds: 5_000_000_000)
+            return Data([0x01])
+        }
+        #expect(oldDraft.imageAttachment.hasActiveTaskForTesting)
+
+        store.close(id: id)
+
+        #expect(oldDraft.text.isEmpty)
+        #expect(!oldDraft.imageAttachment.hasActiveTaskForTesting)
+        #expect(drafts.draft(for: id) !== oldDraft)
+    }
+
+    @Test func sideChatContentIdentityFollowsThread() {
+        let first = SideChatSession(id: "a", forkedFromId: nil, title: "A")
+        let second = SideChatSession(id: "b", forkedFromId: nil, title: "B")
+        #expect(SideChatView.contentIdentity(for: first) != SideChatView.contentIdentity(for: second))
+    }
+
     @Test func noMainThreadDoesNotFork() async {
         let (mock, _, store) = await makeStore()
         let r = respondFork(mock); defer { r.cancel() }

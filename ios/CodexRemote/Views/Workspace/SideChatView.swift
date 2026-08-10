@@ -14,6 +14,8 @@ struct SideChatView: View {
         !(mainThreadId ?? "").isEmpty
     }
 
+    static func contentIdentity(for session: SideChatSession) -> String { session.id }
+
     var body: some View {
         VStack(spacing: 0) {
             selectorBar
@@ -88,6 +90,7 @@ struct SideChatView: View {
                 bindsWorkspaceState: false,
                 draftStore: sessions.activeSession?.composerDrafts
             )
+            .id(Self.contentIdentity(for: session))
         } else {
             emptyState("sideChat.pickToStart")
         }

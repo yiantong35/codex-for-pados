@@ -118,25 +118,25 @@ struct McpElicitationCard: Identifiable, Sendable {
         .init(action: action, content: nil, meta: nil)
     }
 
-    func accept(drafts: [String: McpFormDraft]) throws -> McpServerElicitationRequestResponse {
+    func accept(drafts: [String: McpFormDraft], locale: Locale = .current) throws -> McpServerElicitationRequestResponse {
         guard case .form(let fields) = mode else { return response(action: .accept) }
         var content: [String: Any] = [:]
         for field in fields {
-            guard let value = try Self.value(for: field, draft: drafts[field.name]) else { continue }
+            guard let value = try Self.value(for: field, draft: drafts[field.name], locale: locale) else { continue }
             content[field.name] = value
         }
         return .init(action: .accept, content: AnyCodable(content), meta: nil)
     }
 
-    func isSubmittable(drafts: [String: McpFormDraft]) -> Bool {
-        (try? accept(drafts: drafts)) != nil
+    func isSubmittable(drafts: [String: McpFormDraft], locale: Locale = .current) -> Bool {
+        (try? accept(drafts: drafts, locale: locale)) != nil
     }
 
     func validationErrors(drafts: [String: McpFormDraft]) -> [String: McpElicitationError] {
         guard case .form(let fields) = mode else { return [:] }
         return fields.reduce(into: [:]) { errors, field in
             do {
-                _ = try Self.value(for: field, draft: drafts[field.name])
+                _ = try Self.value(for: field, draft: drafts[field.name], locale: .current)
             } catch let error as McpElicitationError {
                 errors[field.name] = error
             } catch {
@@ -291,7 +291,7 @@ struct McpElicitationCard: Identifiable, Sendable {
         return try parseOptions(items, field: field)
     }
 
-    private static func value(for field: McpFormField, draft: McpFormDraft?) throws -> Any? {
+    private static func value(for field: McpFormField, draft: McpFormDraft?, locale: Locale) throws -> Any? {
         if draft == nil || draft == .unset {
             if field.required { throw McpElicitationError.missingValue(field.name) }
             return nil
@@ -308,7 +308,7 @@ struct McpElicitationCard: Identifiable, Sendable {
             else { throw McpElicitationError.invalidValue(field.name) }
             return value
         case let (.number(integer, minimum, maximum), .text(raw)):
-            guard let value = Double(raw), value.isFinite,
+            guard let value = localizedNumber(raw, locale: locale), value.isFinite,
                   minimum.map({ value >= $0 }) ?? true,
                   maximum.map({ value <= $0 }) ?? true
             else { throw McpElicitationError.invalidValue(field.name) }
@@ -334,6 +334,16 @@ struct McpElicitationCard: Identifiable, Sendable {
         default:
             throw McpElicitationError.invalidValue(field.name)
         }
+    }
+
+    private static func localizedNumber(_ raw: String, locale: Locale) -> Double? {
+        var normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        let decimalSeparator = locale.decimalSeparator ?? "."
+        if decimalSeparator != "." {
+            normalized = normalized.replacingOccurrences(of: decimalSeparator, with: ".")
+        }
+        return Double(normalized)
     }
 
     private static func valid(_ value: String, format: String?) -> Bool {

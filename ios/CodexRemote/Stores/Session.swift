@@ -40,12 +40,13 @@ final class Session: Identifiable {
         self.hooks = HooksStore()
         self.terminal = TerminalSession()
         self.fileBrowser = FileBrowserStore()
-        self.sideChat = SideChatStore()
+        let composerDrafts = ComposerDraftStore()
+        self.sideChat = SideChatStore(draftStore: composerDrafts)
         self.envInspector = EnvironmentInspectorModel()
         self.approvals = ApprovalStore()
         self.userInputs = UserInputStore()
         self.mcpElicitations = McpElicitationStore()
-        self.composerDrafts = ComposerDraftStore()
+        self.composerDrafts = composerDrafts
         self.workspaceState = WorkspaceSessionState()
     }
 
