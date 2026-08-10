@@ -180,11 +180,16 @@ struct McpElicitationCardView: View {
                     .textFieldStyle(.roundedBorder)
                     .textContentType(format == "email" ? .emailAddress : format == "uri" ? .URL : nil)
                     .keyboardType(format == "email" ? .emailAddress : format == "uri" ? .URL : .default)
+                    .accessibilityLabel(Text(field.title))
+                    .accessibilityHint(Text(field.description ?? ""))
             case .number:
                 TextField("mcpElicitation.value", text: textBinding(field.name))
                     .textFieldStyle(.roundedBorder).keyboardType(.decimalPad)
+                    .accessibilityLabel(Text(field.title))
+                    .accessibilityHint(Text(field.description ?? ""))
             case .boolean:
-                Toggle("mcpElicitation.enabled", isOn: boolBinding(field.name))
+                Toggle(field.title, isOn: boolBinding(field.name))
+                    .accessibilityHint(Text(field.description ?? ""))
             case .single(let options):
                 Picker(field.title, selection: textBinding(field.name)) {
                     Text("mcpElicitation.choose").tag("")
@@ -194,11 +199,15 @@ struct McpElicitationCardView: View {
             case .multiple(let options, _, _):
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(options) { option in
+                        let isSelected = selected(option.value, field: field.name)
                         Button { toggle(option.value, field: field.name) } label: {
-                            Label(option.title, systemImage: selected(option.value, field: field.name) ? "checkmark.square.fill" : "square")
+                            Label(option.title, systemImage: isSelected ? "checkmark.square.fill" : "square")
                         }
                         .buttonStyle(.plain)
                         .minimumHitTarget44()
+                        .accessibilityLabel(Text("\(field.title), \(option.title)"))
+                        .accessibilityValue(Text(isSelected ? "accessibility.selected" : "accessibility.notSelected"))
+                        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
                     }
                 }
             }

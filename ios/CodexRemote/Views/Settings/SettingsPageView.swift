@@ -56,3 +56,42 @@ struct SettingsPageView: View {
         .preferredColorScheme(theme.resolvedColorScheme(system: systemColorScheme))
     }
 }
+
+/// Settings available before pairing. Connection-backed account and extension sections are
+/// intentionally omitted; appearance, privacy, language, and keyboard accessibility remain usable.
+struct PrePairingSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(ThemeManager.self) private var theme
+    @State private var selection: SettingsSection? = .appearance
+    let systemColorScheme: ColorScheme
+
+    private let sections: [SettingsSection] = [.appearance, .privacy, .language, .shortcuts]
+
+    var body: some View {
+        NavigationSplitView {
+            List(sections, selection: $selection) { section in
+                Label(section.label, systemImage: section.icon).tag(section)
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .accessibilityLabel(Text("settings.close"))
+                    }
+                    .minimumHitTarget44()
+                    .keyboardShortcut(.cancelAction)
+                }
+            }
+        } detail: {
+            switch selection ?? .appearance {
+            case .appearance: AppearanceSettingsSectionView()
+            case .privacy: PrivacySettingsSectionView()
+            case .language: LanguageSettingsSectionView()
+            case .shortcuts: ShortcutsSettingsSectionView()
+            case .account, .extensions: EmptyView()
+            }
+        }
+        .preferredColorScheme(theme.resolvedColorScheme(system: systemColorScheme))
+    }
+}

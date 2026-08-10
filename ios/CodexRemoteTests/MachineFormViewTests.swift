@@ -42,6 +42,19 @@ final class MachineFormViewTests: XCTestCase {
         XCTAssertNotNil(hc.view)
     }
 
+    func test_prePairingSettings_rendersWithoutConnectionStores() {
+        let defaults = UserDefaults(suiteName: "test.\(UUID().uuidString)")!
+        let view = PrePairingSettingsView(systemColorScheme: .light)
+            .environment(ThemeManager(store: defaults))
+            .environment(ClipboardPolicyStore(store: defaults))
+            .environment(LocaleManager(store: defaults))
+            .environment(ShortcutStore(defaults: defaults))
+        let hc = UIHostingController(rootView: view)
+        hc.view.frame = CGRect(x: 0, y: 0, width: 700, height: 700)
+        hc.view.layoutIfNeeded()
+        XCTAssertNotNil(hc.view)
+    }
+
     /// OnboardingView 的主按钮走 presentAddMachine（经 sessions 桩验证联通）。
     func test_presentAddMachine_setsFlag() {
         let sessions = mgr(machines: 0)

@@ -270,12 +270,16 @@ final class ProjectsStore {
             let result = try await rpc.send(method: RPCMethod.threadStart, params: any)
             guard let dict = result.value as? [String: Any],
                   let id = (dict["thread"] as? [String: Any])?["id"] as? String else {
-                createThreadError = "Invalid thread/start response"
+                createThreadError = L10n.string(
+                    "operation.failed.description", locale: LocaleManager.currentLocale
+                )
                 return nil
             }
             return id
         } catch {
-            createThreadError = String(describing: error)
+            createThreadError = L10n.string(
+                "operation.failed.description", locale: LocaleManager.currentLocale
+            )
             return nil
         }
     }

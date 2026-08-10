@@ -1,5 +1,7 @@
 import Foundation
 import Observation
+import SwiftUI
+import PhotosUI
 
 struct ComposerImageAttachmentError: Equatable {
     let bytes: Int
@@ -85,5 +87,43 @@ final class ComposerImageAttachmentState {
         token = nil
         task?.cancel()
         task = nil
+    }
+}
+
+/// A composer draft belongs to one thread. Session owns the surrounding store, so the
+/// same thread id on two machines cannot share text, attachments, or model overrides.
+@Observable
+@MainActor
+final class ComposerDraft {
+    var text = ""
+    var photoItem: PhotosPickerItem?
+    let imageAttachment: ComposerImageAttachmentState
+    var selection = ModelSelection()
+
+    init(imageAttachment: ComposerImageAttachmentState = ComposerImageAttachmentState()) {
+        self.imageAttachment = imageAttachment
+    }
+
+    func clearInput() {
+        text = ""
+        photoItem = nil
+        imageAttachment.clear()
+    }
+}
+
+@Observable
+@MainActor
+final class ComposerDraftStore {
+    @ObservationIgnored private var drafts: [String: ComposerDraft] = [:]
+
+    func draft(for threadId: String) -> ComposerDraft {
+        if let existing = drafts[threadId] { return existing }
+        let draft = ComposerDraft()
+        drafts[threadId] = draft
+        return draft
+    }
+
+    func removeDraft(for threadId: String) {
+        drafts.removeValue(forKey: threadId)?.clearInput()
     }
 }

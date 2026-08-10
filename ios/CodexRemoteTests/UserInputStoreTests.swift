@@ -106,9 +106,15 @@ final class UserInputStoreTests: XCTestCase {
         XCTAssertNotNil(store.autoResolutionDeadline(for: card.id))
 
         XCTAssertTrue(store.userInteracted(with: card.id))
-        XCTAssertFalse(store.userInteracted(with: card.id), "暂停后重复滚动不得再次发布状态")
+        XCTAssertFalse(store.userInteracted(with: card.id), "暂停后重复交互不得再次发布状态")
         XCTAssertNil(store.autoResolutionDeadline(for: card.id))
         XCTAssertTrue(store.isAutoResolutionPaused(card.id))
+
+        XCTAssertTrue(store.resumeAutoResolution(for: card.id))
+        XCTAssertNotNil(store.autoResolutionDeadline(for: card.id))
+        XCTAssertFalse(store.isAutoResolutionPaused(card.id))
+
+        XCTAssertTrue(store.userInteracted(with: card.id))
         store.handleConnectionLost()
         XCTAssertEqual(responseCount, 0)
         XCTAssertTrue(store.cards[0].awaitingRecovery)

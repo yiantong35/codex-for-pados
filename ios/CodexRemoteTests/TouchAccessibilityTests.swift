@@ -92,9 +92,21 @@ final class TouchAccessibilityTests: XCTestCase {
 
     func test_followupAccessibilityKeys_areLocalized() {
         for key in ["rightPanel.fullscreen.enter", "rightPanel.fullscreen.exit",
-                    "review.start", "relayImport.placeholder"] {
+                    "review.start", "relayImport.placeholder", "accessibility.selected",
+                    "accessibility.notSelected", "userInput.autoResume"] {
             let value = String(localized: String.LocalizationValue(key), bundle: .main)
             XCTAssertNotEqual(value, key, "缺少无障碍文案 \(key)")
+        }
+    }
+
+    func test_protocolPresentationKeys_areLocalized() {
+        for key in ["composer.effort.none", "composer.effort.minimal", "composer.effort.low",
+                    "composer.effort.medium", "composer.effort.high", "composer.effort.xhigh",
+                    "conv.status.running", "conv.status.completed", "conv.status.failed",
+                    "conv.status.pending", "conv.status.cancelled", "conv.status.declined",
+                    "conv.status.unknown", "conv.image.unavailable", "settings.skills.updateFailed"] {
+            let value = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(value, key, "缺少用户可见协议状态文案 \(key)")
         }
     }
 }

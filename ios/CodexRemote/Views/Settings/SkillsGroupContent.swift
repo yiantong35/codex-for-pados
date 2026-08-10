@@ -42,13 +42,17 @@ struct SkillsGroupContent: View {
                 scopeBadge(skill.scope)
                 Spacer()
                 Toggle("", isOn: Binding(
-                    get: { skill.enabled },
+                    get: { skills.skills.first(where: { $0.id == skill.id })?.enabled ?? skill.enabled },
                     set: { newValue in
                         Task { await skills.setEnabled(name: nil, path: skill.path, newValue) }
                     }
                 ))
                 .labelsHidden()
                 .accessibilityLabel(Text(skill.name))
+                .disabled(skills.isUpdating(skill.id))
+                .overlay {
+                    if skills.isUpdating(skill.id) { ProgressView().controlSize(.small) }
+                }
             }
             if !skill.description.isEmpty {
                 Text(skill.description).font(.footnote).foregroundStyle(.secondary)
@@ -59,6 +63,12 @@ struct SkillsGroupContent: View {
                     Text(tools.map { $0.value }.joined(separator: ", "))
                         .font(.caption2).foregroundStyle(.secondary)
                 }
+            }
+            if skills.writeFailed(skill.id) {
+                Label("settings.skills.updateFailed", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

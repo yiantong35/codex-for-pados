@@ -1,6 +1,114 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
+    "accessibility.notSelected": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Not selected" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "未选中" } }
+      }
+    },
+    "accessibility.selected": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Selected" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已选中" } }
+      }
+    },
+    "composer.effort.none": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "None" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无" } }
+      }
+    },
+    "composer.effort.minimal": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Minimal" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最低" } }
+      }
+    },
+    "composer.effort.low": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Low" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "低" } }
+      }
+    },
+    "composer.effort.medium": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Medium" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "中" } }
+      }
+    },
+    "composer.effort.high": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "High" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "高" } }
+      }
+    },
+    "composer.effort.xhigh": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Extra high" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最高" } }
+      }
+    },
+    "conv.image.unavailable": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Image unavailable" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "图片无法显示" } }
+      }
+    },
+    "conv.status.running": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Running" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "进行中" } }
+      }
+    },
+    "conv.status.completed": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Completed" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已完成" } }
+      }
+    },
+    "conv.status.failed": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Failed" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "失败" } }
+      }
+    },
+    "conv.status.pending": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Pending" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "等待中" } }
+      }
+    },
+    "conv.status.cancelled": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Cancelled" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已取消" } }
+      }
+    },
+    "conv.status.declined": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Declined" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已拒绝" } }
+      }
+    },
+    "conv.status.unknown": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Status unavailable" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "状态未知" } }
+      }
+    },
+    "settings.skills.updateFailed": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Could not update this skill. Try again." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法更新此 Skill，请重试。" } }
+      }
+    },
+    "userInput.autoResume": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Resume countdown" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "继续倒计时" } }
+      }
+    },
     "operation.failed.title": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Operation Failed" } },

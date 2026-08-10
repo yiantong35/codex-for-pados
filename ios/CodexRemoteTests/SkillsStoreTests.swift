@@ -88,16 +88,82 @@ struct SkillsStoreTests {
         #expect(store.skills.map(\.name) == ["new"])
     }
 
-    private func requestID(_ mock: MockTransport, ordinal: Int) async -> String? {
+    @MainActor @Test func toggleIsOptimisticAndRejectsConcurrentWrites() async {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = SkillsStore()
+        let attach = Task { await store.attach(rpc: rpc) }
+
+        guard let listID = await requestID(mock, method: RPCMethod.skillsList, ordinal: 0) else {
+            Issue.record("initial skills snapshot was not requested"); return
+        }
+        await mock.feed(#"{"id":"\#(listID)","result":{"data":[{"cwd":"/","errors":[],"skills":[{"name":"fmt","path":"/fmt","enabled":false,"scope":"user"}]}]}}"#)
+        await attach.value
+
+        let first = Task { await store.setEnabled(name: nil, path: "/fmt", true) }
+        for _ in 0..<100 where !store.isUpdating("/fmt") { await Task.yield() }
+        #expect(store.skills.first?.enabled == true)
+        #expect(store.isUpdating("/fmt"))
+
+        await store.setEnabled(name: nil, path: "/fmt", false)
+        guard let writeID = await requestID(
+            mock, method: RPCMethod.skillsConfigWrite, ordinal: 0
+        ) else { Issue.record("write was not requested"); return }
+        let writeIDs = await requestIDs(mock, method: RPCMethod.skillsConfigWrite)
+        #expect(writeIDs.count == 1)
+
+        await mock.feed(#"{"id":"\#(writeID)","result":{}}"#)
+        guard let refreshID = await requestID(mock, method: RPCMethod.skillsList, ordinal: 1) else {
+            Issue.record("post-write refresh was not requested"); return
+        }
+        await mock.feed(#"{"id":"\#(refreshID)","result":{"data":[{"cwd":"/","errors":[],"skills":[{"name":"fmt","path":"/fmt","enabled":true,"scope":"user"}]}]}}"#)
+        await first.value
+        #expect(!store.isUpdating("/fmt"))
+        #expect(store.skills.first?.enabled == true)
+    }
+
+    @MainActor @Test func failedToggleRollsBackOnlyTheSkill() async {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = SkillsStore()
+        let attach = Task { await store.attach(rpc: rpc) }
+
+        guard let listID = await requestID(mock, method: RPCMethod.skillsList, ordinal: 0) else {
+            Issue.record("initial skills snapshot was not requested"); return
+        }
+        await mock.feed(#"{"id":"\#(listID)","result":{"data":[{"cwd":"/","errors":[],"skills":[{"name":"fmt","path":"/fmt","enabled":false,"scope":"user"}]}]}}"#)
+        await attach.value
+
+        let toggle = Task { await store.setEnabled(name: nil, path: "/fmt", true) }
+        guard let writeID = await requestID(mock, method: RPCMethod.skillsConfigWrite, ordinal: 0) else {
+            Issue.record("write was not requested"); return
+        }
+        #expect(store.skills.first?.enabled == true)
+        await mock.feed(#"{"id":"\#(writeID)","error":{"code":-32000,"message":"internal"}}"#)
+        await toggle.value
+
+        #expect(store.skills.first?.enabled == false)
+        #expect(store.writeFailed("/fmt"))
+        #expect(store.loadState == .loaded)
+    }
+
+    private func requestID(_ mock: MockTransport, method: String = RPCMethod.skillsList,
+                           ordinal: Int) async -> String? {
         for _ in 0..<200 {
-            let ids = await mock.sent.compactMap { frame -> String? in
-                guard let object = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any],
-                      object["method"] as? String == RPCMethod.skillsList else { return nil }
-                return object["id"] as? String
-            }
+            let ids = await requestIDs(mock, method: method)
             if ids.indices.contains(ordinal) { return ids[ordinal] }
             try? await Task.sleep(nanoseconds: 5_000_000)
         }
         return nil
+    }
+
+    private func requestIDs(_ mock: MockTransport, method: String) async -> [String] {
+        await mock.sent.compactMap { frame -> String? in
+            guard let object = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any],
+                  object["method"] as? String == method else { return nil }
+            return object["id"] as? String
+        }
     }
 }

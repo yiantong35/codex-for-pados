@@ -297,17 +297,14 @@ final class SessionsManagerTests: XCTestCase {
                      "空机器时不得有活跃会话（否则会进入含设置齿轮的 workspace）")
     }
 
-    /// Task 9 gating 回归（结构）：设置齿轮入口只允许存在于主界面 topBar（RootSplitView），
-    /// 首次/未连接态的两个视图（OnboardingView 引导页、MachineFormView 加机器表单）不得含齿轮。
+    /// 设置入口结构回归：主界面和零机器引导页都必须可进入设置；配对表单不重复放入口。
     ///
     /// 说明：SwiftUI 的无障碍/视图树在 XCTest 无障碍技术未激活的无头环境下不会同步落地
     /// （实测 UIHostingController 采集 a11y label 恒空），故不用运行时快照，改用**源码级结构断言**：
     /// 齿轮以 `Image(systemName: "gearshape")` 呈现，`gearshape` 字面量是稳定标记。
     /// - 正向对照：RootSplitView 源码**必含** `gearshape`（证明扫描器确实能识别齿轮标记，
     ///   否则「引导页无齿轮」可能只是扫描器失效的假阳性）；
-    /// - 负向断言：OnboardingView / MachineFormView 源码**不得含** `gearshape`。
-    /// RED 证据：给 OnboardingView 源码加回 `Image(systemName: "gearshape")` → 负向断言失败。
-    func test_settingsGear_onlyInMainTopBar_notInOnboardingOrForm() throws {
+    func test_settingsGear_availableInWorkspaceAndOnboarding_notPairingForm() throws {
         let viewsDir = Self.viewsDirectory()
         let gearToken = "gearshape"
 
@@ -316,12 +313,15 @@ final class SessionsManagerTests: XCTestCase {
         XCTAssertTrue(rootSplit.contains(gearToken),
                       "RootSplitView 应含设置齿轮标记 \(gearToken)（正向对照：证明扫描器能识别齿轮）")
 
-        // 负向断言：首次/未连接态视图不得含齿轮入口。
-        for name in ["OnboardingView.swift", "MachineFormView.swift"] {
-            let src = try String(contentsOf: viewsDir.appendingPathComponent(name), encoding: .utf8)
-            XCTAssertFalse(src.contains(gearToken),
-                           "\(name) 不得含设置齿轮入口（首次/未连接态无设置入口 gating）")
-        }
+        let onboarding = try String(
+            contentsOf: viewsDir.appendingPathComponent("OnboardingView.swift"), encoding: .utf8
+        )
+        XCTAssertTrue(onboarding.contains(gearToken), "零机器状态也必须能进入设置")
+
+        let form = try String(
+            contentsOf: viewsDir.appendingPathComponent("MachineFormView.swift"), encoding: .utf8
+        )
+        XCTAssertFalse(form.contains(gearToken), "配对表单不应重复提供设置入口")
     }
 
     // MARK: - Task 11 前后台策略（D6=B 保连降频）+ tab 圆点数据源

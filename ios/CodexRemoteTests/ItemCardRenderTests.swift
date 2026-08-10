@@ -62,6 +62,12 @@ final class ItemCardRenderTests: XCTestCase {
                                  FileImageThumbnailDecoder.maximumThumbnailDimension)
     }
 
+    func test_protocolStatusesMapToUserFacingLocalizationKeys() {
+        XCTAssertEqual(ItemCard.protocolStatusLocalizationKey("in_progress"), "conv.status.running")
+        XCTAssertEqual(ItemCard.protocolStatusLocalizationKey("success"), "conv.status.completed")
+        XCTAssertEqual(ItemCard.protocolStatusLocalizationKey("RPC_INTERNAL_42"), "conv.status.unknown")
+    }
+
     // MARK: - F5（P1）会话前缀放行仅源自服务端 amendment
 
     private func cmdCard(title: String, prefix: [String]?, isFile: Bool = false) -> ApprovalCard {

@@ -15,6 +15,7 @@ final class UserInputStore {
 
     @ObservationIgnored private let sleep: Sleeper
     @ObservationIgnored private var timers: [RequestId: Task<Void, Never>] = [:]
+    @ObservationIgnored private var pausedRemainingMilliseconds: [RequestId: UInt64] = [:]
 
     init(sleep: @escaping Sleeper = { try await Task.sleep(nanoseconds: $0) }) {
         self.sleep = sleep
@@ -53,10 +54,24 @@ final class UserInputStore {
         guard !pausedAutoResolutionIds.contains(id),
               timers[id] != nil || autoResolutionDeadlines[id] != nil
         else { return false }
+        let remaining = autoResolutionDeadlines[id].map {
+            UInt64(max(1, ceil($0.timeIntervalSinceNow * 1_000)))
+        }
         timers[id]?.cancel()
         timers[id] = nil
         autoResolutionDeadlines[id] = nil
         pausedAutoResolutionIds.insert(id)
+        pausedRemainingMilliseconds[id] = remaining
+        return true
+    }
+
+    @discardableResult
+    func resumeAutoResolution(for id: RequestId) -> Bool {
+        guard let card = cards.first(where: { $0.id == id }),
+              pausedAutoResolutionIds.contains(id),
+              let remaining = pausedRemainingMilliseconds[id]
+        else { return false }
+        scheduleAutoResolution(for: card, delayMilliseconds: remaining)
         return true
     }
 
@@ -84,9 +99,11 @@ final class UserInputStore {
         for index in cards.indices { cards[index].awaitingRecovery = true }
     }
 
-    private func scheduleAutoResolution(for card: UserInputCard) {
-        guard let milliseconds = card.autoResolutionMs else { return }
+    private func scheduleAutoResolution(for card: UserInputCard,
+                                        delayMilliseconds: UInt64? = nil) {
+        guard let milliseconds = delayMilliseconds ?? card.autoResolutionMs else { return }
         pausedAutoResolutionIds.remove(card.id)
+        pausedRemainingMilliseconds[card.id] = nil
         autoResolutionDeadlines[card.id] = Date().addingTimeInterval(Double(milliseconds) / 1_000)
         let nanoseconds = milliseconds.multipliedReportingOverflow(by: 1_000_000)
         let delay = nanoseconds.overflow ? UInt64.max : nanoseconds.partialValue
@@ -119,6 +136,7 @@ final class UserInputStore {
         timers[id] = nil
         autoResolutionDeadlines[id] = nil
         pausedAutoResolutionIds.remove(id)
+        pausedRemainingMilliseconds[id] = nil
         submissionStates[id] = nil
         cards.removeAll { $0.id == id }
     }

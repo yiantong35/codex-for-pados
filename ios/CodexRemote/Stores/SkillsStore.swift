@@ -13,6 +13,8 @@ enum ExtensionLoadState: Equatable {
 final class SkillsStore {
     private(set) var skills: [SkillMetadata] = []
     private(set) var loadState: ExtensionLoadState = .idle
+    private(set) var pendingSkillIDs: Set<String> = []
+    private(set) var failedSkillIDs: Set<String> = []
 
     /// 折叠头计数徽章用（skill 数）。
     var count: Int { skills.count }
@@ -77,16 +79,37 @@ final class SkillsStore {
         }
     }
 
-    /// 切换 skill 启用态：skills/config/write 后 refresh 兜底（D4；首版不做乐观回显）。
+    func isUpdating(_ id: String) -> Bool { pendingSkillIDs.contains(id) }
+    func writeFailed(_ id: String) -> Bool { failedSkillIDs.contains(id) }
+
+    /// 切换 skill 启用态：立即乐观回显，单项写入期间禁用，失败仅回滚该项。
     func setEnabled(name: String?, path: String?, _ enabled: Bool) async {
-        guard let rpc else { return }
+        let id = path ?? name.map { "name:\($0)" } ?? ""
+        guard !id.isEmpty, !pendingSkillIDs.contains(id) else { return }
+        guard let rpc else {
+            failedSkillIDs.insert(id)
+            return
+        }
+        let index = skills.firstIndex { path != nil ? $0.path == path : $0.name == name }
+        let previous = index.map { skills[$0].enabled }
+        if let index { skills[index].enabled = enabled }
+        pendingSkillIDs.insert(id)
+        failedSkillIDs.remove(id)
+        defer { pendingSkillIDs.remove(id) }
+
         let params = SkillsConfigWriteParams(enabled: enabled, name: name, path: path)
         guard let data = try? JSONEncoder().encode(params),
-              let any = try? JSONDecoder().decode(AnyCodable.self, from: data) else { return }
+              let any = try? JSONDecoder().decode(AnyCodable.self, from: data) else {
+            if let index, let previous { skills[index].enabled = previous }
+            failedSkillIDs.insert(id)
+            return
+        }
         do {
             _ = try await rpc.send(method: RPCMethod.skillsConfigWrite, params: any)
         } catch {
-            loadState = .failed
+            if let current = skills.firstIndex(where: { path != nil ? $0.path == path : $0.name == name }),
+               let previous { skills[current].enabled = previous }
+            failedSkillIDs.insert(id)
             return
         }
         await refresh()

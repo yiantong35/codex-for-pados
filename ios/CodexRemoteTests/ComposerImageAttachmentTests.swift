@@ -58,6 +58,32 @@ final class ComposerImageAttachmentTests: XCTestCase {
         XCTAssertTrue(ComposerView.canSend(text: "", imageDataURL: "data:image/jpeg;base64,x", isImageLoading: false))
     }
 
+    func test_drafts_are_stable_per_thread_and_isolated_between_threads() {
+        let store = ComposerDraftStore()
+        let first = store.draft(for: "thread-a")
+        first.text = "unfinished"
+        first.selection.effortOverride = .high
+
+        XCTAssertTrue(first === store.draft(for: "thread-a"))
+        XCTAssertEqual(store.draft(for: "thread-a").text, "unfinished")
+        XCTAssertEqual(store.draft(for: "thread-a").selection.effortOverride, .high)
+        XCTAssertFalse(first === store.draft(for: "thread-b"))
+        XCTAssertEqual(store.draft(for: "thread-b").text, "")
+    }
+
+    func test_clear_input_keeps_model_selection() {
+        let draft = ComposerDraft()
+        draft.text = "sent"
+        draft.selection.modelOverride = "test-model"
+        draft.selection.effortOverride = .xhigh
+
+        draft.clearInput()
+
+        XCTAssertEqual(draft.text, "")
+        XCTAssertEqual(draft.selection.modelOverride, "test-model")
+        XCTAssertEqual(draft.selection.effortOverride, .xhigh)
+    }
+
     private func waitUntil(
         timeout: TimeInterval = 2,
         _ condition: @escaping @MainActor () async -> Bool

@@ -67,11 +67,13 @@ struct ShortcutsSettingsSectionView: View {
                         if isRecording { exitRecording() } else { enterRecording(action) }
                     }
                     .buttonStyle(.borderless)
+                    .minimumHitTarget44()
                     if shortcuts.isOverridden(action) {
                         Button("shortcut.resetDefault") {
                             shortcuts.resetToDefault(action)
                         }
                         .buttonStyle(.borderless)
+                        .minimumHitTarget44()
                     }
                 } else {
                     Text("shortcut.fixed").font(.caption).foregroundStyle(.secondary)

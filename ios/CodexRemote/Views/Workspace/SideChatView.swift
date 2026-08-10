@@ -5,6 +5,7 @@ import SwiftUI
 /// 无主对话（mainThreadId 空）→ 空态提示、「开始侧聊」禁用、不 fork。
 struct SideChatView: View {
     @Environment(ConnectionStore.self) private var connection
+    @Environment(SessionsManager.self) private var sessions
     @Bindable var store: SideChatStore
     /// 当前主对话 threadId：侧聊从它 fork。nil/空 → 无主对话空态。
     var mainThreadId: String?
@@ -84,7 +85,8 @@ struct SideChatView: View {
             ConversationView(
                 threadId: session.id,
                 outbox: store.conversationOutboxes.outbox(for: session.id),
-                bindsWorkspaceState: false
+                bindsWorkspaceState: false,
+                draftStore: sessions.activeSession?.composerDrafts
             )
         } else {
             emptyState("sideChat.pickToStart")

@@ -296,7 +296,8 @@ struct RootSplitView: View {
                 threadId: id,
                 outbox: workspaceState.conversationOutboxes.outbox(for: id),
                 onOpenReview: { layout.requestRightPanel(.review) },
-                onOpenFile: { path in openFileInBrowser(path) }
+                onOpenFile: { path in openFileInBrowser(path) },
+                draftStore: sessions.activeSession?.composerDrafts
             )
             .id(id)
         } else {
