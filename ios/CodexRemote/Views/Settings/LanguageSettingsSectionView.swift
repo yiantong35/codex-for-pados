@@ -6,7 +6,7 @@ struct LanguageSettingsSectionView: View {
 
     var body: some View {
         List {
-            Section("settings.language") {
+            Section(L10n.string("settings.language", locale: locale.locale)) {
                 ForEach(AppLanguage.allCases, id: \.self) { lang in
                     Button {
                         locale.language = lang
@@ -23,7 +23,8 @@ struct LanguageSettingsSectionView: View {
                 }
             }
         }
-        .navigationTitle("settings.language")
+        .navigationTitle(L10n.string("settings.language", locale: locale.locale))
+        .id(locale.locale.identifier)
     }
 
     private func title(_ l: AppLanguage) -> LocalizedStringKey {

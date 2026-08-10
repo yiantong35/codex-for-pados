@@ -11,11 +11,18 @@ enum CommandStatus: String, Equatable {
     var isFinished: Bool { self != .inProgress }
 }
 
+struct UserMessageAttachment: Equatable {
+    enum Kind: Equatable { case image, localImage }
+
+    let kind: Kind
+    let source: String
+}
+
 /// 会话内的一条可渲染项。随流式事件累加（agent 正文 / 命令输出）。
 /// 会话内的一条可渲染项。随流式事件累加（agent 正文 / 命令输出）。
 /// 平铺 18 case：17 种 v2 ThreadItem + unknown 兜底（方案1）。
 enum ConversationItem: Identifiable, Equatable {
-    case userMessage(id: String, text: String)
+    case userMessage(id: String, text: String, attachments: [UserMessageAttachment])
     case agentMessage(id: String, text: String)              // 随 delta 累加
     case reasoning(id: String, text: String)                 // 思考/推理：随 delta 累加
     case commandExecution(id: String, command: String, output: String,
@@ -41,7 +48,7 @@ enum ConversationItem: Identifiable, Equatable {
 
     var id: String {
         switch self {
-        case .userMessage(let i, _), .agentMessage(let i, _), .reasoning(let i, _),
+        case .userMessage(let i, _, _), .agentMessage(let i, _), .reasoning(let i, _),
              .commandExecution(let i, _, _, _, _, _), .fileChange(let i, _, _, _, _),
              .mcpToolCall(let i, _, _, _, _, _), .dynamicToolCall(let i, _, _, _, _),
              .webSearch(let i, _, _), .contextCompaction(let i),

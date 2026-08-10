@@ -4,6 +4,7 @@ import SwiftUI
 /// 选中侧聊的完整 ConversationView（复用中栏视图：消息流 + 输入 + 审批卡，窄栏不特殊处理）。
 /// 无主对话（mainThreadId 空）→ 空态提示、「开始侧聊」禁用、不 fork。
 struct SideChatView: View {
+    @Environment(ConnectionStore.self) private var connection
     @Bindable var store: SideChatStore
     /// 当前主对话 threadId：侧聊从它 fork。nil/空 → 无主对话空态。
     var mainThreadId: String?
@@ -15,6 +16,13 @@ struct SideChatView: View {
     var body: some View {
         VStack(spacing: 0) {
             selectorBar
+            if store.startFailed {
+                Label("operation.failed.description", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             Divider()
             content
         }
@@ -31,7 +39,7 @@ struct SideChatView: View {
                 }
                 .buttonStyle(.bordered)
                 .minimumHitTarget44()
-                .disabled(!hasMainThread)
+                .disabled(!hasMainThread || connection.phase != .ready || store.isStarting)
 
                 ForEach(store.sessions) { session in
                     sessionChip(session)
@@ -51,6 +59,7 @@ struct SideChatView: View {
             }
             .buttonStyle(.plain)
             .minimumHitTarget44()
+            .accessibilityAddTraits(store.selectedId == session.id ? [.isSelected] : [])
             Button { store.close(id: session.id) } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.caption2)

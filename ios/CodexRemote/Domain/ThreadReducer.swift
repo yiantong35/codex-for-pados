@@ -98,7 +98,12 @@ struct ThreadReducer {
             switch item["type"] as? String {
             case "userMessage":
                 // D3：流式 userMessage（本端或他端回显）。与乐观项对账，避免重复气泡。
-                reconcileUserMessage(id: id, text: textFromContent(item["content"]), &state)
+                reconcileUserMessage(
+                    id: id,
+                    text: textFromContent(item["content"]),
+                    attachments: attachmentsFromContent(item["content"]),
+                    &state
+                )
             case "agentMessage":
                 upsert(.agentMessage(id: id, text: item["text"] as? String ?? ""), &state)
             case "commandExecution":
@@ -192,7 +197,11 @@ struct ThreadReducer {
         guard let id = item["id"] as? String else { return nil }
         switch item["type"] as? String {
         case "userMessage":
-            return .userMessage(id: id, text: textFromContent(item["content"]))
+            return .userMessage(
+                id: id,
+                text: textFromContent(item["content"]),
+                attachments: attachmentsFromContent(item["content"])
+            )
         case "agentMessage":
             return .agentMessage(id: id, text: item["text"] as? String ?? "")
         case "reasoning":
@@ -364,6 +373,22 @@ struct ThreadReducer {
         return ""
     }
 
+    private func attachmentsFromContent(_ content: Any?) -> [UserMessageAttachment] {
+        guard let parts = content as? [[String: Any]] else { return [] }
+        return parts.compactMap { part in
+            switch part["type"] as? String {
+            case "image":
+                guard let url = part["url"] as? String, !url.isEmpty else { return nil }
+                return UserMessageAttachment(kind: .image, source: url)
+            case "localImage":
+                guard let path = part["path"] as? String, !path.isEmpty else { return nil }
+                return UserMessageAttachment(kind: .localImage, source: path)
+            default:
+                return nil
+            }
+        }
+    }
+
     // MARK: - mutators
 
     private func upsert(_ item: ConversationItem, _ s: inout ConversationState) {
@@ -371,20 +396,26 @@ struct ThreadReducer {
     }
 
     /// D3 乐观回显：插入本地临时 userMessage（供 ConversationStore.send 调用）。
-    func upsertUserMessage(id: String, text: String, to s: inout ConversationState) {
-        upsert(.userMessage(id: id, text: text), &s)
+    func upsertUserMessage(id: String, text: String,
+                           attachments: [UserMessageAttachment] = [],
+                           to s: inout ConversationState) {
+        upsert(.userMessage(id: id, text: text, attachments: attachments), &s)
     }
 
     /// D3 对账：权威 userMessage 到达时，若存在内容相同的乐观项（local- 前缀）则替换其 id 为
     /// 权威 id；否则按权威 id 插入（他端发起场景）。避免重复气泡。
-    private func reconcileUserMessage(id: String, text: String, _ s: inout ConversationState) {
+    private func reconcileUserMessage(id: String, text: String,
+                                      attachments: [UserMessageAttachment],
+                                      _ s: inout ConversationState) {
         if let idx = s.items.firstIndex(where: {
-            if case .userMessage(let i, let t) = $0 { return i.hasPrefix("local-") && t == text }
+            if case .userMessage(let i, let t, let a) = $0 {
+                return i.hasPrefix("local-") && t == text && a == attachments
+            }
             return false
         }) {
-            s.items[idx] = .userMessage(id: id, text: text)   // 替换乐观项为权威项
+            s.items[idx] = .userMessage(id: id, text: text, attachments: attachments)
         } else if !s.items.contains(where: { $0.id == id }) {
-            s.items.append(.userMessage(id: id, text: text))  // 他端发起：正常插入
+            s.items.append(.userMessage(id: id, text: text, attachments: attachments))
         }
     }
 

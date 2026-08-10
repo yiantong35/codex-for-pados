@@ -94,7 +94,7 @@ final class ConversationStoreTests: XCTestCase {
         try await waitUntil {
             store.state.items.contains { if case .agentMessage(_, let t) = $0 { return t == "历史回答" } else { return false } }
         }
-        XCTAssertTrue(store.state.items.contains { if case .userMessage(_, let t) = $0 { return t == "历史问题" } else { return false } },
+        XCTAssertTrue(store.state.items.contains { if case .userMessage(_, let t, _) = $0 { return t == "历史问题" } else { return false } },
                       "resume 历史 userMessage 应进入 state，实际：\(store.state.items)")
     }
 
@@ -187,7 +187,7 @@ final class ConversationStoreTests: XCTestCase {
         responder.cancel()
 
         XCTAssertTrue(store.state.items.contains {
-            if case .userMessage(_, let t) = $0 { return t == "历史问题" } else { return false }
+            if case .userMessage(_, let t, _) = $0 { return t == "历史问题" } else { return false }
         }, "rejoin 命中当前 thread 应 ingest 历史 userMessage，实际：\(store.state.items)")
         XCTAssertTrue(store.state.items.contains {
             if case .agentMessage(_, let t) = $0 { return t == "历史回答" } else { return false }

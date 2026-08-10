@@ -24,6 +24,7 @@ struct ComposerView: View {
     // 服务器驱动的模型数据（model/list + config/read）。绝不硬编码——两种登录（账号/API）
     // 可用模型不同，daemon 已按登录返回真实数据（见 memory: pados-model-server-driven）。
     @Environment(EnvironmentStore.self) private var env
+    @Environment(\.locale) private var locale
 
     @State private var text = ""
     @State private var photoItem: PhotosPickerItem?
@@ -47,7 +48,7 @@ struct ComposerView: View {
     private var imageError: String? {
         guard let error = imageAttachment.error else { return nil }
         return String(
-            format: String(localized: "composer.image.tooLarge"),
+            format: L10n.string("composer.image.tooLarge", locale: locale),
             Self.mb(error.bytes), Self.mb(error.limit)
         )
     }
@@ -117,7 +118,8 @@ struct ComposerView: View {
                         imageAttachment.clear()
                         photoItem = nil
                     }
-                        .font(.footnote)
+                    .font(.footnote)
+                    .minimumHitTarget44()
                 }
             }
             HStack(spacing: 8) {
@@ -211,12 +213,14 @@ struct ComposerView: View {
             if imageAttachment.loadFailed, let photoItem {
                 Button("common.retry") { loadImage(photoItem) }
                     .font(.footnote)
+                    .minimumHitTarget44()
             }
             Button("composer.remove") {
                 imageAttachment.clear()
                 photoItem = nil
             }
             .font(.footnote)
+            .minimumHitTarget44()
         }
         .foregroundStyle(foreground)
         .padding(.horizontal, 4)

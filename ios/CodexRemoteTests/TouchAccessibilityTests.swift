@@ -89,4 +89,12 @@ final class TouchAccessibilityTests: XCTestCase {
             XCTAssertNotEqual(value, key, "缺少机器状态无障碍文案 \(key)")
         }
     }
+
+    func test_followupAccessibilityKeys_areLocalized() {
+        for key in ["rightPanel.fullscreen.enter", "rightPanel.fullscreen.exit",
+                    "review.start", "relayImport.placeholder"] {
+            let value = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(value, key, "缺少无障碍文案 \(key)")
+        }
+    }
 }

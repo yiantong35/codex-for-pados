@@ -83,9 +83,11 @@ struct RelayPairingImportView: View {
     @State private var errorText: String?
     @State private var showScanner = false
     let replacingMachineID: UUID?
+    private let onImported: (() -> Void)?
 
-    init(replacingMachineID: UUID? = nil) {
+    init(replacingMachineID: UUID? = nil, onImported: (() -> Void)? = nil) {
         self.replacingMachineID = replacingMachineID
+        self.onImported = onImported
     }
 
     var body: some View {
@@ -209,6 +211,7 @@ struct RelayPairingImportView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 16)
                     .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
             TextEditor(text: $vm.pasted)
                 .font(.system(.footnote, design: .monospaced))
@@ -218,6 +221,7 @@ struct RelayPairingImportView: View {
                 .frame(minHeight: 96)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
+                .accessibilityLabel(Text("relayImport.placeholder"))
                 .onChange(of: vm.pasted) { errorText = nil }
         }
         .background(
@@ -274,7 +278,7 @@ struct RelayPairingImportView: View {
                 succeeded = false
             }
             if succeeded {
-                dismiss()
+                if let onImported { onImported() } else { dismiss() }
             } else {
                 errorText = L10n.string("relayImport.error.saveFailed", locale: locale)
             }

@@ -29,6 +29,20 @@ final class WorkspaceMetricsTests: XCTestCase {
         XCTAssertEqual(WorkspaceMetrics.draggedBottomHeight(start: 220, translation: 500),
                        WorkspaceMetrics.bottomPanelMinHeight)
     }
+    func testBottomHeightUsesContainerMaximumAndProtectsCenter() {
+        let maximum = WorkspaceMetrics.bottomPanelMaximumHeight(containerHeight: 700)
+        XCTAssertEqual(maximum, 700 - WorkspaceMetrics.centerWorkspaceMinHeight)
+        XCTAssertEqual(
+            WorkspaceMetrics.draggedBottomHeight(
+                start: 220, translation: -900, maximumHeight: maximum),
+            maximum
+        )
+        XCTAssertEqual(
+            WorkspaceMetrics.adjustedBottomHeight(
+                maximum, increment: true, maximumHeight: maximum),
+            maximum
+        )
+    }
     func testRightPanelMinWidthConstantPositive() {
         XCTAssertGreaterThan(WorkspaceMetrics.rightPanelMinWidth, 0)
     }

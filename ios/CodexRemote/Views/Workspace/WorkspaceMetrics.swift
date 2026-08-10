@@ -103,17 +103,24 @@ enum WorkspaceMetrics {
     /// VoiceOver `accessibilityAdjustableAction` 每次增减的列宽步长（D8）。
     static let columnResizeAccessibilityStep: CGFloat = 40
     static let bottomResizeAccessibilityStep: CGFloat = 40
+    static let centerWorkspaceMinHeight: CGFloat = 240
 
-    static func adjustedBottomHeight(_ current: CGFloat, increment: Bool) -> CGFloat {
+    static func bottomPanelMaximumHeight(containerHeight: CGFloat) -> CGFloat {
+        Swift.max(bottomPanelMinHeight, containerHeight - centerWorkspaceMinHeight)
+    }
+
+    static func adjustedBottomHeight(_ current: CGFloat, increment: Bool,
+                                     maximumHeight: CGFloat = 900) -> CGFloat {
         clamp(
             current + (increment ? bottomResizeAccessibilityStep : -bottomResizeAccessibilityStep),
             min: bottomPanelMinHeight,
-            max: 900
+            max: maximumHeight
         )
     }
 
-    static func draggedBottomHeight(start: CGFloat, translation: CGFloat) -> CGFloat {
-        clamp(start - translation, min: bottomPanelMinHeight, max: 900)
+    static func draggedBottomHeight(start: CGFloat, translation: CGFloat,
+                                    maximumHeight: CGFloat = 900) -> CGFloat {
+        clamp(start - translation, min: bottomPanelMinHeight, max: maximumHeight)
     }
 
     /// 单栏最大宽 = 容器总宽的 2/3（随总宽动态，SHALL NOT 固定像素）。

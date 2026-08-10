@@ -4,6 +4,7 @@ import SwiftUI
 /// 高度由父级持有并绑定进来；拖动时改 height。
 struct BottomPanelView: View {
     @Binding var height: CGFloat
+    var maximumHeight: CGFloat = 900
     @Environment(TerminalSession.self) private var terminal
     @Environment(ConnectionStore.self) private var connection
     @Environment(ClipboardPolicyStore.self) private var clipboardPolicy
@@ -22,6 +23,13 @@ struct BottomPanelView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(height: height)
+        .onChange(of: maximumHeight, initial: true) { _, newMaximum in
+            height = WorkspaceMetrics.clamp(
+                height,
+                min: WorkspaceMetrics.bottomPanelMinHeight,
+                max: newMaximum
+            )
+        }
         .task(id: TerminalKey(ready: connection.phase == .ready, cwd: cwd)) {
             // cwd 真跟随：连接就绪 + 会话 cwd 变化时(re)绑定并起 shell。
             guard connection.phase == .ready, let rpc = connection.rpc else { return }
@@ -64,7 +72,8 @@ struct BottomPanelView: View {
                     if dragStartHeight == nil { dragStartHeight = height }
                     height = WorkspaceMetrics.draggedBottomHeight(
                         start: dragStartHeight ?? height,
-                        translation: value.translation.height)
+                        translation: value.translation.height,
+                        maximumHeight: maximumHeight)
                 }
                 .onEnded { _ in
                     dragging = false
@@ -76,8 +85,12 @@ struct BottomPanelView: View {
         .accessibilityValue(Text("workspace.bottomPanel.height \(Int(height))"))
         .accessibilityAdjustableAction { direction in
             switch direction {
-            case .increment: height = WorkspaceMetrics.adjustedBottomHeight(height, increment: true)
-            case .decrement: height = WorkspaceMetrics.adjustedBottomHeight(height, increment: false)
+            case .increment:
+                height = WorkspaceMetrics.adjustedBottomHeight(
+                    height, increment: true, maximumHeight: maximumHeight)
+            case .decrement:
+                height = WorkspaceMetrics.adjustedBottomHeight(
+                    height, increment: false, maximumHeight: maximumHeight)
             @unknown default: break
             }
         }

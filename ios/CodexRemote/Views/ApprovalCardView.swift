@@ -44,22 +44,19 @@ struct ApprovalCardView: View {
                 }
                 if card.permissionEntries == nil, let fs = card.requestedFileSystem, !fs.isEmpty {
                     ForEach(fs, id: \.self) { path in
-                        Label(path, systemImage: "folder")
-                            .font(.caption.monospaced())
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+                        permissionPath(path, systemImage: "folder")
                     }
                 }
                 if let entries = card.permissionEntries {
                     ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
-                        HStack(spacing: 6) {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text(entry.access.rawValue.uppercased())
                                 .font(.caption2.bold())
                                 .foregroundStyle(entry.access == .deny ? Color.red : Color.secondary)
                             Text(entry.path.displayValue)
                                 .font(.caption.monospaced())
-                                .lineLimit(1)
-                                .truncationMode(.middle)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .textSelection(.enabled)
                         }
                     }
                 }
@@ -73,10 +70,7 @@ struct ApprovalCardView: View {
                 }
             }
             if let root = card.grantRoot {
-                Label(root, systemImage: "folder.badge.plus")
-                    .font(.caption.monospaced())
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                permissionPath(root, systemImage: "folder.badge.plus")
             }
             if let context = fileContext {
                 Text("+\(context.added) -\(context.removed)")
@@ -98,6 +92,18 @@ struct ApprovalCardView: View {
         .padding()
         .background(.orange.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func permissionPath(_ path: String, systemImage: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: systemImage)
+                .foregroundStyle(.secondary)
+            Text(path)
+                .font(.caption.monospaced())
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func approvalText(_ text: String,

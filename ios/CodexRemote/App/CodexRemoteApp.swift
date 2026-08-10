@@ -132,7 +132,12 @@ private struct WorkspaceHost: View {
         RootSplitView(workspaceState: workspaceState)
             .safeAreaInset(edge: .top, spacing: 0) { reconnectBanner }
             .sheet(isPresented: $showRePairing) {
-                NavigationStack { RelayPairingImportView(replacingMachineID: sessions.activeSessionId) }
+                NavigationStack {
+                    RelayPairingImportView(
+                        replacingMachineID: sessions.activeSessionId,
+                        onImported: { showRePairing = false }
+                    )
+                }
             }
             // 连接就绪/重连成功后把审批层接到当前 rpc；断线（reconnecting）时标记待恢复（绝不自动批准）。
             // 用 `.task(id:)` 而非 `.onChange`：`.id(s.id)` 重建 WorkspaceHost 时 @State coordinator 归 nil，
@@ -170,12 +175,23 @@ private struct WorkspaceHost: View {
         switch connection.bannerState {
         case .reconnecting:
             bannerLabel("root.reconnecting", tint: .yellow)
-        case .failed:
-            HStack(spacing: 8) {
-                bannerLabel("connection.disconnected", tint: .red)
+        case .failed(let reason):
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("connection.disconnected")
+                        .font(.callout.bold())
+                    Text(reason)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
                 Button("connection.reconnect") { connection.reconnect() }
                     .font(.callout.bold())
+                    .minimumHitTarget44()
             }
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(Color.red.opacity(0.18))
             .padding(.top, 8)
         case .trustRevoked:
             HStack(spacing: 8) {

@@ -242,6 +242,7 @@ final class ProjectsStore {
 
     /// 新建会话进行中标志（防抖）：createThread 期间为 true，禁止并发重复新建。
     private(set) var isCreatingThread = false
+    private(set) var createThreadError: String?
     /// 上次成功发起新建的时间（节流）：窗内再次新建被拒，治本机往返极快、串行快速连点建多个空会话。
     @ObservationIgnored private var lastCreateAt: Date?
     private static let createThrottleInterval: TimeInterval = 2.0
@@ -257,15 +258,23 @@ final class ProjectsStore {
             return nil                                // 节流：1s 内的连续新建被拒
         }
         lastCreateAt = t
+        createThreadError = nil
         isCreatingThread = true
         defer { isCreatingThread = false }
-        guard let data = try? JSONEncoder().encode(ThreadStartParams(cwd: cwd, model: model)),
-              let any = try? JSONDecoder().decode(AnyCodable.self, from: data),
-              let result = try? await rpc.send(method: RPCMethod.threadStart, params: any),
-              let dict = result.value as? [String: Any],
-              let id = (dict["thread"] as? [String: Any])?["id"] as? String
-        else { return nil }
-        return id
+        do {
+            let data = try JSONEncoder().encode(ThreadStartParams(cwd: cwd, model: model))
+            let any = try JSONDecoder().decode(AnyCodable.self, from: data)
+            let result = try await rpc.send(method: RPCMethod.threadStart, params: any)
+            guard let dict = result.value as? [String: Any],
+                  let id = (dict["thread"] as? [String: Any])?["id"] as? String else {
+                createThreadError = "Invalid thread/start response"
+                return nil
+            }
+            return id
+        } catch {
+            createThreadError = String(describing: error)
+            return nil
+        }
     }
 
     private func sendThenRefresh<T: Encodable>(_ method: String, _ params: T) async {

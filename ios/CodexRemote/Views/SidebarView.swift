@@ -13,6 +13,7 @@ struct SidebarView: View {
     @Environment(\.locale) private var locale
     @Binding var selectedThreadId: String?
     @State private var collapse = SidebarCollapseStore()
+    @State private var operationError: String?
 
     var body: some View {
         // 不用 List(selection:)：系统 sidebar 选中会画一个方框（用户嫌丑 #4），且列隐藏再显示后丢失（#5）。
@@ -69,11 +70,29 @@ struct SidebarView: View {
             @unknown default: break
             }
         }
+        .alert("operation.failed.title", isPresented: Binding(
+            get: { operationError != nil },
+            set: { if !$0 { operationError = nil } }
+        )) {
+            Button("common.ok", role: .cancel) { operationError = nil }
+        } message: {
+            Text(operationError ?? "")
+        }
     }
 
     @ViewBuilder
     private var sidebarEmptyOverlay: some View {
-        switch projects.loadState {
+        if case .failed(let reason) = connection.phase {
+            ContentUnavailableView {
+                Label("sidebar.loadFailed.title", systemImage: "wifi.exclamationmark")
+            } description: {
+                Text(reason)
+            } actions: {
+                Button("connection.reconnect") { connection.reconnect() }
+                    .buttonStyle(.borderedProminent)
+            }
+        } else {
+            switch projects.loadState {
         case .idle, .loading:
             ProgressView("sidebar.loading")
         case .failed:
@@ -91,6 +110,7 @@ struct SidebarView: View {
         case .loaded:
             ContentUnavailableView("sidebar.empty.title", systemImage: "tray",
                                    description: Text("sidebar.empty.desc"))
+            }
         }
     }
 
@@ -173,18 +193,29 @@ struct SidebarView: View {
         .frame(minHeight: 44)
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
         .contextMenu {
             Button {
-                guard let rpc = connection.rpc else { return }
+                guard connection.phase == .ready, let rpc = connection.rpc else {
+                    operationError = L10n.string("operation.unavailable.offline", locale: locale)
+                    return
+                }
                 Task {
-                    let any = try? await rpc.send(method: RPCMethod.threadFork,
-                                                  params: AnyCodable(["threadId": thread.id]))
-                    if let dict = any?.value as? [String: Any],
-                       let id = (dict["thread"] as? [String: Any])?["id"] as? String {
-                        await MainActor.run { selectedThreadId = id }
+                    do {
+                        let any = try await rpc.send(method: RPCMethod.threadFork,
+                                                     params: AnyCodable(["threadId": thread.id]))
+                        if let dict = any.value as? [String: Any],
+                           let id = (dict["thread"] as? [String: Any])?["id"] as? String {
+                            selectedThreadId = id
+                        } else {
+                            operationError = L10n.string("operation.failed.description", locale: locale)
+                        }
+                    } catch {
+                        operationError = String(describing: error)
                     }
                 }
             } label: { Label("sidebar.fork", systemImage: "arrow.triangle.branch") }
+                .disabled(connection.phase != .ready)
         }
     }
 

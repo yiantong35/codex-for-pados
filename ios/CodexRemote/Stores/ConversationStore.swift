@@ -163,8 +163,19 @@ final class ConversationStore {
         optimisticSeq += 1
         let localId = "local-\(optimisticSeq)"
         let text = input.compactMap { if case .text(let t) = $0 { return t } else { return nil } }.joined()
-        if !text.isEmpty {
-            reducer.upsertUserMessage(id: localId, text: text, to: &state)
+        let attachments = input.compactMap { value -> UserMessageAttachment? in
+            switch value {
+            case .image(let url, _):
+                return UserMessageAttachment(kind: .image, source: url)
+            case .localImage(let path, _):
+                return UserMessageAttachment(kind: .localImage, source: path)
+            case .text:
+                return nil
+            }
+        }
+        if !text.isEmpty || !attachments.isEmpty {
+            reducer.upsertUserMessage(id: localId, text: text,
+                                      attachments: attachments, to: &state)
         }
         outbox.append((input, model, effort, localId))
         drainOutbox()

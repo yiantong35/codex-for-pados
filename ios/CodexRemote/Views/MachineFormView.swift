@@ -43,7 +43,7 @@ struct MachineFormView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             NavigationLink {
-                RelayPairingImportView()
+                RelayPairingImportView(onImported: { dismiss() })
             } label: {
                 Label("relayImport.title", systemImage: "qrcode.viewfinder")
                     .frame(maxWidth: .infinity, alignment: .leading)

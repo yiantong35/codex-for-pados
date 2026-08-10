@@ -1,6 +1,48 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
+    "operation.failed.title": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Operation Failed" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "操作失败" } }
+      }
+    },
+    "workspace.column.width %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%lld points wide" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "宽度 %lld 点" } }
+      }
+    },
+    "operation.failed.description": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "The request could not be completed. Try again." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请求未能完成，请重试。" } }
+      }
+    },
+    "operation.unavailable.offline": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This action is unavailable while disconnected." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接断开时无法执行此操作。" } }
+      }
+    },
+    "review.start": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Start review" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "开始审查" } }
+      }
+    },
+    "rightPanel.fullscreen.enter": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Enter full screen" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "进入全屏" } }
+      }
+    },
+    "rightPanel.fullscreen.exit": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Exit full screen" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "退出全屏" } }
+      }
+    },
     "settings.extensions.loadFailed": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Could not load extensions" } },

@@ -502,7 +502,7 @@ final class ConnectionStore {
 /// 信任撤销（needsRePairing）优先于普通 failed。
 enum ConnectionBannerState: Equatable {
     case reconnecting
-    case failed
+    case failed(String)
     case trustRevoked
 }
 
@@ -511,7 +511,7 @@ extension ConnectionStore {
         if needsRePairing { return .trustRevoked }
         switch phase {
         case .reconnecting: return .reconnecting
-        case .failed:       return .failed
+        case .failed(let reason): return .failed(reason)
         default:            return nil
         }
     }
