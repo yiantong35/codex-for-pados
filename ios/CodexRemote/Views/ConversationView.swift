@@ -156,13 +156,6 @@ struct ConversationView: View {
                     showNewBelow = false
                 }
             }
-            .onChange(of: store?.contentRevision) { _, _ in
-                if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: isNearBottom) {
-                    scrollToBottom(proxy)
-                } else {
-                    showNewBelow = true
-                }
-            }
             .onChange(of: store?.state.isTurnRunning) { _, _ in
                 if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: isNearBottom) { scrollToBottom(proxy) }
             }

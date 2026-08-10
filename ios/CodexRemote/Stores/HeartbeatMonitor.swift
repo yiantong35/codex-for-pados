@@ -94,7 +94,7 @@ final class HeartbeatMonitor {
     /// peer-left 等提示只请求一次加速探测。突发提示和探测在途提示均合并到一个 pending 位，
     /// 结果仍进入连续 miss reducer，不具备单次判死权。
     func requestAcceleratedProbe() {
-        guard started, foreground else { return }
+        guard started, foreground, tabActive else { return }
         guard !acceleratedProbePending else { return }
         if let lastProbeStartedAt,
            lastProbeStartedAt.duration(to: now()) < config.minimumAcceleratedProbeInterval {

@@ -121,6 +121,28 @@ final class HeartbeatMonitorTests: XCTestCase {
         XCTAssertEqual(activeProbeCount, 1, "切为活动 tab 只补一个立即探针")
     }
 
+    func test_inactiveTabIgnoresAcceleratedProbeSignals() async throws {
+        let probes = Counter()
+        let sleeps = DurationRecorder()
+        let m = HeartbeatMonitor(
+            config: .init(interval: .seconds(10), inactiveInterval: .seconds(60),
+                          minimumAcceleratedProbeInterval: .zero),
+            probe: { await probes.increment(); return true },
+            onUnhealthy: {},
+            sleep: { duration in await sleeps.recordAndPark(duration) })
+        m.setTabActive(false)
+        m.start()
+        try await waitUntil { await sleeps.values.contains(.seconds(60)) }
+
+        for _ in 0..<100 { m.requestAcceleratedProbe() }
+        try? await Task.sleep(for: .milliseconds(50))
+        m.stop()
+
+        let finalProbeCount = await probes.value
+        XCTAssertEqual(finalProbeCount, 0,
+                       "未认证 peer-left 不得让非活动 tab 绕过 60 秒探活下限")
+    }
+
     func test_afterDeath_start_resumesLoop() async throws {
         let results = ResultScript(Array(repeating: false, count: 200))  // 恒 miss
         let m = HeartbeatMonitor(config: .init(interval: .seconds(10), missThreshold: 2),
