@@ -163,8 +163,11 @@ final class SessionControlTests: XCTestCase {
 
     func testDeleteSendsMethod() async throws {
         let (store, mock, _) = await makeStore()
+        var deletedThreadId: String?
+        store.onThreadDeleted = { deletedThreadId = $0 }
         await store.delete(threadId: "t1")
         try await waitUntil { await mock.sent.contains { $0.contains("thread/delete") } }
+        XCTAssertEqual(deletedThreadId, "t1")
     }
 
     func testCompactSendsMethod() async throws {
@@ -185,9 +188,12 @@ final class SessionControlTests: XCTestCase {
 
     func testDeletedBroadcastRemovesThread() async throws {
         let (store, mock, _) = await makeStore()
+        var deletedThreadId: String?
+        store.onThreadDeleted = { deletedThreadId = $0 }
         store.ingest([thread("t1"), thread("t2")])
         await mock.feed(#"{"jsonrpc":"2.0","method":"thread/deleted","params":{"threadId":"t1"}}"#)
         try await waitUntil { !store.allThreadsSorted.contains { $0.id == "t1" } }
+        XCTAssertEqual(deletedThreadId, "t1")
         XCTAssertTrue(store.allThreadsSorted.contains { $0.id == "t2" })
     }
 

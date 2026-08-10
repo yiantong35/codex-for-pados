@@ -32,7 +32,11 @@ final class Session: Identifiable {
         self.id = machine.id
         self.machine = machine
         self.connection = ConnectionStore(transportFactory: transportFactory)
-        self.projects = ProjectsStore()
+        let composerDrafts = ComposerDraftStore()
+        let conversationOutboxes = ConversationOutboxRegistry()
+        let workspaceState = WorkspaceSessionState(conversationOutboxes: conversationOutboxes)
+        let projects = ProjectsStore()
+        self.projects = projects
         self.environment = EnvironmentStore()
         self.mcp = McpStore()
         self.skills = SkillsStore()
@@ -40,14 +44,20 @@ final class Session: Identifiable {
         self.hooks = HooksStore()
         self.terminal = TerminalSession()
         self.fileBrowser = FileBrowserStore()
-        let composerDrafts = ComposerDraftStore()
-        self.sideChat = SideChatStore(draftStore: composerDrafts)
+        self.sideChat = SideChatStore(
+            draftStore: composerDrafts,
+            conversationOutboxes: conversationOutboxes
+        )
         self.envInspector = EnvironmentInspectorModel()
         self.approvals = ApprovalStore()
         self.userInputs = UserInputStore()
         self.mcpElicitations = McpElicitationStore()
         self.composerDrafts = composerDrafts
-        self.workspaceState = WorkspaceSessionState()
+        self.workspaceState = workspaceState
+        projects.onThreadDeleted = { threadId in
+            workspaceState.conversationOutboxes.remove(threadId: threadId)
+            composerDrafts.removeDraft(for: threadId)
+        }
     }
 
     /// 前后台标记（D6=B）。默认后台；活跃 tab 由 SessionsManager 置前台。
@@ -86,6 +96,12 @@ final class Session: Identifiable {
         connection.connect(config: machine.connectionConfig)
     }
     func disconnect() async { await connection.disconnect() }
+
+    func clearSensitiveTransientState() {
+        sideChat.reset()
+        workspaceState.conversationOutboxes.removeAll()
+        composerDrafts.removeAll()
+    }
 
     /// 前后台切换（D6=B「后台保连+降频」）。
     /// 前台：开列表轮询 + 补拉最终态；后台：停轮询降频。

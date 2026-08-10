@@ -87,6 +87,7 @@ final class SessionsManager {
         do { try resetPairingTrust(m.id) } catch { return false }
 
         let oldSession = cache.removeValue(forKey: m.id)
+        oldSession?.clearSensitiveTransientState()
         machineStore.update(m)
         PendingPairingStore.shared.stash(pairingCode, for: m.id)
         setActive(m.id)
@@ -100,6 +101,7 @@ final class SessionsManager {
         let s = cache[id]
         let removedActiveMachine = machineStore.activeMachineId == id
         s?.setForeground(false)
+        s?.clearSensitiveTransientState()
         cache[id] = nil
         machineStore.remove(id: id)
         // MachineStore 会选出相邻机器，但只有 setActive 才会创建/前台化 Session 并触发懒连。

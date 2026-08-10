@@ -126,4 +126,14 @@ final class ComposerDraftStore {
     func removeDraft(for threadId: String) {
         drafts.removeValue(forKey: threadId)?.clearInput()
     }
+
+    func removeAll() {
+        let existing = Array(drafts.values)
+        drafts.removeAll()
+        existing.forEach { $0.clearInput() }
+    }
+
+#if DEBUG
+    var draftCountForTesting: Int { drafts.count }
+#endif
 }

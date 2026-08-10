@@ -20,13 +20,15 @@ final class SideChatStore {
     private(set) var startFailed = false
 
     private var rpc: JSONRPCClient?
-    private let draftStore: ComposerDraftStore?
-    let conversationOutboxes = ConversationOutboxRegistry()
+    let conversationOutboxes: ConversationOutboxRegistry
+    @ObservationIgnored private let draftStore: ComposerDraftStore?
     /// 已开侧聊计数（只增），用于标题 #序号，与 close 无关（关掉不回收序号，避免标题跳变）。
     private var startedCount = 0
 
-    init(draftStore: ComposerDraftStore? = nil) {
+    init(draftStore: ComposerDraftStore? = nil,
+         conversationOutboxes: ConversationOutboxRegistry = ConversationOutboxRegistry()) {
         self.draftStore = draftStore
+        self.conversationOutboxes = conversationOutboxes
     }
 
     /// 注入共享 rpc（幂等）。重连时保留 metadata；可见 ConversationView 会按新 rpc identity 重建。
@@ -58,7 +60,10 @@ final class SideChatStore {
     }
 
     func reset() {
-        for session in sessions { draftStore?.removeDraft(for: session.id) }
+        sessions.forEach {
+            draftStore?.removeDraft(for: $0.id)
+            conversationOutboxes.remove(threadId: $0.id)
+        }
         sessions.removeAll()
         selectedId = nil
         startFailed = false

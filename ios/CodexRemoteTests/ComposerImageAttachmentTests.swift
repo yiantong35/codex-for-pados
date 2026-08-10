@@ -71,6 +71,21 @@ final class ComposerImageAttachmentTests: XCTestCase {
         XCTAssertEqual(store.draft(for: "thread-b").text, "")
     }
 
+    func test_removeAllClearsDraftsAndCancelsImageWork() async throws {
+        let encoder = DeferredAttachmentEncoder()
+        let store = ComposerDraftStore()
+        let stored = store.draft(for: "thread-a")
+        stored.text = "sensitive"
+        stored.imageAttachment.load { Data([9]) }
+        try await waitUntil { stored.imageAttachment.hasActiveTaskForTesting }
+
+        store.removeAll()
+
+        XCTAssertEqual(store.draftCountForTesting, 0)
+        XCTAssertEqual(stored.text, "")
+        XCTAssertFalse(stored.imageAttachment.hasActiveTaskForTesting)
+    }
+
     func test_clear_input_keeps_model_selection() {
         let draft = ComposerDraft()
         draft.text = "sent"

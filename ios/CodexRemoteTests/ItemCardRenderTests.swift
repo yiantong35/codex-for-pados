@@ -62,6 +62,29 @@ final class ItemCardRenderTests: XCTestCase {
                                  FileImageThumbnailDecoder.maximumThumbnailDimension)
     }
 
+    func testMessageImageCacheKeySurvivesOptimisticIDReplacementAndDeduplicatesLoad() async throws {
+        let source = "data:image/png;base64,c2FtZQ=="
+        let optimistic = UserMessageAttachment(kind: .image, source: source)
+        let authoritative = UserMessageAttachment(kind: .image, source: source)
+        XCTAssertEqual(optimistic.cacheKey, authoritative.cacheKey)
+
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2))
+        let image = renderer.image { context in
+            UIColor.systemBlue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 2, height: 2))
+        }
+        let thumbnail = FileImageThumbnail(cgImage: try XCTUnwrap(image.cgImage))
+        let probe = ImageThumbnailLoaderProbe(thumbnail: thumbnail)
+        let cache = MessageImageThumbnailCache(loader: { source in await probe.load(source) })
+
+        let first = Task { await cache.image(cacheKey: optimistic.cacheKey, source: source) }
+        let second = Task { await cache.image(cacheKey: authoritative.cacheKey, source: source) }
+        _ = await (first.value, second.value)
+
+        let loadCount = await probe.loadCount
+        XCTAssertEqual(loadCount, 1)
+    }
+
     func test_protocolStatusesMapToUserFacingLocalizationKeys() {
         XCTAssertEqual(ItemCard.protocolStatusLocalizationKey("in_progress"), "conv.status.running")
         XCTAssertEqual(ItemCard.protocolStatusLocalizationKey("success"), "conv.status.completed")
@@ -93,5 +116,18 @@ final class ItemCardRenderTests: XCTestCase {
     func test_prefix_allow_absent_for_file_change() {
         let card = cmdCard(title: "main.swift", prefix: ["should", "ignore"], isFile: true)
         XCTAssertNil(ApprovalCardView.prefixButtonState(card: card))
+    }
+}
+
+private actor ImageThumbnailLoaderProbe {
+    private(set) var loadCount = 0
+    let thumbnail: FileImageThumbnail
+
+    init(thumbnail: FileImageThumbnail) { self.thumbnail = thumbnail }
+
+    func load(_ source: String) async -> FileImageThumbnail? {
+        loadCount += 1
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        return thumbnail
     }
 }
