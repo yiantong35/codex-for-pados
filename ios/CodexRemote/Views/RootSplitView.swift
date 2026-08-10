@@ -24,12 +24,14 @@ final class ActiveConversationHolder {
 @MainActor
 final class WorkspaceSessionState {
     var selectedThreadId: String?
-    let conversationOutboxes = ConversationOutboxRegistry()
+    let conversationOutboxes: ConversationOutboxRegistry
     let layout: WorkspaceLayoutStore
     var bottomHeight: CGFloat
     var rightPanelTab: RightPanelTab
 
-    init(initialRightOpen: Bool = false, initialBottomOpen: Bool = false) {
+    init(initialRightOpen: Bool = false, initialBottomOpen: Bool = false,
+         conversationOutboxes: ConversationOutboxRegistry = ConversationOutboxRegistry()) {
+        self.conversationOutboxes = conversationOutboxes
         layout = WorkspaceLayoutStore(showRight: initialRightOpen, showBottom: initialBottomOpen)
         bottomHeight = WorkspaceMetrics.bottomPanelIdealHeight
         rightPanelTab = .review

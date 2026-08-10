@@ -50,6 +50,7 @@ enum ProjectsLoadState: Equatable {
 @Observable
 @MainActor
 final class ProjectsStore {
+    @ObservationIgnored var onThreadDeleted: ((String) -> Void)?
     private(set) var projects: [Project] = []
     private(set) var looseConversations: [ThreadSummary] = []
     private(set) var loadState: ProjectsLoadState = .idle
@@ -189,8 +190,10 @@ final class ProjectsStore {
         }
         guard let tid = p["threadId"] as? String else { return }
         switch n.method {
-        case ServerNotificationMethod.threadDeleted,
-             ServerNotificationMethod.threadArchived:
+        case ServerNotificationMethod.threadDeleted:
+            removeThread(tid)
+            onThreadDeleted?(tid)
+        case ServerNotificationMethod.threadArchived:
             removeThread(tid)
         case ServerNotificationMethod.threadNameUpdated:
             let newName = p["threadName"] as? String
@@ -284,12 +287,18 @@ final class ProjectsStore {
         }
     }
 
-    private func sendThenRefresh<T: Encodable>(_ method: String, _ params: T) async {
-        guard let rpc else { return }
+    @discardableResult
+    private func sendThenRefresh<T: Encodable>(_ method: String, _ params: T) async -> Bool {
+        guard let rpc else { return false }
         guard let data = try? JSONEncoder().encode(params),
-              let any = try? JSONDecoder().decode(AnyCodable.self, from: data) else { return }
-        _ = try? await rpc.send(method: method, params: any)
-        await loadFromServer(rpc: rpc)
+              let any = try? JSONDecoder().decode(AnyCodable.self, from: data) else { return false }
+        do {
+            _ = try await rpc.send(method: method, params: any)
+            await loadFromServer(rpc: rpc)
+            return true
+        } catch {
+            return false
+        }
     }
 
     func archive(threadId: String) async {
@@ -299,7 +308,9 @@ final class ProjectsStore {
         await sendThenRefresh(RPCMethod.threadUnarchive, ThreadUnarchiveParams(threadId: threadId))
     }
     func delete(threadId: String) async {
-        await sendThenRefresh(RPCMethod.threadDelete, ThreadDeleteParams(threadId: threadId))
+        if await sendThenRefresh(RPCMethod.threadDelete, ThreadDeleteParams(threadId: threadId)) {
+            onThreadDeleted?(threadId)
+        }
     }
     func rename(threadId: String, name: String) async {
         await sendThenRefresh(RPCMethod.threadNameSet, ThreadSetNameParams(threadId: threadId, name: name))

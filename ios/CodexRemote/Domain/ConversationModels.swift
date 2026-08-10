@@ -16,6 +16,17 @@ struct UserMessageAttachment: Equatable {
 
     let kind: Kind
     let source: String
+    /// Stable across optimistic and authoritative message IDs within this process.
+    let cacheKey: String
+
+    init(kind: Kind, source: String) {
+        self.kind = kind
+        self.source = source
+        var hasher = Hasher()
+        hasher.combine(kind == .image ? 1 : 2)
+        hasher.combine(source)
+        self.cacheKey = "\(source.utf8.count)-\(String(hasher.finalize(), radix: 16))"
+    }
 }
 
 enum WebSearchAction: Equatable {

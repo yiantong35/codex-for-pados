@@ -72,6 +72,87 @@ final class ReconnectOutboundQueueTests: XCTestCase {
         XCTAssertEqual(sent.filter { $0.contains(RPCMethod.turnStart) }.count, 1)
     }
 
+    func test_unrelatedTurnEventsDoNotAcknowledgeLocalSend() async throws {
+        let shared = ConversationOutbox()
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "t1", outbox: shared)
+        store.isReady = { true }
+        await store.startObserving()
+
+        await store.send(input: [.text("local pending")], model: nil, effort: nil)
+        try await waitUntil { await mock.sent.contains { $0.contains("turn/start") } }
+        await mock.feed(#"{"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"t1","turn":{"id":"other","status":"inProgress"}}}"#)
+        await mock.feed(#"{"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"t1","turn":{"id":"other","status":"completed"}}}"#)
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertEqual(shared.entries.count, 1)
+        guard case .text(let text)? = shared.entries.first?.input.first else {
+            return XCTFail("the local pending message must remain in the outbox")
+        }
+        XCTAssertEqual(text, "local pending")
+    }
+
+    func test_messageTooLargeIsDiscardedAndDoesNotBlockNextEntry() async throws {
+        let shared = ConversationOutbox()
+        let mock = MockTransport()
+        await mock.setAutoRespond(true)
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "t1", outbox: shared)
+        store.isReady = { false }
+
+        await store.send(input: [.text("too large")], model: nil, effort: nil)
+        await store.send(input: [.text("following")], model: nil, effort: nil)
+        await mock.failNextSend(with: .messageTooLarge(bytes: 101, limit: 100))
+        store.isReady = { true }
+        store.drainOutbox()
+
+        try await waitUntil { await mock.sent.filter { $0.contains("turn/start") }.count == 2 }
+        try await waitUntil { shared.entries.isEmpty }
+        let texts = store.state.items.compactMap { item -> String? in
+            if case .userMessage(_, let text, _) = item { return text }
+            return nil
+        }
+        XCTAssertEqual(texts, ["following"])
+        XCTAssertFalse(store.lastSendErrorIsRetryable)
+    }
+
+    func test_outboxEnforcesThreadAndSessionBudgetsAndReleasesOnRemoval() throws {
+        let limits = ConversationOutboxLimits(
+            maxBytesPerMessage: 10_000,
+            maxMessagesPerThread: 2,
+            maxBytesPerThread: 10_000,
+            maxMessagesPerSession: 2,
+            maxBytesPerSession: 10_000
+        )
+        let registry = ConversationOutboxRegistry(limits: limits)
+        let first = registry.outbox(for: "a")
+        let second = registry.outbox(for: "b")
+        _ = try first.enqueue(input: [.text("one")], model: nil, effort: nil)
+        _ = try second.enqueue(input: [.text("two")], model: nil, effort: nil)
+        XCTAssertThrowsError(try first.enqueue(input: [.text("three")], model: nil, effort: nil)) {
+            XCTAssertEqual($0 as? ConversationOutboxError, .sessionLimit)
+        }
+
+        registry.remove(threadId: "b")
+        XCTAssertNoThrow(try first.enqueue(input: [.text("three")], model: nil, effort: nil))
+        XCTAssertThrowsError(try first.enqueue(input: [.text("four")], model: nil, effort: nil)) {
+            XCTAssertEqual($0 as? ConversationOutboxError, .threadLimit)
+        }
+    }
+
+    func test_oversizedMessageIsRejectedBeforeItCanEnterTheQueue() throws {
+        let outbox = ConversationOutbox()
+        let oversized = String(repeating: "x", count: 741 * 1_024)
+
+        XCTAssertThrowsError(try outbox.enqueue(input: [.text(oversized)], model: nil, effort: nil)) {
+            XCTAssertEqual($0 as? ConversationOutboxError, .messageTooLarge)
+        }
+        XCTAssertTrue(outbox.entries.isEmpty)
+    }
+
     func test_outbox_survives_store_and_rpc_rebuild() async throws {
         let shared = ConversationOutbox()
         let firstMock = MockTransport()

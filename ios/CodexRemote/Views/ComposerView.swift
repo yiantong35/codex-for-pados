@@ -64,7 +64,7 @@ struct ComposerView: View {
     var body: some View {
         @Bindable var draft = draft
         VStack(spacing: 6) {
-            if let err = store.state.lastSendError {
+            if let err = store.state.lastSendError, store.lastSendErrorIsRetryable {
                 // D2：发送失败显式提示，点按清错并重发上次输入（不再假"生成中"）。
                 Button {
                     Task { await store.retryLastSend() }
@@ -80,6 +80,15 @@ struct ComposerView: View {
                     .padding(.horizontal, 4)
                 }
                 .buttonStyle(.plain)
+            } else if let err = store.state.lastSendError {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                    Text("composer.sendFailed \(err)")
+                        .font(.footnote).multilineTextAlignment(.leading)
+                    Spacer()
+                }
+                .foregroundStyle(.red)
+                .padding(.horizontal, 4)
             }
             if let err = imageError {
                 // F7：图片超出 relay 单帧上限，非阻塞提示（不像发送失败那样可重试——需换图）。
@@ -289,8 +298,9 @@ struct ComposerView: View {
         let input = currentInput()
         guard !input.isEmpty else { return }
         // 服务器驱动：生效模型/强度（显式选择或账号默认）；都无则 nil，让服务器用其默认。
-        await store.send(input: input, model: effectiveModel, effort: effectiveEffort)
-        clearComposer()
+        if await store.send(input: input, model: effectiveModel, effort: effectiveEffort) {
+            clearComposer()
+        }
     }
 
     /// 转向：仅当可 steer 时清空 composer（失败保留输入，便于改走排队）。
@@ -305,8 +315,9 @@ struct ComposerView: View {
     private func enqueueCurrent() async {
         let input = currentInput()
         guard !input.isEmpty else { return }
-        await store.send(input: input, model: effectiveModel, effort: effectiveEffort)
-        clearComposer()
+        if await store.send(input: input, model: effectiveModel, effort: effectiveEffort) {
+            clearComposer()
+        }
     }
 }
 

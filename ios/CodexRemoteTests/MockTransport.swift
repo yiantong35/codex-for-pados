@@ -14,8 +14,10 @@ actor MockTransport: MessageTransport {
     /// 使 `rpc.send(...)` 的请求-响应调用（如 ProjectsStore.sendThenRefresh）能解挂。
     /// 默认关闭以免影响刻意保持请求挂起的测试（如 failPending / rejoin）。
     var autoRespond = false
+    private var nextSendError: TransportError?
 
     func setAutoRespond(_ enabled: Bool) { autoRespond = enabled }
+    func failNextSend(with error: TransportError) { nextSendError = error }
 
     /// 定制 `thread/start` 的应答体（默认 nil → 回 `{}`）。开启 autoRespond。
     /// 用于验证新建会话解析响应 `{thread:{id}}` 后切换 threadId 的逻辑。
@@ -63,6 +65,10 @@ actor MockTransport: MessageTransport {
 
     func send(_ text: String) async throws {
         sent.append(text)
+        if let error = nextSendError {
+            nextSendError = nil
+            throw error
+        }
         guard autoRespond,
               let data = text.data(using: .utf8),
               case .request(let req)? = try? JSONDecoder().decode(JSONRPCMessage.self, from: data)

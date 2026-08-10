@@ -26,6 +26,8 @@ final class ConversationStore {
     private var requiresAuthoritativeRecovery = false
     private var authoritativeRecoveryComplete = true
     private var recoveryGeneration: UInt64 = 0
+    /// Permanent failures (for example a relay frame overflow) have already been isolated and cannot be retried.
+    private(set) var lastSendErrorIsRetryable = true
     /// Compatibility/UI view of messages not yet fired. The shared owner also retains the in-flight entry
     /// internally until the RPC or authoritative clientId confirms it.
     var outbox: [PendingConversationMessage] { outbound.queuedEntries }
@@ -178,16 +180,26 @@ final class ConversationStore {
     /// 入队即乐观回显（D3），然后交给 drainOutbox 决定是否能立即 fire：
     /// isReady()=false（未连接）或 isTurnRunning（turn 占用）或 sendInFlight（上一条尚未拿到
     /// turn/started）时留在 outbox 里，之后按序逐条补发（reconnect-resync item 3 + Task 17 排队）。
-    func send(input: [UserInput], model: String?, effort: ReasoningEffort?) async {
+    @discardableResult
+    func send(input: [UserInput], model: String?, effort: ReasoningEffort?) async -> Bool {
         state.lastSendError = nil
+        lastSendErrorIsRetryable = true
         // D3：乐观回显——发送即在本端插入用户消息，不等服务器广播。
-        let entry = outbound.enqueue(input: input, model: model, effort: effort)
+        let entry: PendingConversationMessage
+        do {
+            entry = try outbound.enqueue(input: input, model: model, effort: effort)
+        } catch {
+            state.lastSendError = error.localizedDescription
+            lastSendErrorIsRetryable = false
+            return false
+        }
         let (text, attachments) = Self.presentation(for: input)
         if !text.isEmpty || !attachments.isEmpty {
             reducer.upsertUserMessage(id: entry.localId, text: text,
                                       attachments: attachments, to: &state)
         }
         drainOutbox()
+        return true
     }
 
     /// 出站队列 drain：一次只发一条，发出后靠 turn/started 建立的 sendInFlight 守卫 +
@@ -205,22 +217,30 @@ final class ConversationStore {
         Task { [self] in
             do {
                 _ = try await call(RPCMethod.turnStart, params)
-                outbound.acknowledge(clientId: next.clientId)
+                outbound.finishSending(clientId: next.clientId)
             } catch {
-                outbound.failSending(clientId: next.clientId)
+                if Self.isPermanentSendFailure(error),
+                   let discarded = outbound.discard(clientId: next.clientId) {
+                    state.items.removeAll { $0.id == discarded.localId }
+                    lastSendErrorIsRetryable = false
+                    drainOutbox()
+                } else if outbound.failSending(clientId: next.clientId) {
+                    lastSendErrorIsRetryable = true
+                } else {
+                    // A matching authoritative userMessage already proved acceptance.
+                    return
+                }
                 state.lastSendError = "\(error)"
             }
         }
     }
 
-    /// reconnect-resync item 3 + Task 17：turn/started 到达即解除并发窗口守卫（后续 drain 被
-    /// isTurnRunning 挡住，天然串行）；turn/completed 到达即清零守卫并 drain 下一条。
+    /// turn events can originate from another client. They may trigger a drain attempt, but must never
+    /// acknowledge this client's entry; only RPC success or a matching clientId may do that.
     private func handleOutboxTriggers(_ n: JSONRPCNotification) {
         switch n.method {
-        case ServerNotificationMethod.turnStarted:
-            outbound.acknowledgeSending()
         case ServerNotificationMethod.turnCompleted:
-            outbound.acknowledgeSending()
+            outbound.releaseAcceptedSendingWindow()
             drainOutbox()
         default:
             break
@@ -235,6 +255,12 @@ final class ConversationStore {
     func requireAuthoritativeRecovery() {
         requiresAuthoritativeRecovery = true
         authoritativeRecoveryComplete = false
+    }
+
+    private static func isPermanentSendFailure(_ error: Error) -> Bool {
+        guard let transportError = error as? TransportError else { return false }
+        if case .messageTooLarge = transportError { return true }
+        return false
     }
 
     /// 重连/连接后经官方权威列表恢复（设计 D3）：

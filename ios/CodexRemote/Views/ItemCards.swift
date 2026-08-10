@@ -11,16 +11,16 @@ struct ItemCard: View {
 
     var body: some View {
         switch item {
-        case .userMessage(let itemID, let text, let attachments):
+        case .userMessage(_, let text, let attachments):
             HStack {
                 Spacer(minLength: 40)
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(Array(attachments.enumerated()), id: \.offset) { index, attachment in
                         UserMessageAttachmentView(
                             attachment: attachment,
-                            cacheKey: "\(itemID):\(index)"
+                            cacheKey: attachment.cacheKey
                         )
-                        .id("\(itemID):\(index)")
+                        .id("\(attachment.cacheKey):\(index)")
                     }
                     if !text.isEmpty {
                         Text(text).textSelection(.enabled)
@@ -314,25 +314,44 @@ struct ItemCard: View {
 }
 
 @MainActor
-private enum MessageImageThumbnailCache {
+final class MessageImageThumbnailCache {
+    typealias Loader = @Sendable (String) async -> FileImageThumbnail?
+
     private final class Entry: NSObject {
         let image: UIImage
         init(_ image: UIImage) { self.image = image }
     }
 
-    private static let cache = NSCache<NSString, Entry>()
+    static let shared = MessageImageThumbnailCache()
+    private let cache = NSCache<NSString, Entry>()
+    private var inFlight: [String: Task<FileImageThumbnail?, Never>] = [:]
+    private let load: Loader
     private static let costLimit = 32 * 1_024 * 1_024
 
-    static func image(cacheKey: String, source: String) async -> UIImage? {
-        cache.totalCostLimit = costLimit
+    init(loader: @escaping Loader = { await MessageImageAttachmentDecoder.thumbnail(from: $0) }) {
+        self.load = loader
+        cache.totalCostLimit = Self.costLimit
+    }
+
+    func image(cacheKey: String, source: String) async -> UIImage? {
         let key = cacheKey as NSString
         if let cached = cache.object(forKey: key) { return cached.image }
-        guard let thumbnail = await MessageImageAttachmentDecoder.thumbnail(from: source),
-              !Task.isCancelled else { return nil }
+        let task: Task<FileImageThumbnail?, Never>
+        if let existing = inFlight[cacheKey] {
+            task = existing
+        } else {
+            let loader = load
+            let created = Task { await loader(source) }
+            inFlight[cacheKey] = created
+            task = created
+        }
+        let thumbnail = await task.value
+        inFlight.removeValue(forKey: cacheKey)
+        guard let thumbnail else { return nil }
         let image = UIImage(cgImage: thumbnail.cgImage)
         let cost = thumbnail.cgImage.bytesPerRow * thumbnail.cgImage.height
         cache.setObject(Entry(image), forKey: key, cost: cost)
-        return image
+        return Task.isCancelled ? nil : image
     }
 }
 
@@ -371,7 +390,7 @@ private struct UserMessageAttachmentView: View {
         .accessibilityLabel(Text("composer.imageAttached"))
         .task(id: cacheKey) {
             guard attachment.kind == .image else { return }
-            guard let decoded = await MessageImageThumbnailCache.image(
+            guard let decoded = await MessageImageThumbnailCache.shared.image(
                 cacheKey: cacheKey, source: attachment.source
             ), !Task.isCancelled else {
                 if !Task.isCancelled { decodeFailed = true }

@@ -91,16 +91,17 @@ struct SideChatStoreTests {
         #expect(store.selectedId == nil)
     }
 
-    @Test func closeClearsAndRemovesSessionDraft() async {
+    @Test func closeClearsDraftAndReleasesQueuedPayload() async throws {
         let mock = MockTransport()
         let rpc = JSONRPCClient(transport: mock)
         await rpc.start()
         let drafts = ComposerDraftStore()
-        let store = SideChatStore(draftStore: drafts)
+        let registry = ConversationOutboxRegistry()
+        let store = SideChatStore(draftStore: drafts, conversationOutboxes: registry)
         store.attach(rpc: rpc)
         let responder = respondFork(mock); defer { responder.cancel() }
         await store.start(fromThreadId: "main-1")
-        let id = store.selectedId!
+        let id = try #require(store.selectedId)
         let oldDraft = drafts.draft(for: id)
         oldDraft.text = "discard me"
         oldDraft.imageAttachment.load {
@@ -108,11 +109,15 @@ struct SideChatStoreTests {
             return Data([0x01])
         }
         #expect(oldDraft.imageAttachment.hasActiveTaskForTesting)
+        let outbox = registry.outbox(for: id)
+        _ = try outbox.enqueue(input: [.text("queued")], model: nil, effort: nil)
 
         store.close(id: id)
 
         #expect(oldDraft.text.isEmpty)
         #expect(!oldDraft.imageAttachment.hasActiveTaskForTesting)
+        #expect(drafts.draftCountForTesting == 0)
+        #expect(outbox.entries.isEmpty)
         #expect(drafts.draft(for: id) !== oldDraft)
     }
 
