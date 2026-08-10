@@ -32,7 +32,7 @@ final class SkillsStore {
         let generation = attachmentGeneration
         self.rpc = rpc
         if rpcChanged { observer?.cancel(); observer = nil }
-        let stream = await rpc.notifications()
+        let stream = await rpc.notifications(methods: [ServerNotificationMethod.skillsChanged])
         guard generation == attachmentGeneration, self.rpc === rpc else { return }
         observer = Task { [weak self] in
             for await n in stream {

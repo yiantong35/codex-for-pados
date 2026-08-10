@@ -22,7 +22,7 @@ final class UserInputCoordinator {
         }
 
         let requests = await rpc.serverRequests(for: .userInput)
-        let notifications = await rpc.notifications()
+        let notifications = await rpc.notifications(methods: [ServerNotificationMethod.serverRequestResolved])
         requestTask?.cancel()
         requestTask = Task { [weak self] in
             for await request in requests {

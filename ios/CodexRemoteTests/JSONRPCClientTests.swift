@@ -86,6 +86,28 @@ final class JSONRPCClientTests: XCTestCase {
         XCTAssertEqual(methods.last, "burst/39")
     }
 
+    func testNotificationSubscriptionFiltersMethodAndThreadBeforeDelivery() async throws {
+        let mock = MockTransport()
+        let client = JSONRPCClient(transport: mock)
+        let stream = await client.notifications(
+            methods: [ServerNotificationMethod.turnCompleted],
+            threadId: "wanted"
+        )
+        await client.start()
+        let received = Task { await stream.first(where: { _ in true }) }
+
+        await mock.feed(lines: [
+            #"{"method":"turn/started","params":{"threadId":"wanted"}}"#,
+            #"{"method":"turn/completed","params":{"threadId":"other"}}"#,
+            #"{"method":"turn/completed","params":{"threadId":"wanted","marker":"expected"}}"#,
+        ])
+
+        let receivedNotification = await received.value
+        let notification = try XCTUnwrap(receivedNotification)
+        let params = try XCTUnwrap(notification.params?.value as? [String: Any])
+        XCTAssertEqual(params["marker"] as? String, "expected")
+    }
+
     // ②c 多播订阅者在底层 transport 关闭后流应结束（ConnectionStore 的断线探测依赖此）。
     func testNotificationStreamFinishesOnTransportClose() async throws {
         let mock = MockTransport()

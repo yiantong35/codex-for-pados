@@ -1,4 +1,6 @@
 import Foundation
+import CoreGraphics
+import ImageIO
 
 /// 文件只读预览内容（D4 降级结果）。
 enum FileContent: Equatable {
@@ -63,5 +65,65 @@ enum FileContentDecoder {
             || bytes.starts(with: [0xFF, 0xD8, 0xFF])
             || bytes.starts(with: Array("GIF8".utf8))
             || (bytes.count >= 12 && String(bytes: bytes[4..<12], encoding: .ascii)?.contains("ftyp") == true)
+    }
+}
+
+struct FileImageThumbnail: @unchecked Sendable {
+    let cgImage: CGImage
+}
+
+enum FileImageThumbnailDecoder {
+    static let maximumSourcePixels = 80_000_000
+    static let maximumSourceDimension = 32_768
+    static let maximumThumbnailDimension = 2_048
+
+    static func thumbnail(from data: Data) async -> FileImageThumbnail? {
+        let task = Task.detached(priority: .userInitiated) {
+            guard !Task.isCancelled else { return nil as FileImageThumbnail? }
+            return makeThumbnail(from: data)
+        }
+        return await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
+    static func makeThumbnail(from data: Data) -> FileImageThumbnail? {
+        autoreleasepool {
+            let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+            guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions),
+                  CGImageSourceGetCount(source) > 0,
+                  let dimensions = dimensions(of: source),
+                  isWithinPixelBudget(width: dimensions.width, height: dimensions.height),
+                  !Task.isCancelled else { return nil }
+
+            let thumbnailOptions: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: maximumThumbnailDimension,
+                kCGImageSourceShouldCacheImmediately: true,
+            ]
+            guard let image = CGImageSourceCreateThumbnailAtIndex(
+                source, 0, thumbnailOptions as CFDictionary
+            ) else { return nil }
+            return FileImageThumbnail(cgImage: image)
+        }
+    }
+
+    static func isWithinPixelBudget(width: Int, height: Int) -> Bool {
+        guard width > 0, height > 0,
+              width <= maximumSourceDimension, height <= maximumSourceDimension,
+              width <= maximumSourcePixels / height else { return false }
+        return true
+    }
+
+    private static func dimensions(of source: CGImageSource) -> (width: Int, height: Int)? {
+        let options = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, options) as? [CFString: Any],
+              let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
+              let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue
+        else { return nil }
+        return (width, height)
     }
 }

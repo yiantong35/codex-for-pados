@@ -25,4 +25,8 @@ final class ConversationScrollAnchorTests: XCTestCase {
         XCTAssertFalse(ScrollAnchorPolicy.contentDidGrow(previousHeight: 400, currentHeight: 350))
         XCTAssertFalse(ScrollAnchorPolicy.contentDidGrow(previousHeight: 0, currentHeight: 400))
     }
+    func test_onlyUserInitiatedScrollUsesAnimation() {
+        XCTAssertTrue(ScrollAnchorPolicy.shouldAnimateScroll(userInitiated: true))
+        XCTAssertFalse(ScrollAnchorPolicy.shouldAnimateScroll(userInitiated: false))
+    }
 }

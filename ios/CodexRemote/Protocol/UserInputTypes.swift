@@ -1,5 +1,16 @@
 import Foundation
 
+enum UserInputRequestLimits {
+    static let questionCount = 1...3
+    static let optionCount = 2...3
+    static let autoResolutionMs: ClosedRange<UInt64> = 60_000...240_000
+    static let maximumIdentifierBytes = 256
+    static let maximumHeaderBytes = 64
+    static let maximumQuestionBytes = 1_024
+    static let maximumOptionLabelBytes = 128
+    static let maximumOptionDescriptionBytes = 512
+}
+
 struct ToolRequestUserInputOption: Codable, Sendable, Equatable {
     let label: String
     let description: String
@@ -60,9 +71,13 @@ struct UserInputCard: Identifiable, Sendable, Equatable {
         } catch {
             throw UserInputError.invalidParams(String(describing: error))
         }
-        guard !decoded.questions.isEmpty,
+        guard Self.validIdentifier(decoded.threadId),
+              Self.validIdentifier(decoded.turnId),
+              Self.validIdentifier(decoded.itemId),
+              UserInputRequestLimits.questionCount.contains(decoded.questions.count),
               Set(decoded.questions.map(\.id)).count == decoded.questions.count,
-              decoded.questions.allSatisfy({ !$0.id.isEmpty })
+              decoded.questions.allSatisfy(Self.validQuestion),
+              decoded.autoResolutionMs.map(UserInputRequestLimits.autoResolutionMs.contains) ?? true
         else { throw UserInputError.invalidQuestions }
 
         id = request.id
@@ -71,6 +86,30 @@ struct UserInputCard: Identifiable, Sendable, Equatable {
         itemId = decoded.itemId
         questions = decoded.questions
         autoResolutionMs = decoded.autoResolutionMs
+    }
+
+    private static func validQuestion(_ question: ToolRequestUserInputQuestion) -> Bool {
+        guard validIdentifier(question.id),
+              validString(question.header, maximumBytes: UserInputRequestLimits.maximumHeaderBytes),
+              validString(question.question, maximumBytes: UserInputRequestLimits.maximumQuestionBytes)
+        else { return false }
+        guard let options = question.options else { return true }
+        return UserInputRequestLimits.optionCount.contains(options.count)
+            && Set(options.map(\.label)).count == options.count
+            && options.allSatisfy {
+                validString($0.label, maximumBytes: UserInputRequestLimits.maximumOptionLabelBytes)
+                    && validString($0.description,
+                                   maximumBytes: UserInputRequestLimits.maximumOptionDescriptionBytes,
+                                   allowEmpty: true)
+            }
+    }
+
+    private static func validIdentifier(_ value: String) -> Bool {
+        validString(value, maximumBytes: UserInputRequestLimits.maximumIdentifierBytes)
+    }
+
+    private static func validString(_ value: String, maximumBytes: Int, allowEmpty: Bool = false) -> Bool {
+        (allowEmpty || !value.isEmpty) && value.utf8.count <= maximumBytes
     }
 
     func isSubmittable(drafts: [String: UserInputDraft]) -> Bool {

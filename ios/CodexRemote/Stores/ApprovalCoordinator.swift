@@ -39,7 +39,7 @@ final class ApprovalCoordinator {
 
         // 先同步完成两条流的订阅注册，再起消费循环。
         let serverRequestStream = await rpc.serverRequests()
-        let notificationStream = await rpc.notifications()
+        let notificationStream = await rpc.notifications(methods: [ServerNotificationMethod.serverRequestResolved])
 
         serverRequestTask?.cancel()
         serverRequestTask = Task { [weak self] in

@@ -9,6 +9,7 @@ enum ScrollAnchorPolicy {
     static func shouldShowNewBelow(isNearBottom: Bool, contentDidGrow: Bool) -> Bool {
         !isNearBottom && contentDidGrow
     }
+    static func shouldAnimateScroll(userInitiated: Bool) -> Bool { userInitiated }
     static func contentDidGrow(previousHeight: CGFloat, currentHeight: CGFloat) -> Bool {
         previousHeight > 0 && currentHeight > previousHeight + 0.5
     }
@@ -168,7 +169,8 @@ struct ConversationView: View {
             .overlay(alignment: .bottom) {
                 if showNewBelow {
                     Button {
-                        withAnimation { scrollToBottom(proxy); showNewBelow = false }
+                        scrollToBottom(proxy, userInitiated: true)
+                        showNewBelow = false
                     } label: {
                         Label("conv.newMessages", systemImage: "arrow.down.circle.fill")
                             .padding(.horizontal, 12).padding(.vertical, 6)
@@ -282,8 +284,12 @@ struct ConversationView: View {
         }
     }
 
-    private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        withAnimation(.easeOut(duration: 0.2)) {
+    private func scrollToBottom(_ proxy: ScrollViewProxy, userInitiated: Bool = false) {
+        if ScrollAnchorPolicy.shouldAnimateScroll(userInitiated: userInitiated) {
+            withAnimation(.easeOut(duration: 0.2)) {
+                proxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
+            }
+        } else {
             proxy.scrollTo(Self.bottomSentinelID, anchor: .bottom)
         }
     }

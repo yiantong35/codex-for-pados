@@ -43,7 +43,7 @@ final class UserInputStoreTests: XCTestCase {
     func testOtherFreeformIsMutuallyExclusiveAndAllQuestionsAreRequired() throws {
         let request = try makeRequest(
             id: "input-2",
-            params: #"{"threadId":"t","turnId":"turn","itemId":"item","questions":[{"id":"choice","header":"Choice","question":"Pick","isOther":true,"isSecret":false,"options":[{"label":"A","description":"First"}]},{"id":"details","header":"Details","question":"Explain","isOther":true,"isSecret":false,"options":null}],"autoResolutionMs":null}"#
+            params: #"{"threadId":"t","turnId":"turn","itemId":"item","questions":[{"id":"choice","header":"Choice","question":"Pick","isOther":true,"isSecret":false,"options":[{"label":"A","description":"First"},{"label":"B","description":"Second"}]},{"id":"details","header":"Details","question":"Explain","isOther":true,"isSecret":false,"options":null}],"autoResolutionMs":null}"#
         )
         let card = try UserInputCard(request: request)
 
@@ -84,7 +84,7 @@ final class UserInputStoreTests: XCTestCase {
         let store = UserInputStore(sleep: { _ in })
         var responses: [ToolRequestUserInputResponse] = []
         store.resolver = { _, response in responses.append(response); return true }
-        let params = #"{"threadId":"t","turnId":"turn","itemId":"item","questions":[{"id":"secret","header":"Secret","question":"Token?","isOther":false,"isSecret":true,"options":null}],"autoResolutionMs":1}"#
+        let params = #"{"threadId":"t","turnId":"turn","itemId":"item","questions":[{"id":"secret","header":"Secret","question":"Token?","isOther":false,"isSecret":true,"options":null}],"autoResolutionMs":60000}"#
         try store.handle(request: makeRequest(id: "auto", params: params))
 
         for _ in 0..<100 where responses.isEmpty { await Task.yield() }
@@ -98,7 +98,7 @@ final class UserInputStoreTests: XCTestCase {
         let store = UserInputStore(sleep: { _ in try await Task.sleep(nanoseconds: 60_000_000_000) })
         var responseCount = 0
         store.resolver = { _, _ in responseCount += 1; return true }
-        let params = singleQuestionParams.replacingOccurrences(of: #""autoResolutionMs":null"#, with: #""autoResolutionMs":1000"#)
+        let params = singleQuestionParams.replacingOccurrences(of: #""autoResolutionMs":null"#, with: #""autoResolutionMs":60000"#)
         let request = try makeRequest(id: "recover", params: params)
         try store.handle(request: request)
         let card = try XCTUnwrap(store.cards.first)
@@ -144,10 +144,66 @@ final class UserInputStoreTests: XCTestCase {
         XCTAssertTrue(store.cards.isEmpty)
     }
 
-    private let singleQuestionParams = #"{"threadId":"t","turnId":"turn","itemId":"item","questions":[{"id":"q","header":"Question","question":"Choose","isOther":false,"isSecret":false,"options":[{"label":"A","description":"First"}]}],"autoResolutionMs":null}"#
+    @MainActor
+    func testRejectsOversizedQuestionStructuresDuplicateLabelsAndInvalidTimeouts() throws {
+        let baseQuestion: [String: Any] = [
+            "id": "q", "header": "Header", "question": "Question",
+            "isOther": false, "isSecret": false,
+            "options": [
+                ["label": "A", "description": "First"],
+                ["label": "B", "description": "Second"],
+            ],
+        ]
+        func params(questions: [[String: Any]], timeout: Any = NSNull()) -> [String: Any] {
+            ["threadId": "t", "turnId": "turn", "itemId": "item",
+             "questions": questions, "autoResolutionMs": timeout]
+        }
+
+        let tooManyQuestions = (0..<4).map { index -> [String: Any] in
+            var question = baseQuestion
+            question["id"] = "q-\(index)"
+            return question
+        }
+        XCTAssertThrowsError(try UserInputCard(request: makeRequest(
+            id: "too-many-questions", paramsObject: params(questions: tooManyQuestions)
+        )))
+
+        var tooManyOptions = baseQuestion
+        tooManyOptions["options"] = (0..<4).map { ["label": "L\($0)", "description": "D"] }
+        XCTAssertThrowsError(try UserInputCard(request: makeRequest(
+            id: "too-many-options", paramsObject: params(questions: [tooManyOptions])
+        )))
+
+        var duplicateLabels = baseQuestion
+        duplicateLabels["options"] = [
+            ["label": "same", "description": "First"],
+            ["label": "same", "description": "Second"],
+        ]
+        XCTAssertThrowsError(try UserInputCard(request: makeRequest(
+            id: "duplicate-labels", paramsObject: params(questions: [duplicateLabels])
+        )))
+
+        var longQuestion = baseQuestion
+        longQuestion["question"] = String(repeating: "x", count: UserInputRequestLimits.maximumQuestionBytes + 1)
+        XCTAssertThrowsError(try UserInputCard(request: makeRequest(
+            id: "long-question", paramsObject: params(questions: [longQuestion])
+        )))
+        XCTAssertThrowsError(try UserInputCard(request: makeRequest(
+            id: "short-timeout", paramsObject: params(questions: [baseQuestion], timeout: 59_999)
+        )))
+        XCTAssertThrowsError(try UserInputCard(request: makeRequest(
+            id: "long-timeout", paramsObject: params(questions: [baseQuestion], timeout: 240_001)
+        )))
+    }
+
+    private let singleQuestionParams = #"{"threadId":"t","turnId":"turn","itemId":"item","questions":[{"id":"q","header":"Question","question":"Choose","isOther":false,"isSecret":false,"options":[{"label":"A","description":"First"},{"label":"B","description":"Second"}]}],"autoResolutionMs":null}"#
 
     private func makeRequest(id: String, params: String) throws -> JSONRPCRequest {
         let paramsObject = try JSONSerialization.jsonObject(with: Data(params.utf8))
+        return try makeRequest(id: id, paramsObject: paramsObject)
+    }
+
+    private func makeRequest(id: String, paramsObject: Any) throws -> JSONRPCRequest {
         let data = try JSONSerialization.data(withJSONObject: [
             "id": id,
             "method": ServerRequestMethod.userInput,

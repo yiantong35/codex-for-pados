@@ -105,6 +105,34 @@ final class McpElicitationTests: XCTestCase {
         XCTAssertEqual(errors["name"], .invalidValue("name"))
     }
 
+    func testFormRejectsExcessiveStructureLongStringsAndDuplicateOptionValues() throws {
+        let fields = Dictionary(uniqueKeysWithValues: (0...McpElicitationLimits.maximumFields).map {
+            ("field-\($0)", ["type": "boolean"] as [String: Any])
+        })
+        XCTAssertThrowsError(try McpElicitationCard(request: makeRequest(
+            id: "too-many-fields", paramsObject: formParams(properties: fields)
+        )))
+
+        let excessiveOptions = (0...McpElicitationLimits.maximumOptionsPerField).map { "option-\($0)" }
+        XCTAssertThrowsError(try McpElicitationCard(request: makeRequest(
+            id: "too-many-options",
+            paramsObject: formParams(properties: ["choice": ["type": "string", "enum": excessiveOptions]])
+        )))
+
+        XCTAssertThrowsError(try McpElicitationCard(request: makeRequest(
+            id: "duplicate-options",
+            paramsObject: formParams(properties: ["choice": ["type": "string", "enum": ["same", "same"]]])
+        )))
+
+        XCTAssertThrowsError(try McpElicitationCard(request: makeRequest(
+            id: "long-title",
+            paramsObject: formParams(properties: [
+                "choice": ["type": "string",
+                           "title": String(repeating: "x", count: McpElicitationLimits.maximumTitleBytes + 1)],
+            ])
+        )))
+    }
+
     @MainActor
     func testStoreDeclineAndDisconnectAreFailClosed() async throws {
         let store = McpElicitationStore()
@@ -142,6 +170,10 @@ final class McpElicitationTests: XCTestCase {
 
     private func makeRequest(id: String, params: String) throws -> JSONRPCRequest {
         let paramsObject = try JSONSerialization.jsonObject(with: Data(params.utf8))
+        return try makeRequest(id: id, paramsObject: paramsObject)
+    }
+
+    private func makeRequest(id: String, paramsObject: Any) throws -> JSONRPCRequest {
         let data = try JSONSerialization.data(withJSONObject: [
             "id": id,
             "method": ServerRequestMethod.mcpElicitation,
@@ -151,6 +183,14 @@ final class McpElicitationTests: XCTestCase {
             throw TestError.notRequest
         }
         return request
+    }
+
+    private func formParams(properties: [String: Any]) -> [String: Any] {
+        [
+            "threadId": "t", "turnId": "turn", "serverName": "forms",
+            "mode": "form", "message": "Configure",
+            "requestedSchema": ["type": "object", "properties": properties, "required": []],
+        ]
     }
 
     private func jsonObject(_ response: McpServerElicitationRequestResponse) throws -> [String: Any] {

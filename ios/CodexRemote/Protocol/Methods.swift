@@ -99,4 +99,15 @@ enum ServerNotificationMethod {
     // 本地 skill 文件变更失效信号（无 payload，收到即重拉 skills/list）。
     // 真实 wire method = "skills/changed"（核实自 ServerNotification.json；非 schema 定义名 SkillsChangedNotification）。
     static let skillsChanged = "skills/changed"
+
+    static let conversationMethods: Set<String> = [
+        itemStarted, itemCompleted, agentMessageDelta, commandOutputDelta,
+        reasoningTextDelta, reasoningSummaryTextDelta, reasoningSummaryPartAdded,
+        fileChangePatchUpdated, turnStarted, turnCompleted, turnDiffUpdated, turnPlanUpdated,
+    ]
+    static let projectMethods: Set<String> = [
+        threadStarted, threadArchived, threadUnarchived, threadDeleted,
+        threadNameUpdated, threadStatusChanged,
+    ]
+    static let environmentMethods: Set<String> = [accountUpdated, accountRateLimitsUpdated]
 }

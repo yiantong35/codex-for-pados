@@ -170,7 +170,7 @@ final class ProjectsStore {
             pollTask = nil
         }
         if broadcastObserver == nil {
-            let stream = await rpc.notifications()
+            let stream = await rpc.notifications(methods: ServerNotificationMethod.projectMethods)
             broadcastObserver = Task { [weak self] in
                 for await n in stream {
                     await MainActor.run { self?.applyBroadcast(n) }

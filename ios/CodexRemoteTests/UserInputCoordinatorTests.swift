@@ -11,7 +11,7 @@ final class UserInputCoordinatorTests: XCTestCase {
         await coordinator.bind(rpc: rpc)
         await rpc.start()
 
-        await mock.feed(#"{"id":"input-1","method":"item/tool/requestUserInput","params":{"threadId":"thread-1","turnId":"turn-1","itemId":"item-1","questions":[{"id":"target","header":"Target","question":"Which?","isOther":false,"isSecret":false,"options":[{"label":"Core","description":"Core target"}]}],"autoResolutionMs":null}}"#)
+        await mock.feed(#"{"id":"input-1","method":"item/tool/requestUserInput","params":{"threadId":"thread-1","turnId":"turn-1","itemId":"item-1","questions":[{"id":"target","header":"Target","question":"Which?","isOther":false,"isSecret":false,"options":[{"label":"Core","description":"Core target"},{"label":"TUI","description":"Terminal UI"}]}],"autoResolutionMs":null}}"#)
         try await waitUntil { !store.cards.isEmpty }
         let card = try XCTUnwrap(store.cards.first)
         let delivered = await store.submit(
