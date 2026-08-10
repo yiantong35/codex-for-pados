@@ -45,6 +45,7 @@
 		29756517ABA6664CC3AA61CA /* RelaySchemeValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDEDD34B93B84FFE3F7BD3B0 /* RelaySchemeValidator.swift */; };
 		2AB2A5D0138489D87E2FDCF9 /* UserInputCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FABBFCB556B1157BD07F8EF4 /* UserInputCardView.swift */; };
 		2BB8545DB64627B5E25B108C /* ConversationScrollAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C238641BD5EEE324CFA65BA /* ConversationScrollAnchorTests.swift */; };
+		2BD6A0A19587462A159BA1A0 /* ConversationOutbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = E37EA1A9975086C18685348F /* ConversationOutbox.swift */; };
 		2D8BF04A246C60A34DEC58C1 /* AccountSettingsSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FED3F0DE30E4B891F51D1B1A /* AccountSettingsSectionView.swift */; };
 		2DFB2CAF97BD2AB649FA006C /* ConnectionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB4E24CD7D089598C083CD03 /* ConnectionStore.swift */; };
 		2E22F5B05273F39AC264E778 /* ProtocolTypesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFD990BEF80BA894D65E3CC8 /* ProtocolTypesTests.swift */; };
@@ -463,6 +464,7 @@
 		E042E2FED70EC1F79BCB177A /* SettingsSectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSectionTests.swift; sourceTree = "<group>"; };
 		E215C9203892AFED56C0141C /* InitializeTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InitializeTypes.swift; sourceTree = "<group>"; };
 		E22F02D4719CC622BA8F6762 /* ShortcutStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutStore.swift; sourceTree = "<group>"; };
+		E37EA1A9975086C18685348F /* ConversationOutbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationOutbox.swift; sourceTree = "<group>"; };
 		E3AEB4319883BB841264EDCE /* UserInputCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserInputCoordinatorTests.swift; sourceTree = "<group>"; };
 		E54927D1B963FE57FC780153 /* RelayTestHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayTestHarness.swift; sourceTree = "<group>"; };
 		E75ED9B66740234D880F0F80 /* SessionIsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionIsolationTests.swift; sourceTree = "<group>"; };
@@ -570,6 +572,7 @@
 				299CE3AF94910F633856C075 /* ApprovalStore.swift */,
 				995486B654B5E062B102534B /* ColumnWidthStore.swift */,
 				EB4E24CD7D089598C083CD03 /* ConnectionStore.swift */,
+				E37EA1A9975086C18685348F /* ConversationOutbox.swift */,
 				3EB7C9E83303FF08058487D8 /* ConversationStore.swift */,
 				EDF45B41996E136FC0ED72F4 /* EnvironmentInspectorModel.swift */,
 				B42F263C5E94D350518B7536 /* EnvironmentStore.swift */,
@@ -1043,6 +1046,7 @@
 				E49F3B1FD0579B617A8365B0 /* ComposerView.swift in Sources */,
 				2DFB2CAF97BD2AB649FA006C /* ConnectionStore.swift in Sources */,
 				A5E3135117192215A58A0725 /* ConversationModels.swift in Sources */,
+				2BD6A0A19587462A159BA1A0 /* ConversationOutbox.swift in Sources */,
 				A0657FFE6724B05B96DEEF24 /* ConversationStore.swift in Sources */,
 				CF8F6B2441D5F2864FF029F2 /* ConversationView.swift in Sources */,
 				07E73B67D096F08A50FB5DEB /* EnvironmentInspectorModel.swift in Sources */,

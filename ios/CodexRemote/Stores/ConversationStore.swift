@@ -17,22 +17,30 @@ final class ConversationStore {
     private var observer: Task<Void, Never>?
     /// #3：按需一次性延迟 flush 任务（非常驻循环）。有 pending 时不重复安排，drain 后清空。
     private var flushTask: Task<Void, Never>?
-    /// D3：乐观回显临时 id 单调序号（同会话内唯一，用于与权威回显对账）。
-    private var optimisticSeq = 0
     /// 统一出站队列：合并原「忙队列 queuedInputs」与「离线队列 pendingOutbound」。二者本质同一件事
     /// 「发不出去先攒，能发时按序逐条发」，仅触发条件不同（忙=turn 占用 / 离线=未 .ready）。合成一条 +
     /// 单一 drain，消除两队列边界组合的 bug。每条入队即乐观回显（带 localId），drain 只 fire 不再回显。
-    private(set) var outbox: [(input: [UserInput], model: String?, effort: ReasoningEffort?, localId: String)] = []
-    /// drain fire 后、turn/started 到达前的并发窗口守卫：置真则 drain 不发下一条，
-    /// 由 turn/started（此后被 isTurnRunning 挡住）或 turn/completed 清零。防「一次 fire 多条」。
-    private var sendInFlight = false
+    private let outbound: ConversationOutbox
+    /// Compatibility/UI view of messages not yet fired. The shared owner also retains the in-flight entry
+    /// internally until the RPC or authoritative clientId confirms it.
+    var outbox: [PendingConversationMessage] { outbound.queuedEntries }
     /// 当前连接是否 .ready 的信号源（装配时由 ConversationView 用 connection.phase 注入）。
     /// 默认 { true }：保持既有单测「无注入即视为在线直发」语义不变。
     var isReady: @MainActor () -> Bool = { true }
 
-    init(rpc: JSONRPCClient, threadId: String) {
+    init(rpc: JSONRPCClient, threadId: String, outbox: ConversationOutbox = ConversationOutbox()) {
         self.rpc = rpc
+        self.outbound = outbox
         self.state = ConversationState(threadId: threadId)
+        outbox.attach(to: rpc)
+        for entry in outbox.entries {
+            let presentation = Self.presentation(for: entry.input)
+            state.items.append(.userMessage(
+                id: entry.localId,
+                text: presentation.text,
+                attachments: presentation.attachments
+            ))
+        }
     }
 
     /// 当前 thread id（供 Task 17 steer/interrupt 用）。
@@ -58,6 +66,9 @@ final class ConversationStore {
                     guard let self else { return }
                     // 仅消费属于本线程的事件（按 params.threadId 过滤，缺省全收）。
                     guard self.belongsToThread(n) else { return }
+                    if let clientId = Self.userMessageClientId(in: n) {
+                        self.outbound.acknowledge(clientId: clientId)
+                    }
                     self.reducer.apply(n, to: &self.state)
                     self.handleOutboxTriggers(n)
                     self.scheduleFlushIfNeeded()   // #3：有脏 delta 才安排一次延迟 flush
@@ -117,7 +128,12 @@ final class ConversationStore {
             guard let result = try? await self.call(RPCMethod.threadResume, params),
                   let dict = result.value as? [String: Any] else { return }
             self.reducer.ingest(resumeResult: dict, to: &self.state)
-            self.drainOutbox()
+            self.acknowledgeOutbox(fromResumeResult: dict)
+            if Self.hasAuthoritativeTurnState(dict) {
+                self.reconcileOutboundAfterAuthoritativeResume()
+            } else {
+                self.drainOutbox()
+            }
         }
     }
 
@@ -160,24 +176,12 @@ final class ConversationStore {
     func send(input: [UserInput], model: String?, effort: ReasoningEffort?) async {
         state.lastSendError = nil
         // D3：乐观回显——发送即在本端插入用户消息，不等服务器广播。
-        optimisticSeq += 1
-        let localId = "local-\(optimisticSeq)"
-        let text = input.compactMap { if case .text(let t) = $0 { return t } else { return nil } }.joined()
-        let attachments = input.compactMap { value -> UserMessageAttachment? in
-            switch value {
-            case .image(let url, _):
-                return UserMessageAttachment(kind: .image, source: url)
-            case .localImage(let path, _):
-                return UserMessageAttachment(kind: .localImage, source: path)
-            case .text:
-                return nil
-            }
-        }
+        let entry = outbound.enqueue(input: input, model: model, effort: effort)
+        let (text, attachments) = Self.presentation(for: input)
         if !text.isEmpty || !attachments.isEmpty {
-            reducer.upsertUserMessage(id: localId, text: text,
+            reducer.upsertUserMessage(id: entry.localId, text: text,
                                       attachments: attachments, to: &state)
         }
-        outbox.append((input, model, effort, localId))
         drainOutbox()
     }
 
@@ -186,20 +190,17 @@ final class ConversationStore {
     /// turn，并发 fire 会被 steer 合并/塌缩或丢弃——故绝不可一次性 fire 多条）。
     /// internal（非 private）供 View（.ready 触发）与测试直接调用。
     func drainOutbox() {
-        guard isReady(), !sendInFlight, !state.isTurnRunning, let next = outbox.first else { return }
-        outbox.removeFirst()
-        sendInFlight = true
+        guard isReady(), !state.isTurnRunning, let next = outbound.beginSending() else { return }
         let params = TurnStartParams(threadId: state.threadId, input: next.input,
+                                     clientUserMessageId: next.clientId,
                                      model: next.model, effort: next.effort, cwd: nil)
-        Task { [weak self] in
+        Task { [self] in
             do {
-                _ = try await self?.call(RPCMethod.turnStart, params)
-                // 成功：sendInFlight 由 turn/started / turn/completed 通知清零。
+                _ = try await call(RPCMethod.turnStart, params)
+                outbound.acknowledge(clientId: next.clientId)
             } catch {
-                guard let self else { return }
-                self.outbox.insert(next, at: 0)   // 原样退回队首（已回显，不重复 upsert）
-                self.sendInFlight = false
-                self.state.lastSendError = "\(error)"
+                outbound.failSending(clientId: next.clientId)
+                state.lastSendError = "\(error)"
             }
         }
     }
@@ -209,9 +210,9 @@ final class ConversationStore {
     private func handleOutboxTriggers(_ n: JSONRPCNotification) {
         switch n.method {
         case ServerNotificationMethod.turnStarted:
-            sendInFlight = false
+            outbound.acknowledgeSending()
         case ServerNotificationMethod.turnCompleted:
-            sendInFlight = false
+            outbound.acknowledgeSending()
             drainOutbox()
         default:
             break
@@ -233,16 +234,21 @@ final class ConversationStore {
         guard let listResult = try? await call(RPCMethod.threadLoadedList, EmptyParams()),
               let list = try? decode(LoadedThreadList.self, from: listResult) else { return }
         // 首页 data 已覆盖当前活跃 thread；翻页（nextCursor）留待需要时再实现。
+        var restoredCurrentThread = false
         for tid in list.data {
             let params = ThreadResumeParams(threadId: tid, model: nil, cwd: nil)
             guard let r = try? await call(RPCMethod.threadResume, params),
                   let dict = r.value as? [String: Any] else { continue }   // no rollout 等单个失败：跳过
-            if tid == state.threadId { reducer.ingest(resumeResult: dict, to: &state) }
+            if tid == state.threadId {
+                reducer.ingest(resumeResult: dict, to: &state)
+                acknowledgeOutbox(fromResumeResult: dict)
+                restoredCurrentThread = Self.hasAuthoritativeTurnState(dict)
+            }
         }
         // #3 权威对账已在上面的 ingest(resumeResult:) 里按 turn.status 权威重置运行态
         // （漏收 turn/completed 时清 activeTurnId/inFlightItemIds → isTurnRunning 转 false）。
         // 此处 drainOutbox 补发断线期间因「假的真」运行态而积压的 send。
-        drainOutbox()
+        if restoredCurrentThread { reconcileOutboundAfterAuthoritativeResume() }
     }
 
     // MARK: - private
@@ -252,6 +258,50 @@ final class ConversationStore {
         guard let p = n.params?.value as? [String: Any],
               let tid = p["threadId"] as? String else { return true }
         return tid == state.threadId
+    }
+
+    private static func presentation(for input: [UserInput]) ->
+        (text: String, attachments: [UserMessageAttachment]) {
+        let text = input.compactMap { if case .text(let value) = $0 { return value } else { return nil } }.joined()
+        let attachments = input.compactMap { value -> UserMessageAttachment? in
+            switch value {
+            case .image(let url, _): return UserMessageAttachment(kind: .image, source: url)
+            case .localImage(let path, _): return UserMessageAttachment(kind: .localImage, source: path)
+            case .text: return nil
+            }
+        }
+        return (text, attachments)
+    }
+
+    private static func userMessageClientId(in notification: JSONRPCNotification) -> String? {
+        guard notification.method == ServerNotificationMethod.itemStarted,
+              let params = notification.params?.value as? [String: Any],
+              let item = params["item"] as? [String: Any],
+              item["type"] as? String == "userMessage" else { return nil }
+        return item["clientId"] as? String
+    }
+
+    private func acknowledgeOutbox(fromResumeResult result: [String: Any]) {
+        let thread = result["thread"] as? [String: Any]
+        let turns = (thread?["turns"] as? [[String: Any]]) ?? (result["turns"] as? [[String: Any]]) ?? []
+        for turn in turns {
+            for item in turn["items"] as? [[String: Any]] ?? [] where item["type"] as? String == "userMessage" {
+                if let clientId = item["clientId"] as? String { outbound.acknowledge(clientId: clientId) }
+            }
+        }
+    }
+
+    private static func hasAuthoritativeTurnState(_ result: [String: Any]) -> Bool {
+        let thread = result["thread"] as? [String: Any]
+        let turns = (thread?["turns"] as? [[String: Any]]) ?? (result["turns"] as? [[String: Any]]) ?? []
+        return turns.last?["status"] != nil
+    }
+
+    /// A successful authoritative resume supersedes the pre-disconnect send window.
+    /// If the restored turn is running, state blocks draining; if it is idle, the next queued item may proceed.
+    func reconcileOutboundAfterAuthoritativeResume() {
+        outbound.reconcileAuthoritativeState()
+        drainOutbox()
     }
 
     /// Encodable 参数 → AnyCodable → rpc.send。桥接模式同 ConnectionStore。

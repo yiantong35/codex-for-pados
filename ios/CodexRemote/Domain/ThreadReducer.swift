@@ -100,6 +100,7 @@ struct ThreadReducer {
                 // D3：流式 userMessage（本端或他端回显）。与乐观项对账，避免重复气泡。
                 reconcileUserMessage(
                     id: id,
+                    clientId: item["clientId"] as? String,
                     text: textFromContent(item["content"]),
                     attachments: attachmentsFromContent(item["content"]),
                     &state
@@ -237,7 +238,7 @@ struct ThreadReducer {
         case "webSearch":
             return .webSearch(id: id,
                               query: item["query"] as? String ?? "",
-                              action: item["action"] as? String ?? "")
+                              action: webSearchAction(item["action"]))
         case "contextCompaction":
             return .contextCompaction(id: id)
         case "imageGeneration":
@@ -272,6 +273,23 @@ struct ThreadReducer {
         if let arr = any as? [[String: Any]] { return textFromContent(arr) }
         if let d = any as? [String: Any] { return textFromContent(d["content"]) }
         return ""
+    }
+
+    private func webSearchAction(_ any: Any?) -> WebSearchAction? {
+        guard let value = any as? [String: Any], let type = value["type"] as? String else { return nil }
+        switch type {
+        case "search":
+            return .search(
+                query: value["query"] as? String,
+                queries: value["queries"] as? [String] ?? []
+            )
+        case "openPage":
+            return .openPage(url: value["url"] as? String)
+        case "findInPage":
+            return .findInPage(url: value["url"] as? String, pattern: value["pattern"] as? String)
+        default:
+            return .other
+        }
     }
 
     /// plan item 文本：优先 text 字段，否则拼接步骤 step。
@@ -358,6 +376,16 @@ struct ThreadReducer {
     private func ingestHistoryItem(_ item: [String: Any], replace: Bool, _ s: inout ConversationState) {
         guard item["id"] is String else { return }
         applySubAgentItem(item, &s)          // 子智能体聚合，与 live 一致（Task 5.2）
+        if item["type"] as? String == "userMessage", let id = item["id"] as? String {
+            reconcileUserMessage(
+                id: id,
+                clientId: item["clientId"] as? String,
+                text: textFromContent(item["content"]),
+                attachments: attachmentsFromContent(item["content"]),
+                &s
+            )
+            return
+        }
         guard let ci = parseItem(item) else { return }
         absorb(ci, replace: replace, &s)     // 终态 turn: last-write-wins；否则 first-write-wins
     }
@@ -402,17 +430,12 @@ struct ThreadReducer {
         upsert(.userMessage(id: id, text: text, attachments: attachments), &s)
     }
 
-    /// D3 对账：权威 userMessage 到达时，若存在内容相同的乐观项（local- 前缀）则替换其 id 为
-    /// 权威 id；否则按权威 id 插入（他端发起场景）。避免重复气泡。
-    private func reconcileUserMessage(id: String, text: String,
+    /// D3 对账：仅用协议回传的 clientId 认领本地乐观项，避免误认领他端相同内容。
+    private func reconcileUserMessage(id: String, clientId: String?, text: String,
                                       attachments: [UserMessageAttachment],
                                       _ s: inout ConversationState) {
-        if let idx = s.items.firstIndex(where: {
-            if case .userMessage(let i, let t, let a) = $0 {
-                return i.hasPrefix("local-") && t == text && a == attachments
-            }
-            return false
-        }) {
+        if let clientId,
+           let idx = s.items.firstIndex(where: { $0.id == "local-\(clientId)" }) {
             s.items[idx] = .userMessage(id: id, text: text, attachments: attachments)
         } else if !s.items.contains(where: { $0.id == id }) {
             s.items.append(.userMessage(id: id, text: text, attachments: attachments))

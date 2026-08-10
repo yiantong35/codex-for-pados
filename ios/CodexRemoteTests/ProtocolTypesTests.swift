@@ -30,6 +30,12 @@ final class ProtocolTypesTests: XCTestCase {
         let s = String(data: try JSONEncoder().encode(p), encoding: .utf8)!
         XCTAssertTrue(s.contains(#""effort":"high""#))
     }
+    func testTurnStartParamsEncodesClientUserMessageId() throws {
+        let p = TurnStartParams(threadId: "t1", input: [.text("hi")],
+                                clientUserMessageId: "client-123", model: nil, effort: nil, cwd: nil)
+        let s = String(data: try JSONEncoder().encode(p), encoding: .utf8)!
+        XCTAssertTrue(s.contains(#""clientUserMessageId":"client-123""#))
+    }
     func testInitializeResponseDecodes() throws {
         let json = #"{"userAgent":"codex","codexHome":"/Users/x/.codex","platformFamily":"unix","platformOs":"macos"}"#
         let r = try JSONDecoder().decode(InitializeResponse.self, from: json.data(using: .utf8)!)

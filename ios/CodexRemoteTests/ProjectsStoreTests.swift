@@ -243,7 +243,7 @@ final class ProjectsStoreTests: XCTestCase {
         let rpc = JSONRPCClient(transport: mock); await mock.setAutoRespond(true); await rpc.start()
         await s.attach(rpc: rpc)
         let n = JSONRPCNotification(method: ServerNotificationMethod.threadStarted,
-            params: AnyCodable(["threadId": "b"]))
+            params: AnyCodable(["thread": ["id": "b"]]))
         await s.handleThreadStarted(n)
         XCTAssertTrue(s.allThreadsSorted.contains { $0.id == "b" }, "未知 thread 应经重拉出现")
     }
@@ -253,8 +253,30 @@ final class ProjectsStoreTests: XCTestCase {
         let s = ProjectsStore()
         s.ingest([ thread("a", cwd: "/repo/x", updatedAt: 1, origin: "o/x", git: true) ])
         let n = JSONRPCNotification(method: ServerNotificationMethod.threadStarted,
-            params: AnyCodable(["threadId": "a", "cwd": "/repo/x", "updatedAt": 9.0]))
+            params: AnyCodable(["thread": ["id": "a", "cwd": "/repo/x", "updatedAt": 9.0]]))
         await s.handleThreadStarted(n)
         XCTAssertEqual(s.allThreadsSorted.filter { $0.id == "a" }.count, 1, "已存在不应重复插入")
+    }
+
+    func test_threadStarted_realPayloadFlowsThroughProductionObserver() async throws {
+        let s = ProjectsStore()
+        let mock = MockTransport()
+        await mock.setThreadListResponse(#"{"data":[{"id":"real","sessionId":"real","preview":"","modelProvider":"openai","createdAt":0,"updatedAt":5,"cwd":"/Volumes/mount","cliVersion":"0.133.0","name":null,"gitInfo":null}],"nextCursor":null,"backwardsCursor":null}"#)
+        await mock.setAutoRespond(true)
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        await s.attach(rpc: rpc)
+
+        await mock.feed(#"{"jsonrpc":"2.0","method":"thread/started","params":{"thread":{"id":"real","cwd":"/Volumes/mount","turns":[]}}}"#)
+        try await waitUntil { s.allThreadsSorted.contains { $0.id == "real" } }
+    }
+
+    private func waitUntil(timeout: TimeInterval = 2.0, _ condition: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("waitUntil timed out")
     }
 }

@@ -42,6 +42,7 @@ enum UserInput: Codable {
 struct TurnStartParams: Codable {
     let threadId: String
     let input: [UserInput]
+    var clientUserMessageId: String? = nil
     var model: String?
     var effort: ReasoningEffort?        // 注意 v2 字段名是 effort，非 reasoningEffort
     var cwd: String?

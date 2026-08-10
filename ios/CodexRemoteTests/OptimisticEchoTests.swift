@@ -27,8 +27,10 @@ final class OptimisticEchoTests: XCTestCase {
         await store.startObserving()
 
         await store.send(input: [.text("hello world")], model: nil, effort: nil)
+        guard let localId = store.state.items.first?.id else { return XCTFail("应有乐观消息") }
+        let clientId = String(localId.dropFirst("local-".count))
         // 服务器回显同一条（权威 id）
-        await mock.feed(#"{"jsonrpc":"2.0","method":"item/started","params":{"threadId":"t1","item":{"id":"srv-1","type":"userMessage","content":[{"type":"text","text":"hello world"}]}}}"#)
+        await mock.feed(#"{"jsonrpc":"2.0","method":"item/started","params":{"threadId":"t1","item":{"id":"srv-1","clientId":"\#(clientId)","type":"userMessage","content":[{"type":"text","text":"hello world"}]}}}"#)
         try await waitUntil {
             store.state.items.contains { if case .userMessage(let id, _, _) = $0 { return id == "srv-1" }; return false }
         }
@@ -52,6 +54,26 @@ final class OptimisticEchoTests: XCTestCase {
         XCTAssertEqual(userMsgs, ["from desktop"], "他端发起的 userMessage 应正常插入")
     }
 
+    func testIdenticalForeignMessageCannotClaimLocalOptimisticEcho() async throws {
+        let mock = MockTransport(); let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "t1")
+        store.isReady = { false }
+        await store.startObserving()
+        await store.send(input: [.text("same")], model: nil, effort: nil)
+        let localClientId = try XCTUnwrap(store.outbox.first?.clientId)
+
+        await mock.feed(#"{"jsonrpc":"2.0","method":"item/started","params":{"threadId":"t1","item":{"id":"foreign","clientId":"another-client","type":"userMessage","content":[{"type":"text","text":"same"}]}}}"#)
+        try await waitUntil { store.state.items.contains { $0.id == "foreign" } }
+        XCTAssertTrue(store.state.items.contains { $0.id == "local-\(localClientId)" })
+        XCTAssertEqual(store.state.items.filter { if case .userMessage = $0 { return true }; return false }.count, 2)
+
+        await mock.feed(#"{"jsonrpc":"2.0","method":"item/started","params":{"threadId":"t1","item":{"id":"local-authoritative","clientId":"\#(localClientId)","type":"userMessage","content":[{"type":"text","text":"same"}]}}}"#)
+        try await waitUntil { store.state.items.contains { $0.id == "local-authoritative" } }
+        XCTAssertFalse(store.state.items.contains { $0.id == "local-\(localClientId)" })
+        XCTAssertTrue(store.state.items.contains { $0.id == "foreign" })
+    }
+
     func testImageOnlyMessageRemainsVisibleAndReconciles() async throws {
         let mock = MockTransport(); let rpc = JSONRPCClient(transport: mock)
         await mock.setAutoRespond(true)
@@ -66,8 +88,10 @@ final class OptimisticEchoTests: XCTestCase {
         }
         XCTAssertEqual(text, "")
         XCTAssertEqual(attachments, [UserMessageAttachment(kind: .image, source: imageURL)])
+        let localId = store.state.items[0].id
+        let clientId = String(localId.dropFirst("local-".count))
 
-        await mock.feed(#"{"jsonrpc":"2.0","method":"item/started","params":{"threadId":"t1","item":{"id":"srv-image","type":"userMessage","content":[{"type":"image","url":"data:image/jpeg;base64,AQID","detail":"high"}]}}}"#)
+        await mock.feed(#"{"jsonrpc":"2.0","method":"item/started","params":{"threadId":"t1","item":{"id":"srv-image","clientId":"\#(clientId)","type":"userMessage","content":[{"type":"image","url":"data:image/jpeg;base64,AQID","detail":"high"}]}}}"#)
         try await waitUntil {
             store.state.items.contains {
                 if case .userMessage(let id, _, _) = $0 { return id == "srv-image" }

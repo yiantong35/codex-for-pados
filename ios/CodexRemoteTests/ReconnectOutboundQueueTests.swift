@@ -3,6 +3,54 @@ import XCTest
 
 @MainActor
 final class ReconnectOutboundQueueTests: XCTestCase {
+    func test_outbox_survives_store_and_rpc_rebuild() async throws {
+        let shared = ConversationOutbox()
+        let firstMock = MockTransport()
+        let firstRPC = JSONRPCClient(transport: firstMock)
+        await firstRPC.start()
+        let first = ConversationStore(rpc: firstRPC, threadId: "t1", outbox: shared)
+        first.isReady = { false }
+
+        await first.send(input: [.text("survive")], model: "gpt-5", effort: .high)
+        let clientId = try XCTUnwrap(first.outbox.first?.clientId)
+
+        let secondMock = MockTransport()
+        await secondMock.setAutoRespond(true)
+        let secondRPC = JSONRPCClient(transport: secondMock)
+        await secondRPC.start()
+        let rebuilt = ConversationStore(rpc: secondRPC, threadId: "t1", outbox: shared)
+        rebuilt.isReady = { true }
+
+        XCTAssertTrue(rebuilt.state.items.contains { $0.id == "local-\(clientId)" })
+        rebuilt.drainOutbox()
+        try await waitUntil { await secondMock.sent.contains { $0.contains("turn/start") } }
+        let sent = await secondMock.sent
+        let request = try XCTUnwrap(sent.first { $0.contains("turn/start") })
+        XCTAssertTrue(request.contains(#""clientUserMessageId":"\#(clientId)""#))
+    }
+
+    func test_authoritative_resume_releases_missing_turnStarted_window() async throws {
+        let mock = MockTransport()
+        await mock.setAutoRespond(true)
+        await mock.setLoadedThreadListResponse(#"{"data":["t1"],"nextCursor":null}"#)
+        await mock.setThreadResumeResponse(#"{"thread":{"id":"t1","turns":[{"id":"done","status":"completed","items":[]}]}}"#)
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "t1")
+        store.isReady = { true }
+
+        await store.send(input: [.text("accepted-before-drop")], model: nil, effort: nil)
+        try await waitUntil { await mock.sent.filter { $0.contains("turn/start") }.count == 1 }
+        await store.send(input: [.text("queued-after-drop")], model: nil, effort: nil)
+        try await Task.sleep(nanoseconds: 80_000_000)
+        let beforeResumeCount = await mock.sent.filter { $0.contains("turn/start") }.count
+        XCTAssertEqual(beforeResumeCount, 1,
+                       "RPC success alone must not open the next send window")
+
+        await store.rejoinRunningThreads()
+        try await waitUntil { await mock.sent.filter { $0.contains("turn/start") }.count == 2 }
+    }
+
     /// 非 .ready：send 3 条 → 全部乐观回显（items 3 条 userMessage），但一条 turn/start 都没发出。
     func test_offline_send_enqueues_and_echoes_without_firing() async throws {
         let mock = MockTransport(); let rpc = JSONRPCClient(transport: mock)
