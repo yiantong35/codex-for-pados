@@ -373,7 +373,8 @@ final class ThreadReducerTests: XCTestCase {
     // D2 核心回归：同一 item dict 经 live 与 history 两路，产出一致的 items。
     func testLiveAndHistoryProduceSameItemForStaticType() {
         let item: [String: Any] = [
-            "id": "W1", "type": "webSearch", "query": "swift enum", "action": "search"
+            "id": "W1", "type": "webSearch", "query": "swift enum",
+            "action": ["type": "search", "query": "swift enum", "queries": ["swift", "enum"]]
         ]
         XCTAssertEqual(liveItems(item).items, historyItems(item).items)
     }
@@ -443,9 +444,11 @@ final class ThreadReducerTests: XCTestCase {
     func testWebSearchParses() {
         guard case .webSearch(_, let query, let action)? =
             ThreadReducer().parseItem([
-                "id": "W1", "type": "webSearch", "query": "swift", "action": "search"
+                "id": "W1", "type": "webSearch", "query": "swift",
+                "action": ["type": "findInPage", "url": "https://example.com/docs", "pattern": "actor"]
             ]) else { return XCTFail("应解析 webSearch") }
-        XCTAssertEqual([query, action], ["swift", "search"])
+        XCTAssertEqual(query, "swift")
+        XCTAssertEqual(action, .findInPage(url: "https://example.com/docs", pattern: "actor"))
     }
 
     // 缺省容错：单字段缺失不丢整条。

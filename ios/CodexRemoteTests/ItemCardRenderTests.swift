@@ -16,7 +16,9 @@ final class ItemCardRenderTests: XCTestCase {
                                         status: "completed", result: "ok", durationMs: 8)).body
         _ = ItemCard(item: .dynamicToolCall(id: "2", namespace: "shell", tool: "exec",
                                             status: "completed", success: true)).body
-        _ = ItemCard(item: .webSearch(id: "3", query: "swift", action: "search")).body
+        _ = ItemCard(item: .webSearch(
+            id: "3", query: "swift", action: .openPage(url: "https://swift.org")
+        )).body
     }
 
     func testEventCardsBodyDoNotCrash() {

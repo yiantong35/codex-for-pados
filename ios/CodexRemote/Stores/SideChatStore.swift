@@ -20,6 +20,7 @@ final class SideChatStore {
     private(set) var startFailed = false
 
     private var rpc: JSONRPCClient?
+    let conversationOutboxes = ConversationOutboxRegistry()
     /// 已开侧聊计数（只增），用于标题 #序号，与 close 无关（关掉不回收序号，避免标题跳变）。
     private var startedCount = 0
 
@@ -61,6 +62,7 @@ final class SideChatStore {
     func close(id: String) {
         guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return }
         sessions.remove(at: idx)
+        conversationOutboxes.remove(threadId: id)
         if selectedId == id {
             selectedId = sessions.first?.id
         }

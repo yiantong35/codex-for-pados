@@ -38,6 +38,7 @@ struct ConversationView: View {
     @Environment(McpElicitationStore.self) private var mcpElicitations
     @Environment(ActiveConversationHolder.self) private var activeConversation
     let threadId: String
+    var outbox: ConversationOutbox? = nil
     /// D1：是否绑定工作区审查状态（写入/清空 ActiveConversationHolder 并注册 resume）。
     /// 中栏主对话传 true（默认）；侧聊实例传 false，完全不碰 holder，隔离审查状态。
     var bindsWorkspaceState: Bool = true
@@ -223,7 +224,7 @@ struct ConversationView: View {
                 s = providedStore
             } else {
                 guard let rpc = connection.rpc else { return }
-                s = ConversationStore(rpc: rpc, threadId: threadId)
+                s = ConversationStore(rpc: rpc, threadId: threadId, outbox: outbox ?? ConversationOutbox())
             }
             // reconnect-resync item 3：注入连接就绪信号，供 send 判定在线/离线分支。
             s.isReady = { [weak connection] in connection?.phase == .ready }

@@ -18,6 +18,26 @@ struct UserMessageAttachment: Equatable {
     let source: String
 }
 
+enum WebSearchAction: Equatable {
+    case search(query: String?, queries: [String])
+    case openPage(url: String?)
+    case findInPage(url: String?, pattern: String?)
+    case other
+
+    var detail: String {
+        switch self {
+        case .search(let query, let queries):
+            return ([query].compactMap { $0 } + queries).joined(separator: ", ")
+        case .openPage(let url):
+            return url ?? ""
+        case .findInPage(let url, let pattern):
+            return [pattern, url].compactMap { $0 }.joined(separator: " · ")
+        case .other:
+            return "other"
+        }
+    }
+}
+
 /// 会话内的一条可渲染项。随流式事件累加（agent 正文 / 命令输出）。
 /// 会话内的一条可渲染项。随流式事件累加（agent 正文 / 命令输出）。
 /// 平铺 18 case：17 种 v2 ThreadItem + unknown 兜底（方案1）。
@@ -33,7 +53,7 @@ enum ConversationItem: Identifiable, Equatable {
                      status: String, result: String, durationMs: Int?)
     case dynamicToolCall(id: String, namespace: String, tool: String,
                          status: String, success: Bool?)
-    case webSearch(id: String, query: String, action: String)
+    case webSearch(id: String, query: String, action: WebSearchAction?)
     case contextCompaction(id: String)
     case imageGeneration(id: String, status: String, revisedPrompt: String, savedPath: String)
     case imageView(id: String, path: String)

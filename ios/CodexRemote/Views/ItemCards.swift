@@ -118,8 +118,8 @@ struct ItemCard: View {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 Text("conv.item.webSearch").font(.caption).foregroundStyle(.secondary)
                 Text(query).font(.callout).lineLimit(2)
-                if !action.isEmpty {
-                    Text("· \(action)").font(.caption).foregroundStyle(.secondary)
+                if let action, !action.detail.isEmpty {
+                    Text("· \(action.detail)").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
             }

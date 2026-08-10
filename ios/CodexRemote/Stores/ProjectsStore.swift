@@ -182,8 +182,12 @@ final class ProjectsStore {
 
     /// 官方广播 → 本地列表更新（删除/归档移除，改名就地改，取消归档重拉）。
     private func applyBroadcast(_ n: JSONRPCNotification) {
-        guard let p = n.params?.value as? [String: Any],
-              let tid = p["threadId"] as? String else { return }
+        guard let p = n.params?.value as? [String: Any] else { return }
+        if n.method == ServerNotificationMethod.threadStarted {
+            Task { await self.handleThreadStarted(n) }
+            return
+        }
+        guard let tid = p["threadId"] as? String else { return }
         switch n.method {
         case ServerNotificationMethod.threadDeleted,
              ServerNotificationMethod.threadArchived:
@@ -193,8 +197,6 @@ final class ProjectsStore {
             renameLocal(tid, to: newName)
         case ServerNotificationMethod.threadUnarchived:
             Task { if let rpc = self.rpc { _ = await self.refreshRecentPage(rpc: rpc) } }
-        case ServerNotificationMethod.threadStarted:
-            Task { await self.handleThreadStarted(n) }
         case ServerNotificationMethod.threadStatusChanged:
             // 用 ThreadStatusChangedNotification 整体解码（去重 params 二次解析）。
             if let data = try? JSONSerialization.data(withJSONObject: p),
@@ -211,7 +213,8 @@ final class ProjectsStore {
     /// 构造完整 ThreadSummary，ingest 依赖 gitInfo/status 分类，故不手拼摘要）。
     func handleThreadStarted(_ n: JSONRPCNotification) async {
         guard let p = n.params?.value as? [String: Any],
-              let tid = p["threadId"] as? String else { return }
+              let thread = p["thread"] as? [String: Any],
+              let tid = thread["id"] as? String else { return }
         if allThreadsSorted.contains(where: { $0.id == tid }) { return }   // 去重
         if let rpc { _ = await refreshRecentPage(rpc: rpc) }               // 最近页重拉让 ingest 归一化
     }

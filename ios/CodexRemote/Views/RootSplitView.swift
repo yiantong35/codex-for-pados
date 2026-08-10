@@ -24,6 +24,7 @@ final class ActiveConversationHolder {
 @MainActor
 final class WorkspaceSessionState {
     var selectedThreadId: String?
+    let conversationOutboxes = ConversationOutboxRegistry()
     let layout: WorkspaceLayoutStore
     var bottomHeight: CGFloat
     var rightPanelTab: RightPanelTab
@@ -293,6 +294,7 @@ struct RootSplitView: View {
         if let id = selectedThreadId {
             ConversationView(
                 threadId: id,
+                outbox: workspaceState.conversationOutboxes.outbox(for: id),
                 onOpenReview: { layout.requestRightPanel(.review) },
                 onOpenFile: { path in openFileInBrowser(path) }
             )
