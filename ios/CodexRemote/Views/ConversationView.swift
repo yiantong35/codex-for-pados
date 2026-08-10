@@ -182,8 +182,9 @@ struct ConversationView: View {
             if bindsWorkspaceState { activeConversation.state = newValue }
         }
         .onChange(of: connection.phase) { _, newPhase in
-            // reconnect-resync item 3：连接迁移到 .ready → drain 出站队列（补发离线期间缓存的输入）。
-            if newPhase == .ready { store?.drainOutbox() }
+            // A reconnect must close the send window before .ready. The registered resume handler
+            // reopens it only after authoritative thread state has been restored.
+            if newPhase != .ready { store?.requireAuthoritativeRecovery() }
         }
         .onDisappear {
             if providedStore == nil { store?.stopObserving() }
@@ -229,9 +230,9 @@ struct ConversationView: View {
             }
             // reconnect-resync item 3：注入连接就绪信号，供 send 判定在线/离线分支。
             s.isReady = { [weak connection] in connection?.phase == .ready }
+            s.requireAuthoritativeRecovery()
             if ownsStore { await s.startObserving() }
             store = s
-            await s.resume()        // session-management：恢复已有会话历史
             defer { if ownsStore { s.stopObserving() } }
             // D2：resume 注册不再受 bindsWorkspaceState 限制——主对话与每个侧聊各自 thread
             // 都需在重连后 rejoin 恢复；改 add/remove 精确配对，.task 结束/取消时注销自己的订阅，

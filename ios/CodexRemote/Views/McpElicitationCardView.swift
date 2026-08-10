@@ -184,7 +184,7 @@ struct McpElicitationCardView: View {
                     .accessibilityHint(Text(field.description ?? ""))
             case .number:
                 TextField("mcpElicitation.value", text: textBinding(field.name))
-                    .textFieldStyle(.roundedBorder).keyboardType(.decimalPad)
+                    .textFieldStyle(.roundedBorder).keyboardType(.numbersAndPunctuation)
                     .accessibilityLabel(Text(field.title))
                     .accessibilityHint(Text(field.description ?? ""))
             case .boolean:

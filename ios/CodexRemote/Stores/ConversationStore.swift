@@ -21,6 +21,11 @@ final class ConversationStore {
     /// 「发不出去先攒，能发时按序逐条发」，仅触发条件不同（忙=turn 占用 / 离线=未 .ready）。合成一条 +
     /// 单一 drain，消除两队列边界组合的 bug。每条入队即乐观回显（带 localId），drain 只 fire 不再回显。
     private let outbound: ConversationOutbox
+    /// A rebuilt or reconnected store must not send against stale turn state. The connection-ready
+    /// handler opens this gate only after thread/resume has supplied an authoritative answer.
+    private var requiresAuthoritativeRecovery = false
+    private var authoritativeRecoveryComplete = true
+    private var recoveryGeneration: UInt64 = 0
     /// Compatibility/UI view of messages not yet fired. The shared owner also retains the in-flight entry
     /// internally until the RPC or authoritative clientId confirms it.
     var outbox: [PendingConversationMessage] { outbound.queuedEntries }
@@ -190,7 +195,10 @@ final class ConversationStore {
     /// turn，并发 fire 会被 steer 合并/塌缩或丢弃——故绝不可一次性 fire 多条）。
     /// internal（非 private）供 View（.ready 触发）与测试直接调用。
     func drainOutbox() {
-        guard isReady(), !state.isTurnRunning, let next = outbound.beginSending() else { return }
+        guard isReady(),
+              (!requiresAuthoritativeRecovery || authoritativeRecoveryComplete),
+              !state.isTurnRunning,
+              let next = outbound.beginSending() else { return }
         let params = TurnStartParams(threadId: state.threadId, input: next.input,
                                      clientUserMessageId: next.clientId,
                                      model: next.model, effort: next.effort, cwd: nil)
@@ -223,6 +231,12 @@ final class ConversationStore {
     /// 不再二次回显、不再二次入队（#2 修复：旧实现经 send() 重发会重复 upsert 用户消息）。
     func retryLastSend() async { drainOutbox() }
 
+    /// Close the send window before a new RPC binding or physical reconnect becomes usable.
+    func requireAuthoritativeRecovery() {
+        requiresAuthoritativeRecovery = true
+        authoritativeRecoveryComplete = false
+    }
+
     /// 重连/连接后经官方权威列表恢复（设计 D3）：
     /// 1) thread/loaded/list 拿当前 app-server 内存中运行的 thread ids（不依赖本地 threadId 作唯一依据）；
     /// 2) 对每个 id thread/resume —— 命中 running thread 时官方按 rejoin 重新加入（不 fork/不新建），
@@ -231,24 +245,38 @@ final class ConversationStore {
     ///    → 用 `try?` 吞掉并跳过，继续处理其余 thread，绝不因单个失败中断整批恢复（spike-findings §5）。
     /// 仅把命中当前 threadId 的 resume 历史灌入本 store 的 state；其余 thread 的订阅副作用仍生效。
     func rejoinRunningThreads() async {
+        requireAuthoritativeRecovery()
+        recoveryGeneration &+= 1
+        let generation = recoveryGeneration
         guard let listResult = try? await call(RPCMethod.threadLoadedList, EmptyParams()),
               let list = try? decode(LoadedThreadList.self, from: listResult) else { return }
         // 首页 data 已覆盖当前活跃 thread；翻页（nextCursor）留待需要时再实现。
-        var restoredCurrentThread = false
-        for tid in list.data {
-            let params = ThreadResumeParams(threadId: tid, model: nil, cwd: nil)
-            guard let r = try? await call(RPCMethod.threadResume, params),
-                  let dict = r.value as? [String: Any] else { continue }   // no rollout 等单个失败：跳过
-            if tid == state.threadId {
+        if !state.threadId.isEmpty {
+            let params = ThreadResumeParams(threadId: state.threadId, model: nil, cwd: nil)
+            do {
+                let result = try await call(RPCMethod.threadResume, params)
+                guard generation == recoveryGeneration,
+                      let dict = result.value as? [String: Any] else { return }
                 reducer.ingest(resumeResult: dict, to: &state)
                 acknowledgeOutbox(fromResumeResult: dict)
-                restoredCurrentThread = Self.hasAuthoritativeTurnState(dict)
+                if Self.resumeHasNoTurns(dict) { markAuthoritativeIdle() }
+                finishAuthoritativeRecovery(generation: generation)
+            } catch {
+                guard generation == recoveryGeneration else { return }
+                guard Self.isNoRollout(error) else { return }
+                markAuthoritativeIdle()
+                finishAuthoritativeRecovery(generation: generation)
             }
+        } else {
+            finishAuthoritativeRecovery(generation: generation)
         }
-        // #3 权威对账已在上面的 ingest(resumeResult:) 里按 turn.status 权威重置运行态
-        // （漏收 turn/completed 时清 activeTurnId/inFlightItemIds → isTurnRunning 转 false）。
-        // 此处 drainOutbox 补发断线期间因「假的真」运行态而积压的 send。
-        if restoredCurrentThread { reconcileOutboundAfterAuthoritativeResume() }
+
+        // Rejoin the remaining loaded threads for their subscription side effect. The current thread
+        // was resumed exactly once above even when a new/no-rollout thread is absent from loaded/list.
+        for tid in list.data where tid != state.threadId {
+            let params = ThreadResumeParams(threadId: tid, model: nil, cwd: nil)
+            _ = try? await call(RPCMethod.threadResume, params)
+        }
     }
 
     // MARK: - private
@@ -295,6 +323,30 @@ final class ConversationStore {
         let thread = result["thread"] as? [String: Any]
         let turns = (thread?["turns"] as? [[String: Any]]) ?? (result["turns"] as? [[String: Any]]) ?? []
         return turns.last?["status"] != nil
+    }
+
+    private static func resumeHasNoTurns(_ result: [String: Any]) -> Bool {
+        let thread = result["thread"] as? [String: Any]
+        let turns = (thread?["turns"] as? [[String: Any]]) ?? (result["turns"] as? [[String: Any]])
+        return turns?.isEmpty == true
+    }
+
+    private static func isNoRollout(_ error: Error) -> Bool {
+        guard let transportError = error as? TransportError,
+              case .proxyFailed(let message) = transportError else { return false }
+        return message.localizedCaseInsensitiveContains("no rollout")
+    }
+
+    private func markAuthoritativeIdle() {
+        state.activeTurnId = nil
+        state.activeTurnKind = nil
+        state.inFlightItemIds.removeAll()
+    }
+
+    private func finishAuthoritativeRecovery(generation: UInt64) {
+        guard generation == recoveryGeneration else { return }
+        authoritativeRecoveryComplete = true
+        reconcileOutboundAfterAuthoritativeResume()
     }
 
     /// A successful authoritative resume supersedes the pre-disconnect send window.

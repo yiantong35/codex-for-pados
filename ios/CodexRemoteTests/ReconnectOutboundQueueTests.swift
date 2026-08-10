@@ -3,6 +3,75 @@ import XCTest
 
 @MainActor
 final class ReconnectOutboundQueueTests: XCTestCase {
+    func test_ready_does_not_drain_before_authoritative_resume() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "t1")
+        store.isReady = { false }
+        await store.send(input: [.text("queued")], model: nil, effort: nil)
+
+        store.requireAuthoritativeRecovery()
+        store.isReady = { true }
+        store.drainOutbox()
+        var sent = await mock.sent
+        XCTAssertFalse(sent.contains { $0.contains(RPCMethod.turnStart) })
+
+        let responder = replyToRecovery(
+            mock,
+            currentThreadId: "t1",
+            resumeResult: #"{"thread":{"id":"t1","turns":[{"id":"remote","status":"inProgress","items":[]}]}}"#
+        )
+        await store.rejoinRunningThreads()
+        responder.cancel()
+
+        XCTAssertTrue(store.state.isTurnRunning)
+        sent = await mock.sent
+        XCTAssertFalse(sent.contains { $0.contains(RPCMethod.turnStart) },
+                       "queued input must remain blocked while the authoritative turn is running")
+    }
+
+    func test_no_rollout_is_authoritative_idle_and_releases_first_message() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "new-thread")
+        store.isReady = { false }
+        await store.send(input: [.text("first")], model: nil, effort: nil)
+        store.isReady = { true }
+
+        let responder = replyToRecovery(mock, currentThreadId: "new-thread", noRollout: true)
+        await store.rejoinRunningThreads()
+        responder.cancel()
+
+        try await waitUntil { await mock.sent.filter { $0.contains(RPCMethod.turnStart) }.count == 1 }
+    }
+
+    func test_overlapping_recovery_generations_send_queue_head_once() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "t1")
+        store.isReady = { false }
+        await store.send(input: [.text("once")], model: nil, effort: nil)
+        store.isReady = { true }
+
+        let responder = replyToRecovery(
+            mock,
+            currentThreadId: "t1",
+            resumeResult: #"{"thread":{"id":"t1","turns":[{"id":"done","status":"completed","items":[]}]}}"#
+        )
+        async let first: Void = store.rejoinRunningThreads()
+        async let second: Void = store.rejoinRunningThreads()
+        _ = await (first, second)
+        responder.cancel()
+
+        try await waitUntil { await mock.sent.contains { $0.contains(RPCMethod.turnStart) } }
+        try await Task.sleep(nanoseconds: 80_000_000)
+        let sent = await mock.sent
+        XCTAssertEqual(sent.filter { $0.contains(RPCMethod.turnStart) }.count, 1)
+    }
+
     func test_outbox_survives_store_and_rpc_rebuild() async throws {
         let shared = ConversationOutbox()
         let firstMock = MockTransport()
@@ -179,5 +248,36 @@ final class ReconnectOutboundQueueTests: XCTestCase {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
         XCTFail("waitUntil timed out")
+    }
+
+    private func replyToRecovery(_ mock: MockTransport,
+                                 currentThreadId: String,
+                                 resumeResult: String = "{}",
+                                 noRollout: Bool = false) -> Task<Void, Never> {
+        Task {
+            var answered = Set<String>()
+            for _ in 0..<500 {
+                if Task.isCancelled { return }
+                for frame in await mock.sent {
+                    guard let object = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any],
+                          let id = object["id"] as? String,
+                          let method = object["method"] as? String,
+                          !answered.contains(id) else { continue }
+                    if method == RPCMethod.threadLoadedList {
+                        answered.insert(id)
+                        await mock.feed(#"{"id":"\#(id)","result":{"data":[],"nextCursor":null}}"#)
+                    } else if method == RPCMethod.threadResume,
+                              (object["params"] as? [String: Any])?["threadId"] as? String == currentThreadId {
+                        answered.insert(id)
+                        if noRollout {
+                            await mock.feed(#"{"id":"\#(id)","error":{"code":-32600,"message":"no rollout found for thread id \#(currentThreadId)"}}"#)
+                        } else {
+                            await mock.feed(#"{"id":"\#(id)","result":\#(resumeResult)}"#)
+                        }
+                    }
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000)
+            }
+        }
     }
 }

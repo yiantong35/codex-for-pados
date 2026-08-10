@@ -134,6 +134,21 @@ final class McpElicitationTests: XCTestCase {
     }
 
     @MainActor
+    func testLocalizedNegativeDecimalIsAcceptedAndSerializedAsNumber() throws {
+        let params = formParams(properties: [
+            "temperature": ["type": "number", "minimum": -10, "maximum": 10],
+        ])
+        let card = try McpElicitationCard(request: makeRequest(id: "localized-number", paramsObject: params))
+
+        let response = try card.accept(
+            drafts: ["temperature": .text("-1,5")],
+            locale: Locale(identifier: "fr_FR")
+        )
+        let content = try XCTUnwrap(try jsonObject(response)["content"] as? [String: Any])
+        XCTAssertEqual(content["temperature"] as? Double, -1.5)
+    }
+
+    @MainActor
     func testStoreDeclineAndDisconnectAreFailClosed() async throws {
         let store = McpElicitationStore()
         var responses: [McpServerElicitationRequestResponse] = []
