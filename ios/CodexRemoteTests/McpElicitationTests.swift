@@ -30,6 +30,13 @@ final class McpElicitationTests: XCTestCase {
         )
     }
 
+    func testURLPresentationAllowsXnTextOutsideHost() throws {
+        let url = try XCTUnwrap(URL(string: "https://example.com/xn--callback?state=xn--token"))
+        let presentation = McpURLPresentation(url: url)
+        XCTAssertNil(presentation.risk)
+        XCTAssertTrue(presentation.isAllowed)
+    }
+
     @MainActor
     func testURLModeDecodesAndBuildsActionsWithoutContent() throws {
         let request = try makeRequest(id: "url-1", params: #"{"threadId":"t","turnId":null,"serverName":"github","mode":"url","message":"Authorize access","url":"https://example.com/auth","elicitationId":"e-1","_meta":{"trace":"x"}}"#)

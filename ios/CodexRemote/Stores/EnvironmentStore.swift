@@ -15,23 +15,47 @@ final class EnvironmentStore {
 
     private var rpc: JSONRPCClient?
     private var observer: Task<Void, Never>?
+    private var attachmentGeneration = 0
+    private var accountRefreshGeneration = 0
 
     /// 注入 rpc：拉初值 + 订阅账户广播。幂等；完整重连换新 rpc 实例时取消旧订阅并对新 rpc
     /// 重订阅（否则 guard observer==nil 挡住重订阅 → 新连接的 account/rateLimits 广播永不刷新）。
     func attach(rpc: JSONRPCClient) async {
         let rpcChanged = self.rpc !== rpc
+        if !rpcChanged, observer != nil { await refreshAll(); return }
+        attachmentGeneration &+= 1
+        let generation = attachmentGeneration
         self.rpc = rpc
-        await refreshAll()
         if rpcChanged { observer?.cancel(); observer = nil }
-        guard observer == nil else { return }
         let stream = await rpc.notifications()
+        guard generation == attachmentGeneration, self.rpc === rpc else { return }
         observer = Task { [weak self] in
-            for await n in stream { await MainActor.run { self?.applyBroadcast(n) } }
+            for await n in stream {
+                guard !Task.isCancelled else { break }
+                let current = await MainActor.run {
+                    guard let self,
+                          self.attachmentGeneration == generation,
+                          self.rpc === rpc else { return false }
+                    self.applyBroadcast(n)
+                    return true
+                }
+                if !current { break }
+            }
         }
+        await refreshAll(using: rpc, generation: generation)
     }
 
     func refreshAll() async {
-        await fetchAccount(); await fetchUsage(); await fetchRateLimits(); await fetchConfig(); await fetchModels()
+        guard let rpc else { return }
+        await refreshAll(using: rpc, generation: attachmentGeneration)
+    }
+
+    private func refreshAll(using rpc: JSONRPCClient, generation: Int) async {
+        await fetchAccount(using: rpc, generation: generation)
+        await fetchUsage(using: rpc, generation: generation)
+        await fetchRateLimits(using: rpc, generation: generation)
+        await fetchConfig(using: rpc, generation: generation)
+        await fetchModels(using: rpc, generation: generation)
     }
 
     // MARK: 广播（internal 供单测）
@@ -43,7 +67,7 @@ final class EnvironmentStore {
         case ServerNotificationMethod.accountUpdated:
             // account/updated payload 为 sparse {authMode, planType}，不含完整 Account；
             // 收到即重拉 account/read（最稳，规避 sparse 合并）。
-            Task { await fetchAccount() }
+            Task { await refreshAccount() }
         case ServerNotificationMethod.accountRateLimitsUpdated:
             if let s = Self.decodeNested(n, key: "rateLimits", as: RateLimitSnapshot.self) { handleRateLimitsUpdated(s) }
         default: break
@@ -64,30 +88,40 @@ final class EnvironmentStore {
     }
 
     // MARK: 私有拉取/写入
-    private func sendDecode<T: Decodable>(_ method: String, as: T.Type) async -> T? {
-        guard let rpc else { return nil }
+    private func sendDecode<T: Decodable>(rpc: JSONRPCClient, _ method: String, as: T.Type) async -> T? {
         let empty = (try? JSONDecoder().decode(AnyCodable.self, from: Data("{}".utf8)))
         guard let res = try? await rpc.send(method: method, params: empty),
               let rd = try? JSONEncoder().encode(res),
               let out = try? JSONDecoder().decode(T.self, from: rd) else { return nil }
         return out
     }
-    private func fetchAccount() async {
-        if let r: GetAccountResponse = await sendDecode(RPCMethod.accountRead, as: GetAccountResponse.self) {
+    private func refreshAccount() async {
+        guard let rpc else { return }
+        await fetchAccount(using: rpc, generation: attachmentGeneration)
+    }
+    private func fetchAccount(using rpc: JSONRPCClient, generation: Int) async {
+        accountRefreshGeneration &+= 1
+        let refresh = accountRefreshGeneration
+        if let r: GetAccountResponse = await sendDecode(rpc: rpc, RPCMethod.accountRead, as: GetAccountResponse.self),
+           generation == attachmentGeneration, refresh == accountRefreshGeneration, self.rpc === rpc {
             account = r.account; requiresOpenaiAuth = r.requiresOpenaiAuth
         }
     }
-    private func fetchUsage() async {
-        if let r: GetAccountTokenUsageResponse = await sendDecode(RPCMethod.accountUsageRead, as: GetAccountTokenUsageResponse.self) { usage = r.summary }
+    private func fetchUsage(using rpc: JSONRPCClient, generation: Int) async {
+        if let r: GetAccountTokenUsageResponse = await sendDecode(rpc: rpc, RPCMethod.accountUsageRead, as: GetAccountTokenUsageResponse.self),
+           generation == attachmentGeneration, self.rpc === rpc { usage = r.summary }
     }
-    private func fetchRateLimits() async {
-        if let r: GetAccountRateLimitsResponse = await sendDecode(RPCMethod.accountRateLimitsRead, as: GetAccountRateLimitsResponse.self) { rateLimits = r.rateLimits }
+    private func fetchRateLimits(using rpc: JSONRPCClient, generation: Int) async {
+        if let r: GetAccountRateLimitsResponse = await sendDecode(rpc: rpc, RPCMethod.accountRateLimitsRead, as: GetAccountRateLimitsResponse.self),
+           generation == attachmentGeneration, self.rpc === rpc { rateLimits = r.rateLimits }
     }
-    private func fetchConfig() async {
-        if let r: ConfigReadResponse = await sendDecode(RPCMethod.configRead, as: ConfigReadResponse.self) { config = r.config }
+    private func fetchConfig(using rpc: JSONRPCClient, generation: Int) async {
+        if let r: ConfigReadResponse = await sendDecode(rpc: rpc, RPCMethod.configRead, as: ConfigReadResponse.self),
+           generation == attachmentGeneration, self.rpc === rpc { config = r.config }
     }
-    private func fetchModels() async {
-        if let r: ModelListResponse = await sendDecode(RPCMethod.modelList, as: ModelListResponse.self) {
+    private func fetchModels(using rpc: JSONRPCClient, generation: Int) async {
+        if let r: ModelListResponse = await sendDecode(rpc: rpc, RPCMethod.modelList, as: ModelListResponse.self),
+           generation == attachmentGeneration, self.rpc === rpc {
             models = r.data.filter { !$0.hidden }   // 隐藏模型过滤
         }
     }
@@ -95,7 +129,7 @@ final class EnvironmentStore {
     private func write(_ p: ConfigValueWriteParams) async {
         guard let rpc, let d = try? JSONEncoder().encode(p), let any = try? JSONDecoder().decode(AnyCodable.self, from: d) else { return }
         _ = try? await rpc.send(method: RPCMethod.configValueWrite, params: any)
-        await fetchConfig()   // 写后重读确认
+        await fetchConfig(using: rpc, generation: attachmentGeneration)   // 写后重读确认
     }
 
     private static func decodeNested<T: Decodable>(_ n: JSONRPCNotification, key: String, as: T.Type) -> T? {

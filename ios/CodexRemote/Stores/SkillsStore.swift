@@ -19,37 +19,61 @@ final class SkillsStore {
 
     private var rpc: JSONRPCClient?
     private var observer: Task<Void, Never>?
+    private var attachmentGeneration = 0
+    private var refreshGeneration = 0
 
     /// 注入 rpc：拉初值 + 订阅 skills/changed。
     /// 同一 rpc 重复 attach 幂等；完整重连换新 rpc 实例时取消旧订阅并对新 rpc 重订阅
     /// （否则新连接的 skills/changed 刷新永久失效）。
     func attach(rpc: JSONRPCClient) async {
         let rpcChanged = self.rpc !== rpc
+        if !rpcChanged, observer != nil { await refresh(); return }
+        attachmentGeneration &+= 1
+        let generation = attachmentGeneration
         self.rpc = rpc
-        await refresh()
         if rpcChanged { observer?.cancel(); observer = nil }
-        guard observer == nil else { return }
         let stream = await rpc.notifications()
+        guard generation == attachmentGeneration, self.rpc === rpc else { return }
         observer = Task { [weak self] in
-            for await n in stream { await MainActor.run { self?.applyBroadcast(n) } }
+            for await n in stream {
+                guard !Task.isCancelled else { break }
+                let current = await MainActor.run {
+                    guard let self,
+                          self.attachmentGeneration == generation,
+                          self.rpc === rpc else { return false }
+                    self.applyBroadcast(n)
+                    return true
+                }
+                if !current { break }
+            }
         }
+        await refresh(using: rpc, generation: generation)
     }
 
     /// 拉取 skills（rpc 为 nil 时不发请求）。首版不传 cwds（D5 fallback：发空参列全局）。
     /// 跨 cwd 打平 + 按 path 去重（避免 SwiftUI List 重复 id 崩溃）。
     func refresh() async {
         guard let rpc else { return }
+        await refresh(using: rpc, generation: attachmentGeneration)
+    }
+
+    private func refresh(using rpc: JSONRPCClient, generation: Int) async {
+        refreshGeneration &+= 1
+        let refresh = refreshGeneration
         loadState = .loading
         do {
             let empty = try JSONDecoder().decode(AnyCodable.self, from: Data("{}".utf8))
             let res = try await rpc.send(method: RPCMethod.skillsList, params: empty)
             let rd = try JSONEncoder().encode(res)
             let out = try JSONDecoder().decode(SkillsListResponse.self, from: rd)
+            guard generation == attachmentGeneration, refresh == refreshGeneration, self.rpc === rpc else { return }
             var seen = Set<String>()
             skills = out.data.flatMap { $0.skills }.filter { seen.insert($0.path).inserted }
             loadState = .loaded
         } catch {
-            loadState = .failed
+            if generation == attachmentGeneration, refresh == refreshGeneration, self.rpc === rpc {
+                loadState = .failed
+            }
         }
     }
 

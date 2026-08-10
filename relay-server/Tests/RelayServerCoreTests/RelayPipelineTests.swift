@@ -115,6 +115,26 @@ private final class LifecycleProbe: ChannelInboundHandler, @unchecked Sendable {
     #expect(limiter.activeConnectionsSnapshot == 0, "关闭后释放，计数归 0")
 }
 
+@Test func offlineBufferOverflowClosesSourceConnection() throws {
+    let rooms = RelayRooms()
+    let limiter = RelayLimiter(maxTotalConnections: 5, maxRooms: 10)
+    let channel = EmbeddedChannel()
+    try channel.pipeline.addHandler(RelayConnectionHandler(
+        rooms: rooms,
+        limiter: limiter,
+        sessionId: "offline-overflow",
+        role: .iPad,
+        maxMessageBytes: 1 << 20
+    )).wait()
+
+    var payload = channel.allocator.buffer(capacity: RelayLimits.maxRoomBufferedBytes + 1)
+    payload.writeRepeatingByte(0x78, count: RelayLimits.maxRoomBufferedBytes + 1)
+    try channel.writeInbound(WebSocketFrame(fin: true, opcode: .text, data: payload))
+
+    #expect(channel.isActive == false, "离线缓存拒绝必须关闭来源连接，使在途 RPC 明确失败")
+    _ = try? channel.finish()
+}
+
 /// 慢 upgrade / 只连不发：pre-upgrade 连接受空闲超时回收（HEAD-ward IdleState 兜底）。
 ///
 /// 说明（NIO 实证）：`IdleStateHandler` 的超时判定用 `NIODeadline.now()`（**真实墙钟**）计算

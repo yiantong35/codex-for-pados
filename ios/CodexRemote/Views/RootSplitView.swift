@@ -59,6 +59,7 @@ struct RootSplitView: View {
 
     /// 每次外部载入列宽（切 tab / 冷启动）自增，驱动 ResizableColumns 用真实总宽重新收敛（修复窄屏恢复溢出）。
     @State private var widthLoadRevision = 0
+    @State private var fileOpenTask: Task<Void, Never>?
     /// 便利初始化：允许注入面板初始展开态（供快照测试覆盖全开布局）。
     init(initialRightOpen: Bool = false, initialBottomOpen: Bool = false,
          workspaceState: WorkspaceSessionState? = nil) {
@@ -135,6 +136,7 @@ struct RootSplitView: View {
         .onChange(of: sessions.activeSessionId) { _, newId in
             loadColumnWidths(for: newId)
         }
+        .onChange(of: selectedThreadId) { _, _ in fileOpenTask?.cancel() }
         .task {
             loadColumnWidths(for: sessions.activeSessionId)
         }
@@ -278,10 +280,13 @@ struct RootSplitView: View {
         layout.requestRightPanel(.files)
         guard connection.phase == .ready, let rpc = connection.rpc else { return }
         let cwd = selectedThread?.cwd
+        let threadId = selectedThreadId
         let resolvedPath = path.hasPrefix("/") ? path : [cwd, path].compactMap { $0 }.joined(separator: "/")
         fileBrowser.attach(rpc: rpc)
-        Task {
+        fileOpenTask?.cancel()
+        fileOpenTask = Task {
             await fileBrowser.setRoot(cwd)
+            guard !Task.isCancelled, selectedThreadId == threadId else { return }
             await fileBrowser.openFile(resolvedPath)
         }
     }

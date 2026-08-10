@@ -121,6 +121,17 @@ struct ReviewPanelTests {
         #expect(files.count == 1)
         #expect(files[0].path == "docs/hello 最.txt")
     }
+    @Test func plusHeaderDisambiguatesPathContainingBDirectory() {
+        let diff = """
+        diff --git a/foo b/bar b/foo b/bar
+        --- a/foo b/bar
+        +++ b/foo b/bar
+        @@ -1 +1 @@
+        -old
+        +new
+        """
+        #expect(UnifiedDiffParser.parse(diff)[0].path == "foo b/bar")
+    }
     @Test func gitDiffMethodAndDecode() throws {
         #expect(RPCMethod.gitDiffToRemote == "gitDiffToRemote")
         let r = try JSONDecoder().decode(GitDiffToRemoteResponse.self,

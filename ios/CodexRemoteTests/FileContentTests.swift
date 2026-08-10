@@ -32,6 +32,13 @@ struct FileContentTests {
         #expect(FileContentDecoder.classify(bytes: png) == .image(png))
     }
 
+    @Test func imageOverUnifiedLimitIsTooLarge() {
+        var png = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        png.append(Data(repeating: 0, count: FileContentDecoder.maxBytes + 1 - png.count))
+        #expect(FileContentDecoder.classify(bytes: png) == .tooLarge)
+        #expect(FileContentDecoder.classify(base64: png.base64EncodedString()) == .tooLarge)
+    }
+
     @Test func exactlyLimitIsText() {
         let data = Data(repeating: 0x61, count: 512 * 1024)
         if case .text = FileContentDecoder.classify(bytes: data) {} else {

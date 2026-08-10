@@ -12,12 +12,11 @@ enum FileContent: Equatable {
 enum FileContentDecoder {
     /// 大小上限：512KB（字节）。
     static let maxBytes = 512 * 1024
-    static let maxImageBytes = 10 * 1024 * 1024
 
     /// 从已解码字节判定内容类别。顺序：过大 → 二进制(NUL/非UTF8) → 文本。
     static func classify(bytes: Data) -> FileContent {
-        if isImage(bytes), bytes.count <= maxImageBytes { return .image(bytes) }
         if bytes.count > maxBytes { return .tooLarge }
+        if isImage(bytes) { return .image(bytes) }
         // NUL 是合法 UTF-8，String(data:.utf8) 不会因它失败，须显式判为二进制。
         if bytes.contains(0x00) { return .binary(bytes) }
         guard let s = String(data: bytes, encoding: .utf8) else { return .binary(bytes) }
@@ -28,8 +27,8 @@ enum FileContentDecoder {
     static func classify(base64: String) -> FileContent {
         guard let decodedByteCount = decodedByteCountIfValid(base64) else { return .binary(Data()) }
         // JSON 解码已经持有 base64 字符串；先用编码长度判限，避免超限文件再产生一份
-        // 最多约为编码体积 3/4 的 Data 峰值。图片允许更高的可检查上限。
-        if decodedByteCount > maxImageBytes { return .tooLarge }
+        // 最多约为编码体积 3/4 的 Data 峰值；所有类型统一执行 512 KiB 规格上限。
+        if decodedByteCount > maxBytes { return .tooLarge }
         guard let data = Data(base64Encoded: base64) else { return .binary(Data()) }
         return classify(bytes: data)
     }

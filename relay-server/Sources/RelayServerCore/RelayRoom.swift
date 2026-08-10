@@ -16,6 +16,12 @@ public final class RelayRooms: @unchecked Sendable {
     /// join 结果:成功返回本连接的 connId(调用方持有,断开时按此精确 leave);
     /// 槽已被占用则拒绝后到。
     public enum JoinResult: Equatable { case joined(UUID); case rejectedRoleOccupied }
+    public enum ForwardResult: Equatable {
+        case delivered
+        case buffered
+        case rejectedBufferFull
+        case rejectedRoomMissing
+    }
 
     /// 每个连接槽独占的串行投递器。frame 在 rooms lock 内排队，在锁外 drain；因此既保持
     /// 缓冲 flush 与实时 frame 的严格顺序，也不会持有房间锁调用外部 sink。
@@ -117,9 +123,10 @@ public final class RelayRooms: @unchecked Sendable {
     /// 把 frame 投给**对端** sink；对端缺席时入有界 FIFO 缓冲（对端 join 后按序 flush）。
     /// 达帧数或字节上限 → reject-newest（O(1) 拒新，保已缓冲前缀因果序）。
     /// 不解析 frame 内容——零知识透传。
-    public func forward(sessionId: String, from: RelayPeer, frame: String) {
+    @discardableResult
+    public func forward(sessionId: String, from: RelayPeer, frame: String) -> ForwardResult {
         lock.lock()
-        guard var room = rooms[sessionId] else { lock.unlock(); return }
+        guard var room = rooms[sessionId] else { lock.unlock(); return .rejectedRoomMissing }
         let target: OrderedDelivery?
         switch from {
         case .iPad:       target = room.dev?.delivery       // iPad 发的投给 dev
@@ -129,7 +136,7 @@ public final class RelayRooms: @unchecked Sendable {
             target.stage(frame)  // 在 rooms lock 内确定全局投递顺序，但不调用外部 sink
             lock.unlock()
             target.drainIfNeeded()
-            return
+            return .delivered
         }
         // 对端缺席 → 有界缓冲（reject-newest）。
         let bytes = frame.utf8.count
@@ -139,16 +146,23 @@ public final class RelayRooms: @unchecked Sendable {
                room.pendingForDevBytes + bytes <= RelayLimits.maxRoomBufferedBytes {
                 room.pendingForDev.append(frame)
                 room.pendingForDevBytes += bytes
-            }   // else: 达上限，丢弃新帧（reject-newest）
+            } else {
+                lock.unlock()
+                return .rejectedBufferFull
+            }
         case .devMachine:   // 投给 iPad，iPad 缺席 → 存 pendingForIpad
             if room.pendingForIpad.count < RelayLimits.maxRoomBufferedFrames &&
                room.pendingForIpadBytes + bytes <= RelayLimits.maxRoomBufferedBytes {
                 room.pendingForIpad.append(frame)
                 room.pendingForIpadBytes += bytes
+            } else {
+                lock.unlock()
+                return .rejectedBufferFull
             }
         }
         rooms[sessionId] = room
         lock.unlock()
+        return .buffered
     }
 
     /// 清除某 role 的槽(连接断开时用)。

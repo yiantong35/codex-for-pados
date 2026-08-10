@@ -61,7 +61,9 @@ actor JSONRPCClient {
         // transport 已关闭：返回一个立即结束的空流，避免新订阅者永久挂起。
         if streamsFinished { return AsyncStream { $0.finish() } }
         let id = UUID()
-        return AsyncStream(bufferingPolicy: .bufferingOldest(deferredRequestLimits.maximumPerOwnerCount)) { cont in
+        // 通知包含 turn/completed、审批 resolved 等不可重建的控制事件，不能复用交互请求的
+        // 24 条保留上限。消费者都必须看到完整有序流；需要压缩时只能在明确可合并的 delta 层做。
+        return AsyncStream(bufferingPolicy: .unbounded) { cont in
             notifContinuations[id] = cont
             cont.onTermination = { [weak self] _ in
                 Task { await self?.removeNotifContinuation(id) }

@@ -126,6 +126,15 @@ private final class LockedFrames: @unchecked Sendable {
     #expect(devRx.allSatisfy { $0 == big })
 }
 
+@Test func oversizedOfflineFrameReturnsExplicitRejection() {
+    let rooms = RelayRooms()
+    rooms.join(sessionId: "s", role: .iPad) { _ in }
+    let oversized = String(repeating: "x", count: RelayLimits.maxRoomBufferedBytes + 1)
+
+    #expect(rooms.forward(sessionId: "s", from: .iPad, frame: oversized) == .rejectedBufferFull)
+    #expect(rooms.forward(sessionId: "missing", from: .iPad, frame: "request") == .rejectedRoomMissing)
+}
+
 // ⑥d：缓冲后两端均离开 → 房间回收，缓冲随之释放；新 join 不再收到陈旧帧。
 @Test func bufferReleasedOnRoomRecycle() {
     let rooms = RelayRooms()

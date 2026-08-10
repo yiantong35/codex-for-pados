@@ -41,11 +41,11 @@ struct McpURLPresentation: Equatable {
         origin = originComponents.string ?? (components?.host ?? url.absoluteString)
 
         let scheme = components?.scheme
-        let rawTarget = url.absoluteString.lowercased()
-        let hostLabels = (components?.host ?? "").lowercased().split(separator: ".")
+        let hostLabels = (url.host(percentEncoded: true) ?? components?.host ?? "")
+            .lowercased().split(separator: ".")
         if scheme == "http" {
             risk = .insecureHTTP
-        } else if hostLabels.contains(where: { $0.hasPrefix("xn--") }) || rawTarget.contains("xn--") {
+        } else if hostLabels.contains(where: { $0.hasPrefix("xn--") }) {
             risk = .punycodeHost
         } else if scheme != "https" || components?.host?.isEmpty != false {
             risk = .unsupportedScheme

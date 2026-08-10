@@ -27,6 +27,29 @@ import Foundation
     }
 }
 
+@Test func stdinWriterIsBoundedAndPreservesOrder() async throws {
+    let bridge = ProxyBridge(codexPath: "/bin/cat", arguments: [], sockPath: "/tmp/unused",
+                             maximumPendingWriteBytes: 64)
+    try bridge.start()
+    let stream = bridge.incoming
+    let received = Task { () -> [String] in
+        var lines: [String] = []
+        for await line in stream {
+            lines.append(line)
+            if lines.count == 3 { break }
+        }
+        return lines
+    }
+
+    #expect(bridge.write("one"))
+    #expect(bridge.write("two"))
+    #expect(bridge.write("three"))
+    #expect(await received.value == ["one", "two", "three"])
+    #expect(!bridge.write(String(repeating: "x", count: 64)))
+    bridge.terminate()
+    bridge.waitForTermination()
+}
+
 /// terminate() 应非阻塞地发起回收，调用方可在 EventLoop 外显式等待子进程被 reap。
 @Test func terminateReapsSpawnedChildNoZombie() throws {
     // 注入 /bin/sleep 300 作无害长驻子进程 stub（arguments 注入点仅测试用，不改生产路径）。
