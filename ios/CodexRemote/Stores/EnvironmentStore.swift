@@ -27,7 +27,7 @@ final class EnvironmentStore {
         let generation = attachmentGeneration
         self.rpc = rpc
         if rpcChanged { observer?.cancel(); observer = nil }
-        let stream = await rpc.notifications()
+        let stream = await rpc.notifications(methods: ServerNotificationMethod.environmentMethods)
         guard generation == attachmentGeneration, self.rpc === rpc else { return }
         observer = Task { [weak self] in
             for await n in stream {

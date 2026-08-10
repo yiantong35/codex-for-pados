@@ -48,7 +48,10 @@ final class ConversationStore {
     /// 旧实现把 `await notifications()` 放进游离 Task，函数同步返回时注册可能尚未完成）。
     func startObserving() async {
         guard observer == nil else { return }
-        let stream = await rpc.notifications()
+        let stream = await rpc.notifications(
+            methods: ServerNotificationMethod.conversationMethods,
+            threadId: state.threadId
+        )
         observer = Task { [weak self] in
             for await n in stream {
                 await MainActor.run {

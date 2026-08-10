@@ -45,7 +45,7 @@ final class TerminalSession {
             invalidateExecution()   // ② stale 复位
         }
         guard observer == nil else { return }
-        let stream = await rpc.notifications()
+        let stream = await rpc.notifications(methods: [ServerNotificationMethod.commandExecOutputDelta])
         observer = Task { [weak self] in
             for await n in stream { await MainActor.run { self?.applyBroadcast(n) } }
         }

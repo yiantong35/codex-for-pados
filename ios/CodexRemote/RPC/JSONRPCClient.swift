@@ -36,7 +36,21 @@ actor JSONRPCClient {
     /// 多播：每个 notifications() 调用方拿到**独立**的 AsyncStream，actor 内部维护其
     /// continuation；收到一条通知 yield 给所有订阅者。修复「单消费者流被三处抢占、
     /// 事件被瓜分」导致的对话流滞后 bug。serverRequests 同理多播。
-    private var notifContinuations: [UUID: AsyncStream<JSONRPCNotification>.Continuation] = [:]
+    private struct NotificationSubscriber {
+        let methods: Set<String>?
+        let threadId: String?
+        let continuation: AsyncStream<JSONRPCNotification>.Continuation
+
+        func matches(_ notification: JSONRPCNotification) -> Bool {
+            if let methods, !methods.contains(notification.method) { return false }
+            guard let threadId else { return true }
+            guard let params = notification.params?.value as? [String: Any] else { return true }
+            let notificationThreadId = params["threadId"] as? String
+                ?? (params["thread"] as? [String: Any])?["id"] as? String
+            return notificationThreadId == nil || notificationThreadId == threadId
+        }
+    }
+    private var notificationSubscribers: [UUID: NotificationSubscriber] = [:]
     private var serverRequestContinuations: [
         ServerRequestOwner: [UUID: AsyncStream<JSONRPCRequest>.Continuation]
     ] = [:]
@@ -57,14 +71,19 @@ actor JSONRPCClient {
 
     /// 对外通知流（item/turn/thread 等 server notification）。
     /// 多播：每个调用方独立订阅，收到的事件互不抢占（对话归约 / 断线探测各拿一份）。
-    func notifications() -> AsyncStream<JSONRPCNotification> {
+    func notifications(methods: Set<String>? = nil,
+                       threadId: String? = nil) -> AsyncStream<JSONRPCNotification> {
         // transport 已关闭：返回一个立即结束的空流，避免新订阅者永久挂起。
         if streamsFinished { return AsyncStream { $0.finish() } }
         let id = UUID()
         // 通知包含 turn/completed、审批 resolved 等不可重建的控制事件，不能复用交互请求的
         // 24 条保留上限。消费者都必须看到完整有序流；需要压缩时只能在明确可合并的 delta 层做。
         return AsyncStream(bufferingPolicy: .unbounded) { cont in
-            notifContinuations[id] = cont
+            notificationSubscribers[id] = NotificationSubscriber(
+                methods: methods,
+                threadId: threadId,
+                continuation: cont
+            )
             cont.onTermination = { [weak self] _ in
                 Task { await self?.removeNotifContinuation(id) }
             }
@@ -92,12 +111,12 @@ actor JSONRPCClient {
 
 #if DEBUG
     /// 测试支持：当前存活的 notifications() 订阅数。用于回归锁「切对话不累积正文订阅」（D2）。
-    func liveNotificationSubscriberCount() -> Int { notifContinuations.count }
+    func liveNotificationSubscriberCount() -> Int { notificationSubscribers.count }
     func deferredServerRequestCount() -> Int { deferredServerRequests.count }
     func deferredServerRequestBytes() -> Int { deferredServerRequestTotalBytes }
 #endif
 
-    private func removeNotifContinuation(_ id: UUID) { notifContinuations[id] = nil }
+    private func removeNotifContinuation(_ id: UUID) { notificationSubscribers[id] = nil }
     private func removeServerRequestContinuation(_ id: UUID, owner: ServerRequestOwner) {
         serverRequestContinuations[owner]?[id] = nil
         if serverRequestContinuations[owner]?.isEmpty == true {
@@ -127,8 +146,8 @@ actor JSONRPCClient {
     private func finishStreams() {
         streamsFinished = true
         clearDeferredServerRequests()
-        for c in notifContinuations.values { c.finish() }
-        notifContinuations.removeAll()
+        for subscriber in notificationSubscribers.values { subscriber.continuation.finish() }
+        notificationSubscribers.removeAll()
         for ownerContinuations in serverRequestContinuations.values {
             for c in ownerContinuations.values { c.finish() }
         }
@@ -222,7 +241,9 @@ actor JSONRPCClient {
             pending.removeValue(forKey: e.id)?
                 .resume(throwing: TransportError.proxyFailed(e.error.message))
         case .notification(let n):
-            for c in notifContinuations.values { c.yield(n) }
+            for subscriber in notificationSubscribers.values where subscriber.matches(n) {
+                subscriber.continuation.yield(n)
+            }
         case .request(let req):
             guard deferredServerRequests[req.id] == nil else { return }
             switch ServerRequestRouter.outcome(for: req.method) {
