@@ -38,6 +38,8 @@ struct ReviewPanelTests {
         """
         let files = UnifiedDiffParser.parse(diff)
         #expect(files.map(\.path) == ["a.txt", "b.txt"])
+        #expect(files[0].rawDiff.hasSuffix("\n"))
+        #expect(files[0].rawDiff + files[1].rawDiff == diff)
     }
     @Test func parseAddDeleteFile() {
         let add = """
@@ -71,6 +73,24 @@ struct ReviewPanelTests {
         Binary files a/img.png and b/img.png differ
         """
         #expect(UnifiedDiffParser.parse(bin)[0].kind == .binary)
+    }
+    @Test func preservesExactPerFileUnifiedDiffForFullContent() {
+        let diff = """
+        diff --git a/old.txt b/new.txt
+        similarity index 80%
+        rename from old.txt
+        rename to new.txt
+        --- a/old.txt
+        +++ b/new.txt
+        @@ -2,2 +20,2 @@ section
+        -old
+        +new
+        \\ No newline at end of file
+        """
+        let file = UnifiedDiffParser.parse(diff)[0]
+        #expect(file.rawDiff == diff)
+        #expect(file.rawDiff.contains("@@ -2,2 +20,2 @@ section"))
+        #expect(file.rawDiff.contains("\\ No newline at end of file"))
     }
     @Test func parseLineNumbers() {
         let diff = """

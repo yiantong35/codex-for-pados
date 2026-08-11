@@ -3,6 +3,11 @@ import Foundation
 @testable import CodexRemote
 
 @MainActor
+private final class SideChatThreadStatusStub {
+    var values: [String: ThreadStatus] = [:]
+}
+
+@MainActor
 struct SideChatStoreTests {
 
     private func makeStore() async -> (MockTransport, JSONRPCClient, SideChatStore) {
@@ -222,6 +227,53 @@ struct SideChatStoreTests {
         #expect(store.sessions.map(\.id) == [id])
         #expect(store.selectedId == id)
         #expect(store.conversationStore(for: id) === conversation)
+    }
+
+    @Test func hiddenRunningSessionRequiresInterruptBeforeClose() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let status = SideChatThreadStatusStub()
+        let store = SideChatStore(threadStatus: { status.values[$0] })
+        store.attach(rpc: rpc)
+        let responder = respondFork(mock)
+        await store.start(fromThreadId: "main-1")
+        await store.start(fromThreadId: "main-1")
+        responder.cancel()
+        status.values["fork-1"] = .active(activeFlags: [])
+        #expect(store.selectedId == "fork-2")
+
+        #expect(await store.close(id: "fork-1") == .requiresInterrupt)
+        #expect(store.sessions.map(\.id).contains("fork-1"))
+
+        await mock.setAutoRespond(true)
+        #expect(await store.close(id: "fork-1", interruptIfRunning: true) == .closed)
+        let interrupts = await mock.sent.filter { $0.contains(RPCMethod.turnInterrupt) }
+        #expect(interrupts.contains { $0.contains(#""threadId":"fork-1""#) })
+    }
+
+    @Test func resetInterruptsVisibleAndHiddenRunningSessions() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let status = SideChatThreadStatusStub()
+        let store = SideChatStore(threadStatus: { status.values[$0] })
+        store.attach(rpc: rpc)
+        let responder = respondFork(mock)
+        await store.start(fromThreadId: "main-1")
+        await store.start(fromThreadId: "main-1")
+        responder.cancel()
+        status.values["fork-1"] = .active(activeFlags: [])
+        status.values["fork-2"] = .active(activeFlags: [.waitingOnApproval])
+        await mock.setAutoRespond(true)
+
+        await store.reset().value
+
+        #expect(store.sessions.isEmpty)
+        let interrupts = await mock.sent.filter { $0.contains(RPCMethod.turnInterrupt) }
+        #expect(interrupts.count == 2)
+        #expect(interrupts.contains { $0.contains(#""threadId":"fork-1""#) })
+        #expect(interrupts.contains { $0.contains(#""threadId":"fork-2""#) })
     }
 
     @Test func closeClearsThreadOutbox() async throws {

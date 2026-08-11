@@ -82,13 +82,7 @@ struct ReviewPanelView: View {
     }
 
     static func fullText(for file: DiffFile) -> String {
-        file.hunks.flatMap(\.lines).map { line in
-            switch line.kind {
-            case .add: return "+" + line.text
-            case .del: return "-" + line.text
-            case .context: return " " + line.text
-            }
-        }.joined(separator: "\n")
+        file.rawDiff
     }
 
     private func diffLineRow(_ line: DiffLine) -> some View {

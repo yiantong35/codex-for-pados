@@ -31,6 +31,8 @@ enum SideChatCloseResult: Equatable {
 @Observable
 @MainActor
 final class SideChatStore {
+    typealias ThreadStatusProvider = @MainActor (String) -> ThreadStatus?
+
     private(set) var sessions: [SideChatSession] = []
     var selectedId: String? {
         didSet {
@@ -44,6 +46,7 @@ final class SideChatStore {
     private var rpc: JSONRPCClient?
     let conversationOutboxes: ConversationOutboxRegistry
     @ObservationIgnored private let draftStore: ComposerDraftStore?
+    @ObservationIgnored private let threadStatus: ThreadStatusProvider
     private var rpcIdentity: ObjectIdentifier?
     private var visibleStore: ConversationStore?
     private var visibleStoreThreadId: String?
@@ -51,9 +54,11 @@ final class SideChatStore {
     private var startedCount = 0
 
     init(draftStore: ComposerDraftStore? = nil,
-         conversationOutboxes: ConversationOutboxRegistry = ConversationOutboxRegistry()) {
+         conversationOutboxes: ConversationOutboxRegistry = ConversationOutboxRegistry(),
+         threadStatus: @escaping ThreadStatusProvider = { _ in nil }) {
         self.draftStore = draftStore
         self.conversationOutboxes = conversationOutboxes
+        self.threadStatus = threadStatus
     }
 
     /// 注入共享 rpc（幂等）。重连时保留 metadata；可见 ConversationView 会按新 rpc identity 重建。
@@ -84,7 +89,9 @@ final class SideChatStore {
     }
 
     func isRunning(id: String) -> Bool {
-        visibleStoreThreadId == id && visibleStore?.state.isTurnRunning == true
+        if visibleStoreThreadId == id, visibleStore?.state.isTurnRunning == true { return true }
+        if case .active = threadStatus(id) { return true }
+        return false
     }
 
     /// 从主对话 fork 一个 ephemeral 侧聊。无 rpc / 无主对话 threadId → 直接返回，不发请求。
@@ -115,20 +122,25 @@ final class SideChatStore {
         selectedId = session.id
     }
 
-    func reset() {
-        let store = visibleStore
+    @discardableResult
+    func reset() -> Task<Void, Never> {
+        let activeThreadIds = sessions.map(\.id).filter { isRunning(id: $0) }
+        let rpc = self.rpc
         sessions.forEach {
             draftStore?.removeDraft(for: $0.id)
             conversationOutboxes.remove(threadId: $0.id)
         }
+        visibleStore?.stopObserving()
         visibleStore = nil
         visibleStoreThreadId = nil
         sessions.removeAll()
         selectedId = nil
         startFailed = false
-        Task {
-            if let store, store.state.isTurnRunning { await store.interrupt() }
-            store?.stopObserving()
+        return Task {
+            guard let rpc else { return }
+            for threadId in activeThreadIds {
+                _ = await Self.interrupt(threadId: threadId, rpc: rpc)
+            }
         }
     }
 
@@ -136,11 +148,13 @@ final class SideChatStore {
     @discardableResult
     func close(id: String, interruptIfRunning: Bool = false) async -> SideChatCloseResult {
         guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return .closed }
-        if visibleStoreThreadId == id, let conversation = visibleStore {
-            if conversation.state.isTurnRunning {
-                guard interruptIfRunning else { return .requiresInterrupt }
-                guard await conversation.interrupt() else { return .interruptFailed }
+        if isRunning(id: id) {
+            guard interruptIfRunning else { return .requiresInterrupt }
+            guard let rpc, await Self.interrupt(threadId: id, rpc: rpc) else {
+                return .interruptFailed
             }
+        }
+        if visibleStoreThreadId == id, let conversation = visibleStore {
             conversation.stopObserving()
             visibleStore = nil
             visibleStoreThreadId = nil
@@ -158,6 +172,17 @@ final class SideChatStore {
         visibleStore?.stopObserving()
         visibleStore = nil
         visibleStoreThreadId = nil
+    }
+
+    private static func interrupt(threadId: String, rpc: JSONRPCClient) async -> Bool {
+        guard let data = try? JSONEncoder().encode(TurnInterruptParams(threadId: threadId)),
+              let params = try? JSONDecoder().decode(AnyCodable.self, from: data) else { return false }
+        do {
+            _ = try await rpc.send(method: RPCMethod.turnInterrupt, params: params)
+            return true
+        } catch {
+            return false
+        }
     }
 
     func rename(id: String, title: String) {

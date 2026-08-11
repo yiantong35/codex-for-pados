@@ -78,6 +78,8 @@ struct ThreadReducer {
             } else {
                 state.activeTurnKind = nil
             }
+            state.turnDiff = ""
+            state.plan = []
 
         case ServerNotificationMethod.turnCompleted:
             state.activeTurnId = nil
@@ -347,9 +349,48 @@ struct ThreadReducer {
             let items = turn["items"] as? [[String: Any]] ?? []
             for item in items { ingestHistoryItem(item, replace: terminal, &state) }
         }
+        restoreLatestTurnDerivedState(turns.last, &state)
         // 以最近一个 turn 的 status 权威重置运行态：漏收 turn/completed 时解除
         // 「isTurnRunning 永真 → outbox 永久阻塞」。无 status 字段（历史摄入）不动运行态。
         if let last = turns.last { applyResumeTurnState(last, &state) }
+    }
+
+    private func restoreLatestTurnDerivedState(_ turn: [String: Any]?, _ state: inout ConversationState) {
+        guard let items = turn?["items"] as? [[String: Any]] else {
+            state.turnDiff = ""
+            state.plan = []
+            return
+        }
+        state.turnDiff = items
+            .filter { $0["type"] as? String == "fileChange" }
+            .flatMap { $0["changes"] as? [[String: Any]] ?? [] }
+            .compactMap { $0["diff"] as? String }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        state.plan = items.last(where: { $0["type"] as? String == "plan" })
+            .map(planSteps(from:)) ?? []
+    }
+
+    private func planSteps(from item: [String: Any]) -> [TurnPlanStep] {
+        if let entries = (item["plan"] as? [[String: Any]]) ?? (item["steps"] as? [[String: Any]]),
+           !entries.isEmpty {
+            return entries.map {
+                TurnPlanStep(step: $0["step"] as? String ?? "",
+                             status: TurnPlanStepStatus.from(any: $0["status"]))
+            }
+        }
+        let text = planText(from: item)
+        return text.split(separator: "\n", omittingEmptySubsequences: true).map { raw in
+            var step = raw.trimmingCharacters(in: .whitespaces)
+            let completed = step.hasPrefix("- [x] ") || step.hasPrefix("- [X] ")
+                || step.hasPrefix("[x] ") || step.hasPrefix("[X] ")
+            for prefix in ["- [x] ", "- [X] ", "- [ ] ", "[x] ", "[X] ", "[ ] ", "- ", "* "]
+                where step.hasPrefix(prefix) {
+                step.removeFirst(prefix.count)
+                break
+            }
+            return TurnPlanStep(step: step, status: completed ? .completed : .pending)
+        }
     }
 
     /// 只有明确的 inProgress 是非终态；未知未来状态必须 fail-closed，不能卡住 outbox。

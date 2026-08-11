@@ -205,6 +205,7 @@ final class ConversationOutbox {
 
     func reconcileAuthoritativeState() {
         sendingClientId = nil
+        failedClientId = nil
     }
 
     func removeAll() {

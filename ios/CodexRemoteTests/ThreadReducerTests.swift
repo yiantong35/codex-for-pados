@@ -52,6 +52,20 @@ final class ThreadReducerTests: XCTestCase {
         XCTAssertTrue(state.isTurnRunning)
     }
 
+    func testTurnStartedClearsPreviousTurnDiffAndPlan() {
+        var state = ConversationState(threadId: "t")
+        state.turnDiff = "old diff"
+        state.plan = [TurnPlanStep(step: "old", status: .completed)]
+
+        ThreadReducer().apply(
+            notif("turn/started", ["turn": ["id": "T10", "status": "inProgress"]]),
+            to: &state
+        )
+
+        XCTAssertEqual(state.turnDiff, "")
+        XCTAssertEqual(state.plan, [])
+    }
+
     func testCommandOutputDeltaAppends() throws {
         var state = ConversationState(threadId: "t")
         let reducer = ThreadReducer()
@@ -287,6 +301,31 @@ final class ThreadReducerTests: XCTestCase {
         reducer.apply(notif("turn/plan/updated", ["plan": [["step": "新", "status": "completed"]]]), to: &state)
         // plan 是整体快照，后到的覆盖先到的（不累加）
         XCTAssertEqual(state.plan, [TurnPlanStep(step: "新", status: .completed)])
+    }
+
+    func testResumeRebuildsDiffAndPlanFromLatestAuthoritativeTurn() {
+        let latestDiff = "diff --git a/new.swift b/new.swift\n@@ -1 +1 @@\n-old\n+new"
+        var state = ConversationState(threadId: "t")
+        state.turnDiff = "stale"
+        state.plan = [TurnPlanStep(step: "stale", status: .inProgress)]
+
+        ThreadReducer().ingest(resumeResult: ["thread": ["turns": [
+            ["id": "old", "status": "completed", "items": [[
+                "id": "old-file", "type": "fileChange",
+                "changes": [["path": "old.swift", "diff": "old diff"]],
+            ]]],
+            ["id": "latest", "status": "completed", "items": [
+                ["id": "new-file", "type": "fileChange",
+                 "changes": [["path": "new.swift", "diff": latestDiff]]],
+                ["id": "plan", "type": "plan", "text": "- [x] inspect\n- [ ] test"],
+            ]],
+        ]]], to: &state)
+
+        XCTAssertEqual(state.turnDiff, latestDiff)
+        XCTAssertEqual(state.plan, [
+            TurnPlanStep(step: "inspect", status: .completed),
+            TurnPlanStep(step: "test", status: .pending),
+        ])
     }
 
     // MARK: - Task 2: ConversationState.turnDiff 字段

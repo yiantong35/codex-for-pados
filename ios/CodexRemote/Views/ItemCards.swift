@@ -544,7 +544,7 @@ struct MarkdownBlock: Identifiable, Equatable {
         var blocks: [MarkdownBlock] = []
         var paragraph: [String] = []
         var code: [String] = []
-        var inCode = false
+        var fence: (character: Character, length: Int)?
         var cursor = source.startIndex
         var processedLines = 0
 
@@ -570,18 +570,21 @@ struct MarkdownBlock: Identifiable, Equatable {
                 cursor = source.endIndex
             }
             processedLines += 1
-            if line.hasPrefix("```") {
-                if inCode {
+            if let activeFence = fence {
+                if isClosingFence(line, matching: activeFence) {
                     append(.code(code.joined(separator: "\n")))
                     code.removeAll(keepingCapacity: true)
-                    inCode = false
+                    fence = nil
                 } else {
-                    flushParagraph()
-                    inCode = true
+                    code.append(line)
                 }
                 continue
             }
-            if inCode { code.append(line); continue }
+            if let openingFence = openingFence(in: line) {
+                flushParagraph()
+                fence = openingFence
+                continue
+            }
             if line.isEmpty { flushParagraph(); continue }
 
             let hashes = line.prefix { $0 == "#" }.count
@@ -603,7 +606,7 @@ struct MarkdownBlock: Identifiable, Equatable {
                 paragraph.append(line)
             }
         }
-        if inCode { append(.code(code.joined(separator: "\n"))) }
+        if fence != nil { append(.code(code.joined(separator: "\n"))) }
         flushParagraph()
         return MarkdownPresentation(
             blocks: blocks,
@@ -613,6 +616,29 @@ struct MarkdownBlock: Identifiable, Equatable {
                 || processedLines >= maximumInlineLines && cursor < source.endIndex
                 || blocks.count >= maximumInlineBlocks && cursor < source.endIndex
         )
+    }
+
+    private static func openingFence(in line: String) -> (character: Character, length: Int)? {
+        let content = line.drop(while: { $0 == " " })
+        guard line.count - content.count <= 3,
+              let character = content.first,
+              character == "`" || character == "~" else { return nil }
+        let length = content.prefix { $0 == character }.count
+        guard length >= 3 else { return nil }
+        let info = content.dropFirst(length)
+        if character == "`", info.contains("`") { return nil }
+        return (character, length)
+    }
+
+    private static func isClosingFence(
+        _ line: String,
+        matching fence: (character: Character, length: Int)
+    ) -> Bool {
+        let content = line.drop(while: { $0 == " " })
+        guard line.count - content.count <= 3 else { return false }
+        let length = content.prefix { $0 == fence.character }.count
+        return length >= fence.length
+            && content.dropFirst(length).allSatisfy { $0 == " " || $0 == "\t" }
     }
 }
 
