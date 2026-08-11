@@ -18,6 +18,8 @@ final class ConversationSendTests: XCTestCase {
 
         try await waitUntil { store.state.lastSendError != nil }
         XCTAssertNotNil(store.state.lastSendError, "发送失败应置 lastSendError")
+        XCTAssertFalse(store.state.lastSendError?.contains("channelClosed") == true)
+        XCTAssertFalse(store.state.lastSendError?.contains("boom") == true)
         XCTAssertFalse(store.state.isTurnRunning, "发送失败不应显示生成中")
     }
 

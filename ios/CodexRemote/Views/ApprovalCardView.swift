@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 多选项审批卡（设计 §6）：内联在中栏对话流中，展示命令/diff 明细 +
 /// ① 批准 ② 批准且本会话此前缀不再询问（仅命令审批且有前缀建议时）③ 拒绝。
@@ -110,27 +111,7 @@ struct ApprovalCardView: View {
     private func approvalText(_ text: String,
                               previewLines: Int,
                               expanded: Binding<Bool>) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ScrollView {
-                Text(text)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .lineLimit(expanded.wrappedValue ? nil : previewLines)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(maxHeight: expanded.wrappedValue ? 320 : nil)
-
-            Button {
-                withAnimation { expanded.wrappedValue.toggle() }
-            } label: {
-                Label(expanded.wrappedValue ? "approval.showLess" : "approval.showAll",
-                      systemImage: expanded.wrappedValue ? "chevron.up" : "chevron.down")
-                    .font(.caption)
-            }
-            .buttonStyle(.plain)
-            .minimumHitTarget44()
-        }
+        ExpandableApprovalText(text: text, previewLines: previewLines, expanded: expanded)
     }
 
     @ViewBuilder
@@ -192,5 +173,70 @@ struct ApprovalCardView: View {
 
     static func legacyPermissionPaths(card: ApprovalCard) -> [String] {
         card.requestedFileSystem ?? []
+    }
+
+    static func needsTextExpansion(_ text: String,
+                                   availableWidth: CGFloat,
+                                   previewLines: Int) -> Bool {
+        guard availableWidth > 0, previewLines > 0 else { return false }
+        let font = UIFont.monospacedSystemFont(
+            ofSize: UIFont.preferredFont(forTextStyle: .caption1).pointSize,
+            weight: .regular
+        )
+        let bounds = (text as NSString).boundingRect(
+            with: CGSize(width: availableWidth, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font],
+            context: nil
+        )
+        return bounds.height > font.lineHeight * CGFloat(previewLines) + 1
+    }
+}
+
+private struct ExpandableApprovalText: View {
+    let text: String
+    let previewLines: Int
+    @Binding var expanded: Bool
+    @State private var availableWidth: CGFloat = 0
+
+    private var needsExpansion: Bool {
+        ApprovalCardView.needsTextExpansion(
+            text,
+            availableWidth: availableWidth,
+            previewLines: previewLines
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ScrollView {
+                Text(verbatim: text)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .lineLimit(expanded ? nil : previewLines)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear
+                                .onAppear { availableWidth = proxy.size.width }
+                                .onChange(of: proxy.size.width) { _, width in availableWidth = width }
+                        }
+                    }
+            }
+            .frame(maxHeight: expanded ? 320 : nil)
+
+            if needsExpansion {
+                Button {
+                    withAnimation { expanded.toggle() }
+                } label: {
+                    Label(expanded ? "approval.showLess" : "approval.showAll",
+                          systemImage: expanded ? "chevron.up" : "chevron.down")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .minimumHitTarget44()
+            }
+        }
     }
 }

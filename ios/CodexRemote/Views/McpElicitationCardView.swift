@@ -132,31 +132,54 @@ struct McpElicitationCardView: View {
 
     @ViewBuilder
     private var actionRow: some View {
-        HStack {
-            Button(role: .cancel) {
-                Task { await elicitations.resolve(card: card, action: .cancel) }
-            } label: { Label("mcpElicitation.cancel", systemImage: "xmark") }
-                .minimumHitTarget44()
-            Button {
-                Task { await elicitations.resolve(card: card, action: .decline) }
-            } label: { Label("mcpElicitation.decline", systemImage: "hand.raised") }
-                .minimumHitTarget44()
-            Spacer()
-            Button {
-                Task {
-                    if case .url = card.mode {
-                        await elicitations.resolve(card: card, action: .accept)
-                    } else if card.validationErrors(drafts: drafts).isEmpty {
-                        await elicitations.accept(card: card, drafts: drafts)
-                    } else {
-                        showValidationErrors = true
-                    }
-                }
-            } label: { Label("mcpElicitation.accept", systemImage: "checkmark") }
-                .buttonStyle(.borderedProminent)
-                .minimumHitTarget44()
-                .disabled(!urlTargetIsAllowed)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                cancelAction
+                declineAction
+                Spacer(minLength: 8)
+                acceptAction
+            }
+            .fixedSize(horizontal: true, vertical: false)
+
+            VStack(spacing: 8) {
+                acceptAction.frame(maxWidth: .infinity)
+                declineAction.frame(maxWidth: .infinity)
+                cancelAction.frame(maxWidth: .infinity)
+            }
         }
+    }
+
+    private var cancelAction: some View {
+        Button(role: .cancel) {
+            Task { await elicitations.resolve(card: card, action: .cancel) }
+        } label: { Label("mcpElicitation.cancel", systemImage: "xmark") }
+            .buttonStyle(.bordered)
+            .minimumHitTarget44()
+    }
+
+    private var declineAction: some View {
+        Button {
+            Task { await elicitations.resolve(card: card, action: .decline) }
+        } label: { Label("mcpElicitation.decline", systemImage: "hand.raised") }
+            .buttonStyle(.bordered)
+            .minimumHitTarget44()
+    }
+
+    private var acceptAction: some View {
+        Button {
+            Task {
+                if case .url = card.mode {
+                    await elicitations.resolve(card: card, action: .accept)
+                } else if card.validationErrors(drafts: drafts).isEmpty {
+                    await elicitations.accept(card: card, drafts: drafts)
+                } else {
+                    showValidationErrors = true
+                }
+            }
+        } label: { Label("mcpElicitation.accept", systemImage: "checkmark") }
+            .buttonStyle(.borderedProminent)
+            .minimumHitTarget44()
+            .disabled(!urlTargetIsAllowed)
     }
 
     private var urlTargetIsAllowed: Bool {

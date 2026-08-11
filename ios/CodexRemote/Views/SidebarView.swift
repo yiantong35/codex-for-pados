@@ -117,7 +117,7 @@ struct SidebarView: View {
             ThreadGoalEditorSheet(thread: thread)
                 .environment(projects)
         }
-        .confirmationDialog("sidebar.delete.confirm.title", isPresented: Binding(
+        .confirmationDialog(deleteConfirmationTitle, isPresented: Binding(
             get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } }
         ), titleVisibility: .visible) {
             Button("sidebar.delete", role: .destructive) {
@@ -131,7 +131,7 @@ struct SidebarView: View {
         } message: {
             Text("sidebar.delete.confirm.message")
         }
-        .confirmationDialog("sidebar.rollback.confirm.title", isPresented: Binding(
+        .confirmationDialog(rollbackConfirmationTitle, isPresented: Binding(
             get: { rollbackTarget != nil }, set: { if !$0 { rollbackTarget = nil } }
         ), titleVisibility: .visible) {
             Button("sidebar.rollback.confirm \(rollbackTurns)", role: .destructive) {
@@ -217,10 +217,33 @@ struct SidebarView: View {
         let selected = selectedThreadId == thread.id
         // D7（2.7）：整行改 Button 语义（原 .onTapGesture 无按钮 trait/无键盘可达）。
         // .buttonStyle(.plain) 保留自绘选中态视觉（左缘橙条 + 橙标题），不引入系统高亮方框。
-        Button {
-            selectedThreadId = thread.id
-            projects.markViewed(threadId: thread.id, updatedAt: thread.updatedAt)
-        } label: {
+        HStack(spacing: 0) {
+            Button {
+                selectedThreadId = thread.id
+                projects.markViewed(threadId: thread.id, updatedAt: thread.updatedAt)
+            } label: {
+                threadRowContent(thread, selected: selected)
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(selected ? [.isSelected] : [])
+
+            Menu {
+                threadActions(thread)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel(Text("sidebar.actions \(displayTitle(thread))"))
+        }
+        .frame(minHeight: 44)
+        .contextMenu { threadActions(thread) }
+    }
+
+    @ViewBuilder
+    private func threadRowContent(_ thread: ThreadSummary, selected: Bool) -> some View {
         HStack(spacing: 8) {
             Capsule()
                 .fill(selected ? Color.accentColor : Color.clear)
@@ -260,62 +283,77 @@ struct SidebarView: View {
         }
         .contentShape(Rectangle())
         .frame(minHeight: 44)
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? [.isSelected] : [])
-        .contextMenu {
-            Button {
-                renameTarget = thread
-            } label: { Label("sidebar.rename", systemImage: "pencil") }
+    }
 
-            Button {
-                perform(thread: thread) { await projects.archive(threadId: thread.id) }
-            } label: { Label("sidebar.archive", systemImage: "archivebox") }
+    @ViewBuilder
+    private func threadActions(_ thread: ThreadSummary) -> some View {
+        Button {
+            renameTarget = thread
+        } label: { Label("sidebar.rename", systemImage: "pencil") }
 
-            Button {
-                goalTarget = thread
-            } label: { Label("sidebar.goal", systemImage: "target") }
+        Button {
+            perform(thread: thread) { await projects.archive(threadId: thread.id) }
+        } label: { Label("sidebar.archive", systemImage: "archivebox") }
 
-            Menu("sidebar.rollback", systemImage: "arrow.uturn.backward") {
-                ForEach([1, 2, 5], id: \.self) { turns in
-                    Button("sidebar.rollback.turns \(turns)") {
-                        rollbackTurns = turns
-                        rollbackTarget = thread
-                    }
+        Button {
+            goalTarget = thread
+        } label: { Label("sidebar.goal", systemImage: "target") }
+
+        Menu("sidebar.rollback", systemImage: "arrow.uturn.backward") {
+            ForEach([1, 2, 5], id: \.self) { turns in
+                Button("sidebar.rollback.turns \(turns)") {
+                    rollbackTurns = turns
+                    rollbackTarget = thread
                 }
             }
+        }
 
-            Button {
-                perform(thread: thread) { await projects.compact(threadId: thread.id) }
-            } label: { Label("sidebar.compact", systemImage: "arrow.down.right.and.arrow.up.left") }
+        Button {
+            perform(thread: thread) { await projects.compact(threadId: thread.id) }
+        } label: { Label("sidebar.compact", systemImage: "arrow.down.right.and.arrow.up.left") }
 
-            Button {
-                guard connection.phase == .ready, let rpc = connection.rpc else {
-                    operationError = L10n.string("operation.unavailable.offline", locale: locale)
-                    return
-                }
-                Task {
-                    do {
-                        let any = try await rpc.send(method: RPCMethod.threadFork,
-                                                     params: AnyCodable(["threadId": thread.id]))
-                        if let dict = any.value as? [String: Any],
-                           let id = (dict["thread"] as? [String: Any])?["id"] as? String {
-                            selectedThreadId = id
-                        } else {
-                            operationError = L10n.string("operation.failed.description", locale: locale)
-                        }
-                    } catch {
+        Button {
+            guard connection.phase == .ready, let rpc = connection.rpc else {
+                operationError = L10n.string("operation.unavailable.offline", locale: locale)
+                return
+            }
+            Task {
+                do {
+                    let any = try await rpc.send(method: RPCMethod.threadFork,
+                                                 params: AnyCodable(["threadId": thread.id]))
+                    if let dict = any.value as? [String: Any],
+                       let id = (dict["thread"] as? [String: Any])?["id"] as? String {
+                        selectedThreadId = id
+                    } else {
                         operationError = L10n.string("operation.failed.description", locale: locale)
                     }
+                } catch {
+                    operationError = L10n.string("operation.failed.description", locale: locale)
                 }
-            } label: { Label("sidebar.fork", systemImage: "arrow.triangle.branch") }
-                .disabled(connection.phase != .ready)
+            }
+        } label: { Label("sidebar.fork", systemImage: "arrow.triangle.branch") }
+            .disabled(connection.phase != .ready)
 
-            Divider()
-            Button(role: .destructive) {
-                deleteTarget = thread
-            } label: { Label("sidebar.delete", systemImage: "trash") }
-        }
+        Divider()
+        Button(role: .destructive) {
+            deleteTarget = thread
+        } label: { Label("sidebar.delete", systemImage: "trash") }
+    }
+
+    private var deleteConfirmationTitle: String {
+        guard let deleteTarget else { return "" }
+        return String.localizedStringWithFormat(
+            L10n.string("sidebar.delete.confirm.named %@", locale: locale),
+            displayTitle(deleteTarget)
+        )
+    }
+
+    private var rollbackConfirmationTitle: String {
+        guard let rollbackTarget else { return "" }
+        return String.localizedStringWithFormat(
+            L10n.string("sidebar.rollback.confirm.named %@", locale: locale),
+            displayTitle(rollbackTarget)
+        )
     }
 
     private var filteredThreads: [ThreadSummary] {

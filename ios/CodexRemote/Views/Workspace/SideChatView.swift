@@ -11,6 +11,9 @@ struct SideChatView: View {
     @Environment(McpElicitationStore.self) private var mcpElicitations
     @Bindable var store: SideChatStore
     @State private var pendingCloseID: String?
+    @State private var closeFailureID: String?
+    @State private var renameID: String?
+    @State private var renameText = ""
     /// 当前主对话 threadId：侧聊从它 fork。nil/空 → 无主对话空态。
     var mainThreadId: String?
 
@@ -29,6 +32,19 @@ struct SideChatView: View {
                     .foregroundStyle(.red)
                     .padding(.horizontal, 8)
                     .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if let closeFailureID {
+                HStack(spacing: 8) {
+                    Label("sideChat.closeFailed", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                    Spacer()
+                    Button("common.retry") {
+                        Task { await closeSession(id: closeFailureID, interrupt: true) }
+                    }
+                    .minimumHitTarget44()
+                }
+                .padding(.horizontal, 8)
             }
             Divider()
             content
@@ -49,6 +65,18 @@ struct SideChatView: View {
             Button("common.cancel", role: .cancel) { pendingCloseID = nil }
         } message: {
             Text("sideChat.closeRunning.message")
+        }
+        .alert("sideChat.rename", isPresented: Binding(
+            get: { renameID != nil },
+            set: { if !$0 { renameID = nil } }
+        )) {
+            TextField("sideChat.rename.placeholder", text: $renameText)
+            Button("common.save") {
+                guard let renameID else { return }
+                store.rename(id: renameID, title: renameText)
+                self.renameID = nil
+            }
+            Button("common.cancel", role: .cancel) { renameID = nil }
         }
     }
 
@@ -97,6 +125,14 @@ struct SideChatView: View {
         .padding(.vertical, 4)
         .background(store.selectedId == session.id ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.1))
         .clipShape(Capsule())
+        .contextMenu {
+            Button {
+                renameID = session.id
+                renameText = session.title
+            } label: {
+                Label("sideChat.rename", systemImage: "pencil")
+            }
+        }
     }
 
     @ViewBuilder
@@ -140,7 +176,12 @@ struct SideChatView: View {
     }
 
     private func closeSession(id: String, interrupt: Bool) async {
-        guard await store.close(id: id, interruptIfRunning: interrupt) else { return }
+        let result = await store.close(id: id, interruptIfRunning: interrupt)
+        guard result == .closed else {
+            if result == .interruptFailed { closeFailureID = id }
+            return
+        }
+        closeFailureID = nil
         approvals.removeAll(threadId: id)
         userInputs.removeAll(threadId: id)
         mcpElicitations.removeAll(threadId: id)

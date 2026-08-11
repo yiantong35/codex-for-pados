@@ -94,13 +94,17 @@ struct RelayPairingImportView: View {
         ZStack {
             Color(.systemGroupedBackground).ignoresSafeArea()
 
-            ScrollView {
-                card
-                    .frame(maxWidth: 480)
+            GeometryReader { proxy in
+                ScrollView {
+                    VStack {
+                        card.frame(maxWidth: 480)
+                    }
                     .frame(maxWidth: .infinity)
+                    .frame(minHeight: max(0, proxy.size.height - 48), alignment: .center)
                     .padding(24)
+                }
+                .scrollDismissesKeyboard(.interactively)
             }
-            .scrollDismissesKeyboard(.interactively)
         }
         .navigationTitle("relayImport.title")
         .navigationBarTitleDisplayMode(.inline)
@@ -218,7 +222,7 @@ struct RelayPairingImportView: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .scrollContentBackground(.hidden)
-                .frame(minHeight: 96)
+                .frame(height: 140)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .accessibilityLabel(Text("relayImport.placeholder"))

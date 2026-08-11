@@ -26,13 +26,14 @@ enum ConversationOutboxError: LocalizedError, Equatable {
     case sessionLimit
 
     var errorDescription: String? {
+        let locale = LocaleManager.currentLocale
         switch self {
         case .messageTooLarge:
-            return "This message is too large to send. Shorten the text or remove the image and try again."
+            return L10n.string("composer.sendError.messageTooLarge", locale: locale)
         case .threadLimit:
-            return "This conversation's offline queue is full. Reconnect or remove a queued message before sending more."
+            return L10n.string("composer.sendError.threadQueueFull", locale: locale)
         case .sessionLimit:
-            return "This session's offline queue is full. Reconnect or clear another conversation before sending more."
+            return L10n.string("composer.sendError.sessionQueueFull", locale: locale)
         }
     }
 }

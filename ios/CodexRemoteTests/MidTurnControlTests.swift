@@ -79,7 +79,9 @@ final class MidTurnControlTests: XCTestCase {
     /// interrupt：发 turn/interrupt + threadId。
     func testInterruptSends() async throws {
         let (store, mock) = await runningStore()
-        await store.interrupt()
+        await mock.setAutoRespond(true)
+        let interrupted = await store.interrupt()
+        XCTAssertTrue(interrupted)
         try await waitUntil { await mock.sent.contains { $0.contains("turn/interrupt") } }
         let sent = await mock.sent.first { $0.contains("turn/interrupt") }!
         XCTAssertTrue(sent.contains(#""threadId":"t1""#), sent)
