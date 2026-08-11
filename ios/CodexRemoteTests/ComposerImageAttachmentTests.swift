@@ -52,6 +52,19 @@ final class ComposerImageAttachmentTests: XCTestCase {
         XCTAssertFalse(state.loadFailed)
     }
 
+    func test_disappearance_cancels_work_and_exposes_retry_state() async throws {
+        let encoder = DeferredAttachmentEncoder()
+        let state = ComposerImageAttachmentState(encode: { await encoder.encode($0) })
+        state.load { Data([7]) }
+        try await waitUntil { await encoder.hasStarted(7) }
+
+        state.cancelLoadingForDisappearance()
+
+        XCTAssertFalse(state.hasActiveTaskForTesting)
+        XCTAssertFalse(state.isLoading)
+        XCTAssertTrue(state.loadFailed)
+    }
+
     func test_text_cannot_send_while_image_is_loading() {
         XCTAssertFalse(ComposerView.canSend(text: "hello", imageDataURL: nil, isImageLoading: true))
         XCTAssertTrue(ComposerView.canSend(text: "hello", imageDataURL: nil, isImageLoading: false))
@@ -72,7 +85,6 @@ final class ComposerImageAttachmentTests: XCTestCase {
     }
 
     func test_removeAllClearsDraftsAndCancelsImageWork() async throws {
-        let encoder = DeferredAttachmentEncoder()
         let store = ComposerDraftStore()
         let stored = store.draft(for: "thread-a")
         stored.text = "sensitive"

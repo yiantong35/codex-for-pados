@@ -195,6 +195,7 @@ struct ConversationView: View {
             if providedStore == nil { store?.stopObserving() }
             if bindsWorkspaceState, activeConversation.contextIdentity == convBindingKey {
                 activeConversation.state = nil; activeConversation.fetchFullDiff = nil; activeConversation.startReview = nil
+                activeConversation.applyThreadSnapshot = nil
                 activeConversation.fetchGeneration &+= 1
                 activeConversation.contextIdentity = nil
             }
@@ -266,6 +267,10 @@ struct ConversationView: View {
                 activeConversation.fetchGeneration &+= 1
                 // 审查 tab AI 审查发起：注入 review/start 回调（设计 D4，对齐 fetchFullDiff 注入）。
                 activeConversation.startReview = { [weak s] mode in await s?.startReview(mode: mode) ?? false }
+                activeConversation.applyThreadSnapshot = { [weak s] threadId, result in
+                    guard s?.threadId == threadId else { return }
+                    s?.applyAuthoritativeThreadSnapshot(result)
+                }
             }
             // D2：保持本任务存活，把正文订阅生命周期绑定到 threadId。threadId 变化 / 视图消失时
             // SwiftUI 取消本 .task → Task.sleep 抛出 → defer 停止**本** store 的订阅，避免旧 observer

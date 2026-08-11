@@ -77,7 +77,7 @@ struct SideChatStoreTests {
         await store.start(fromThreadId: "main-1")
         await store.start(fromThreadId: "main-1")
         let selected = store.selectedId!
-        await store.close(id: selected)
+        #expect(await store.close(id: selected))
         #expect(store.sessions.count == 1)
         #expect(store.selectedId == store.sessions.first?.id)
     }
@@ -86,7 +86,7 @@ struct SideChatStoreTests {
         let (mock, _, store) = await makeStore()
         let r = respondFork(mock); defer { r.cancel() }
         await store.start(fromThreadId: "main-1")
-        await store.close(id: store.selectedId!)
+        #expect(await store.close(id: store.selectedId!))
         #expect(store.sessions.isEmpty)
         #expect(store.selectedId == nil)
     }
@@ -112,7 +112,7 @@ struct SideChatStoreTests {
         let outbox = registry.outbox(for: id)
         _ = try outbox.enqueue(input: [.text("queued")], model: nil, effort: nil)
 
-        await store.close(id: id)
+        #expect(await store.close(id: id))
 
         #expect(oldDraft.text.isEmpty)
         #expect(!oldDraft.imageAttachment.hasActiveTaskForTesting)
@@ -164,11 +164,12 @@ struct SideChatStoreTests {
         }
         #expect(store.isRunning(id: id))
 
-        await store.close(id: id)
+        let rejected = await store.close(id: id)
+        #expect(!rejected)
         #expect(store.sessions.count == 1)
 
         await mock.setAutoRespond(true)
-        await store.close(id: id, interruptIfRunning: true)
+        #expect(await store.close(id: id, interruptIfRunning: true))
         #expect(store.sessions.isEmpty)
         #expect(await mock.sent.contains { $0.contains(RPCMethod.turnInterrupt) })
     }
@@ -183,7 +184,23 @@ struct SideChatStoreTests {
         await conversation.send(input: [.text("pending")], model: nil, effort: nil)
         #expect(conversation.outbox.count == 1)
 
-        await store.close(id: id)
+        #expect(await store.close(id: id))
         #expect(store.conversationOutboxes.outbox(for: id).entries.isEmpty)
+    }
+
+    @Test func switchingReleasesHiddenConversationStore() async throws {
+        let (mock, _, store) = await makeStore()
+        let responder = respondFork(mock); defer { responder.cancel() }
+        await store.start(fromThreadId: "main-1")
+        await store.start(fromThreadId: "main-1")
+        let ids = store.sessions.map(\.id)
+        let second = try #require(store.conversationStore(for: ids[1]))
+
+        store.selectedId = ids[0]
+        _ = try #require(store.conversationStore(for: ids[0]))
+        store.selectedId = ids[1]
+        let rebuiltSecond = try #require(store.conversationStore(for: ids[1]))
+
+        #expect(second !== rebuiltSecond)
     }
 }

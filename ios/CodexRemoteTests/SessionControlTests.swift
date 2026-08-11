@@ -154,11 +154,16 @@ final class SessionControlTests: XCTestCase {
 
     func testRollbackSendsNumTurns() async throws {
         let (store, mock, _) = await makeStore()
-        await store.rollback(threadId: "t1", numTurns: 2)
+        await mock.setThreadRollbackResponse(
+            #"{"thread":{"id":"t1","turns":[{"id":"remaining","status":"completed","items":[]}]}}"#
+        )
+        var applied: [String: Any]?
+        await store.rollback(threadId: "t1", numTurns: 2) { applied = $0 }
         try await waitUntil { await mock.sent.contains { $0.contains("thread/rollback") } }
         let sent = await mock.sent.first { $0.contains("thread/rollback") }!
         XCTAssertTrue(sent.contains(#""numTurns":2"#), sent)
         XCTAssertTrue(sent.contains(#""threadId":"t1""#), sent)
+        XCTAssertEqual(((applied?["thread"] as? [String: Any])?["id"] as? String), "t1")
     }
 
     func testDeleteSendsMethod() async throws {

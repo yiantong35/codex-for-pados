@@ -61,6 +61,15 @@ final class ComposerImageAttachmentState {
         loadFailed = false
     }
 
+    /// Stop expensive loading/encoding when its composer leaves the hierarchy, while retaining the
+    /// PhotosPicker selection so returning to the draft can explicitly retry.
+    func cancelLoadingForDisappearance() {
+        guard task != nil else { return }
+        invalidateTask()
+        isLoading = false
+        loadFailed = true
+    }
+
     func restore(dataURL: String?) {
         invalidateTask()
         self.dataURL = dataURL

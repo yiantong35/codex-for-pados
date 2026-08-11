@@ -159,16 +159,14 @@ final class ConversationStore {
                 loadState = .failed
                 return
             }
-            reducer.ingest(resumeResult: dict, to: &state)
-            acknowledgeOutbox(fromResumeResult: dict)
-            if Self.resumeHasNoTurns(dict) { markAuthoritativeIdle() }
+            applyAuthoritativeThreadSnapshot(dict)
             finishAuthoritativeRecovery(generation: generation)
         } catch is CancellationError {
             if generation == recoveryGeneration { loadState = .idle }
         } catch {
             guard generation == recoveryGeneration else { return }
             if Self.isNoRollout(error) {
-                markAuthoritativeIdle()
+                applyAuthoritativeThreadSnapshot(["thread": ["id": state.threadId, "turns": []]])
                 finishAuthoritativeRecovery(generation: generation)
             } else {
                 loadState = .failed
@@ -352,16 +350,33 @@ final class ConversationStore {
         }
     }
 
-    private static func hasAuthoritativeTurnState(_ result: [String: Any]) -> Bool {
-        let thread = result["thread"] as? [String: Any]
-        let turns = (thread?["turns"] as? [[String: Any]]) ?? (result["turns"] as? [[String: Any]]) ?? []
-        return turns.last?["status"] != nil
-    }
-
     private static func resumeHasNoTurns(_ result: [String: Any]) -> Bool {
         let thread = result["thread"] as? [String: Any]
         let turns = (thread?["turns"] as? [[String: Any]]) ?? (result["turns"] as? [[String: Any]])
         return turns?.isEmpty == true
+    }
+
+    /// Replace local history with a server snapshot while preserving only unacknowledged local input.
+    func applyAuthoritativeThreadSnapshot(_ result: [String: Any]) {
+        flushTask?.cancel()
+        flushTask = nil
+        _ = reducer.coalescer.drain()
+        acknowledgeOutbox(fromResumeResult: result)
+
+        var replacement = ConversationState(threadId: state.threadId)
+        reducer.ingest(resumeResult: result, to: &replacement)
+        for entry in outbound.entries {
+            let presentation = Self.presentation(for: entry.input)
+            reducer.upsertUserMessage(
+                id: entry.localId,
+                text: presentation.text,
+                attachments: presentation.attachments,
+                to: &replacement
+            )
+        }
+        state = replacement
+        if Self.resumeHasNoTurns(result) { markAuthoritativeIdle() }
+        contentRevision &+= 1
     }
 
     private static func isNoRollout(_ error: Error) -> Bool {

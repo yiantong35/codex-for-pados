@@ -140,7 +140,7 @@ struct SideChatView: View {
     }
 
     private func closeSession(id: String, interrupt: Bool) async {
-        await store.close(id: id, interruptIfRunning: interrupt)
+        guard await store.close(id: id, interruptIfRunning: interrupt) else { return }
         approvals.removeAll(threadId: id)
         userInputs.removeAll(threadId: id)
         mcpElicitations.removeAll(threadId: id)

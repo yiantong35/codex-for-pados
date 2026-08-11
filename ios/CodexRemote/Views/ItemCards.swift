@@ -34,9 +34,7 @@ struct ItemCard: View {
             }
 
         case .agentMessage(_, let text):
-            Text(Self.agentText(text))
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            AgentMarkdownView(text: text)
 
         case .reasoning(_, let text):
             // 「正在思考」样式：灰色斜体；有内容显内容，无内容显占位文案。
@@ -73,6 +71,7 @@ struct ItemCard: View {
                               systemImage: "scissors")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        FullTextAccessButton(text: output, title: "conv.output.fullTitle")
                     }
                 }
             } label: {
@@ -195,7 +194,8 @@ struct ItemCard: View {
 
     static func agentText(_ text: String) -> AttributedString {
         guard !text.isEmpty else { return AttributedString(" ") }
-        return (try? AttributedString(markdown: text)) ?? AttributedString(text)
+        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
     }
 
     @ViewBuilder
@@ -445,6 +445,7 @@ struct DiffView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 6)
+                FullTextAccessButton(text: diff, title: "review.fullContentTitle")
             }
         }
         .padding(.top, 4)
@@ -494,4 +495,138 @@ enum TextRenderBudget {
 enum DiffRenderBudget {
     static let maximumInlineLines = 600
     static let maximumReviewLines = 5_000
+}
+
+struct MarkdownBlock: Identifiable, Equatable {
+    enum Kind: Equatable {
+        case paragraph(String)
+        case heading(level: Int, text: String)
+        case unordered(String)
+        case ordered(marker: String, text: String)
+        case code(String)
+    }
+
+    let id: Int
+    let kind: Kind
+
+    static func parse(_ markdown: String) -> [MarkdownBlock] {
+        let lines = markdown.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        var blocks: [MarkdownBlock] = []
+        var paragraph: [String] = []
+        var code: [String] = []
+        var inCode = false
+
+        func append(_ kind: Kind) { blocks.append(.init(id: blocks.count, kind: kind)) }
+        func flushParagraph() {
+            guard !paragraph.isEmpty else { return }
+            append(.paragraph(paragraph.joined(separator: "\n")))
+            paragraph.removeAll(keepingCapacity: true)
+        }
+
+        for line in lines {
+            if line.hasPrefix("```") {
+                if inCode {
+                    append(.code(code.joined(separator: "\n")))
+                    code.removeAll(keepingCapacity: true)
+                    inCode = false
+                } else {
+                    flushParagraph()
+                    inCode = true
+                }
+                continue
+            }
+            if inCode { code.append(line); continue }
+            if line.isEmpty { flushParagraph(); continue }
+
+            let hashes = line.prefix { $0 == "#" }.count
+            if hashes > 0, hashes <= 6, line.dropFirst(hashes).first == " " {
+                flushParagraph()
+                append(.heading(level: hashes, text: String(line.dropFirst(hashes + 1))))
+            } else if line.hasPrefix("- ") || line.hasPrefix("* ") || line.hasPrefix("+ ") {
+                flushParagraph()
+                append(.unordered(String(line.dropFirst(2))))
+            } else if let dot = line.firstIndex(of: "."),
+                      !line[..<dot].isEmpty,
+                      line[..<dot].allSatisfy(\.isNumber),
+                      line.index(after: dot) < line.endIndex,
+                      line[line.index(after: dot)] == " " {
+                flushParagraph()
+                append(.ordered(marker: String(line[...dot]),
+                                text: String(line[line.index(dot, offsetBy: 2)...])))
+            } else {
+                paragraph.append(line)
+            }
+        }
+        if inCode { append(.code(code.joined(separator: "\n"))) }
+        flushParagraph()
+        return blocks
+    }
+}
+
+private struct AgentMarkdownView: View {
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(MarkdownBlock.parse(text)) { block in
+                switch block.kind {
+                case .paragraph(let value):
+                    Text(ItemCard.agentText(value))
+                case .heading(let level, let value):
+                    Text(ItemCard.agentText(value))
+                        .font(level == 1 ? .title3.bold() : .headline)
+                case .unordered(let value):
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(verbatim: "•")
+                        Text(ItemCard.agentText(value))
+                    }
+                case .ordered(let marker, let value):
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(verbatim: marker).monospacedDigit()
+                        Text(ItemCard.agentText(value))
+                    }
+                case .code(let value):
+                    ScrollView(.horizontal, showsIndicators: true) {
+                        Text(verbatim: value.isEmpty ? " " : value)
+                            .font(.footnote.monospaced())
+                            .padding(8)
+                    }
+                    .background(Color.secondary.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+            }
+        }
+        .textSelection(.enabled)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct FullTextAccessButton: View {
+    let text: String
+    let title: LocalizedStringKey
+    @State private var isPresented = false
+
+    var body: some View {
+        Button { isPresented = true } label: {
+            Label("common.viewFullContent", systemImage: "arrow.up.left.and.arrow.down.right")
+        }
+        .font(.caption)
+        .sheet(isPresented: $isPresented) {
+            NavigationStack {
+                ScrollView([.horizontal, .vertical], showsIndicators: true) {
+                    Text(verbatim: text.isEmpty ? " " : text)
+                        .font(.footnote.monospaced())
+                        .textSelection(.enabled)
+                        .padding()
+                }
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("common.done") { isPresented = false }
+                    }
+                }
+            }
+        }
+    }
 }

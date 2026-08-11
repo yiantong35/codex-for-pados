@@ -58,6 +58,11 @@ struct ReviewPanelView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .padding(8)
+                            FullTextAccessButton(
+                                text: Self.fullText(for: f),
+                                title: "review.fullContentTitle"
+                            )
+                            .padding(.horizontal, 8)
                         }
                     }
                     .fixedSize(horizontal: true, vertical: false)  // #8b：不折行，随内容变宽
@@ -74,6 +79,16 @@ struct ReviewPanelView: View {
     static func resolvedSelection(current: String?, paths: [String]) -> String? {
         guard !paths.isEmpty else { return nil }
         return current.flatMap { paths.contains($0) ? $0 : nil } ?? paths[0]
+    }
+
+    static func fullText(for file: DiffFile) -> String {
+        file.hunks.flatMap(\.lines).map { line in
+            switch line.kind {
+            case .add: return "+" + line.text
+            case .del: return "-" + line.text
+            case .context: return " " + line.text
+            }
+        }.joined(separator: "\n")
     }
 
     private func diffLineRow(_ line: DiffLine) -> some View {

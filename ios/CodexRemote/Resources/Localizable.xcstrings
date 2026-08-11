@@ -1,6 +1,36 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
+    "common.done": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Done" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "完成" } }
+      }
+    },
+    "common.viewFullContent": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "View full content" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "查看完整内容" } }
+      }
+    },
+    "conv.output.fullTitle": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Full command output" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "完整命令输出" } }
+      }
+    },
+    "review.fullContentTitle": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Full diff" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "完整差异" } }
+      }
+    },
+    "fileBrowser.fullContentTitle": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Full file" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "完整文件" } }
+      }
+    },
     "common.clear": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Clear" } },

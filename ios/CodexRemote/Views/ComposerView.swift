@@ -206,6 +206,7 @@ struct ComposerView: View {
             }
             loadImage(item)
         }
+        .onDisappear { draft.imageAttachment.cancelLoadingForDisappearance() }
     }
 
     private func loadImage(_ item: PhotosPickerItem) {

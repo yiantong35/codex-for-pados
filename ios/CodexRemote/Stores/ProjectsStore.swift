@@ -320,9 +320,22 @@ final class ProjectsStore {
     func rename(threadId: String, name: String) async -> Bool {
         await sendThenRefresh(RPCMethod.threadNameSet, ThreadSetNameParams(threadId: threadId, name: name))
     }
-    func rollback(threadId: String, numTurns: Int) async -> Bool {
-        await sendThenRefresh(RPCMethod.threadRollback,
-                              ThreadRollbackParams(threadId: threadId, numTurns: max(1, numTurns)))
+    func rollback(threadId: String, numTurns: Int,
+                  applySnapshot: (([String: Any]) -> Void)? = nil) async -> Bool {
+        guard let rpc,
+              let data = try? JSONEncoder().encode(
+                  ThreadRollbackParams(threadId: threadId, numTurns: max(1, numTurns))
+              ),
+              let any = try? JSONDecoder().decode(AnyCodable.self, from: data) else { return false }
+        do {
+            let result = try await rpc.send(method: RPCMethod.threadRollback, params: any)
+            guard let snapshot = result.value as? [String: Any] else { return false }
+            applySnapshot?(snapshot)
+            await loadFromServer(rpc: rpc)
+            return true
+        } catch {
+            return false
+        }
     }
     func compact(threadId: String) async -> Bool {
         await sendThenRefresh(RPCMethod.threadCompactStart, ThreadCompactStartParams(threadId: threadId))
