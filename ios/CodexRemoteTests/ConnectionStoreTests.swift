@@ -108,7 +108,7 @@ final class ConnectionStoreTests: XCTestCase {
     // §5 经 thread/loaded/list + thread/resume 完成，相应测试归属 §5。
 
     /// §5 修正：首次连接成功（initialize 完成、phase=.ready）后也应触发一次 resumeHandler
-    /// （= rejoinRunningThreads），以「连上自动订阅全部活跃 thread」对齐需求——
+    /// （连接级恢复任务），以「连上自动订阅全部活跃 thread」对齐需求——
     /// 不能只在 WSTransport 物理重连的 .ready 上 rejoin（首连不经 control() 的 .ready）。
     /// 真实接线顺序：connect() 先发起，ConversationView 的 .task 在 rpc 就绪后才 setResumeHandler，
     /// 故 handler 可能晚于 .ready 注册——本测试模拟该顺序，断言 handler 仍被触发恰好一次。
@@ -281,6 +281,56 @@ final class ConnectionStoreTests: XCTestCase {
         let earlyFinal = await early.count
         XCTAssertEqual(lateCount, 1, "新订阅者应补触发恰一次")
         XCTAssertEqual(earlyFinal, earlyAfterFirst, "既有订阅者不应因新订阅者加入而重复触发")
+    }
+
+    func test_readyEpochListsRunningThreadsOnceAndSkipsVisibleThreadsInGlobalResume() async throws {
+        let mock = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in mock })
+        let main = FireBox(); let side = FireBox()
+        _ = await store.addResumeHandler(threadId: "main") { await main.bump() }
+        _ = await store.addResumeHandler(threadId: "side") { await side.bump() }
+
+        let responder = Task {
+            var answered = Set<String>()
+            for _ in 0..<500 {
+                if Task.isCancelled { return }
+                for frame in await mock.sent {
+                    guard let object = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any],
+                          let id = object["id"] as? String,
+                          let method = object["method"] as? String,
+                          !answered.contains(id) else { continue }
+                    answered.insert(id)
+                    switch method {
+                    case RPCMethod.initialize:
+                        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
+                    case RPCMethod.threadLoadedList:
+                        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"data":["main","side","hidden"],"nextCursor":null}}"#)
+                    case RPCMethod.threadResume:
+                        let threadId = (object["params"] as? [String: Any])?["threadId"] as? String ?? ""
+                        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"thread":{"id":"\#(threadId)","turns":[]}}}"#)
+                    default:
+                        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{}}"#)
+                    }
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000)
+            }
+        }
+
+        await store.connect(config: .stub)
+        try await waitUntil {
+            let sent = await mock.sent
+            let mainCount = await main.count
+            let sideCount = await side.count
+            return mainCount == 1 && sideCount == 1
+                && sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"hidden""#) }
+        }
+        responder.cancel()
+
+        let sent = await mock.sent
+        XCTAssertEqual(sent.filter { $0.contains(RPCMethod.threadLoadedList) }.count, 1)
+        XCTAssertFalse(sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"main""#) })
+        XCTAssertFalse(sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"side""#) })
+        XCTAssertEqual(sent.filter { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"hidden""#) }.count, 1)
     }
 
     /// D2 helper：经 ControlEmittingTransport 握手驱动 store 到 .ready（复用 feedInitializeResponse 模式，

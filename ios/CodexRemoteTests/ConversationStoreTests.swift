@@ -105,77 +105,40 @@ final class ConversationStoreTests: XCTestCase {
         XCTAssertEqual(store.loadState, .failed)
     }
 
-    // MARK: - §5 重连恢复：thread/loaded/list + thread/resume(rejoin)
+    // MARK: - §5 可见会话恢复：仅恢复当前 thread
 
-    /// 重连恢复：先发 thread/loaded/list，对返回的每个 running thread 发 thread/resume（rejoin + 自动订阅）。
-    func testRejoinCallsLoadedListThenResume() async throws {
+    func testCurrentThreadRecoveryDoesNotListOrResumeOtherThreads() async throws {
         let mock = MockTransport()
+        await mock.setAutoRespond(true)
+        await mock.setThreadResumeResponse(#"{"thread":{"id":"thread-running-1","turns":[]}}"#)
         let rpc = JSONRPCClient(transport: mock)
         await rpc.start()
         let store = ConversationStore(rpc: rpc, threadId: "thread-running-1")
 
-        // 后台模拟服务端：对 thread/loaded/list 回 {data:["thread-running-1"]}，对 thread/resume 回历史。
-        let responder = Task { await Self.replyToRejoin(mock, loadedIds: ["thread-running-1"]) }
-
-        await store.rejoinRunningThreads()
-        responder.cancel()
+        await store.recoverCurrentThread()
 
         let sent = await mock.sent
-        // 先 loaded/list，再 resume
-        let listIdx = sent.firstIndex { $0.contains("thread/loaded/list") }
-        let resumeIdx = sent.firstIndex { $0.contains("thread/resume") }
-        XCTAssertNotNil(listIdx, "应发出 thread/loaded/list；实际：\(sent)")
-        XCTAssertNotNil(resumeIdx, "应发出 thread/resume；实际：\(sent)")
-        if let l = listIdx, let r = resumeIdx { XCTAssertLessThan(l, r, "loaded/list 应先于 resume") }
+        XCTAssertFalse(sent.contains { $0.contains("thread/loaded/list") },
+                       "视图级恢复不得重复拉取全部 running threads")
         let resumeReq = sent.first { $0.contains("thread/resume") }!
         XCTAssertTrue(resumeReq.contains(#""threadId":"thread-running-1""#), resumeReq)
     }
 
-    /// no-rollout 容忍：某 thread 的 thread/resume 返回 -32600 no rollout found 时跳过，
-    /// 继续对其余 thread resume，不整批失败。
-    func testRejoinSkipsNoRolloutAndContinues() async throws {
+    func testCurrentThreadRecoveryTreatsNoRolloutAsAuthoritativeIdle() async throws {
         let mock = MockTransport()
         let rpc = JSONRPCClient(transport: mock)
         await rpc.start()
-        let store = ConversationStore(rpc: rpc, threadId: "t-good")
+        let store = ConversationStore(rpc: rpc, threadId: "new-thread")
+        let responder = Task { await Self.replyToRejoin(mock, loadedIds: [], noRolloutIds: ["new-thread"]) }
 
-        // loaded/list 返回两个 id：t-bad（no rollout）→ t-good（成功）。
-        let responder = Task {
-            await Self.replyToRejoin(mock, loadedIds: ["t-bad", "t-good"],
-                                     noRolloutIds: ["t-bad"])
-        }
-
-        await store.rejoinRunningThreads()
+        await store.recoverCurrentThread()
         responder.cancel()
 
-        let sent = await mock.sent
-        // 两个 thread 都被 resume（单个失败未中断整批）
-        XCTAssertTrue(sent.contains { $0.contains("thread/resume") && $0.contains(#""threadId":"t-bad""#) },
-                      "应对 t-bad 发出 resume；实际：\(sent)")
-        XCTAssertTrue(sent.contains { $0.contains("thread/resume") && $0.contains(#""threadId":"t-good""#) },
-                      "no-rollout 失败后应继续对 t-good resume；实际：\(sent)")
+        XCTAssertEqual(store.loadState, .loaded)
+        XCTAssertFalse(store.state.isTurnRunning)
     }
 
-    /// 不依赖本地 threadId 作唯一恢复依据：state.threadId 为空时仍调 loaded/list 并对返回的 thread resume。
-    func testRejoinWorksWithEmptyLocalThreadId() async throws {
-        let mock = MockTransport()
-        let rpc = JSONRPCClient(transport: mock)
-        await rpc.start()
-        let store = ConversationStore(rpc: rpc, threadId: "")   // 本地无 thread
-
-        let responder = Task { await Self.replyToRejoin(mock, loadedIds: ["thread-x"]) }
-
-        await store.rejoinRunningThreads()
-        responder.cancel()
-
-        let sent = await mock.sent
-        XCTAssertTrue(sent.contains { $0.contains("thread/loaded/list") },
-                      "本地无 threadId 时仍应调 loaded/list；实际：\(sent)")
-        XCTAssertTrue(sent.contains { $0.contains("thread/resume") && $0.contains(#""threadId":"thread-x""#) },
-                      "应对列表返回的 thread-x resume；实际：\(sent)")
-    }
-
-    /// item 2 现状锁定（Design §3.3）：rejoinRunningThreads 命中当前 threadId 时，
+    /// item 2 现状锁定（Design §3.3）：当前 thread 权威恢复时，
     /// 真正把 thread/resume 响应里携带的历史 item（turns[].items[]）ingest 进 state ——
     /// 不是只订阅不摄入的空转。响应构造复用 testResumeIngestsHistoryFromResponse 已验证的
     /// 真实 schema（userMessage: content[].text；agentMessage: 顶层 text），不新造协议形状。
@@ -190,7 +153,7 @@ final class ConversationStoreTests: XCTestCase {
         // 后台模拟服务端：thread/loaded/list 回 {data:["t1"]}；对 t1 的 thread/resume 回带历史 turn 的响应。
         let responder = Task { await Self.replyToRejoinWithHistory(mock, threadId: "t1") }
 
-        await store.rejoinRunningThreads()
+        await store.recoverCurrentThread()
         responder.cancel()
 
         XCTAssertTrue(store.state.items.contains {

@@ -22,7 +22,7 @@ final class ReconnectOutboundQueueTests: XCTestCase {
             currentThreadId: "t1",
             resumeResult: #"{"thread":{"id":"t1","turns":[{"id":"remote","status":"inProgress","items":[]}]}}"#
         )
-        await store.rejoinRunningThreads()
+        await store.recoverCurrentThread()
         responder.cancel()
 
         XCTAssertTrue(store.state.isTurnRunning)
@@ -41,7 +41,7 @@ final class ReconnectOutboundQueueTests: XCTestCase {
         store.isReady = { true }
 
         let responder = replyToRecovery(mock, currentThreadId: "new-thread", noRollout: true)
-        await store.rejoinRunningThreads()
+        await store.recoverCurrentThread()
         responder.cancel()
 
         try await waitUntil { await mock.sent.filter { $0.contains(RPCMethod.turnStart) }.count == 1 }
@@ -61,8 +61,8 @@ final class ReconnectOutboundQueueTests: XCTestCase {
             currentThreadId: "t1",
             resumeResult: #"{"thread":{"id":"t1","turns":[{"id":"done","status":"completed","items":[]}]}}"#
         )
-        async let first: Void = store.rejoinRunningThreads()
-        async let second: Void = store.rejoinRunningThreads()
+        async let first: Void = store.recoverCurrentThread()
+        async let second: Void = store.recoverCurrentThread()
         _ = await (first, second)
         responder.cancel()
 
@@ -197,7 +197,7 @@ final class ReconnectOutboundQueueTests: XCTestCase {
         XCTAssertEqual(beforeResumeCount, 1,
                        "RPC success alone must not open the next send window")
 
-        await store.rejoinRunningThreads()
+        await store.recoverCurrentThread()
         try await waitUntil { await mock.sent.filter { $0.contains("turn/start") }.count == 2 }
     }
 
