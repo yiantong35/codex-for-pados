@@ -35,6 +35,7 @@ struct SidebarView: View {
                     Button { searchText = "" } label: { Image(systemName: "xmark.circle.fill") }
                         .buttonStyle(.plain)
                         .foregroundStyle(.secondary)
+                        .minimumHitTarget44()
                         .accessibilityLabel(Text("common.clear"))
                 }
             }
@@ -449,6 +450,7 @@ private struct ThreadGoalEditorSheet: View {
     @State private var isSaving = false
     @State private var hasGoal = false
     @State private var failed = false
+    @State private var showClearConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -467,14 +469,24 @@ private struct ThreadGoalEditorSheet: View {
                     }
                     if hasGoal {
                         Button("sidebar.goal.clear", role: .destructive) {
-                            isSaving = true
-                            Task {
-                                if await projects.clearGoal(threadId: thread.id) { dismiss() }
-                                else { failed = true; isSaving = false }
-                            }
+                            showClearConfirmation = true
                         }
                     }
                 }
+            }
+            .confirmationDialog("sidebar.goal.clear.confirm.title",
+                                isPresented: $showClearConfirmation,
+                                titleVisibility: .visible) {
+                Button("sidebar.goal.clear", role: .destructive) {
+                    isSaving = true
+                    Task {
+                        if await projects.clearGoal(threadId: thread.id) { dismiss() }
+                        else { failed = true; isSaving = false }
+                    }
+                }
+                Button("common.cancel", role: .cancel) {}
+            } message: {
+                Text("sidebar.goal.clear.confirm.message")
             }
             .navigationTitle("sidebar.goal")
             .toolbar {

@@ -1,10 +1,10 @@
 import SwiftUI
 
 /// 摘要悬浮浮层内容（design D2）：diff 行数 / cwd / 进度(plan) / 任务(命令)。
-/// 输入为当前会话状态与选中线程；全无数据时显空态。内容自适应（List 高度随内容）。
+/// 输入为当前会话摘要快照与选中线程；全无数据时显空态。内容自适应（List 高度随内容）。
 struct SummaryPopoverView: View {
     @Environment(\.locale) private var locale
-    let state: ConversationState?
+    let state: WorkspaceSummary.Snapshot?
     let thread: ThreadSummary?
     var env: EnvironmentInspectorModel? = nil          // 批次⑤：全量 diff + 认证
     var onOpenReview: (() -> Void)? = nil              // #4：变更→右栏审查面板跳转（RootSplitView 注入 requestRightPanel(.review)）
@@ -16,7 +16,7 @@ struct SummaryPopoverView: View {
         state.map(WorkspaceSummary.planProgress(in:)) ?? .init(steps: [])
     }
     private var tasks: [WorkspaceSummary.CommandTask] {
-        state.map(WorkspaceSummary.commandTasks(in:)) ?? []
+        state?.commandTasks ?? []
     }
     private var cwd: String? { thread?.cwd }
     private var subAgents: [SubAgentState] {           // 批次⑤：当前会话子智能体（按名排序）

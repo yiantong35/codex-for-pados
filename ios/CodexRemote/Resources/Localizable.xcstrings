@@ -193,6 +193,18 @@
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "清除目标" } }
       }
     },
+    "sidebar.goal.clear.confirm.message": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This removes the goal from the conversation." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "这会从当前对话中移除目标。" } }
+      }
+    },
+    "sidebar.goal.clear.confirm.title": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Clear this goal?" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "清除这个目标？" } }
+      }
+    },
     "sidebar.goal.status.active": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Active" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "进行中" } } } },
     "sidebar.goal.status.paused": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Paused" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "已暂停" } } } },
     "sidebar.goal.status.blocked": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Blocked" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "受阻" } } } },

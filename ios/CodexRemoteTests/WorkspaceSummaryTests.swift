@@ -2,6 +2,20 @@ import XCTest
 @testable import CodexRemote
 
 final class WorkspaceSummaryTests: XCTestCase {
+    func testSnapshotIgnoresStreamingAgentTextButTracksSummaryFields() {
+        var first = ConversationState(threadId: "thread")
+        first.items = [.agentMessage(id: "agent", text: "one")]
+        var second = first
+        second.items = [.agentMessage(id: "agent", text: "one two three")]
+
+        XCTAssertEqual(WorkspaceSummary.Snapshot(state: first),
+                       WorkspaceSummary.Snapshot(state: second))
+
+        second.plan = [.init(step: "Verify", status: .inProgress)]
+        XCTAssertNotEqual(WorkspaceSummary.Snapshot(state: first),
+                          WorkspaceSummary.Snapshot(state: second))
+    }
+
     func testTurnPlanStepStatusFromRawString() {
         XCTAssertEqual(TurnPlanStepStatus(rawValue: "pending"), .pending)
         XCTAssertEqual(TurnPlanStepStatus(rawValue: "in_progress"), .inProgress)

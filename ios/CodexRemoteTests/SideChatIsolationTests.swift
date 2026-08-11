@@ -25,7 +25,8 @@ final class SideChatIsolationTests: XCTestCase {
     func test_sideChat_doesNotWriteHolder() {
         let holder = ActiveConversationHolder()
         // 预置一个「主对话已注入」的 holder 现场：startReview / fetchFullDiff / state 非空。
-        holder.state = ConversationState(threadId: "main")
+        let mainState = WorkspaceSummary.Snapshot(state: ConversationState(threadId: "main"))
+        holder.state = mainState
         holder.fetchFullDiff = { _ in "main-diff" }
         holder.startReview = { _ in true }
 
@@ -41,7 +42,7 @@ final class SideChatIsolationTests: XCTestCase {
         hc.view.setNeedsLayout(); hc.view.layoutIfNeeded()
 
         // 侧聊不驱动审查面板：主对话注入的 holder 现场保持原样。
-        XCTAssertEqual(holder.state?.threadId, "main", "侧聊不应覆盖主对话 state")
+        XCTAssertEqual(holder.state, mainState, "侧聊不应覆盖主对话摘要快照")
         XCTAssertNotNil(holder.fetchFullDiff, "侧聊不应清空主对话 fetchFullDiff")
         XCTAssertNotNil(holder.startReview, "侧聊不应清空主对话 startReview")
     }

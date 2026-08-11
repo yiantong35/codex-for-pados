@@ -141,11 +141,16 @@ struct TabBarView: View {
 }
 
 /// tab 圆点：TabIndicator → 颜色映射（none→无/clear，unread→蓝，running→绿，attention→橙，error→红）；
-/// attention/error（isBlinking）在 opacity 1↔0.25 间做 easeInOut 无限往复闪烁。
+/// attention/error（isBlinking）短暂脉冲后转常亮，避免等待态长期占用合成资源。
 struct DotView: View {
     let indicator: TabIndicator
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dim = false
+
+    private struct PulseKey: Equatable {
+        let indicator: TabIndicator
+        let reduceMotion: Bool
+    }
 
     var body: some View {
         Group {
@@ -159,14 +164,18 @@ struct DotView: View {
             }
         }
         .opacity(indicator.shouldAnimate(reduceMotion: reduceMotion) && dim ? 0.25 : 1)
-        .animation(indicator.shouldAnimate(reduceMotion: reduceMotion)
-                   ? .easeInOut(duration: 0.6).repeatForever(autoreverses: true) : nil,
-                   value: dim)
-        // 由 indicator 变化驱动闪烁，而非仅靠 onAppear：视图未重建但 indicator 从非闪烁跃迁到
-        // .attention/.error（T11 接真实数据后同一 tab 内状态跃迁）时也能正确启停。
-        .onChange(of: indicator.isBlinking) { _, blinking in dim = blinking && !reduceMotion }
-        .onChange(of: reduceMotion) { _, reduced in dim = indicator.isBlinking && !reduced }
-        .onAppear { dim = indicator.isBlinking && !reduceMotion }
+        .animation(.easeInOut(duration: 0.7), value: dim)
+        .task(id: PulseKey(indicator: indicator, reduceMotion: reduceMotion)) {
+            dim = false
+            guard indicator.shouldAnimate(reduceMotion: reduceMotion) else { return }
+            // Draw attention briefly, then stay visible without a permanent compositor animation.
+            for _ in 0..<4 {
+                guard !Task.isCancelled else { return }
+                dim.toggle()
+                try? await Task.sleep(for: .milliseconds(700))
+            }
+            dim = false
+        }
         .accessibilityHidden(true)
     }
 

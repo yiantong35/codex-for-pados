@@ -102,7 +102,12 @@ struct ConversationView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     ForEach(store?.state.items ?? []) { item in
-                        ItemCard(item: item, onOpenFile: onOpenFile).id(item.id)
+                        ItemCard(
+                            item: item,
+                            onOpenFile: onOpenFile,
+                            isStreaming: store?.state.inFlightItemIds.contains(item.id) == true
+                        )
+                        .id(item.id)
                     }
                     if let card = currentUserInput {
                         UserInputCardView(card: card).id(card.id)
@@ -183,7 +188,7 @@ struct ConversationView: View {
                 conversationLoadOverlay(store)
             }
         }
-        .onChange(of: store?.state) { _, newValue in
+        .onChange(of: store.map { WorkspaceSummary.Snapshot(state: $0.state) }, initial: true) { _, newValue in
             if bindsWorkspaceState { activeConversation.state = newValue }
         }
         .onChange(of: connection.phase) { _, newPhase in

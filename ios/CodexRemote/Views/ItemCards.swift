@@ -7,6 +7,7 @@ import UIKit
 struct ItemCard: View {
     let item: ConversationItem
     var onOpenFile: ((String) -> Void)? = nil
+    var isStreaming = false
     @Environment(\.locale) private var locale
     @State private var isCommandExpanded = false
 
@@ -34,7 +35,8 @@ struct ItemCard: View {
             }
 
         case .agentMessage(_, let text):
-            AgentMarkdownView(text: text)
+            AgentMarkdownView(text: text, isStreaming: isStreaming)
+                .equatable()
 
         case .reasoning(_, let text):
             // 「正在思考」样式：灰色斜体；有内容显内容，无内容显占位文案。
@@ -563,36 +565,43 @@ struct MarkdownBlock: Identifiable, Equatable {
     }
 }
 
-private struct AgentMarkdownView: View {
+private struct AgentMarkdownView: View, Equatable {
     let text: String
+    let isStreaming: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(MarkdownBlock.parse(text)) { block in
-                switch block.kind {
-                case .paragraph(let value):
-                    Text(ItemCard.agentText(value))
-                case .heading(let level, let value):
-                    Text(ItemCard.agentText(value))
-                        .font(level == 1 ? .title3.bold() : .headline)
-                case .unordered(let value):
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(verbatim: "•")
-                        Text(ItemCard.agentText(value))
+        Group {
+            if isStreaming {
+                Text(verbatim: text.isEmpty ? " " : text)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(MarkdownBlock.parse(text)) { block in
+                        switch block.kind {
+                        case .paragraph(let value):
+                            Text(ItemCard.agentText(value))
+                        case .heading(let level, let value):
+                            Text(ItemCard.agentText(value))
+                                .font(level == 1 ? .title3.bold() : .headline)
+                        case .unordered(let value):
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text(verbatim: "•")
+                                Text(ItemCard.agentText(value))
+                            }
+                        case .ordered(let marker, let value):
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text(verbatim: marker).monospacedDigit()
+                                Text(ItemCard.agentText(value))
+                            }
+                        case .code(let value):
+                            ScrollView(.horizontal, showsIndicators: true) {
+                                Text(verbatim: value.isEmpty ? " " : value)
+                                    .font(.footnote.monospaced())
+                                    .padding(8)
+                            }
+                            .background(Color.secondary.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
                     }
-                case .ordered(let marker, let value):
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(verbatim: marker).monospacedDigit()
-                        Text(ItemCard.agentText(value))
-                    }
-                case .code(let value):
-                    ScrollView(.horizontal, showsIndicators: true) {
-                        Text(verbatim: value.isEmpty ? " " : value)
-                            .font(.footnote.monospaced())
-                            .padding(8)
-                    }
-                    .background(Color.secondary.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
             }
         }
