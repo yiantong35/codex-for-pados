@@ -9,6 +9,7 @@ struct SidebarView: View {
     @Environment(ProjectsStore.self) private var projects
     @Environment(ConnectionStore.self) private var connection
     @Environment(EnvironmentStore.self) private var env
+    @Environment(ActiveConversationHolder.self) private var activeConversation
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.locale) private var locale
     @Binding var selectedThreadId: String?
@@ -137,7 +138,9 @@ struct SidebarView: View {
                 guard let thread = rollbackTarget else { return }
                 rollbackTarget = nil
                 perform(thread: thread) {
-                    await projects.rollback(threadId: thread.id, numTurns: rollbackTurns)
+                    await projects.rollback(threadId: thread.id, numTurns: rollbackTurns) { result in
+                        activeConversation.applyThreadSnapshot?(thread.id, result)
+                    }
                 }
             }
             Button("common.cancel", role: .cancel) { rollbackTarget = nil }

@@ -16,6 +16,8 @@ final class ActiveConversationHolder {
     /// 发起 AI 审查的回调（由持有 ConversationStore 的 ConversationView 注入，设计 D4）。
     /// 审查 tab 的「本轮/全量」发起入口调用；未接线（nil）→ 入口禁用。返回是否成功发出。
     var startReview: ((_ mode: ReviewSourceMode) async -> Bool)?
+    /// Apply an authoritative thread snapshot such as the result of thread/rollback.
+    var applyThreadSnapshot: ((_ threadId: String, _ result: [String: Any]) -> Void)?
 }
 
 /// 每台机器独立的工作区 UI 上下文。实例由 `Session` 持有，因此切走机器导致
@@ -342,6 +344,7 @@ struct RootSplitView: View {
         activeConversation.contextIdentity = nil
         activeConversation.fetchFullDiff = nil
         activeConversation.startReview = nil
+        activeConversation.applyThreadSnapshot = nil
         activeConversation.fetchGeneration &+= 1
         fileOpenTask?.cancel()
         for id in sideChat.sessions.map(\.id) {

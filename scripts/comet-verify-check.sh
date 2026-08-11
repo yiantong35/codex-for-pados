@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 IOS_DESTINATION="${CODEX_IOS_DESTINATION:-platform=iOS Simulator,name=iPad-Test}"
 DERIVED_DATA="${CODEX_DERIVED_DATA:-$ROOT_DIR/ios/DerivedData}"
+IOS_PARALLEL_TESTING="${CODEX_IOS_PARALLEL_TESTING:-NO}"
 OPEN_SPEC_CHANGE="${CODEX_OPENSPEC_CHANGE:-functionality-review-fixes}"
 
 run_stage() {
@@ -22,6 +23,26 @@ run_stage() {
 generate_ios_project() {
     cd "$ROOT_DIR/ios"
     xcodegen generate
+}
+
+test_ios() {
+    local common=(
+        -quiet
+        -project "$ROOT_DIR/ios/CodexRemote.xcodeproj"
+        -scheme CodexRemote
+        -destination "$IOS_DESTINATION"
+        -derivedDataPath "$DERIVED_DATA"
+    )
+    xcodebuild test "${common[@]}" \
+        -parallel-testing-enabled "$IOS_PARALLEL_TESTING" \
+        -skip-testing:CodexRemoteTests/OrientationSnapshotTests \
+        -skip-testing:CodexRemoteTests/RelayPairingImportViewModelTests
+    xcodebuild test "${common[@]}" \
+        -parallel-testing-enabled NO \
+        -only-testing:CodexRemoteTests/OrientationSnapshotTests
+    xcodebuild test "${common[@]}" \
+        -parallel-testing-enabled NO \
+        -only-testing:CodexRemoteTests/RelayPairingImportViewModelTests
 }
 
 validate_openspec() {
@@ -43,11 +64,7 @@ run_stage "Test relay-server" swift test --package-path "$ROOT_DIR/relay-server"
 run_stage "Test relay-dialout" swift test --package-path "$ROOT_DIR/relay-dialout"
 run_stage "Test mac-daemon" swift test --package-path "$ROOT_DIR/mac-daemon"
 run_stage "Generate iOS project" generate_ios_project
-run_stage "Test iOS app" xcodebuild test -quiet \
-    -project "$ROOT_DIR/ios/CodexRemote.xcodeproj" \
-    -scheme CodexRemote \
-    -destination "$IOS_DESTINATION" \
-    -derivedDataPath "$DERIVED_DATA"
+run_stage "Test iOS app" test_ios
 run_stage "Analyze iOS app" xcodebuild analyze -quiet \
     -project "$ROOT_DIR/ios/CodexRemote.xcodeproj" \
     -scheme CodexRemote \

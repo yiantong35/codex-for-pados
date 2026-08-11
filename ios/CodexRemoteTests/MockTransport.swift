@@ -30,8 +30,10 @@ actor MockTransport: MessageTransport {
     func setThreadListResponse(_ json: String) { threadListResponse = json }
     private var loadedThreadListResponse: String?
     private var threadResumeResponse: String?
+    private var threadRollbackResponse: String?
     func setLoadedThreadListResponse(_ json: String) { loadedThreadListResponse = json }
     func setThreadResumeResponse(_ json: String) { threadResumeResponse = json }
+    func setThreadRollbackResponse(_ json: String) { threadRollbackResponse = json }
 
     /// 按 cursor 分页应答 `thread/list`：key 为请求携带的 cursor（首页 nil → "" ），value 为该页
     /// 完整 result JSON（含 data + nextCursor）。用于 #7 分页测试：驱动多页翻页。
@@ -98,6 +100,8 @@ actor MockTransport: MessageTransport {
         } else if req.method == RPCMethod.threadLoadedList, let r = loadedThreadListResponse {
             resultJSON = r
         } else if req.method == RPCMethod.threadResume, let r = threadResumeResponse {
+            resultJSON = r
+        } else if req.method == RPCMethod.threadRollback, let r = threadRollbackResponse {
             resultJSON = r
         } else if req.method == RPCMethod.threadStart, let r = threadStartResponse {
             resultJSON = r

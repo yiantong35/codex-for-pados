@@ -219,6 +219,7 @@ final class OrientationSnapshotTests: XCTestCase {
         XCTAssertNotEqual(conv, "sidebar.conversations", "缺少 sidebar.conversations 本地化键")
         let view = SidebarView(selectedThreadId: .constant(nil))
             .environment(projects)
+            .environment(ActiveConversationHolder())
             .environment(EnvironmentStore())
             .environment(makeConnection())
             .environment(LocaleManager())   // SettingsMenu（侧栏 toolbar，Task 26）依赖
@@ -237,6 +238,7 @@ final class OrientationSnapshotTests: XCTestCase {
         XCTAssertFalse(projects.isGrouped)
         let view = SidebarView(selectedThreadId: .constant(nil))
             .environment(projects)
+            .environment(ActiveConversationHolder())
             .environment(EnvironmentStore())
             .environment(makeConnection())
             .environment(LocaleManager())   // SettingsMenu（侧栏 toolbar，Task 26）依赖

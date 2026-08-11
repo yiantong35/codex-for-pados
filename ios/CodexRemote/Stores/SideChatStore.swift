@@ -15,7 +15,12 @@ struct SideChatSession: Identifiable {
 @MainActor
 final class SideChatStore {
     private(set) var sessions: [SideChatSession] = []
-    var selectedId: String?
+    var selectedId: String? {
+        didSet {
+            guard oldValue != selectedId, visibleStoreThreadId != selectedId else { return }
+            releaseVisibleStore()
+        }
+    }
     private(set) var isStarting = false
     private(set) var startFailed = false
 
@@ -23,7 +28,8 @@ final class SideChatStore {
     let conversationOutboxes: ConversationOutboxRegistry
     @ObservationIgnored private let draftStore: ComposerDraftStore?
     private var rpcIdentity: ObjectIdentifier?
-    private var conversationStores: [String: ConversationStore] = [:]
+    private var visibleStore: ConversationStore?
+    private var visibleStoreThreadId: String?
     /// 已开侧聊计数（只增），用于标题 #序号，与 close 无关（关掉不回收序号，避免标题跳变）。
     private var startedCount = 0
 
@@ -37,27 +43,28 @@ final class SideChatStore {
     func attach(rpc: JSONRPCClient) {
         let identity = ObjectIdentifier(rpc)
         if let rpcIdentity, rpcIdentity != identity {
-            for store in conversationStores.values { store.stopObserving() }
-            conversationStores.removeAll()
+            releaseVisibleStore()
         }
         rpcIdentity = identity
         self.rpc = rpc
     }
 
     func conversationStore(for threadId: String) -> ConversationStore? {
-        if let existing = conversationStores[threadId] { return existing }
+        if visibleStoreThreadId == threadId, let visibleStore { return visibleStore }
         guard let rpc else { return nil }
+        releaseVisibleStore()
         let created = ConversationStore(
             rpc: rpc,
             threadId: threadId,
             outbox: conversationOutboxes.outbox(for: threadId)
         )
-        conversationStores[threadId] = created
+        visibleStore = created
+        visibleStoreThreadId = threadId
         return created
     }
 
     func isRunning(id: String) -> Bool {
-        conversationStores[id]?.state.isTurnRunning == true
+        visibleStoreThreadId == id && visibleStore?.state.isTurnRunning == true
     }
 
     /// 从主对话 fork 一个 ephemeral 侧聊。无 rpc / 无主对话 threadId → 直接返回，不发请求。
@@ -84,38 +91,48 @@ final class SideChatStore {
     }
 
     func reset() {
-        let stores = Array(conversationStores.values)
+        let store = visibleStore
         sessions.forEach {
             draftStore?.removeDraft(for: $0.id)
             conversationOutboxes.remove(threadId: $0.id)
         }
-        conversationStores.removeAll()
+        visibleStore = nil
+        visibleStoreThreadId = nil
         sessions.removeAll()
         selectedId = nil
         startFailed = false
         Task {
-            for store in stores where store.state.isTurnRunning { await store.interrupt() }
-            for store in stores { store.stopObserving() }
+            if let store, store.state.isTurnRunning { await store.interrupt() }
+            store?.stopObserving()
         }
     }
 
     /// 关闭侧聊：移除 metadata；可见 ConversationView 随选择变化销毁并取消自己的订阅。
-    func close(id: String, interruptIfRunning: Bool = false) async {
-        guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return }
-        if let conversation = conversationStores[id] {
+    @discardableResult
+    func close(id: String, interruptIfRunning: Bool = false) async -> Bool {
+        guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return false }
+        if visibleStoreThreadId == id, let conversation = visibleStore {
             if conversation.state.isTurnRunning {
-                guard interruptIfRunning else { return }
+                guard interruptIfRunning else { return false }
                 await conversation.interrupt()
             }
             conversation.stopObserving()
+            visibleStore = nil
+            visibleStoreThreadId = nil
         }
         sessions.remove(at: idx)
-        conversationStores[id] = nil
         conversationOutboxes.remove(threadId: id)
         draftStore?.removeDraft(for: id)
         if selectedId == id {
             selectedId = sessions.first?.id
         }
+        return true
+    }
+
+    private func releaseVisibleStore() {
+        visibleStore?.stopObserving()
+        visibleStore = nil
+        visibleStoreThreadId = nil
     }
 
     /// 标题：forkedFromId 前 8 位（缺则用 "side"）· #序号。

@@ -239,6 +239,8 @@ struct FileBrowserView: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
+                FullTextAccessButton(text: s, title: "fileBrowser.fullContentTitle")
+                    .padding(.horizontal, 12)
             }
         }
     }

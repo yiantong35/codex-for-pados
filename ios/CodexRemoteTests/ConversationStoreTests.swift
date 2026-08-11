@@ -91,6 +91,50 @@ final class ConversationStoreTests: XCTestCase {
         XCTAssertTrue(store.state.items.contains { if case .agentMessage(_, let t) = $0 { return t == "历史回答" } else { return false } })
     }
 
+    func testResumeTreatsNoRolloutAsLoadedEmptyThread() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "new-thread")
+
+        let resume = Task { await store.resume() }
+        try await waitUntil { await mock.sent.contains { $0.contains(RPCMethod.threadResume) } }
+        let sent = await mock.sent
+        let frame = try XCTUnwrap(sent.first { $0.contains(RPCMethod.threadResume) })
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any]
+        )
+        let id = try XCTUnwrap(object["id"] as? String)
+        await mock.feed(#"{"id":"\#(id)","error":{"code":-32600,"message":"no rollout found for thread id new-thread"}}"#)
+        await resume.value
+
+        XCTAssertEqual(store.loadState, .loaded)
+        XCTAssertFalse(store.state.isTurnRunning)
+    }
+
+    func testAuthoritativeSnapshotRemovesItemsMissingAfterRollback() {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        let store = ConversationStore(rpc: rpc, threadId: "t1")
+        store.applyAuthoritativeThreadSnapshot([
+            "thread": ["id": "t1", "turns": [[
+                "id": "turn-1", "status": "completed", "items": [
+                    ["id": "kept", "type": "agentMessage", "text": "keep"],
+                    ["id": "removed", "type": "agentMessage", "text": "remove"],
+                ],
+            ]]],
+        ])
+        store.applyAuthoritativeThreadSnapshot([
+            "thread": ["id": "t1", "turns": [[
+                "id": "turn-1", "status": "completed", "items": [
+                    ["id": "kept", "type": "agentMessage", "text": "keep"],
+                ],
+            ]]],
+        ])
+
+        XCTAssertEqual(store.state.items.map(\.id), ["kept"])
+    }
+
     func testResumeFailureIsVisibleAndRetryable() async throws {
         let mock = MockTransport()
         let rpc = JSONRPCClient(transport: mock)

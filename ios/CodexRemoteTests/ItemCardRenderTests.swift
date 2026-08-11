@@ -111,6 +111,26 @@ final class ItemCardRenderTests: XCTestCase {
         XCTAssertEqual(String(ItemCard.agentText("**bold**").characters), "bold")
     }
 
+    func testAgentMarkdownPreservesParagraphListAndCodeBlockBoundaries() {
+        let blocks = MarkdownBlock.parse("alpha\n\nbeta\n\n- one\n- two\n\n```swift\nlet x = 1\n```")
+        XCTAssertEqual(blocks.map(\.kind), [
+            .paragraph("alpha"),
+            .paragraph("beta"),
+            .unordered("one"),
+            .unordered("two"),
+            .code("let x = 1"),
+        ])
+    }
+
+    func testReviewFullTextContainsTailBeyondRenderBudget() {
+        let lines = (0...DiffRenderBudget.maximumReviewLines).map {
+            DiffLine(kind: .add, text: "line-\($0)", oldLineNo: nil, newLineNo: $0 + 1)
+        }
+        let file = DiffFile(path: "large.swift", oldPath: nil, kind: .modify,
+                            hunks: [DiffHunk(lines: lines)])
+        XCTAssertTrue(ReviewPanelView.fullText(for: file).hasSuffix("+line-5000"))
+    }
+
     // MARK: - F5（P1）会话前缀放行仅源自服务端 amendment
 
     private func cmdCard(title: String, prefix: [String]?, isFile: Bool = false) -> ApprovalCard {
