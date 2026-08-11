@@ -170,6 +170,14 @@ final class ItemCardRenderTests: XCTestCase {
             previewLines: 8
         ))
     }
+
+    func test_approval_display_text_makes_controls_and_bidi_visible() {
+        let raw = "echo ok\nrm -rf /\r\t\u{202E}txt"
+        XCTAssertEqual(
+            ApprovalCardView.sanitizedDisplayText(raw),
+            "echo ok\\n\nrm -rf /\\r\\t[U+202E]txt"
+        )
+    }
 }
 
 private actor ImageThumbnailLoaderProbe {

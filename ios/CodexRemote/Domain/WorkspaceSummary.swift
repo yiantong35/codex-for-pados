@@ -4,6 +4,22 @@ import Foundation
 /// 数据源：ConversationState（diff 行数 / 命令任务 / plan）+ ThreadSummary（cwd）。
 enum WorkspaceSummary {
 
+    /// Fields consumed outside the conversation column. Agent/reasoning text is intentionally absent,
+    /// so a streaming token does not invalidate summary and review panels at 30 Hz.
+    struct Snapshot: Equatable {
+        var turnDiff: String
+        var plan: [TurnPlanStep]
+        var commandTasks: [CommandTask]
+        var subAgents: [String: SubAgentState]
+
+        init(state: ConversationState) {
+            turnDiff = state.turnDiff
+            plan = state.plan
+            commandTasks = WorkspaceSummary.commandTasks(in: state)
+            subAgents = state.subAgents
+        }
+    }
+
     /// 全会话 diff 行数汇总（来自所有 .fileChange item 的 added/removed）。
     struct DiffLineCounts: Equatable {
         var added: Int
@@ -18,6 +34,12 @@ enum WorkspaceSummary {
         return DiffLineCounts(added: s.added, removed: s.removed, changedFiles: s.changedFiles)
     }
 
+    static func diffLineCounts(in snapshot: Snapshot) -> DiffLineCounts {
+        let counts = TurnDiffStats.parse(snapshot.turnDiff)
+        return DiffLineCounts(added: counts.added, removed: counts.removed,
+                              changedFiles: counts.changedFiles)
+    }
+
     /// plan 进度：完成数 / 总数 + 步骤明细（直接复用 ConversationState.plan）。
     struct PlanProgress: Equatable {
         var steps: [TurnPlanStep]
@@ -28,6 +50,10 @@ enum WorkspaceSummary {
 
     static func planProgress(in state: ConversationState) -> PlanProgress {
         PlanProgress(steps: state.plan)
+    }
+
+    static func planProgress(in snapshot: Snapshot) -> PlanProgress {
+        PlanProgress(steps: snapshot.plan)
     }
 
     /// 单条命令任务（摘要「任务」P0）。

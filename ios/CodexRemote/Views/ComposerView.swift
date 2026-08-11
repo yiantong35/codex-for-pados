@@ -26,6 +26,7 @@ struct ComposerView: View {
     // 可用模型不同，daemon 已按登录返回真实数据（见 memory: pados-model-server-driven）。
     @Environment(EnvironmentStore.self) private var env
     @Environment(\.locale) private var locale
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var draft: ComposerDraft
     @State private var showModelPopover = false
@@ -301,7 +302,8 @@ struct ComposerView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .frame(width: 260, height: 380)
+        .frame(width: dynamicTypeSize.isAccessibilitySize ? 340 : 280,
+               height: dynamicTypeSize.isAccessibilitySize ? 560 : 440)
     }
 
     private func effortLabel(_ effort: ReasoningEffort) -> String {

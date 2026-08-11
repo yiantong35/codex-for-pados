@@ -6,7 +6,7 @@ import Observation
 @Observable
 @MainActor
 final class ActiveConversationHolder {
-    var state: ConversationState?
+    var state: WorkspaceSummary.Snapshot?
     var contextIdentity: String?
     /// 拉取远端全量 diff 的回调（由持有 ConversationStore 的 ConversationView 注入）。
     /// 审查面板切到「全量」时调用；未接线（nil）时返回 nil，面板降级空态。

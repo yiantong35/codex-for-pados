@@ -7,6 +7,7 @@ struct ApprovalCardView: View {
     @Environment(ApprovalStore.self) private var approvals
     let card: ApprovalCard
     var fileContext: FileApprovalContext? = nil
+    @State private var showsFullTitle = false
     @State private var showsFullDiff = false
     @State private var showsFullDetail = false
 
@@ -24,17 +25,20 @@ struct ApprovalCardView: View {
                     .foregroundStyle(.secondary)
             }
             decisionFeedback(submissionState)
-            Text(fileContext?.file ?? card.title).font(.callout.monospaced())
+            approvalText(Self.sanitizedDisplayText(fileContext?.file ?? card.title),
+                         previewLines: 4,
+                         expanded: $showsFullTitle)
             // F4：权限审批展示知情要素——reason + 请求的 network/fileSystem 条目，
             // 用户批准前看清实际授权范围（守 UI 基线：文本可换行/随 Dynamic Type，无固定宽度）。
             if let reason = card.reason, !reason.isEmpty {
-                Label(reason, systemImage: "text.bubble")
+                Label(Self.sanitizedDisplayText(reason), systemImage: "text.bubble")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let context = card.networkApprovalContext {
-                Label("\(context.protocol.rawValue)://\(context.host)", systemImage: "network")
+                Label(Self.sanitizedDisplayText("\(context.protocol.rawValue)://\(context.host)"),
+                      systemImage: "network")
                     .font(.caption.monospaced())
             }
             if card.isPermissions {
@@ -55,7 +59,7 @@ struct ApprovalCardView: View {
                             Text(entry.access.rawValue.uppercased())
                                 .font(.caption2.bold())
                                 .foregroundStyle(entry.access == .deny ? Color.red : Color.secondary)
-                            Text(entry.path.displayValue)
+                            Text(Self.sanitizedDisplayText(entry.path.displayValue))
                                 .font(.caption.monospaced())
                                 .fixedSize(horizontal: false, vertical: true)
                                 .textSelection(.enabled)
@@ -78,11 +82,15 @@ struct ApprovalCardView: View {
                 Text("+\(context.added) -\(context.removed)")
                     .font(.caption.monospaced()).foregroundStyle(.secondary)
                 if !context.diff.isEmpty {
-                    approvalText(context.diff, previewLines: 12, expanded: $showsFullDiff)
+                    approvalText(Self.sanitizedDisplayText(context.diff),
+                                 previewLines: 12,
+                                 expanded: $showsFullDiff)
                 }
             }
             if !card.detail.isEmpty {
-                approvalText(card.detail, previewLines: 8, expanded: $showsFullDetail)
+                    approvalText(Self.sanitizedDisplayText(card.detail),
+                                 previewLines: 8,
+                                 expanded: $showsFullDetail)
             }
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 8) { approvalButtons }
@@ -100,7 +108,7 @@ struct ApprovalCardView: View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Image(systemName: systemImage)
                 .foregroundStyle(.secondary)
-            Text(path)
+            Text(Self.sanitizedDisplayText(path))
                 .font(.caption.monospaced())
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
@@ -133,15 +141,18 @@ struct ApprovalCardView: View {
             .buttonStyle(.borderedProminent)
             .minimumHitTarget44()
         if let prefix = Self.prefixButtonState(card: card) {
+            let displayPrefix = Self.sanitizedDisplayText(prefix.joined(separator: " "))
             Button {
                 resolve(.approveForSessionPrefix(prefix))
             } label: {
                 Text("approval.yesPrefixLabel")
                     + Text(" ")
-                    + Text(prefix.joined(separator: " ")).monospaced()
+                    + Text(verbatim: displayPrefix).monospaced()
             }
-            .lineLimit(1)
+            .fixedSize(horizontal: false, vertical: true)
             .minimumHitTarget44()
+            .accessibilityLabel(Text("approval.yesPrefix"))
+            .accessibilityValue(Text(verbatim: displayPrefix))
         }
         Button("approval.no", role: .destructive) { resolve(.deny) }
             .minimumHitTarget44()
@@ -173,6 +184,26 @@ struct ApprovalCardView: View {
 
     static func legacyPermissionPaths(card: ApprovalCard) -> [String] {
         card.requestedFileSystem ?? []
+    }
+
+    /// Approval payloads are untrusted display text. Make line/control/Bidi behavior explicit so the
+    /// visible command cannot differ from the string the user is approving.
+    static func sanitizedDisplayText(_ text: String) -> String {
+        var result = ""
+        result.reserveCapacity(text.utf8.count)
+        for scalar in text.unicodeScalars {
+            switch scalar.value {
+            case 0x09: result += "\\t"
+            case 0x0A: result += "\\n\n"
+            case 0x0D: result += "\\r"
+            case 0x00...0x08, 0x0B...0x0C, 0x0E...0x1F, 0x7F...0x9F,
+                 0x061C, 0x200E...0x200F, 0x202A...0x202E, 0x2066...0x2069:
+                result += String(format: "[U+%04X]", scalar.value)
+            default:
+                result.unicodeScalars.append(scalar)
+            }
+        }
+        return result
     }
 
     static func needsTextExpansion(_ text: String,

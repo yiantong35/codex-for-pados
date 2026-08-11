@@ -397,7 +397,7 @@ final class OrientationSnapshotTests: XCTestCase {
             TurnPlanStep(step: "写测试", status: .inProgress),
         ]
         let thread = gitThread("sum1", cwd: "/repo/web-dev", origin: "o/web", ago: 60, name: "重构")
-        let view = SummaryPopoverView(state: state, thread: thread)
+        let view = SummaryPopoverView(state: WorkspaceSummary.Snapshot(state: state), thread: thread)
             .environment(LocaleManager())
             .frame(width: 360, height: 480)
         snapshot(view, size: CGSize(width: 360, height: 480),

@@ -4,6 +4,7 @@ struct UserInputCardView: View {
     @Environment(UserInputStore.self) private var userInputs
     let card: UserInputCard
     @State private var drafts: [String: UserInputDraft] = [:]
+    @State private var countdownExpired = false
     @FocusState private var focusedQuestionId: String?
 
     private var submissionState: DecisionSubmissionState {
@@ -70,11 +71,17 @@ struct UserInputCardView: View {
                 .font(.caption)
                 .minimumHitTarget44()
             }
+        } else if userInputs.autoResolutionDeadline(for: card.id) != nil, countdownExpired {
+            Label("userInput.autoCountdown 0", systemImage: "timer")
+                .font(.caption).foregroundStyle(.secondary)
         } else if let deadline = userInputs.autoResolutionDeadline(for: card.id) {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let seconds = max(0, Int(ceil(deadline.timeIntervalSince(context.date))))
                 Label("userInput.autoCountdown \(seconds)", systemImage: "timer")
                     .font(.caption).foregroundStyle(.secondary)
+                    .onChange(of: seconds) { _, value in
+                        if value == 0 { countdownExpired = true }
+                    }
             }
         }
     }

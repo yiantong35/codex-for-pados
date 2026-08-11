@@ -158,10 +158,10 @@ private struct WorkspaceHost: View {
                 }
             }
             .onChange(of: connection.phase) { _, phase in
-                if phase != .ready { userInputCoordinator?.connectionLost() }
-                if phase != .ready { mcpElicitationCoordinator?.connectionLost() }
-                if phase == .reconnecting {
+                if phase != .ready {
                     coordinator?.connectionLost()
+                    userInputCoordinator?.connectionLost()
+                    mcpElicitationCoordinator?.connectionLost()
                 }
             }
     }
