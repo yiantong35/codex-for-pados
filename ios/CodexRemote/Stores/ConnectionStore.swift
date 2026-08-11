@@ -94,12 +94,19 @@ final class ConnectionStore {
     /// 当前 attempt 正在构建、尚未落地的 transport。超时/被新连接或 disconnect 作废时须关闭它，
     /// 触发其 close() → transport 标记握手失败 → awaitHandshake 抛出 → doEstablish 解挂（#1 防泄漏）。
     private var inFlightTransport: MessageTransport?
-    /// D2：resume 回调订阅表（主对话 + 每个侧聊各一）。单属性会被后注册者覆盖，故改多订阅。
-    private var resumeHandlers: [ResumeToken: @Sendable () async -> Void] = [:]
+    private struct ResumeRegistration {
+        let threadId: String?
+        let handler: @Sendable () async -> Void
+    }
+
+    /// 可见会话只负责恢复自己的 thread；全量 running-thread rejoin 由连接级恢复任务统一执行。
+    private var resumeHandlers: [ResumeToken: ResumeRegistration] = [:]
     /// 已首连补触发过的订阅者集合（订阅者维度化的 didInitialRejoin）：新订阅者不漏、老订阅者不重。
     /// 每次新 connect()/disconnect() 清空。物理重连走 observeControl 的 .ready，与此独立。
     private var rejoinedTokens: Set<ResumeToken> = []
     private var nextResumeTokenRaw: UInt64 = 0
+    private var recoveryTask: Task<Void, Never>?
+    private var recoveryEpoch: UInt64 = 0
     private var controlObserver: Task<Void, Never>?
     /// 当前连接是否已就绪（phase=.ready），用于在 handler 晚于 .ready 注册时补触发首连恢复。
     private var isReady = false
@@ -125,14 +132,15 @@ final class ConnectionStore {
         self.injectedHeartbeatFactory = heartbeatFactory
     }
 
-    /// D2：登记一个「重连后会话恢复」回调，返回轻量唯一 token 供精确注销。
+    /// D2：登记一个「重连后恢复当前可见会话」回调，返回轻量唯一 token 供精确注销。
     /// 真实接线中 ConversationView 在 rpc 就绪后才注册，可能晚于首连 .ready——
     /// 故注册时若连接已就绪且该 token 尚未首连触发过，立即补触发恰一次
-    /// （对齐「连上自动订阅全部活跃 thread」）。主对话与每个侧聊各自订阅、互不覆盖。
+    /// 主对话与每个侧聊各自订阅、互不覆盖；其它运行中 thread 由连接级任务统一恢复。
     @discardableResult
-    func addResumeHandler(_ h: @escaping @Sendable () async -> Void) -> ResumeToken {
+    func addResumeHandler(threadId: String? = nil,
+                          _ h: @escaping @Sendable () async -> Void) -> ResumeToken {
         let token = ResumeToken(raw: nextResumeTokenRaw); nextResumeTokenRaw &+= 1
-        resumeHandlers[token] = h
+        resumeHandlers[token] = ResumeRegistration(threadId: threadId, handler: h)
         // 已就绪且本 token 尚未首连触发过 → 立即补触发恰一次（对齐既有 setResumeHandler 语义）。
         if isReady, !rejoinedTokens.contains(token) {
             rejoinedTokens.insert(token)
@@ -152,14 +160,48 @@ final class ConnectionStore {
         _ = addResumeHandler(h)
     }
 
-    /// 首连恢复触发器：对「已就绪」但「尚未首连触发过」的每个订阅者各触发恰一次。
-    /// connect 落 .ready 与 addResumeHandler 谁后到都能触发，且不重复。
+    /// 首连恢复触发器：为当前 ready epoch 启动一轮连接级恢复。
+    /// addResumeHandler 晚于首连 .ready 时，会单独补恢复新出现的可见会话。
     /// 物理重连的恢复由 observeControl 的 .ready 分支独立负责，不经此处。
     private func triggerInitialRejoinIfReady() {
         guard isReady else { return }
-        for (token, h) in resumeHandlers where !rejoinedTokens.contains(token) {
-            rejoinedTokens.insert(token)
-            Task { await h() }
+        scheduleRecoveryEpoch()
+    }
+
+    /// 每个 ready epoch 只创建一个恢复任务。它先让每个可见 store 恢复自己的 thread，再用一次
+    /// loaded/list 恢复其余运行中 thread 的订阅副作用；新 epoch 会取消旧任务并用序号阻止迟到结果继续发 RPC。
+    private func scheduleRecoveryEpoch() {
+        recoveryTask?.cancel()
+        recoveryEpoch &+= 1
+        let epoch = recoveryEpoch
+        let registrations = resumeHandlers
+        rejoinedTokens.formUnion(registrations.keys)
+        recoveryTask = Task { [weak self] in
+            guard let self else { return }
+            let visibleThreadIds = Set(registrations.values.compactMap(\.threadId))
+            await withTaskGroup(of: Void.self) { group in
+                for registration in registrations.values {
+                    group.addTask { await registration.handler() }
+                }
+                group.addTask { [weak self] in
+                    await self?.rejoinLoadedThreads(excluding: visibleThreadIds, epoch: epoch)
+                }
+                await group.waitForAll()
+            }
+        }
+    }
+
+    private func rejoinLoadedThreads(excluding visibleThreadIds: Set<String>, epoch: UInt64) async {
+        guard !Task.isCancelled, epoch == recoveryEpoch, let rpc else { return }
+        guard let listResult = try? await rpc.send(
+            method: RPCMethod.threadLoadedList,
+            params: try? Self.encode(EmptyParams())
+        ), let list = try? Self.decode(LoadedThreadList.self, from: listResult) else { return }
+
+        for threadId in list.data where !visibleThreadIds.contains(threadId) {
+            guard !Task.isCancelled, epoch == recoveryEpoch else { return }
+            let params = try? Self.encode(ThreadResumeParams(threadId: threadId, model: nil, cwd: nil))
+            _ = try? await rpc.send(method: RPCMethod.threadResume, params: params)
         }
     }
 
@@ -185,6 +227,9 @@ final class ConnectionStore {
         let attempt = activeAttempt
         phase = .connecting
         // 新连接：重置首连恢复状态（上一次连接的 rejoin 不应抑制本次）。
+        recoveryTask?.cancel()
+        recoveryTask = nil
+        recoveryEpoch &+= 1
         rejoinedTokens.removeAll()
         isReady = false
         needsRePairing = false   // 新连接清除上一次的信任撤销引导标记
@@ -264,6 +309,9 @@ final class ConnectionStore {
         // take-and-nil：先原子取所有权再 close，避免与在途 establish 的失败清理路径双关同一 transport。
         if let inflight = inFlightTransport { inFlightTransport = nil; await inflight.close() }
         isReady = false
+        recoveryTask?.cancel()
+        recoveryTask = nil
+        recoveryEpoch &+= 1
         rejoinedTokens.removeAll()
         phase = .disconnected
     }
@@ -410,9 +458,9 @@ final class ConnectionStore {
     // MARK: - 控制信号观察
 
     /// 订阅 transport 控制信号：reconnecting/ready 驱动 UI 重连指示。
-    /// 重连成功（.ready）后经 resumeHandler 触发会话恢复（§5：thread/loaded/list + thread/resume rejoin）。
+    /// 重连成功（.ready）后启动单个连接级恢复任务：可见会话各恢复自身，其余 loaded thread 统一 rejoin。
     /// 注意：首连成功走 connect 里直接落 .ready（不经此处），其首连恢复由 connect 落 .ready /
-    /// setResumeHandler 经 triggerInitialRejoinIfReady 触发（恰好一次）。
+    /// addResumeHandler 经 triggerInitialRejoinIfReady 触发。
     /// relay-only：RelayTransport 的 control() 在物理断线/重连时发事件，经此分支驱动物理重连恢复。
     private func observeControl(_ transport: MessageTransport) {
         controlObserver?.cancel()
@@ -421,6 +469,9 @@ final class ConnectionStore {
                 guard let self else { return }
                 switch ev {
                 case .reconnecting:
+                    self.recoveryTask?.cancel()
+                    self.recoveryTask = nil
+                    self.recoveryEpoch &+= 1
                     self.phase = .reconnecting
                     self.stopHeartbeat()   // 离开 .ready：停心跳，物理重连成功（.ready）后再起
                     // 物理断线：失败断线瞬间已发出、仍等响应的在途请求，避免其永久挂起（H1）。
@@ -432,18 +483,21 @@ final class ConnectionStore {
                 case .ready:
                     self.phase = .ready
                     self.startHeartbeat()   // 物理重连成功：重启端到端心跳
-                    // 物理重连成功 → 遍历触发全部订阅者（主对话 + 每个侧聊各自 rejoin）。
-                    for h in self.resumeHandlers.values { Task { await h() } }
+                    self.scheduleRecoveryEpoch()
                 case .connectionFailed:
                     // 重连退避耗尽（终态，4.3）：落 .failed 提示可手动重连。
                     // **保留机器配置**（不清 config、不 disconnect）——用户可再次 connect() 手动重连。
                     self.stopHeartbeat()
+                    self.recoveryTask?.cancel()
+                    self.recoveryTask = nil
                     self.phase = .failed(L10n.string("conn.error.connectionFailed", locale: LocaleManager.currentLocale))
                 case .trustRevoked:
                     // 收到 RejectHello = 开发机移除信任（终态，4.4）：落 .failed 并置位 needsRePairing，
                     // 由 UI 据此导航回配对入口（RelayPairingImportView）。仅此路径要求重新配对，
                     // 其它连接问题（含开发机未开）走 .connectionFailed，不误报信任撤销。
                     self.stopHeartbeat()
+                    self.recoveryTask?.cancel()
+                    self.recoveryTask = nil
                     self.phase = .failed(L10n.string("conn.error.trustRevoked", locale: LocaleManager.currentLocale))
                     self.needsRePairing = true
                 case .peerLeft:

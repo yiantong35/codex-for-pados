@@ -137,10 +137,24 @@ final class ConversationStore {
     /// thread/resume 的同步响应里**携带完整历史**（thread.turns[].items[]）；
     /// 捕获该响应并经 ThreadReducer.ingest 灌入 state，UI 即可看到历史对话。
     func resume(model: String? = nil, cwd: String? = nil) async {
+        await recoverCurrentThread(model: model, cwd: cwd)
+    }
+
+    /// 恢复当前可见 thread。全量 running-thread 订阅恢复由 ConnectionStore 每个 ready epoch 统一执行。
+    func recoverCurrentThread(model: String? = nil, cwd: String? = nil) async {
         loadState = .loading
+        requireAuthoritativeRecovery()
+        recoveryGeneration &+= 1
+        let generation = recoveryGeneration
+        guard !state.threadId.isEmpty else {
+            markAuthoritativeIdle()
+            finishAuthoritativeRecovery(generation: generation)
+            return
+        }
         let params = ThreadResumeParams(threadId: state.threadId, model: model, cwd: cwd)
         do {
             let result = try await call(RPCMethod.threadResume, params)
+            guard generation == recoveryGeneration else { return }
             guard let dict = result.value as? [String: Any] else {
                 loadState = .failed
                 return
@@ -148,13 +162,17 @@ final class ConversationStore {
             reducer.ingest(resumeResult: dict, to: &state)
             acknowledgeOutbox(fromResumeResult: dict)
             if Self.resumeHasNoTurns(dict) { markAuthoritativeIdle() }
-            authoritativeRecoveryComplete = true
-            reconcileOutboundAfterAuthoritativeResume()
-            loadState = .loaded
+            finishAuthoritativeRecovery(generation: generation)
         } catch is CancellationError {
-            loadState = .idle
+            if generation == recoveryGeneration { loadState = .idle }
         } catch {
-            loadState = .failed
+            guard generation == recoveryGeneration else { return }
+            if Self.isNoRollout(error) {
+                markAuthoritativeIdle()
+                finishAuthoritativeRecovery(generation: generation)
+            } else {
+                loadState = .failed
+            }
         }
     }
 
@@ -292,58 +310,6 @@ final class ConversationStore {
         guard let transportError = error as? TransportError else { return false }
         if case .messageTooLarge = transportError { return true }
         return false
-    }
-
-    /// 重连/连接后经官方权威列表恢复（设计 D3）：
-    /// 1) thread/loaded/list 拿当前 app-server 内存中运行的 thread ids（不依赖本地 threadId 作唯一依据）；
-    /// 2) 对每个 id thread/resume —— 命中 running thread 时官方按 rejoin 重新加入（不 fork/不新建），
-    ///    同时**自动订阅**该 thread（官方无显式 subscribe，start/resume 即订阅），之后才收其 turn/item 通知；
-    /// 3) 单个 thread 尚未跑过 turn 时 resume 返回 `-32600 no rollout found`（经 call 抛 TransportError）
-    ///    → 用 `try?` 吞掉并跳过，继续处理其余 thread，绝不因单个失败中断整批恢复（spike-findings §5）。
-    /// 仅把命中当前 threadId 的 resume 历史灌入本 store 的 state；其余 thread 的订阅副作用仍生效。
-    func rejoinRunningThreads() async {
-        loadState = .loading
-        requireAuthoritativeRecovery()
-        recoveryGeneration &+= 1
-        let generation = recoveryGeneration
-        guard let listResult = try? await call(RPCMethod.threadLoadedList, EmptyParams()),
-              let list = try? decode(LoadedThreadList.self, from: listResult) else {
-            if generation == recoveryGeneration { loadState = .failed }
-            return
-        }
-        // 首页 data 已覆盖当前活跃 thread；翻页（nextCursor）留待需要时再实现。
-        if !state.threadId.isEmpty {
-            let params = ThreadResumeParams(threadId: state.threadId, model: nil, cwd: nil)
-            do {
-                let result = try await call(RPCMethod.threadResume, params)
-                guard generation == recoveryGeneration else { return }
-                guard let dict = result.value as? [String: Any] else {
-                    loadState = .failed
-                    return
-                }
-                reducer.ingest(resumeResult: dict, to: &state)
-                acknowledgeOutbox(fromResumeResult: dict)
-                if Self.resumeHasNoTurns(dict) { markAuthoritativeIdle() }
-                finishAuthoritativeRecovery(generation: generation)
-            } catch {
-                guard generation == recoveryGeneration else { return }
-                guard Self.isNoRollout(error) else {
-                    loadState = .failed
-                    return
-                }
-                markAuthoritativeIdle()
-                finishAuthoritativeRecovery(generation: generation)
-            }
-        } else {
-            finishAuthoritativeRecovery(generation: generation)
-        }
-
-        // Rejoin the remaining loaded threads for their subscription side effect. The current thread
-        // was resumed exactly once above even when a new/no-rollout thread is absent from loaded/list.
-        for tid in list.data where tid != state.threadId {
-            let params = ThreadResumeParams(threadId: tid, model: nil, cwd: nil)
-            _ = try? await call(RPCMethod.threadResume, params)
-        }
     }
 
     // MARK: - private

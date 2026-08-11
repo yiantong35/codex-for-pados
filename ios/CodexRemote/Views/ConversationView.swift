@@ -255,7 +255,9 @@ struct ConversationView: View {
             // D2：resume 注册不再受 bindsWorkspaceState 限制——主对话与每个侧聊各自 thread
             // 都需在重连后 rejoin 恢复；改 add/remove 精确配对，.task 结束/取消时注销自己的订阅，
             // 与 s.stopObserving() 两个 defer 并存。多订阅互不覆盖（Task 2 能力）。
-            let resumeToken = connection.addResumeHandler { [weak s] in await s?.rejoinRunningThreads() }
+            let resumeToken = connection.addResumeHandler(threadId: threadId) { [weak s] in
+                await s?.recoverCurrentThread()
+            }
             defer { connection.removeResumeHandler(resumeToken) }
             if bindsWorkspaceState {
                 activeConversation.contextIdentity = convBindingKey
