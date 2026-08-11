@@ -104,6 +104,17 @@ struct TerminalTests {
         #expect(replayed.allSatisfy { $0 == 0x61 })
     }
 
+    @Test func replayBufferDoesNotCompactForEverySmallEviction() {
+        var buffer = BoundedReplayBuffer(capacity: 1_024)
+        for value in 0..<10_000 {
+            buffer.append(Data([UInt8(truncatingIfNeeded: value)]))
+        }
+
+        #expect(buffer.count == 1_024)
+        #expect(buffer.compactionCount <= 10)
+        #expect(buffer.data == Data((8_976..<10_000).map { UInt8(truncatingIfNeeded: $0) }))
+    }
+
     @MainActor @Test func capReachedForwardsTruncationBytes() {
         let s = TerminalSession()
         var text = ""

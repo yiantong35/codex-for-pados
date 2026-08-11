@@ -63,6 +63,23 @@ final class UserInputStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testFreeformAnswerIsBoundedInBindingHelperAndResponseModel() throws {
+        let request = try makeRequest(
+            id: "bounded",
+            params: #"{"threadId":"t","turnId":"turn","itemId":"item","questions":[{"id":"q","header":"Answer","question":"Explain","isOther":false,"isSecret":false,"options":null}],"autoResolutionMs":null}"#
+        )
+        let card = try UserInputCard(request: request)
+        let oversized = String(repeating: "界", count: UserInputRequestLimits.maximumAnswerBytes)
+        let bounded = UserInputRequestLimits.boundedFreeform(oversized)
+
+        XCTAssertLessThanOrEqual(bounded.utf8.count, UserInputRequestLimits.maximumFreeformBytes)
+        XCTAssertNoThrow(try card.response(drafts: ["q": .init(freeform: bounded)]))
+        XCTAssertThrowsError(try card.response(drafts: ["q": .init(freeform: oversized)])) {
+            XCTAssertEqual($0 as? UserInputError, .answerTooLarge("q"))
+        }
+    }
+
+    @MainActor
     func testCancelCompletesWithEmptyAnswersAndOnlyOnce() async throws {
         let store = UserInputStore()
         var responses: [ToolRequestUserInputResponse] = []

@@ -87,6 +87,15 @@ struct FileContentTests {
         #expect(!FileImageThumbnailDecoder.isWithinPixelBudget(width: 40_000, height: 100))
         #expect(!FileImageThumbnailDecoder.isWithinPixelBudget(width: 20_000, height: 20_000))
         #expect(!FileImageThumbnailDecoder.isWithinPixelBudget(width: Int.max, height: Int.max))
+        #expect(FileImageThumbnailDecoder.isWithinPixelBudget(
+            width: 4_000, height: 3_000, encodedBytes: 64 * 1_024
+        ))
+        #expect(!FileImageThumbnailDecoder.isWithinPixelBudget(
+            width: 4_000, height: 3_000, encodedBytes: 1_024
+        ))
+        #expect(!FileImageThumbnailDecoder.isWithinPixelBudget(
+            width: 8_000, height: 3_000, encodedBytes: 512 * 1_024
+        ))
     }
 
     @Test @MainActor func imageDecoderDownsamplesLongestEdge() throws {

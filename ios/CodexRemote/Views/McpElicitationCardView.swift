@@ -71,9 +71,11 @@ struct McpElicitationCardView: View {
                 Label("mcpElicitation.title", systemImage: "person.crop.circle.badge.questionmark")
                     .font(.headline)
                 Spacer()
-                Text(card.serverName).font(.caption).foregroundStyle(.secondary)
+                Text(UntrustedDisplayText.sanitize(card.serverName))
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            Text(card.message).font(.callout).fixedSize(horizontal: false, vertical: true)
+            Text(UntrustedDisplayText.sanitize(card.message))
+                .font(.callout).fixedSize(horizontal: false, vertical: true)
             if card.awaitingRecovery {
                 Label("mcpElicitation.awaitingRecovery", systemImage: "wifi.exclamationmark")
                     .font(.caption).foregroundStyle(.secondary)
@@ -84,10 +86,10 @@ struct McpElicitationCardView: View {
             case .url(let url, _):
                 let presentation = McpURLPresentation(url: url)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(presentation.origin)
+                    Text(UntrustedDisplayText.sanitize(presentation.origin))
                         .font(.subheadline.bold().monospaced())
                         .textSelection(.enabled)
-                    Text(presentation.completeURL)
+                    Text(UntrustedDisplayText.sanitize(presentation.completeURL))
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
@@ -191,11 +193,11 @@ struct McpElicitationCardView: View {
     private func fieldView(_ field: McpFormField) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 4) {
-                Text(field.title).font(.subheadline.bold())
+                Text(UntrustedDisplayText.sanitize(field.title)).font(.subheadline.bold())
                 if field.required { Text("*").foregroundStyle(.red).accessibilityLabel("mcpElicitation.required") }
             }
             if let description = field.description {
-                Text(description).font(.caption).foregroundStyle(.secondary)
+                Text(UntrustedDisplayText.sanitize(description)).font(.caption).foregroundStyle(.secondary)
             }
             switch field.kind {
             case .string(let format, _, _):
@@ -203,20 +205,20 @@ struct McpElicitationCardView: View {
                     .textFieldStyle(.roundedBorder)
                     .textContentType(format == "email" ? .emailAddress : format == "uri" ? .URL : nil)
                     .keyboardType(format == "email" ? .emailAddress : format == "uri" ? .URL : .default)
-                    .accessibilityLabel(Text(field.title))
-                    .accessibilityHint(Text(field.description ?? ""))
+                    .accessibilityLabel(Text(UntrustedDisplayText.sanitize(field.title)))
+                    .accessibilityHint(Text(UntrustedDisplayText.sanitize(field.description ?? "")))
             case .number:
                 TextField("mcpElicitation.value", text: textBinding(field.name))
                     .textFieldStyle(.roundedBorder).keyboardType(.numbersAndPunctuation)
-                    .accessibilityLabel(Text(field.title))
-                    .accessibilityHint(Text(field.description ?? ""))
+                    .accessibilityLabel(Text(UntrustedDisplayText.sanitize(field.title)))
+                    .accessibilityHint(Text(UntrustedDisplayText.sanitize(field.description ?? "")))
             case .boolean:
-                Toggle(field.title, isOn: boolBinding(field.name))
-                    .accessibilityHint(Text(field.description ?? ""))
+                Toggle(UntrustedDisplayText.sanitize(field.title), isOn: boolBinding(field.name))
+                    .accessibilityHint(Text(UntrustedDisplayText.sanitize(field.description ?? "")))
             case .single(let options):
-                Picker(field.title, selection: textBinding(field.name)) {
+                Picker(UntrustedDisplayText.sanitize(field.title), selection: textBinding(field.name)) {
                     Text("mcpElicitation.choose").tag("")
-                    ForEach(options) { Text($0.title).tag($0.value) }
+                    ForEach(options) { Text(UntrustedDisplayText.sanitize($0.title)).tag($0.value) }
                 }
                 .pickerStyle(.menu)
             case .multiple(let options, _, _):
@@ -224,11 +226,14 @@ struct McpElicitationCardView: View {
                     ForEach(options) { option in
                         let isSelected = selected(option.value, field: field.name)
                         Button { toggle(option.value, field: field.name) } label: {
-                            Label(option.title, systemImage: isSelected ? "checkmark.square.fill" : "square")
+                            Label(UntrustedDisplayText.sanitize(option.title),
+                                  systemImage: isSelected ? "checkmark.square.fill" : "square")
                         }
                         .buttonStyle(.plain)
                         .minimumHitTarget44()
-                        .accessibilityLabel(Text("\(field.title), \(option.title)"))
+                        .accessibilityLabel(Text(UntrustedDisplayText.sanitize(
+                            "\(field.title), \(option.title)"
+                        )))
                         .accessibilityValue(Text(isSelected ? "accessibility.selected" : "accessibility.notSelected"))
                         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
                     }

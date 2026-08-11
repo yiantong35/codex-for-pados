@@ -189,6 +189,13 @@ struct ApprovalCardView: View {
     /// Approval payloads are untrusted display text. Make line/control/Bidi behavior explicit so the
     /// visible command cannot differ from the string the user is approving.
     static func sanitizedDisplayText(_ text: String) -> String {
+        UntrustedDisplayText.sanitize(text)
+    }
+}
+
+/// Remote decision text must not be able to change visual order or hide control characters.
+enum UntrustedDisplayText {
+    static func sanitize(_ text: String) -> String {
         var result = ""
         result.reserveCapacity(text.utf8.count)
         for scalar in text.unicodeScalars {
@@ -205,7 +212,9 @@ struct ApprovalCardView: View {
         }
         return result
     }
+}
 
+extension ApprovalCardView {
     static func needsTextExpansion(_ text: String,
                                    availableWidth: CGFloat,
                                    previewLines: Int) -> Bool {

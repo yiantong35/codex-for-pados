@@ -60,17 +60,18 @@ final class ThreadReducerTests: XCTestCase {
         reducer.apply(notif("item/commandExecution/outputDelta", ["itemId": "C1", "delta": "a.txt\n"]), to: &state)
         reducer.apply(notif("item/commandExecution/outputDelta", ["itemId": "C1", "delta": "b.txt\n"]), to: &state)
         reducer.applyCoalesced(reducer.coalescer.drain(), &state)   // F8：delta 攒批，读前落地
-        guard case .commandExecution(_, _, let out, _, _, _)? = state.items.first(where: { $0.id == "C1" }) else {
+        guard case .commandExecution(_, _, let out, let lineCount, _, _, _)? = state.items.first(where: { $0.id == "C1" }) else {
             return XCTFail("应有命令项")
         }
         XCTAssertEqual(out, "a.txt\nb.txt\n")
+        XCTAssertEqual(lineCount, 3)
     }
 
     func testItemStartedMarksCommandInProgress() throws {
         var state = ConversationState(threadId: "t")
         let reducer = ThreadReducer()
         reducer.apply(notif("item/started", ["item": ["id": "C1", "type": "commandExecution", "command": "ls"]]), to: &state)
-        guard case .commandExecution(_, _, _, let status, _, _)? = state.items.first(where: { $0.id == "C1" }) else {
+        guard case .commandExecution(_, _, _, _, let status, _, _)? = state.items.first(where: { $0.id == "C1" }) else {
             return XCTFail("应有命令项")
         }
         XCTAssertEqual(status, .inProgress)
@@ -82,7 +83,7 @@ final class ThreadReducerTests: XCTestCase {
         reducer.apply(notif("item/started", ["item": ["id": "C1", "type": "commandExecution", "command": "ls"]]), to: &state)
         reducer.apply(notif("item/completed", ["item": ["id": "C1", "type": "commandExecution",
                                                         "status": "completed", "exitCode": 0, "durationMs": 42]]), to: &state)
-        guard case .commandExecution(_, _, _, let status, let exitCode, let durationMs)? = state.items.first(where: { $0.id == "C1" }) else {
+        guard case .commandExecution(_, _, _, _, let status, let exitCode, let durationMs)? = state.items.first(where: { $0.id == "C1" }) else {
             return XCTFail("应有命令项")
         }
         XCTAssertEqual(status, .completed)
@@ -96,7 +97,7 @@ final class ThreadReducerTests: XCTestCase {
         reducer.apply(notif("item/started", ["item": ["id": "C1", "type": "commandExecution", "command": "false"]]), to: &state)
         reducer.apply(notif("item/completed", ["item": ["id": "C1", "type": "commandExecution",
                                                         "status": "failed", "exitCode": 1, "durationMs": 7]]), to: &state)
-        guard case .commandExecution(_, _, _, let status, let exitCode, _)? = state.items.first(where: { $0.id == "C1" }) else {
+        guard case .commandExecution(_, _, _, _, let status, let exitCode, _)? = state.items.first(where: { $0.id == "C1" }) else {
             return XCTFail("应有命令项")
         }
         XCTAssertEqual(status, .failed)
@@ -173,7 +174,7 @@ final class ThreadReducerTests: XCTestCase {
             if n.method == "turn/completed" { break }   // 先只看进行中状态
             reducer.apply(n, to: &state)
         }
-        guard case .commandExecution(_, let command, _, let status, let exitCode, let durationMs)? =
+        guard case .commandExecution(_, let command, _, _, let status, let exitCode, let durationMs)? =
                 state.items.first(where: { $0.id == "call_ZPgSwOry2vW7rZMVDwOO91ta" }) else {
             return XCTFail("应出现 commandExecution 卡片（命令卡片不出现 = 滞后 bug）")
         }
@@ -388,7 +389,7 @@ final class ThreadReducerTests: XCTestCase {
             "aggregatedOutput": "hi\n", "status": "completed", "exitCode": 0, "durationMs": 12
         ]
         let h = historyItems(item)
-        guard case .commandExecution(_, let cmd, let out, let st, let ec, let dm)? = h.items.first else {
+        guard case .commandExecution(_, let cmd, let out, _, let st, let ec, let dm)? = h.items.first else {
             return XCTFail("history 应有命令项")
         }
         XCTAssertEqual(cmd, "/bin/zsh -lc 'echo hi'")
@@ -602,7 +603,7 @@ final class ThreadReducerTests: XCTestCase {
         r.ingest(resumeResult: resume, to: &s)
 
         // ① partial 被终态替换（last-write-wins）。
-        guard case let .commandExecution(_, _, output, status, exitCode, _)? =
+        guard case let .commandExecution(_, _, output, _, status, exitCode, _)? =
                 s.items.first(where: { $0.id == "C1" }) else {
             return XCTFail("C1 应存在")
         }
@@ -642,7 +643,7 @@ final class ThreadReducerTests: XCTestCase {
 
         XCTAssertEqual(s.activeTurnId, "T2", "进行中 turn 应保留运行态")
         XCTAssertTrue(s.isTurnRunning)
-        guard case let .commandExecution(_, _, output, _, _, _)? =
+        guard case let .commandExecution(_, _, output, _, _, _, _)? =
                 s.items.first(where: { $0.id == "C2" }) else {
             return XCTFail("C2 应存在")
         }

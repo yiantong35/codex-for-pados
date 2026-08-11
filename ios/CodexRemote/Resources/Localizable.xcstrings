@@ -19,6 +19,18 @@
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "完整命令输出" } }
       }
     },
+    "conv.agent.fullTitle": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Full response" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "完整回复" } }
+      }
+    },
+    "conv.agent.truncated %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Showing the first %1$lld lines" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "当前显示前 %1$lld 行" } }
+      }
+    },
     "review.fullContentTitle": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Full diff" } },

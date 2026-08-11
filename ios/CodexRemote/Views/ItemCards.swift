@@ -57,10 +57,11 @@ struct ItemCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-        case .commandExecution(_, let command, let output, let status, let exitCode, let durationMs):
+        case .commandExecution(_, let command, let output, let outputLineCount,
+                               let status, let exitCode, let durationMs):
             DisclosureGroup(isExpanded: $isCommandExpanded) {
                 if !output.isEmpty {
-                    let presentation = TextRenderBudget.commandOutput(output)
+                    let presentation = TextRenderBudget.commandOutput(output, totalLines: outputLineCount)
                     Text(presentation.text)
                         .font(.footnote.monospaced())
                         .textSelection(.enabled)
@@ -87,7 +88,7 @@ struct ItemCard: View {
                     commandStatusBadge(status: status, exitCode: exitCode, durationMs: durationMs)
                 }
                 if !output.isEmpty {
-                    Text("conv.output.lines \(TextRenderBudget.lineCount(output))")
+                    Text("conv.output.lines \(outputLineCount)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -471,25 +472,43 @@ enum TextRenderBudget {
     static let maximumCommandLines = 500
     static let maximumCommandBytes = 128 * 1_024
 
-    static func lineCount(_ text: String) -> Int {
-        text.isEmpty ? 0 : text.split(separator: "\n", omittingEmptySubsequences: false).count
+    static func boundedUTF8Prefix(_ text: String, maximumBytes: Int) -> (text: String, truncated: Bool) {
+        var usedBytes = 0
+        var end = text.startIndex
+        for character in text {
+            let byteCount = String(character).utf8.count
+            guard usedBytes + byteCount <= maximumBytes else {
+                return (String(text[..<end]), true)
+            }
+            usedBytes += byteCount
+            end = text.index(after: end)
+        }
+        return (text, false)
     }
 
-    static func commandOutput(_ output: String) -> BoundedTextPresentation {
-        let allLines = output.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        var selected: [String] = []
-        var byteCount = 0
-        for line in allLines.prefix(maximumCommandLines) {
-            let addedBytes = line.utf8.count + (selected.isEmpty ? 0 : 1)
-            guard byteCount + addedBytes <= maximumCommandBytes else { break }
-            selected.append(line)
-            byteCount += addedBytes
+    static func commandOutput(_ output: String, totalLines: Int? = nil) -> BoundedTextPresentation {
+        let bounded = boundedUTF8Prefix(output, maximumBytes: maximumCommandBytes)
+        let source = bounded.text
+        var selected: [Substring] = []
+        var cursor = source.startIndex
+        while cursor < source.endIndex, selected.count < maximumCommandLines {
+            if let newline = source[cursor...].firstIndex(of: "\n") {
+                selected.append(source[cursor..<newline])
+                cursor = source.index(after: newline)
+            } else {
+                selected.append(source[cursor...])
+                cursor = source.endIndex
+            }
         }
+        if cursor == source.endIndex, source.last == "\n", selected.count < maximumCommandLines {
+            selected.append(source[source.endIndex..<source.endIndex])
+        }
+        let knownTotalLines = totalLines ?? IncrementalTextLineCount.count(output)
         return BoundedTextPresentation(
             text: selected.joined(separator: "\n"),
             displayedLines: selected.count,
-            totalLines: allLines.count,
-            isTruncated: selected.count < allLines.count
+            totalLines: knownTotalLines,
+            isTruncated: bounded.truncated || cursor < source.endIndex || selected.count < knownTotalLines
         )
     }
 }
@@ -511,21 +530,46 @@ struct MarkdownBlock: Identifiable, Equatable {
     let id: Int
     let kind: Kind
 
+    static let maximumInlineBytes = 128 * 1_024
+    static let maximumInlineLines = 1_000
+    static let maximumInlineBlocks = 512
+
     static func parse(_ markdown: String) -> [MarkdownBlock] {
-        let lines = markdown.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        presentation(markdown).blocks
+    }
+
+    static func presentation(_ markdown: String) -> MarkdownPresentation {
+        let bounded = TextRenderBudget.boundedUTF8Prefix(markdown, maximumBytes: maximumInlineBytes)
+        let source = bounded.text
         var blocks: [MarkdownBlock] = []
         var paragraph: [String] = []
         var code: [String] = []
         var inCode = false
+        var cursor = source.startIndex
+        var processedLines = 0
 
-        func append(_ kind: Kind) { blocks.append(.init(id: blocks.count, kind: kind)) }
+        func append(_ kind: Kind) {
+            guard blocks.count < maximumInlineBlocks else { return }
+            blocks.append(.init(id: blocks.count, kind: kind))
+        }
         func flushParagraph() {
             guard !paragraph.isEmpty else { return }
             append(.paragraph(paragraph.joined(separator: "\n")))
             paragraph.removeAll(keepingCapacity: true)
         }
 
-        for line in lines {
+        while cursor < source.endIndex,
+              processedLines < maximumInlineLines,
+              blocks.count < maximumInlineBlocks {
+            let line: String
+            if let newline = source[cursor...].firstIndex(of: "\n") {
+                line = String(source[cursor..<newline])
+                cursor = source.index(after: newline)
+            } else {
+                line = String(source[cursor...])
+                cursor = source.endIndex
+            }
+            processedLines += 1
             if line.hasPrefix("```") {
                 if inCode {
                     append(.code(code.joined(separator: "\n")))
@@ -561,8 +605,21 @@ struct MarkdownBlock: Identifiable, Equatable {
         }
         if inCode { append(.code(code.joined(separator: "\n"))) }
         flushParagraph()
-        return blocks
+        return MarkdownPresentation(
+            blocks: blocks,
+            displayedLines: processedLines,
+            isTruncated: bounded.truncated
+                || cursor < source.endIndex
+                || processedLines >= maximumInlineLines && cursor < source.endIndex
+                || blocks.count >= maximumInlineBlocks && cursor < source.endIndex
+        )
     }
+}
+
+struct MarkdownPresentation: Equatable {
+    let blocks: [MarkdownBlock]
+    let displayedLines: Int
+    let isTruncated: Bool
 }
 
 private struct AgentMarkdownView: View, Equatable {
@@ -574,8 +631,9 @@ private struct AgentMarkdownView: View, Equatable {
             if isStreaming {
                 Text(verbatim: text.isEmpty ? " " : text)
             } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(MarkdownBlock.parse(text)) { block in
+                let presentation = MarkdownBlock.presentation(text)
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(presentation.blocks) { block in
                         switch block.kind {
                         case .paragraph(let value):
                             Text(ItemCard.agentText(value))
@@ -601,6 +659,12 @@ private struct AgentMarkdownView: View, Equatable {
                             .background(Color.secondary.opacity(0.08))
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                         }
+                    }
+                    if presentation.isTruncated {
+                        Label("conv.agent.truncated \(presentation.displayedLines)", systemImage: "scissors")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        FullTextAccessButton(text: text, title: "conv.agent.fullTitle")
                     }
                 }
             }

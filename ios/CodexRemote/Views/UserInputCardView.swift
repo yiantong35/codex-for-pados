@@ -102,9 +102,9 @@ struct UserInputCardView: View {
     @ViewBuilder
     private func questionView(_ question: ToolRequestUserInputQuestion) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(question.header)
+            Text(UntrustedDisplayText.sanitize(question.header))
                 .font(.subheadline.bold())
-            Text(question.question)
+            Text(UntrustedDisplayText.sanitize(question.question))
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -119,9 +119,10 @@ struct UserInputCardView: View {
                                 Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
                                     .frame(width: 20, height: 20)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(option.label).font(.callout.weight(.medium))
+                                    Text(UntrustedDisplayText.sanitize(option.label))
+                                        .font(.callout.weight(.medium))
                                     if !option.description.isEmpty {
-                                        Text(option.description)
+                                        Text(UntrustedDisplayText.sanitize(option.description))
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                             .fixedSize(horizontal: false, vertical: true)
@@ -133,7 +134,9 @@ struct UserInputCardView: View {
                         }
                         .buttonStyle(.plain)
                         .minimumHitTarget44()
-                        .accessibilityLabel("\(option.label). \(option.description)")
+                        .accessibilityLabel(UntrustedDisplayText.sanitize(
+                            "\(option.label). \(option.description)"
+                        ))
                         .accessibilityValue(Text(isSelected ? "accessibility.selected" : "accessibility.notSelected"))
                         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
                     }
@@ -145,8 +148,8 @@ struct UserInputCardView: View {
                     SecureField("userInput.answerPlaceholder", text: freeformBinding(for: question.id))
                         .textFieldStyle(.roundedBorder)
                         .focused($focusedQuestionId, equals: question.id)
-                        .accessibilityLabel(Text(question.header))
-                        .accessibilityHint(Text(question.question))
+                        .accessibilityLabel(Text(UntrustedDisplayText.sanitize(question.header)))
+                        .accessibilityHint(Text(UntrustedDisplayText.sanitize(question.question)))
                 } else {
                     TextField(
                         question.options == nil ? "userInput.answerPlaceholder" : "userInput.otherPlaceholder",
@@ -156,8 +159,8 @@ struct UserInputCardView: View {
                     .lineLimit(1...4)
                     .textFieldStyle(.roundedBorder)
                     .focused($focusedQuestionId, equals: question.id)
-                    .accessibilityLabel(Text(question.header))
-                    .accessibilityHint(Text(question.question))
+                    .accessibilityLabel(Text(UntrustedDisplayText.sanitize(question.header)))
+                    .accessibilityHint(Text(UntrustedDisplayText.sanitize(question.question)))
                 }
             }
         }
@@ -173,7 +176,10 @@ struct UserInputCardView: View {
             get: { drafts[questionId]?.freeform ?? "" },
             set: { value in
                 userInputs.userInteracted(with: card.id)
-                drafts[questionId] = UserInputDraft(selectedOption: nil, freeform: value)
+                drafts[questionId] = UserInputDraft(
+                    selectedOption: nil,
+                    freeform: UserInputRequestLimits.boundedFreeform(value)
+                )
             }
         )
     }

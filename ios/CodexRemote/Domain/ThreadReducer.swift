@@ -109,7 +109,7 @@ struct ThreadReducer {
                 upsert(.agentMessage(id: id, text: item["text"] as? String ?? ""), &state)
             case "commandExecution":
                 upsert(.commandExecution(id: id, command: item["command"] as? String ?? "",
-                                         output: "", status: .inProgress,
+                                         output: "", outputLineCount: 0, status: .inProgress,
                                          exitCode: nil, durationMs: nil), &state)
             case "fileChange":
                 upsert(.fileChange(id: id, file: item["file"] as? String ?? "",
@@ -209,9 +209,11 @@ struct ThreadReducer {
             return .reasoning(id: id, text: reasoningText(from: item))
         case "commandExecution":
             let status = CommandStatus(rawValue: item["status"] as? String ?? "") ?? .inProgress
+            let output = item["aggregatedOutput"] as? String ?? ""
             return .commandExecution(id: id,
                                      command: item["command"] as? String ?? "",
-                                     output: item["aggregatedOutput"] as? String ?? "",
+                                     output: output,
+                                     outputLineCount: IncrementalTextLineCount.count(output),
                                      status: status,
                                      exitCode: optionalInt(item["exitCode"]),
                                      durationMs: optionalInt(item["durationMs"]))
@@ -496,8 +498,13 @@ struct ThreadReducer {
                 s.items[i] = .agentMessage(id: id, text: t + buf.text)
             case (.reasoning, .reasoning(_, let t)):
                 s.items[i] = .reasoning(id: id, text: t + buf.text)
-            case (.command, .commandExecution(_, let c, let o, let st, let ec, let dm)):
+            case (.command, .commandExecution(_, let c, let o, let lineCount, let st, let ec, let dm)):
                 s.items[i] = .commandExecution(id: id, command: c, output: o + buf.text,
+                                               outputLineCount: IncrementalTextLineCount.appending(
+                                                   currentCount: lineCount,
+                                                   currentIsEmpty: o.isEmpty,
+                                                   delta: buf.text
+                                               ),
                                                status: st, exitCode: ec, durationMs: dm)
             default:
                 break
@@ -558,11 +565,13 @@ struct ThreadReducer {
                                exitCode: Int?, durationMs: Int?,
                                fallbackOutput: String = "", _ s: inout ConversationState) {
         guard let i = s.items.firstIndex(where: { $0.id == id }),
-              case .commandExecution(_, let c, let o, _, _, _) = s.items[i] else { return }
+              case .commandExecution(_, let c, let o, let lineCount, _, _, _) = s.items[i] else { return }
         // completed/failed/declined 都视为命令已结束，落终态字段。
         // output 优先保留 delta 累加值；若 delta 未到（如纯 aggregatedOutput 完成事件），用兜底补落。
         let output = o.isEmpty ? fallbackOutput : o
+        let finalLineCount = o.isEmpty ? IncrementalTextLineCount.count(fallbackOutput) : lineCount
         s.items[i] = .commandExecution(id: id, command: c, output: output,
+                                       outputLineCount: finalLineCount,
                                        status: status, exitCode: exitCode, durationMs: durationMs)
     }
 

@@ -73,8 +73,9 @@ struct FileImageThumbnail: @unchecked Sendable {
 }
 
 enum FileImageThumbnailDecoder {
-    static let maximumSourcePixels = 80_000_000
-    static let maximumSourceDimension = 32_768
+    static let maximumSourcePixels = 20_000_000
+    static let maximumSourceDimension = 8_192
+    static let maximumPixelsPerEncodedByte = 512
     static let maximumThumbnailDimension = 2_048
 
     static func thumbnail(from data: Data) async -> FileImageThumbnail? {
@@ -95,7 +96,8 @@ enum FileImageThumbnailDecoder {
             guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions),
                   CGImageSourceGetCount(source) > 0,
                   let dimensions = dimensions(of: source),
-                  isWithinPixelBudget(width: dimensions.width, height: dimensions.height),
+                  isWithinPixelBudget(width: dimensions.width, height: dimensions.height,
+                                      encodedBytes: data.count),
                   !Task.isCancelled else { return nil }
 
             let thumbnailOptions: [CFString: Any] = [
@@ -111,10 +113,15 @@ enum FileImageThumbnailDecoder {
         }
     }
 
-    static func isWithinPixelBudget(width: Int, height: Int) -> Bool {
+    static func isWithinPixelBudget(width: Int, height: Int, encodedBytes: Int? = nil) -> Bool {
         guard width > 0, height > 0,
               width <= maximumSourceDimension, height <= maximumSourceDimension,
               width <= maximumSourcePixels / height else { return false }
+        if let encodedBytes {
+            guard encodedBytes > 0 else { return false }
+            let pixels = width * height
+            guard pixels / encodedBytes <= maximumPixelsPerEncodedByte else { return false }
+        }
         return true
     }
 
