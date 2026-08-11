@@ -1,6 +1,36 @@
 import Foundation
 import Observation
 
+/// A logically bounded byte buffer that advances a head offset for each small eviction and only
+/// compacts after roughly one full capacity has been discarded. This avoids moving 1 MiB per delta.
+struct BoundedReplayBuffer {
+    let capacity: Int
+    private(set) var storage = Data()
+    private(set) var head = 0
+    private(set) var compactionCount = 0
+
+    var isEmpty: Bool { count == 0 }
+    var count: Int { storage.count - head }
+    var data: Data { head == 0 ? storage : Data(storage[head...]) }
+
+    mutating func append(_ data: Data) {
+        guard capacity > 0, !data.isEmpty else { return }
+        if data.count >= capacity {
+            storage = Data(data.suffix(capacity))
+            head = 0
+            return
+        }
+
+        storage.append(data)
+        head += max(0, count - capacity)
+        if head >= capacity {
+            storage = Data(storage[head...])
+            head = 0
+            compactionCount += 1
+        }
+    }
+}
+
 /// 下边栏终端会话：常驻 PTY shell 生命周期 + outputDelta 消费 + 输出缓冲。
 @Observable
 @MainActor
@@ -12,7 +42,7 @@ final class TerminalSession {
     @ObservationIgnored var onBytes: (([UInt8]) -> Void)? {
         didSet {
             if let onBytes, !outputReplayBuffer.isEmpty {
-                onBytes([UInt8](outputReplayBuffer))
+                onBytes([UInt8](outputReplayBuffer.data))
             }
         }
     }
@@ -31,7 +61,7 @@ final class TerminalSession {
     private var awaitingReconnectSuccess = false
     private var execTask: Task<Void, Never>?
     /// SwiftTerm 视图卸载期间继续收集输出；新视图挂载时一次性重放。严格有界，防长驻 shell 吃光内存。
-    private var outputReplayBuffer = Data()
+    private var outputReplayBuffer = BoundedReplayBuffer(capacity: maxReplayBytes)
 
     /// 复用①传输：订阅 outputDelta。幂等；完整重连换新 rpc 实例时——
     ///   ① 取消旧订阅并对新 rpc 重订阅（否则 guard==nil 挡住重订阅 → 新连接 shell 输出永不显示）；
@@ -174,9 +204,6 @@ final class TerminalSession {
 
     private func publish(_ data: Data) {
         outputReplayBuffer.append(data)
-        if outputReplayBuffer.count > Self.maxReplayBytes {
-            outputReplayBuffer.removeFirst(outputReplayBuffer.count - Self.maxReplayBytes)
-        }
         onBytes?([UInt8](data))
     }
 

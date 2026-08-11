@@ -56,7 +56,7 @@ enum ConversationItem: Identifiable, Equatable {
     case userMessage(id: String, text: String, attachments: [UserMessageAttachment])
     case agentMessage(id: String, text: String)              // 随 delta 累加
     case reasoning(id: String, text: String)                 // 思考/推理：随 delta 累加
-    case commandExecution(id: String, command: String, output: String,
+    case commandExecution(id: String, command: String, output: String, outputLineCount: Int,
                           status: CommandStatus, exitCode: Int?, durationMs: Int?)
     case fileChange(id: String, file: String, added: Int, removed: Int, diff: String)
     // 新增（v2 协议已探明字段）
@@ -80,7 +80,7 @@ enum ConversationItem: Identifiable, Equatable {
     var id: String {
         switch self {
         case .userMessage(let i, _, _), .agentMessage(let i, _), .reasoning(let i, _),
-             .commandExecution(let i, _, _, _, _, _), .fileChange(let i, _, _, _, _),
+             .commandExecution(let i, _, _, _, _, _, _), .fileChange(let i, _, _, _, _),
              .mcpToolCall(let i, _, _, _, _, _), .dynamicToolCall(let i, _, _, _, _),
              .webSearch(let i, _, _), .contextCompaction(let i),
              .imageGeneration(let i, _, _, _), .imageView(let i, _),
@@ -89,6 +89,24 @@ enum ConversationItem: Identifiable, Equatable {
              .collabAgentToolCall(let i), .subAgentActivity(let i),
              .unknown(let i, _):
             return i
+        }
+    }
+}
+
+enum IncrementalTextLineCount {
+    static func count(_ text: String) -> Int {
+        guard !text.isEmpty else { return 0 }
+        return 1 + newlineCount(text)
+    }
+
+    static func appending(currentCount: Int, currentIsEmpty: Bool, delta: String) -> Int {
+        guard !delta.isEmpty else { return currentCount }
+        return currentIsEmpty ? count(delta) : currentCount + newlineCount(delta)
+    }
+
+    private static func newlineCount(_ text: String) -> Int {
+        text.utf8.reduce(into: 0) { count, byte in
+            if byte == 0x0A { count += 1 }
         }
     }
 }

@@ -66,7 +66,7 @@ enum WorkspaceSummary {
     /// 会话内所有命令执行项，按出现顺序。
     static func commandTasks(in state: ConversationState) -> [CommandTask] {
         state.items.compactMap { item in
-            guard case .commandExecution(let id, let cmd, _, let status, _, _) = item else { return nil }
+            guard case .commandExecution(let id, let cmd, _, _, let status, _, _) = item else { return nil }
             return CommandTask(id: id, command: cmd, status: status)
         }
     }

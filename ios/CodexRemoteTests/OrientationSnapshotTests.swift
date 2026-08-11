@@ -389,7 +389,7 @@ final class OrientationSnapshotTests: XCTestCase {
         var state = ConversationState(threadId: "t")
         state.items = [
             .fileChange(id: "f1", file: "a.swift", added: 12, removed: 4, diff: ""),
-            .commandExecution(id: "c1", command: "swift build", output: "",
+            .commandExecution(id: "c1", command: "swift build", output: "", outputLineCount: 0,
                               status: .completed, exitCode: 0, durationMs: 9),
         ]
         state.plan = [

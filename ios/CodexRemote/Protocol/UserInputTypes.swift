@@ -9,6 +9,22 @@ enum UserInputRequestLimits {
     static let maximumQuestionBytes = 1_024
     static let maximumOptionLabelBytes = 128
     static let maximumOptionDescriptionBytes = 512
+    static let maximumAnswerBytes = 16 * 1_024
+    static let answerPrefix = "user_note: "
+    static let maximumFreeformBytes = maximumAnswerBytes - answerPrefix.utf8.count
+
+    static func boundedFreeform(_ value: String) -> String {
+        guard value.utf8.count > maximumFreeformBytes else { return value }
+        var usedBytes = 0
+        var end = value.startIndex
+        for character in value {
+            let byteCount = String(character).utf8.count
+            guard usedBytes + byteCount <= maximumFreeformBytes else { break }
+            usedBytes += byteCount
+            end = value.index(after: end)
+        }
+        return String(value[..<end])
+    }
 }
 
 struct ToolRequestUserInputOption: Codable, Sendable, Equatable {
@@ -113,13 +129,13 @@ struct UserInputCard: Identifiable, Sendable, Equatable {
     }
 
     func isSubmittable(drafts: [String: UserInputDraft]) -> Bool {
-        questions.allSatisfy { answer(for: $0, draft: drafts[$0.id]) != nil }
+        questions.allSatisfy { (try? answer(for: $0, draft: drafts[$0.id])) != nil }
     }
 
     func response(drafts: [String: UserInputDraft]) throws -> ToolRequestUserInputResponse {
         var answers: [String: ToolRequestUserInputAnswer] = [:]
         for question in questions {
-            guard let value = answer(for: question, draft: drafts[question.id]) else {
+            guard let value = try answer(for: question, draft: drafts[question.id]) else {
                 throw UserInputError.unansweredQuestion(question.id)
             }
             answers[question.id] = ToolRequestUserInputAnswer(answers: [value])
@@ -127,7 +143,8 @@ struct UserInputCard: Identifiable, Sendable, Equatable {
         return ToolRequestUserInputResponse(answers: answers)
     }
 
-    private func answer(for question: ToolRequestUserInputQuestion, draft: UserInputDraft?) -> String? {
+    private func answer(for question: ToolRequestUserInputQuestion,
+                        draft: UserInputDraft?) throws -> String? {
         guard let draft else { return nil }
         if let selected = draft.selectedOption,
            question.options?.contains(where: { $0.label == selected }) == true {
@@ -135,7 +152,11 @@ struct UserInputCard: Identifiable, Sendable, Equatable {
         }
         let text = draft.freeform.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, question.options == nil || question.isOther else { return nil }
-        return "user_note: \(text)"
+        let answer = UserInputRequestLimits.answerPrefix + text
+        guard answer.utf8.count <= UserInputRequestLimits.maximumAnswerBytes else {
+            throw UserInputError.answerTooLarge(question.id)
+        }
+        return answer
     }
 }
 
@@ -144,4 +165,5 @@ enum UserInputError: Error, Equatable {
     case invalidParams(String)
     case invalidQuestions
     case unansweredQuestion(String)
+    case answerTooLarge(String)
 }

@@ -101,6 +101,24 @@ final class ItemCardRenderTests: XCTestCase {
         XCTAssertEqual(presentation.totalLines, 800)
     }
 
+    func testCommandLineCountCanBeMaintainedFromDeltas() {
+        var count = 0
+        var empty = true
+        for delta in ["one\n", "two", "\nthree"] {
+            count = IncrementalTextLineCount.appending(
+                currentCount: count, currentIsEmpty: empty, delta: delta
+            )
+            empty = false
+        }
+        XCTAssertEqual(count, 3)
+
+        let presentation = TextRenderBudget.commandOutput(
+            String(repeating: "line\n", count: 20_000), totalLines: 20_001
+        )
+        XCTAssertEqual(presentation.totalLines, 20_001)
+        XCTAssertTrue(presentation.isTruncated)
+    }
+
     func testDiffBudgetsKeepInlineSmallerThanDedicatedReview() {
         XCTAssertGreaterThan(DiffRenderBudget.maximumInlineLines, 0)
         XCTAssertGreaterThan(DiffRenderBudget.maximumReviewLines, DiffRenderBudget.maximumInlineLines)
@@ -120,6 +138,23 @@ final class ItemCardRenderTests: XCTestCase {
             .unordered("two"),
             .code("let x = 1"),
         ])
+    }
+
+    func testAgentMarkdownParsingHasHardByteLineAndBlockBudgets() {
+        let markdown = String(repeating: "- item\n", count: 100_000)
+        let presentation = MarkdownBlock.presentation(markdown)
+
+        XCTAssertTrue(presentation.isTruncated)
+        XCTAssertLessThanOrEqual(presentation.displayedLines, MarkdownBlock.maximumInlineLines)
+        XCTAssertLessThanOrEqual(presentation.blocks.count, MarkdownBlock.maximumInlineBlocks)
+    }
+
+    func testInteractiveDisplaySanitizerExposesBidiAndControls() {
+        let raw = "Approve\u{202E}txt\u{2066}\u{0007}"
+        XCTAssertEqual(
+            UntrustedDisplayText.sanitize(raw),
+            "Approve[U+202E]txt[U+2066][U+0007]"
+        )
     }
 
     func testReviewFullTextContainsTailBeyondRenderBudget() {

@@ -105,7 +105,7 @@ final class StreamCoalescerTests: XCTestCase {
                                                         "status": "completed", "exitCode": 0, "durationMs": 5,
                                                         "aggregatedOutput": "FALLBACK-不该出现"]]), to: &state)
 
-        guard case .commandExecution(_, _, let out, let st, let ec, _)? = state.items.first(where: { $0.id == "c1" }) else {
+        guard case .commandExecution(_, _, let out, _, let st, let ec, _)? = state.items.first(where: { $0.id == "c1" }) else {
             return XCTFail("应有 commandExecution c1")
         }
         XCTAssertEqual(out, baseline)          // 用 delta 累积，非 fallback

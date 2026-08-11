@@ -87,9 +87,11 @@ final class WorkspaceSummaryTests: XCTestCase {
     func testCommandTasksListsCommandsInOrder() {
         var state = ConversationState(threadId: "t")
         state.items = [
-            .commandExecution(id: "c1", command: "ls -la", output: "", status: .completed, exitCode: 0, durationMs: 5),
+            .commandExecution(id: "c1", command: "ls -la", output: "", outputLineCount: 0,
+                              status: .completed, exitCode: 0, durationMs: 5),
             .agentMessage(id: "a1", text: "x"),
-            .commandExecution(id: "c2", command: "swift build", output: "", status: .inProgress, exitCode: nil, durationMs: nil),
+            .commandExecution(id: "c2", command: "swift build", output: "", outputLineCount: 0,
+                              status: .inProgress, exitCode: nil, durationMs: nil),
         ]
         let tasks = WorkspaceSummary.commandTasks(in: state)
         XCTAssertEqual(tasks.map(\.command), ["ls -la", "swift build"])
