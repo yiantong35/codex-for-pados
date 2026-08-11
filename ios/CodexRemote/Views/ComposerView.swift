@@ -69,7 +69,7 @@ struct ComposerView: View {
             if let err = store.state.lastSendError {
                 VStack(alignment: .leading, spacing: 4) {
                     Label {
-                        Text("composer.sendFailed \(err)")
+                        Text(verbatim: err)
                             .font(.footnote).multilineTextAlignment(.leading)
                     } icon: {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -129,70 +129,21 @@ struct ComposerView: View {
                     .minimumHitTarget44()
                 }
             }
-            HStack(spacing: 8) {
-                // 次级控件用中性色（选择性用橙：只有主操作发送用主题色）。
-                PhotosPicker(selection: $draft.photoItem, matching: .images) {
-                    Image(systemName: "plus.circle").font(.title3)
-                }
-                .foregroundStyle(.secondary)
-                .minimumHitTarget44()
-                .accessibilityLabel(Text("composer.a11y.pickImage"))
-                // 模型/推理用 .popover 而非 Menu：Menu+Picker 收起时会闪现（#7），且会遮挡按钮（#8）。
-                // popover 带箭头指向按钮、不遮挡，inline picker 一屏列出可选项。
-                Button { showModelPopover.toggle() } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "slider.horizontal.3")
-                        Text(verbatim: modelChipLabel)
-                            .font(.caption)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    .padding(.horizontal, 7)
-                    .background(Color.secondary.opacity(0.12), in: Capsule())
-                }
-                .foregroundStyle(.secondary)
-                .minimumHitTarget44()
-                .accessibilityLabel(Text("composer.a11y.model"))
-                .accessibilityValue(Text(verbatim: modelChipLabel))
-                .popover(isPresented: $showModelPopover) {
-                    modelPopover.presentationCompactAdaptation(.popover)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    composerUtilityControls(photoItem: $draft.photoItem)
+                    composerTextField(text: $draft.text)
+                        .frame(minWidth: 160)
+                    turnControls
                 }
 
-                TextField("composer.placeholder", text: $draft.text, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .lineLimit(1...5)
-
-                if store.state.isTurnRunning {
-                    // turn 进行中：提供「中断」+「转向/排队」菜单。
-                    Button(role: .destructive) {
-                        Task { await store.interrupt() }
-                    } label: {
-                        Image(systemName: "stop.circle.fill").font(.title2)
+                VStack(spacing: 6) {
+                    composerTextField(text: $draft.text)
+                    HStack(spacing: 8) {
+                        composerUtilityControls(photoItem: $draft.photoItem)
+                        Spacer(minLength: 8)
+                        turnControls
                     }
-                    .minimumHitTarget44()
-                    .accessibilityLabel(Text("composer.a11y.stop"))
-                    Menu {
-                        Button("composer.steer") { Task { await trySteer() } }
-                            .disabled(store.state.activeTurnKind != nil)
-                        Button("composer.enqueue") { Task { await enqueueCurrent() } }
-                        if let kind = store.state.activeTurnKind {
-                            Text("composer.noSteer \(kind.rawValue)")
-                        }
-                    } label: {
-                        Image(systemName: "arrow.up.circle.fill").font(.title2)
-                    }
-                    .disabled(!canSend)
-                    .minimumHitTarget44()
-                    .accessibilityLabel(Text("composer.a11y.more"))
-                } else {
-                    Button {
-                        Task { await send() }
-                    } label: {
-                        Image(systemName: "arrow.up.circle.fill").font(.title2)
-                    }
-                    .disabled(!canSend)
-                    .minimumHitTarget44()
-                    .accessibilityLabel(Text("composer.a11y.send"))
                 }
             }
             .disabled(!isEnabled)
@@ -207,6 +158,76 @@ struct ComposerView: View {
             loadImage(item)
         }
         .onDisappear { draft.imageAttachment.cancelLoadingForDisappearance() }
+    }
+
+    @ViewBuilder
+    private func composerUtilityControls(photoItem: Binding<PhotosPickerItem?>) -> some View {
+        PhotosPicker(selection: photoItem, matching: .images) {
+            Image(systemName: "plus.circle").font(.title3)
+        }
+        .foregroundStyle(.secondary)
+        .minimumHitTarget44()
+        .accessibilityLabel(Text("composer.a11y.pickImage"))
+
+        Button { showModelPopover.toggle() } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "slider.horizontal.3")
+                Text(verbatim: modelChipLabel)
+                    .font(.caption)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .padding(.horizontal, 7)
+            .background(Color.secondary.opacity(0.12), in: Capsule())
+        }
+        .foregroundStyle(.secondary)
+        .minimumHitTarget44()
+        .accessibilityLabel(Text("composer.a11y.model"))
+        .accessibilityValue(Text(verbatim: modelChipLabel))
+        .popover(isPresented: $showModelPopover) {
+            modelPopover.presentationCompactAdaptation(.popover)
+        }
+    }
+
+    private func composerTextField(text: Binding<String>) -> some View {
+        TextField("composer.placeholder", text: text, axis: .vertical)
+            .textFieldStyle(.roundedBorder)
+            .lineLimit(1...5)
+    }
+
+    @ViewBuilder
+    private var turnControls: some View {
+        if store.state.isTurnRunning {
+            Button(role: .destructive) {
+                Task { _ = await store.interrupt() }
+            } label: {
+                Image(systemName: "stop.circle.fill").font(.title2)
+            }
+            .minimumHitTarget44()
+            .accessibilityLabel(Text("composer.a11y.stop"))
+            Menu {
+                Button("composer.steer") { Task { await trySteer() } }
+                    .disabled(store.state.activeTurnKind != nil)
+                Button("composer.enqueue") { Task { await enqueueCurrent() } }
+                if let kind = store.state.activeTurnKind {
+                    Text("composer.noSteer \(kind.rawValue)")
+                }
+            } label: {
+                Image(systemName: "arrow.up.circle.fill").font(.title2)
+            }
+            .disabled(!canSend)
+            .minimumHitTarget44()
+            .accessibilityLabel(Text("composer.a11y.more"))
+        } else {
+            Button {
+                Task { await send() }
+            } label: {
+                Image(systemName: "arrow.up.circle.fill").font(.title2)
+            }
+            .disabled(!canSend)
+            .minimumHitTarget44()
+            .accessibilityLabel(Text("composer.a11y.send"))
+        }
     }
 
     private func loadImage(_ item: PhotosPickerItem) {

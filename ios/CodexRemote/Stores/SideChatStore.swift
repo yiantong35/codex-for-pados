@@ -5,7 +5,24 @@ import Observation
 struct SideChatSession: Identifiable {
     let id: String
     let forkedFromId: String?
-    let title: String
+    let index: Int
+    var title: String
+    var hasMessageSummary = false
+
+    init(id: String, forkedFromId: String?, index: Int = 0, title: String,
+         hasMessageSummary: Bool = false) {
+        self.id = id
+        self.forkedFromId = forkedFromId
+        self.index = index
+        self.title = title
+        self.hasMessageSummary = hasMessageSummary
+    }
+}
+
+enum SideChatCloseResult: Equatable {
+    case closed
+    case requiresInterrupt
+    case interruptFailed
 }
 
 /// 多侧聊生命周期状态层（design D2）：容器持有一份，视图只读渲染。
@@ -58,6 +75,9 @@ final class SideChatStore {
             threadId: threadId,
             outbox: conversationOutboxes.outbox(for: threadId)
         )
+        created.onUserMessageEnqueued = { [weak self] text in
+            self?.setFirstMessageSummary(text, for: threadId)
+        }
         visibleStore = created
         visibleStoreThreadId = threadId
         return created
@@ -84,8 +104,13 @@ final class SideChatStore {
         }
 
         startedCount += 1
-        let title = Self.makeTitle(forkedFromId: result.forkedFromId, index: startedCount)
-        let session = SideChatSession(id: result.threadId, forkedFromId: result.forkedFromId, title: title)
+        let title = Self.makeTitle(index: startedCount)
+        let session = SideChatSession(
+            id: result.threadId,
+            forkedFromId: result.forkedFromId,
+            index: startedCount,
+            title: title
+        )
         sessions.append(session)
         selectedId = session.id
     }
@@ -109,12 +134,12 @@ final class SideChatStore {
 
     /// 关闭侧聊：移除 metadata；可见 ConversationView 随选择变化销毁并取消自己的订阅。
     @discardableResult
-    func close(id: String, interruptIfRunning: Bool = false) async -> Bool {
-        guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return false }
+    func close(id: String, interruptIfRunning: Bool = false) async -> SideChatCloseResult {
+        guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return .closed }
         if visibleStoreThreadId == id, let conversation = visibleStore {
             if conversation.state.isTurnRunning {
-                guard interruptIfRunning else { return false }
-                await conversation.interrupt()
+                guard interruptIfRunning else { return .requiresInterrupt }
+                guard await conversation.interrupt() else { return .interruptFailed }
             }
             conversation.stopObserving()
             visibleStore = nil
@@ -124,9 +149,9 @@ final class SideChatStore {
         conversationOutboxes.remove(threadId: id)
         draftStore?.removeDraft(for: id)
         if selectedId == id {
-            selectedId = sessions.first?.id
+            selectedId = sessions.isEmpty ? nil : sessions[min(idx, sessions.count - 1)].id
         }
-        return true
+        return .closed
     }
 
     private func releaseVisibleStore() {
@@ -135,9 +160,26 @@ final class SideChatStore {
         visibleStoreThreadId = nil
     }
 
-    /// 标题：forkedFromId 前 8 位（缺则用 "side"）· #序号。
-    static func makeTitle(forkedFromId: String?, index: Int) -> String {
-        let prefix = forkedFromId.map { String($0.prefix(8)) } ?? "side"
-        return "\(prefix)·#\(index)"
+    func rename(id: String, title: String) {
+        let value = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty, let index = sessions.firstIndex(where: { $0.id == id }) else { return }
+        sessions[index].title = value
+        sessions[index].hasMessageSummary = true
+    }
+
+    static func makeTitle(index: Int) -> String {
+        String.localizedStringWithFormat(
+            L10n.string("sideChat.defaultTitle %lld", locale: LocaleManager.currentLocale), index
+        )
+    }
+
+    private func setFirstMessageSummary(_ text: String, for id: String) {
+        guard let index = sessions.firstIndex(where: { $0.id == id }),
+              !sessions[index].hasMessageSummary else { return }
+        let summary = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\n", with: " ")
+        guard !summary.isEmpty else { return }
+        sessions[index].title += " · " + String(summary.prefix(36))
+        sessions[index].hasMessageSummary = true
     }
 }

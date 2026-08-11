@@ -85,6 +85,12 @@
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "重命名" } }
       }
     },
+    "sidebar.actions %@": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Actions for %@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "%@的操作" } }
+      }
+    },
     "sidebar.rename.placeholder": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Conversation name" } },
@@ -109,6 +115,12 @@
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "删除这个对话？" } }
       }
     },
+    "sidebar.delete.confirm.named %@": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Delete “%@”?" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "删除“%@”？" } }
+      }
+    },
     "sidebar.delete.confirm.message": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "This action cannot be undone." } },
@@ -131,6 +143,12 @@
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Roll back this conversation?" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "回滚这个对话？" } }
+      }
+    },
+    "sidebar.rollback.confirm.named %@": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Roll back “%@”?" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "回滚“%@”？" } }
       }
     },
     "sidebar.rollback.confirm %lld": {
@@ -233,6 +251,30 @@
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Close running side conversation?" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "关闭正在运行的侧聊？" } }
+      }
+    },
+    "sideChat.closeFailed": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Could not interrupt. The side chat remains open." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "未能中断，侧聊已保留。" } }
+      }
+    },
+    "sideChat.defaultTitle %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Side chat %lld" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "侧聊 %lld" } }
+      }
+    },
+    "sideChat.rename": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Rename side chat" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重命名侧聊" } }
+      }
+    },
+    "sideChat.rename.placeholder": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Side chat name" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "侧聊名称" } }
       }
     },
     "conv.output.lines %lld": {
@@ -1263,6 +1305,30 @@
             "value": "发送失败：%@ · 点按重试"
           }
         }
+      }
+    },
+    "composer.sendError.connection": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Message not sent. Check the connection, then retry or edit it." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "消息未发送。请检查连接后重试或编辑。" } }
+      }
+    },
+    "composer.sendError.messageTooLarge": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This message is too large. Shorten it or remove the image." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "消息过大，请缩短内容或移除图片。" } }
+      }
+    },
+    "composer.sendError.threadQueueFull": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This conversation’s offline queue is full. Reconnect or discard a queued message." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "此对话的离线队列已满，请重连或丢弃一条排队消息。" } }
+      }
+    },
+    "composer.sendError.sessionQueueFull": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This session’s offline queue is full. Reconnect or clear another conversation." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "此会话的离线队列已满，请重连或清理其他对话。" } }
       }
     },
     "composer.steer": {

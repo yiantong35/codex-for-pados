@@ -36,6 +36,8 @@ final class ConversationStore {
     private var recoveryGeneration: UInt64 = 0
     /// Permanent failures (for example a relay frame overflow) have already been isolated and cannot be retried.
     private(set) var lastSendErrorIsRetryable = true
+    /// Optional owner hook used by ephemeral side chats to derive a useful title from the first prompt.
+    var onUserMessageEnqueued: (@MainActor (String) -> Void)?
     /// Compatibility/UI view of messages not yet fired. The shared owner also retains the in-flight entry
     /// internally until the RPC or authoritative clientId confirms it.
     var outbox: [PendingConversationMessage] { outbound.queuedEntries }
@@ -224,6 +226,9 @@ final class ConversationStore {
             return false
         }
         let (text, attachments) = Self.presentation(for: input)
+        if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            onUserMessageEnqueued?(text)
+        }
         if !text.isEmpty || !attachments.isEmpty {
             reducer.upsertUserMessage(id: entry.localId, text: text,
                                       attachments: attachments, to: &state)
@@ -260,9 +265,20 @@ final class ConversationStore {
                     // A matching authoritative userMessage already proved acceptance.
                     return
                 }
-                state.lastSendError = "\(error)"
+                state.lastSendError = Self.userFacingSendError(error)
             }
         }
+    }
+
+    private static func userFacingSendError(_ error: Error) -> String {
+        if let outboxError = error as? ConversationOutboxError {
+            return outboxError.localizedDescription
+        }
+        let locale = LocaleManager.currentLocale
+        if case TransportError.messageTooLarge = error {
+            return L10n.string("composer.sendError.messageTooLarge", locale: locale)
+        }
+        return L10n.string("composer.sendError.connection", locale: locale)
     }
 
     /// turn events can originate from another client. They may trigger a drain attempt, but must never
@@ -491,11 +507,15 @@ extension ConversationStore {
         await send(input: input, model: model, effort: effort)
     }
 
-    /// 中断进行中的 turn：发 turn/interrupt（threadId）。
-    func interrupt() async {
+    /// 中断进行中的 turn。Only report success after the server acknowledges the RPC.
+    @discardableResult
+    func interrupt() async -> Bool {
         let params = TurnInterruptParams(threadId: state.threadId)
-        guard let data = try? JSONEncoder().encode(params),
-              let any = try? JSONDecoder().decode(AnyCodable.self, from: data) else { return }
-        try? await rpc.sendWithoutWaiting(method: RPCMethod.turnInterrupt, params: any)
+        do {
+            _ = try await call(RPCMethod.turnInterrupt, params)
+            return true
+        } catch {
+            return false
+        }
     }
 }

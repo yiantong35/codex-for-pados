@@ -157,6 +157,19 @@ final class ItemCardRenderTests: XCTestCase {
         let card = cmdCard(title: "main.swift", prefix: ["should", "ignore"], isFile: true)
         XCTAssertNil(ApprovalCardView.prefixButtonState(card: card))
     }
+
+    func test_approval_expand_control_only_appears_for_truncated_content() {
+        XCTAssertFalse(ApprovalCardView.needsTextExpansion(
+            "git status",
+            availableWidth: 240,
+            previewLines: 8
+        ))
+        XCTAssertTrue(ApprovalCardView.needsTextExpansion(
+            String(repeating: "a long diff line that wraps ", count: 40),
+            availableWidth: 180,
+            previewLines: 8
+        ))
+    }
 }
 
 private actor ImageThumbnailLoaderProbe {

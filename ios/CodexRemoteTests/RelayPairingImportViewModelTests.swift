@@ -142,6 +142,7 @@ final class RelayPairingImportViewModelTests: XCTestCase {
         if let png = image.pngData() {
             FileManager.default.createFile(atPath: "\(dir)/\(name).png", contents: png)
             XCTAssertGreaterThan(png.count, 1000, "PNG 过小疑似空白: \(name)")
+            PerceptualSnapshot.assert(png, named: name)
         } else {
             XCTFail("PNG 编码失败: \(name)")
         }

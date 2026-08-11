@@ -28,7 +28,7 @@ final class OrientationSnapshotTests: XCTestCase {
     /// 把 view 在指定尺寸渲染成 PNG 写到 /tmp/orient/<name>.png，返回承载视图的 window。
     @discardableResult
     private func snapshot(_ view: some View, size: CGSize, name: String, dir: String? = nil,
-                          keepWindowAlive: Bool = false) -> UIWindow {
+                          keepWindowAlive: Bool = false, baseline: String? = nil) -> UIWindow {
         let outDir = dir ?? self.outDir
         try? FileManager.default.createDirectory(atPath: outDir, withIntermediateDirectories: true)
         let hc = UIHostingController(rootView: view)
@@ -73,6 +73,7 @@ final class OrientationSnapshotTests: XCTestCase {
         let path = "\(outDir)/\(name).png"
         FileManager.default.createFile(atPath: path, contents: png)
         XCTAssertGreaterThan(png.count, 1000, "PNG 过小疑似空白: \(name)")
+        if let baseline { PerceptualSnapshot.assert(png, named: baseline) }
         return window
     }
 
@@ -243,7 +244,34 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(makeConnection())
             .environment(LocaleManager())   // SettingsMenu（侧栏 toolbar，Task 26）依赖
             .environment(ThemeManager())
-        snapshot(view, size: portrait, name: "sidebar-flat", dir: "/tmp/sidebar")
+        snapshot(view, size: portrait, name: "sidebar-flat", dir: "/tmp/sidebar",
+                 baseline: "sidebar-flat")
+    }
+
+    func test_composer_compact_accessibility_visual_baseline() {
+        let rpc = JSONRPCClient(transport: MockTransport())
+        let store = ConversationStore(rpc: rpc, threadId: "visual-composer")
+        let view = ComposerView(store: store, draft: ComposerDraft())
+            .environment(EnvironmentStore())
+            .environment(\.dynamicTypeSize, .accessibility3)
+        snapshot(view, size: CGSize(width: 320, height: 220), name: "composer-compact-a11y",
+                 dir: "/tmp/visual-regression", baseline: "composer-compact-a11y")
+    }
+
+    func test_mcp_actions_compact_accessibility_visual_baseline() throws {
+        let params = #"{"threadId":"t","turnId":"turn","serverName":"github","mode":"url","message":"Authorize access to your repository","url":"https://example.com/oauth","elicitationId":"e-1"}"#
+        let object = try JSONSerialization.jsonObject(with: Data(params.utf8))
+        let requestData = try JSONSerialization.data(withJSONObject: [
+            "id": "visual-mcp", "method": ServerRequestMethod.mcpElicitation, "params": object,
+        ])
+        guard case .request(let request) = try JSONDecoder().decode(JSONRPCMessage.self, from: requestData)
+        else { return XCTFail("Expected MCP request") }
+        let card = try McpElicitationCard(request: request)
+        let view = McpElicitationCardView(card: card)
+            .environment(McpElicitationStore())
+            .environment(\.dynamicTypeSize, .accessibility3)
+        snapshot(view, size: CGSize(width: 320, height: 680), name: "mcp-compact-a11y",
+                 dir: "/tmp/visual-regression", baseline: "mcp-compact-a11y")
     }
 
     // MARK: - 场景 4：InspectorView 右栏简态（Task 25）
