@@ -5,7 +5,11 @@ struct DiffLine: Equatable { let kind: DiffLineKind; let text: String; var oldLi
 struct DiffHunk: Equatable { var lines: [DiffLine] }
 enum DiffFileKind { case add, delete, modify, rename, binary }
 struct DiffFile: Equatable, Identifiable {
-    var path: String; var oldPath: String?; var kind: DiffFileKind; var hunks: [DiffHunk]
+    var path: String
+    var oldPath: String?
+    var kind: DiffFileKind
+    var hunks: [DiffHunk]
+    var rawDiff: String = ""
     var id: String { path }
 }
 
@@ -15,18 +19,33 @@ enum UnifiedDiffParser {
         var files: [DiffFile] = []
         var cur: DiffFile?
         var curHunk: DiffHunk?
+        var rawFileLines: [String] = []
         var oldNo = 0, newNo = 0
 
         func closeHunk() { if let h = curHunk { cur?.hunks.append(h); curHunk = nil } }
-        func closeFile() { closeHunk(); if let f = cur { files.append(f); cur = nil } }
+        func closeFile() {
+            closeHunk()
+            if var f = cur {
+                f.rawDiff = rawFileLines.joined(separator: "\n")
+                files.append(f)
+            }
+            cur = nil
+            rawFileLines.removeAll(keepingCapacity: true)
+        }
 
         for raw in diff.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
             if raw.hasPrefix("diff --git ") {
+                if cur != nil { rawFileLines.append("") }
                 closeFile()
                 let paths = parseDiffHeader(String(raw.dropFirst("diff --git ".count)))
                 cur = DiffFile(path: paths.map { stripPrefix($0.new) } ?? "",
                                oldPath: nil, kind: .modify, hunks: [])
-            } else if raw.hasPrefix("rename from ") {
+                rawFileLines.append(raw)
+                continue
+            } else if cur != nil {
+                rawFileLines.append(raw)
+            }
+            if raw.hasPrefix("rename from ") {
                 cur?.oldPath = decodePathField(String(raw.dropFirst("rename from ".count))); cur?.kind = .rename
             } else if raw.hasPrefix("rename to ") {
                 cur?.path = decodePathField(String(raw.dropFirst("rename to ".count))); cur?.kind = .rename

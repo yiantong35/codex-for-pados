@@ -87,11 +87,14 @@ final class SessionsManager {
         do { try resetPairingTrust(m.id) } catch { return false }
 
         let oldSession = cache.removeValue(forKey: m.id)
-        oldSession?.clearSensitiveTransientState()
+        let cleanup = oldSession?.clearSensitiveTransientState()
         machineStore.update(m)
         PendingPairingStore.shared.stash(pairingCode, for: m.id)
         setActive(m.id)
-        Task { await oldSession?.disconnect() }
+        Task {
+            await cleanup?.value
+            await oldSession?.disconnect()
+        }
         return true
     }
 
@@ -101,14 +104,17 @@ final class SessionsManager {
         let s = cache[id]
         let removedActiveMachine = machineStore.activeMachineId == id
         s?.setForeground(false)
-        s?.clearSensitiveTransientState()
+        let cleanup = s?.clearSensitiveTransientState()
         cache[id] = nil
         machineStore.remove(id: id)
         // MachineStore 会选出相邻机器，但只有 setActive 才会创建/前台化 Session 并触发懒连。
         if removedActiveMachine, let nextId = machineStore.activeMachineId {
             setActive(nextId)
         }
-        Task { await s?.disconnect() }
+        Task {
+            await cleanup?.value
+            await s?.disconnect()
+        }
     }
 
     /// 重命名某机器 tab 的显示名（TabBarView ⋯ 菜单「重命名」项用）。

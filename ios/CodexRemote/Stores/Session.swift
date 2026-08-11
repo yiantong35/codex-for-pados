@@ -46,7 +46,8 @@ final class Session: Identifiable {
         self.fileBrowser = FileBrowserStore()
         self.sideChat = SideChatStore(
             draftStore: composerDrafts,
-            conversationOutboxes: conversationOutboxes
+            conversationOutboxes: conversationOutboxes,
+            threadStatus: { [weak projects] threadId in projects?.status(of: threadId) }
         )
         self.envInspector = EnvironmentInspectorModel()
         self.approvals = ApprovalStore()
@@ -97,10 +98,12 @@ final class Session: Identifiable {
     }
     func disconnect() async { await connection.disconnect() }
 
-    func clearSensitiveTransientState() {
-        sideChat.reset()
+    @discardableResult
+    func clearSensitiveTransientState() -> Task<Void, Never> {
+        let interruptTask = sideChat.reset()
         workspaceState.conversationOutboxes.removeAll()
         composerDrafts.removeAll()
+        return interruptTask
     }
 
     /// 前后台切换（D6=B「后台保连+降频」）。

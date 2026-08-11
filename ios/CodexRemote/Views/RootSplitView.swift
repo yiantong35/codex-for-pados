@@ -353,7 +353,7 @@ struct RootSplitView: View {
             sessions.activeSession?.mcpElicitations.removeAll(threadId: id)
             sessions.activeSession?.composerDrafts.removeDraft(for: id)
         }
-        sideChat.reset()
+        _ = sideChat.reset()
         Task { await fileBrowser.setRoot(nil) }
     }
 

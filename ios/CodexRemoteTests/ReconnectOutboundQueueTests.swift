@@ -201,6 +201,19 @@ final class ReconnectOutboundQueueTests: XCTestCase {
         try await waitUntil { await mock.sent.filter { $0.contains("turn/start") }.count == 2 }
     }
 
+    func test_authoritative_recovery_retries_failed_head_that_server_did_not_accept() throws {
+        let outbox = ConversationOutbox()
+        let entry = try outbox.enqueue(input: [.text("retry after reconnect")], model: nil, effort: nil)
+        XCTAssertEqual(outbox.beginSending()?.clientId, entry.clientId)
+        XCTAssertTrue(outbox.failSending(clientId: entry.clientId))
+        XCTAssertEqual(outbox.failedEntry?.clientId, entry.clientId)
+
+        outbox.reconcileAuthoritativeState()
+
+        XCTAssertNil(outbox.failedEntry)
+        XCTAssertEqual(outbox.beginSending()?.clientId, entry.clientId)
+    }
+
     /// 非 .ready：send 3 条 → 全部乐观回显（items 3 条 userMessage），但一条 turn/start 都没发出。
     func test_offline_send_enqueues_and_echoes_without_firing() async throws {
         let mock = MockTransport(); let rpc = JSONRPCClient(transport: mock)

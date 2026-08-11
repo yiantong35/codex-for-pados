@@ -157,13 +157,24 @@ final class ItemCardRenderTests: XCTestCase {
         )
     }
 
+    func testAgentMarkdownFenceTracksCharacterAndMinimumLength() {
+        let backticks = MarkdownBlock.parse("````markdown\n```swift\nlet x = 1\n```\n````")
+        XCTAssertEqual(backticks.map(\.kind), [
+            .code("```swift\nlet x = 1\n```")
+        ])
+
+        let tildes = MarkdownBlock.parse("~~~swift\nlet y = 2\n~~~")
+        XCTAssertEqual(tildes.map(\.kind), [.code("let y = 2")])
+    }
+
     func testReviewFullTextContainsTailBeyondRenderBudget() {
         let lines = (0...DiffRenderBudget.maximumReviewLines).map {
             DiffLine(kind: .add, text: "line-\($0)", oldLineNo: nil, newLineNo: $0 + 1)
         }
+        let raw = "diff --git a/large.swift b/large.swift\n@@ -1 +1 @@\n-tail"
         let file = DiffFile(path: "large.swift", oldPath: nil, kind: .modify,
-                            hunks: [DiffHunk(lines: lines)])
-        XCTAssertTrue(ReviewPanelView.fullText(for: file).hasSuffix("+line-5000"))
+                            hunks: [DiffHunk(lines: lines)], rawDiff: raw)
+        XCTAssertEqual(ReviewPanelView.fullText(for: file), raw)
     }
 
     // MARK: - F5（P1）会话前缀放行仅源自服务端 amendment

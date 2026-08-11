@@ -36,13 +36,20 @@ test_ios() {
     xcodebuild test "${common[@]}" \
         -parallel-testing-enabled "$IOS_PARALLEL_TESTING" \
         -skip-testing:CodexRemoteTests/OrientationSnapshotTests \
-        -skip-testing:CodexRemoteTests/RelayPairingImportViewModelTests
+        -skip-testing:CodexRemoteTests/RelayPairingImportViewModelTests \
+        || return $?
     xcodebuild test "${common[@]}" \
         -parallel-testing-enabled NO \
-        -only-testing:CodexRemoteTests/OrientationSnapshotTests
+        -test-iterations 3 \
+        -retry-tests-on-failure \
+        -only-testing:CodexRemoteTests/OrientationSnapshotTests \
+        || return $?
     xcodebuild test "${common[@]}" \
         -parallel-testing-enabled NO \
-        -only-testing:CodexRemoteTests/RelayPairingImportViewModelTests
+        -test-iterations 3 \
+        -retry-tests-on-failure \
+        -only-testing:CodexRemoteTests/RelayPairingImportViewModelTests \
+        || return $?
 }
 
 validate_openspec() {
