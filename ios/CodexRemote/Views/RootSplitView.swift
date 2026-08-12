@@ -347,13 +347,21 @@ struct RootSplitView: View {
         activeConversation.applyThreadSnapshot = nil
         activeConversation.fetchGeneration &+= 1
         fileOpenTask?.cancel()
-        for id in sideChat.sessions.map(\.id) {
-            sessions.activeSession?.approvals.removeAll(threadId: id)
-            sessions.activeSession?.userInputs.removeAll(threadId: id)
-            sessions.activeSession?.mcpElicitations.removeAll(threadId: id)
-            sessions.activeSession?.composerDrafts.removeDraft(for: id)
+        let sideChatIds = sideChat.sessions.map(\.id)
+        let session = sessions.activeSession
+        let reset = sideChat.reset()
+        Task { @MainActor in
+            switch await reset.value {
+            case .reset:
+                for id in sideChatIds {
+                    session?.approvals.removeAll(threadId: id)
+                    session?.userInputs.removeAll(threadId: id)
+                    session?.mcpElicitations.removeAll(threadId: id)
+                }
+            case .interruptFailed:
+                operationError = L10n.string("sideChat.resetFailed", locale: LocaleManager.currentLocale)
+            }
         }
-        _ = sideChat.reset()
         Task { await fileBrowser.setRoot(nil) }
     }
 
@@ -361,6 +369,10 @@ struct RootSplitView: View {
                                   loadState: ProjectsLoadState) -> String? {
         guard loadState == .loaded, let current else { return current }
         return availableIDs.contains(current) ? current : nil
+    }
+
+    static func shouldClearSideChatInteractionState(after result: SideChatResetResult) -> Bool {
+        result == .reset
     }
 }
 

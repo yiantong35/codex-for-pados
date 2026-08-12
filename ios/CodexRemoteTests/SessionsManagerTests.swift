@@ -435,6 +435,15 @@ final class SessionsManagerTests: XCTestCase {
         XCTAssertEqual(m.indicator(for: mc.id), .none, "未建 Session 的 tab 应无圆点")
     }
 
+    func testIndicatorThreadIdsIncludeEphemeralSideChatsAndDeduplicate() {
+        XCTAssertEqual(
+            SessionsManager.indicatorThreadIds(
+                projectIds: ["main", "shared"], sideChatIds: ["side", "shared"]
+            ),
+            ["main", "side", "shared"]
+        )
+    }
+
     /// Task 9：已建 Session 但连接非就绪（phase != .ready）→ 灰点 .disconnected（红灰严格正交）。
     /// 新建 Session 默认 phase == .disconnected（非 .ready）。旧实现 resolve(isConnected:false) 恒 .none；
     /// 叠加「非 .ready → .disconnected」语义后应返回灰点，而非无点。

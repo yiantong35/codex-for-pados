@@ -162,6 +162,12 @@ struct UserInputCardView: View {
                     .accessibilityLabel(Text(UntrustedDisplayText.sanitize(question.header)))
                     .accessibilityHint(Text(UntrustedDisplayText.sanitize(question.question)))
                 }
+                if let value = drafts[question.id]?.freeform,
+                   UserInputRequestLimits.freeformIsTooLarge(value) {
+                    Text("userInput.answerTooLarge \(value.utf8.count) \(UserInputRequestLimits.maximumFreeformBytes)")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
             }
         }
     }
@@ -178,7 +184,7 @@ struct UserInputCardView: View {
                 userInputs.userInteracted(with: card.id)
                 drafts[questionId] = UserInputDraft(
                     selectedOption: nil,
-                    freeform: UserInputRequestLimits.boundedFreeform(value)
+                    freeform: value
                 )
             }
         )

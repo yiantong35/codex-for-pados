@@ -164,6 +164,37 @@ final class ThreadReducerTests: XCTestCase {
         XCTAssertEqual(storedDiff, fileDiff) // 存了该文件的 diff 文本
     }
 
+    func testLiveFileChangeAggregatesAllChangesBeforeApproval() {
+        let first = "--- a/a.swift\n+++ b/a.swift\n@@ -0,0 +1 @@\n+one"
+        let second = "--- a/b.swift\n+++ b/b.swift\n@@ -1 +0,0 @@\n-two"
+        let changes: [[String: Any]] = [
+            ["path": "a.swift", "kind": ["type": "update"], "diff": first],
+            ["path": "b.swift", "kind": ["type": "update"], "diff": second],
+        ]
+        var state = ConversationState(threadId: "t")
+        let reducer = ThreadReducer()
+
+        reducer.apply(notif("item/started", [
+            "item": ["id": "patch", "type": "fileChange", "changes": changes] as [String: Any]
+        ]), to: &state)
+        guard case .fileChange(_, let startedFiles, let startedAdded, let startedRemoved, let startedDiff)?
+                = state.items.first else { return XCTFail("expected live file change") }
+        XCTAssertEqual(startedFiles, "a.swift, b.swift")
+        XCTAssertEqual(startedAdded, 1)
+        XCTAssertEqual(startedRemoved, 1)
+        XCTAssertEqual(startedDiff, first + "\n" + second)
+
+        reducer.apply(notif("item/fileChange/patchUpdated", [
+            "itemId": "patch", "changes": changes
+        ]), to: &state)
+        XCTAssertEqual(state.items.count, 1)
+        guard case .fileChange(_, let updatedFiles, _, _, let updatedDiff)? = state.items.first else {
+            return XCTFail("expected updated file change")
+        }
+        XCTAssertEqual(updatedFiles, "a.swift, b.swift")
+        XCTAssertEqual(updatedDiff, first + "\n" + second)
+    }
+
     // MARK: - 真实嵌套形状（realTurnSequence.json，本机 codex 0.133.0 实测录制）
     // 旧 reducer 读扁平 params.turnId / params.itemId / params.itemType / params.command，
     // 真实通知是嵌套 params.turn.* / params.item.*，故以下用例对旧实现应全部 RED。
@@ -454,7 +485,7 @@ final class ThreadReducerTests: XCTestCase {
         guard case .fileChange(_, let file, let added, _, let diff)? = s.items.first else {
             return XCTFail("应有 fileChange")
         }
-        XCTAssertEqual(file, "a.swift")            // 首文件名
+        XCTAssertEqual(file, "a.swift, b.swift")   // 审批前展示全部文件
         XCTAssertEqual(added, 3)                   // +x(1) + y,z(2) = 3
         XCTAssertTrue(diff.contains("a.swift") && diff.contains("b.swift"))  // 合并含两文件
     }

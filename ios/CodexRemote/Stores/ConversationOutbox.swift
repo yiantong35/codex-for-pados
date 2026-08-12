@@ -72,6 +72,7 @@ final class ConversationOutbox {
     private var sendingClientId: String?
     private(set) var failedClientId: String?
     private var rpcIdentity: ObjectIdentifier?
+    private var startResolutionWaiters: [CheckedContinuation<Void, Never>] = []
     @ObservationIgnored private let budget: ConversationOutboxBudget
     @ObservationIgnored private let limits: ConversationOutboxLimits
 
@@ -90,6 +91,16 @@ final class ConversationOutbox {
     }
 
     var totalByteCount: Int { entries.reduce(0) { $0 + $1.byteCount } }
+    var hasSendingLease: Bool { sendingClientId != nil }
+    var isStartRequestPending: Bool {
+        guard let sendingClientId else { return false }
+        return entries.contains { $0.clientId == sendingClientId }
+    }
+
+    func waitForStartRequestResolution() async {
+        guard isStartRequestPending else { return }
+        await withCheckedContinuation { startResolutionWaiters.append($0) }
+    }
 
     var failedEntry: PendingConversationMessage? {
         guard let failedClientId else { return nil }
@@ -100,6 +111,7 @@ final class ConversationOutbox {
         let identity = ObjectIdentifier(rpc)
         if let rpcIdentity, rpcIdentity != identity {
             sendingClientId = nil
+            resumeStartResolutionWaitersIfNeeded()
         }
         rpcIdentity = identity
     }
@@ -159,11 +171,13 @@ final class ConversationOutbox {
     func acknowledge(clientId: String) {
         removeEntry(clientId: clientId)
         if failedClientId == clientId { failedClientId = nil }
+        resumeStartResolutionWaitersIfNeeded()
     }
 
     /// RPC success acknowledges the entry; completion or authoritative resume opens the next window.
     func finishSending(clientId: String) {
         removeEntry(clientId: clientId)
+        resumeStartResolutionWaitersIfNeeded()
     }
 
     /// A completion may open the next window only after this client's entry was accepted.
@@ -172,6 +186,7 @@ final class ConversationOutbox {
         guard let sendingClientId,
               !entries.contains(where: { $0.clientId == sendingClientId }) else { return }
         self.sendingClientId = nil
+        resumeStartResolutionWaitersIfNeeded()
     }
 
     @discardableResult
@@ -179,6 +194,7 @@ final class ConversationOutbox {
         let entry = entries.first { $0.clientId == clientId }
         removeEntry(clientId: clientId)
         if sendingClientId == clientId { sendingClientId = nil }
+        resumeStartResolutionWaitersIfNeeded()
         return entry
     }
 
@@ -187,6 +203,7 @@ final class ConversationOutbox {
         let remainsPending = entries.contains { $0.clientId == clientId }
         if sendingClientId == clientId { sendingClientId = nil }
         if remainsPending { failedClientId = clientId }
+        resumeStartResolutionWaitersIfNeeded()
         return remainsPending
     }
 
@@ -206,6 +223,7 @@ final class ConversationOutbox {
     func reconcileAuthoritativeState() {
         sendingClientId = nil
         failedClientId = nil
+        resumeStartResolutionWaitersIfNeeded()
     }
 
     func removeAll() {
@@ -215,6 +233,7 @@ final class ConversationOutbox {
         sendingClientId = nil
         failedClientId = nil
         budget.release(messages: count, bytes: bytes)
+        resumeStartResolutionWaitersIfNeeded()
     }
 
     private func removeEntry(clientId: String) {
@@ -222,6 +241,13 @@ final class ConversationOutbox {
         let entry = entries.remove(at: index)
         if failedClientId == clientId { failedClientId = nil }
         budget.release(messages: 1, bytes: entry.byteCount)
+    }
+
+    private func resumeStartResolutionWaitersIfNeeded() {
+        guard !isStartRequestPending else { return }
+        let waiters = startResolutionWaiters
+        startResolutionWaiters.removeAll()
+        waiters.forEach { $0.resume() }
     }
 }
 

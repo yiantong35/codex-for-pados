@@ -96,7 +96,7 @@ final class SideChatStore {
     func isRunning(id: String) -> Bool {
         if visibleStoreThreadId == id, visibleStore?.state.isTurnRunning == true { return true }
         if case .active = threadStatus(id) { return true }
-        return false
+        return conversationOutboxes.outbox(for: id).hasSendingLease
     }
 
     /// 从主对话 fork 一个 ephemeral 侧聊。无 rpc / 无主对话 threadId → 直接返回，不发请求。
@@ -140,6 +140,9 @@ final class SideChatStore {
             }
             var failed: [String] = []
             for threadId in activeThreadIds {
+                let outbox = self.conversationOutboxes.outbox(for: threadId)
+                await outbox.waitForStartRequestResolution()
+                guard self.hasEstablishedTurn(id: threadId) else { continue }
                 if !(await Self.interrupt(threadId: threadId, rpc: rpc)) { failed.append(threadId) }
             }
             guard failed.isEmpty else { return .interruptFailed(failed) }
@@ -167,8 +170,12 @@ final class SideChatStore {
         guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return .closed }
         if isRunning(id: id) {
             guard interruptIfRunning else { return .requiresInterrupt }
-            guard let rpc, await Self.interrupt(threadId: id, rpc: rpc) else {
-                return .interruptFailed
+            let outbox = conversationOutboxes.outbox(for: id)
+            await outbox.waitForStartRequestResolution()
+            if hasEstablishedTurn(id: id) {
+                guard let rpc, await Self.interrupt(threadId: id, rpc: rpc) else {
+                    return .interruptFailed
+                }
             }
         }
         if visibleStoreThreadId == id, let conversation = visibleStore {
@@ -189,6 +196,12 @@ final class SideChatStore {
         visibleStore?.stopObserving()
         visibleStore = nil
         visibleStoreThreadId = nil
+    }
+
+    private func hasEstablishedTurn(id: String) -> Bool {
+        if visibleStoreThreadId == id, visibleStore?.state.isTurnRunning == true { return true }
+        if case .active = threadStatus(id) { return true }
+        return conversationOutboxes.outbox(for: id).hasSendingLease
     }
 
     private static func interrupt(threadId: String, rpc: JSONRPCClient) async -> Bool {

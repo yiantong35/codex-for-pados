@@ -511,6 +511,28 @@ enum TextRenderBudget {
             isTruncated: bounded.truncated || cursor < source.endIndex || selected.count < knownTotalLines
         )
     }
+
+    static func streamingAgentText(_ text: String) -> BoundedTextPresentation {
+        let bounded = boundedUTF8Prefix(text, maximumBytes: MarkdownBlock.maximumInlineBytes)
+        let source = bounded.text
+        var cursor = source.startIndex
+        var end = cursor
+        var displayedLines = 0
+        while cursor < source.endIndex, displayedLines < MarkdownBlock.maximumInlineLines {
+            if let newline = source[cursor...].firstIndex(of: "\n") {
+                end = source.index(after: newline)
+                cursor = end
+            } else {
+                end = source.endIndex
+                cursor = source.endIndex
+            }
+            displayedLines += 1
+        }
+        return BoundedTextPresentation(text: String(source[..<end]),
+                                       displayedLines: displayedLines,
+                                       totalLines: displayedLines,
+                                       isTruncated: bounded.truncated || end < source.endIndex)
+    }
 }
 
 enum DiffRenderBudget {
@@ -655,7 +677,8 @@ private struct AgentMarkdownView: View, Equatable {
     var body: some View {
         Group {
             if isStreaming {
-                Text(verbatim: text.isEmpty ? " " : text)
+                let presentation = TextRenderBudget.streamingAgentText(text)
+                Text(verbatim: presentation.text.isEmpty ? " " : presentation.text)
             } else {
                 let presentation = MarkdownBlock.presentation(text)
                 LazyVStack(alignment: .leading, spacing: 8) {

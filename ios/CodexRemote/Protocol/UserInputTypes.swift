@@ -13,17 +13,8 @@ enum UserInputRequestLimits {
     static let answerPrefix = "user_note: "
     static let maximumFreeformBytes = maximumAnswerBytes - answerPrefix.utf8.count
 
-    static func boundedFreeform(_ value: String) -> String {
-        guard value.utf8.count > maximumFreeformBytes else { return value }
-        var usedBytes = 0
-        var end = value.startIndex
-        for character in value {
-            let byteCount = String(character).utf8.count
-            guard usedBytes + byteCount <= maximumFreeformBytes else { break }
-            usedBytes += byteCount
-            end = value.index(after: end)
-        }
-        return String(value[..<end])
+    static func freeformIsTooLarge(_ value: String) -> Bool {
+        value.utf8.count > maximumFreeformBytes
     }
 }
 
