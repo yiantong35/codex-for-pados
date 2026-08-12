@@ -133,6 +133,30 @@ final class ItemCardRenderTests: XCTestCase {
         XCTAssertTrue(presentation.isTruncated)
     }
 
+    func testStreamingTextKeepsBoundedTailAndValidUTF8() {
+        let prefix = String(repeating: "old🙂", count: 600_000)
+        let value = TextRenderBudget.appendingStream(prefix, delta: "LATEST")
+        XCTAssertLessThanOrEqual(value.utf8.count, TextRenderBudget.maximumStoredStreamBytes)
+        XCTAssertTrue(value.hasSuffix("LATEST"))
+
+        let visible = TextRenderBudget.boundedUTF8Suffix(
+            value, maximumBytes: TextRenderBudget.maximumStreamingBytes
+        )
+        XCTAssertTrue(visible.truncated)
+        XCTAssertLessThanOrEqual(visible.text.utf8.count, TextRenderBudget.maximumStreamingBytes)
+        XCTAssertTrue(visible.text.hasSuffix("LATEST"))
+    }
+
+    func testFullTextViewerPagesHaveHardByteBudgetAndPreserveContent() {
+        let text = String(repeating: "line🙂\n", count: 40_000)
+        let ranges = PagedTextViewer.pageRanges(for: text)
+        XCTAssertGreaterThan(ranges.count, 1)
+        XCTAssertTrue(ranges.allSatisfy {
+            text[$0].utf8.count <= TextRenderBudget.fullTextPageBytes
+        })
+        XCTAssertEqual(ranges.map { String(text[$0]) }.joined(), text)
+    }
+
     func testDiffBudgetsKeepInlineSmallerThanDedicatedReview() {
         XCTAssertGreaterThan(DiffRenderBudget.maximumInlineLines, 0)
         XCTAssertGreaterThan(DiffRenderBudget.maximumReviewLines, DiffRenderBudget.maximumInlineLines)

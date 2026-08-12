@@ -471,6 +471,9 @@ struct BoundedTextPresentation: Equatable {
 enum TextRenderBudget {
     static let maximumCommandLines = 500
     static let maximumCommandBytes = 128 * 1_024
+    static let maximumStreamingBytes = 64 * 1_024
+    static let maximumStoredStreamBytes = 2 * 1_024 * 1_024
+    static let fullTextPageBytes = 64 * 1_024
 
     static func boundedUTF8Prefix(_ text: String, maximumBytes: Int) -> (text: String, truncated: Bool) {
         var usedBytes = 0
@@ -484,6 +487,23 @@ enum TextRenderBudget {
             end = text.index(after: end)
         }
         return (text, false)
+    }
+
+    static func boundedUTF8Suffix(_ text: String, maximumBytes: Int) -> (text: String, truncated: Bool) {
+        guard text.utf8.count > maximumBytes else { return (text, false) }
+        var usedBytes = 0
+        var start = text.endIndex
+        for character in text.reversed() {
+            let byteCount = String(character).utf8.count
+            guard usedBytes + byteCount <= maximumBytes else { break }
+            usedBytes += byteCount
+            start = text.index(before: start)
+        }
+        return (String(text[start...]), true)
+    }
+
+    static func appendingStream(_ current: String, delta: String) -> String {
+        boundedUTF8Suffix(current + delta, maximumBytes: maximumStoredStreamBytes).text
     }
 
     static func commandOutput(_ output: String, totalLines: Int? = nil) -> BoundedTextPresentation {
@@ -512,13 +532,14 @@ enum TextRenderBudget {
         )
     }
 
+    /// Compatibility presentation for tests and callers that need a bounded streaming prefix.
     static func streamingAgentText(_ text: String) -> BoundedTextPresentation {
-        let bounded = boundedUTF8Prefix(text, maximumBytes: MarkdownBlock.maximumInlineBytes)
+        let bounded = boundedUTF8Prefix(text, maximumBytes: maximumStreamingBytes)
         let source = bounded.text
         var cursor = source.startIndex
         var end = cursor
-        var displayedLines = 0
-        while cursor < source.endIndex, displayedLines < MarkdownBlock.maximumInlineLines {
+        var lines = 0
+        while cursor < source.endIndex, lines < MarkdownBlock.maximumInlineLines {
             if let newline = source[cursor...].firstIndex(of: "\n") {
                 end = source.index(after: newline)
                 cursor = end
@@ -526,12 +547,10 @@ enum TextRenderBudget {
                 end = source.endIndex
                 cursor = source.endIndex
             }
-            displayedLines += 1
+            lines += 1
         }
-        return BoundedTextPresentation(text: String(source[..<end]),
-                                       displayedLines: displayedLines,
-                                       totalLines: displayedLines,
-                                       isTruncated: bounded.truncated || end < source.endIndex)
+        return BoundedTextPresentation(text: String(source[..<end]), displayedLines: lines,
+                                       totalLines: lines, isTruncated: bounded.truncated || end < source.endIndex)
     }
 }
 
@@ -677,8 +696,17 @@ private struct AgentMarkdownView: View, Equatable {
     var body: some View {
         Group {
             if isStreaming {
-                let presentation = TextRenderBudget.streamingAgentText(text)
-                Text(verbatim: presentation.text.isEmpty ? " " : presentation.text)
+                let presentation = TextRenderBudget.boundedUTF8Suffix(
+                    text, maximumBytes: TextRenderBudget.maximumStreamingBytes
+                )
+                VStack(alignment: .leading, spacing: 6) {
+                    if presentation.truncated {
+                        Label("conv.agent.streamingTruncated", systemImage: "ellipsis")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(verbatim: presentation.text.isEmpty ? " " : presentation.text)
+                }
             } else {
                 let presentation = MarkdownBlock.presentation(text)
                 LazyVStack(alignment: .leading, spacing: 8) {
@@ -736,21 +764,74 @@ struct FullTextAccessButton: View {
         .minimumHitTarget44()
         .accessibilityLabel(Text("common.viewFullContent"))
         .sheet(isPresented: $isPresented) {
-            NavigationStack {
-                ScrollView([.horizontal, .vertical], showsIndicators: true) {
-                    Text(verbatim: text.isEmpty ? " " : text)
-                        .font(.footnote.monospaced())
-                        .textSelection(.enabled)
-                        .padding()
-                }
-                .navigationTitle(title)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("common.done") { isPresented = false }
+            PagedTextViewer(text: text, title: title, isPresented: $isPresented)
+        }
+    }
+}
+
+struct PagedTextViewer: View {
+    let text: String
+    let title: LocalizedStringKey
+    @Binding var isPresented: Bool
+    @State private var page = 0
+    private let pageRanges: [Range<String.Index>]
+
+    init(text: String, title: LocalizedStringKey, isPresented: Binding<Bool>) {
+        self.text = text
+        self.title = title
+        _isPresented = isPresented
+        pageRanges = Self.pageRanges(for: text)
+    }
+
+    private var pageText: Substring { text[pageRanges[page]] }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView([.horizontal, .vertical], showsIndicators: true) {
+                Text(verbatim: pageText.isEmpty ? " " : String(pageText))
+                    .font(.footnote.monospaced())
+                    .textSelection(.enabled)
+                    .padding()
+            }
+            .safeAreaInset(edge: .bottom) {
+                if pageRanges.count > 1 {
+                    HStack {
+                        Button("common.previous") { page -= 1 }.disabled(page == 0)
+                        Spacer()
+                        Text(verbatim: "\(page + 1) / \(pageRanges.count)").monospacedDigit()
+                        Spacer()
+                        Button("common.next") { page += 1 }.disabled(page == pageRanges.count - 1)
                     }
+                    .padding(.horizontal, 16).frame(minHeight: 44).background(.bar)
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("common.done") { isPresented = false }
                 }
             }
         }
+    }
+
+    static func pageRanges(for text: String) -> [Range<String.Index>] {
+        guard !text.isEmpty else { return [text.startIndex..<text.endIndex] }
+        var result: [Range<String.Index>] = []
+        var start = text.startIndex
+        while start < text.endIndex {
+            var usedBytes = 0
+            var end = start
+            while end < text.endIndex {
+                let next = text.index(after: end)
+                let byteCount = text[end..<next].utf8.count
+                guard usedBytes + byteCount <= TextRenderBudget.fullTextPageBytes else { break }
+                usedBytes += byteCount
+                end = next
+            }
+            result.append(start..<end)
+            start = end
+        }
+        return result
     }
 }

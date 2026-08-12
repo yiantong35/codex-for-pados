@@ -131,23 +131,25 @@ final class SessionsManagerTests: XCTestCase {
         XCTAssertEqual(stateA.rightPanelTab, .files)
     }
 
-    func test_removeDropsSessionAndMachine() {
+    func test_removeDropsSessionAndMachine() async {
         let m = mgr()
         let mc = relayMC("h"); m.machineStore.add(mc)
         _ = m.session(for: mc.id)
-        m.removeMachine(id: mc.id)
+        let result = await m.removeMachine(id: mc.id)
+        XCTAssertEqual(result, .completed)
         XCTAssertTrue(m.machineStore.machines.isEmpty)
         XCTAssertNil(m.activeSession)
     }
 
-    func test_removingActiveMachineActivatesAndConnectsReplacement() {
+    func test_removingActiveMachineActivatesAndConnectsReplacement() async {
         let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
         let manager = SessionsManager(machineStore: store, transportFactory: { _ in MockTransport() })
         let a = relayMC("remove-active-a"); store.add(a)
         let b = relayMC("remove-active-b"); store.add(b)
         manager.setActive(a.id)
 
-        manager.removeMachine(id: a.id)
+        let result = await manager.removeMachine(id: a.id)
+        XCTAssertEqual(result, .completed)
 
         XCTAssertEqual(manager.activeSessionId, b.id)
         let replacement = manager.activeSession
@@ -170,11 +172,32 @@ final class SessionsManagerTests: XCTestCase {
         s.connection.connect(config: ConnectionConfig(relayURL: "", relaySessionId: "", relayDevIdentityPubB64: ""))
         XCTAssertNotEqual(s.connection.phase, .disconnected, "前置：无效 connect 应同步落 .failed")
 
-        m.removeMachine(id: mc.id)
-        // removeMachine 内 `Task { await s.disconnect() }` 异步执行；轮询等它跑完。
-        let disconnected = await waitUntil { s.connection.phase == .disconnected }
-        XCTAssertTrue(disconnected,
-                      "removeMachine 应断连缓存 session（disconnect() 真的被调用 → phase == .disconnected）")
+        let result = await m.removeMachine(id: mc.id)
+        XCTAssertEqual(result, .completed)
+        XCTAssertEqual(s.connection.phase, .disconnected,
+                       "removeMachine 返回前应完成断连")
+    }
+
+    func test_removeMachineKeepsMachineAndSessionWhenSideChatInterruptFails() async {
+        let mock = MockTransport()
+        let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
+        let manager = SessionsManager(machineStore: store, transportFactory: { _ in mock })
+        let machine = relayMC("remove-failure")
+        XCTAssertTrue(store.add(machine))
+        let session = manager.session(for: machine.id)!
+        session.sideChat.setSessionsForTesting([
+            SideChatSession(id: "hidden-running", forkedFromId: "main", title: "running")
+        ], selectedId: nil)
+        session.projects.handleStatusChanged(
+            threadId: "hidden-running", status: .active(activeFlags: [])
+        )
+
+        let result = await manager.removeMachine(id: machine.id)
+
+        XCTAssertEqual(result, .interruptFailed(["hidden-running"]))
+        XCTAssertEqual(store.machines.map(\.id), [machine.id])
+        XCTAssertTrue(manager.session(for: machine.id) === session)
+        XCTAssertEqual(session.sideChat.sessions.map(\.id), ["hidden-running"])
     }
 
     /// #7 回前台自动重连（review 追加）：活跃 Session 的首连曾在后台被取消而落 .disconnected 后，
@@ -593,7 +616,7 @@ final class SessionsManagerTests: XCTestCase {
         XCTAssertEqual(final, 1, "新增机器 transport factory 只应被调用一次（不并行两套建连）")
     }
 
-    func test_replaceMachine_preservesIdentityAndCount() {
+    func test_replaceMachine_preservesIdentityAndCount() async {
         let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
         let manager = SessionsManager(
             machineStore: store,
@@ -608,12 +631,38 @@ final class SessionsManagerTests: XCTestCase {
             sessionId: "new-session",
             devIdentityPubB64: "new-key")
 
-        XCTAssertTrue(manager.replaceMachineAndConnect(replacement, pairingCode: "pair"))
+        let result = await manager.replaceMachineAndConnect(replacement, pairingCode: "pair")
+        XCTAssertEqual(result, .completed)
 
         XCTAssertEqual(store.machines.count, 1)
         XCTAssertEqual(store.machines.first?.id, original.id)
         XCTAssertEqual(store.machines.first?.sessionId, "new-session")
         XCTAssertEqual(manager.activeSessionId, original.id)
+    }
+
+    func test_replaceMachineKeepsOldConfigWhenSideChatInterruptFails() async {
+        let mock = MockTransport()
+        let store = MachineStore(defaults: UserDefaults(suiteName: "test.\(UUID().uuidString)")!)
+        let manager = SessionsManager(
+            machineStore: store, transportFactory: { _ in mock }, resetPairingTrust: { _ in }
+        )
+        let original = relayMC("replace-failure")
+        XCTAssertTrue(store.add(original))
+        let session = manager.session(for: original.id)!
+        session.sideChat.setSessionsForTesting([
+            SideChatSession(id: "hidden-running", forkedFromId: "main", title: "running")
+        ], selectedId: nil)
+        session.projects.handleStatusChanged(
+            threadId: "hidden-running", status: .active(activeFlags: [])
+        )
+        var replacement = original
+        replacement.sessionId = "new-session"
+
+        let result = await manager.replaceMachineAndConnect(replacement, pairingCode: "pair")
+
+        XCTAssertEqual(result, .interruptFailed(["hidden-running"]))
+        XCTAssertEqual(store.machines.first?.sessionId, original.sessionId)
+        XCTAssertTrue(manager.session(for: original.id) === session)
     }
 
     /// 由本测试文件路径（#filePath）推导源码 Views 目录，避免硬编码绝对路径。

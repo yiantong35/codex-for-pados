@@ -7,6 +7,18 @@
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "完成" } }
       }
     },
+    "common.next": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Next" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "下一页" } }
+      }
+    },
+    "common.previous": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Previous" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "上一页" } }
+      }
+    },
     "common.viewFullContent": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "View full content" } },
@@ -1609,6 +1621,12 @@
             "value": "连接已断开"
           }
         }
+      }
+    },
+    "conv.agent.streamingTruncated": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Showing the latest part while the response is streaming" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "回复生成中，仅显示最新部分" } }
       }
     },
     "connection.rePair": {
@@ -4963,6 +4981,12 @@
         }
       }
     },
+    "sidebar.disconnected.desc": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Connect this machine to load its conversations." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接这台机器后即可加载会话。" } }
+      }
+    },
     "sidebar.empty.desc": {
       "localizations": {
         "en": {
@@ -5011,6 +5035,12 @@
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Loading conversations…" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在加载会话…" } }
+      }
+    },
+    "sideChat.cleanupFailed %@": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Could not stop side chat: %@. The machine and local state were kept. Retry when the connection is available." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法停止侧聊：%@。机器和本地状态已保留，请在连接恢复后重试。" } }
       }
     },
     "sidebar.retry": {

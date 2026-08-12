@@ -11,6 +11,7 @@ struct TabBarView: View {
     @State private var renameDraft = ""
     /// 待移除的机器 id（非空即弹二次确认 confirmationDialog）。
     @State private var removeTarget: UUID?
+    @State private var removeFailure: (id: UUID, threadIDs: [String])?
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -54,12 +55,24 @@ struct TabBarView: View {
                                 isPresented: removeConfirmBinding,
                                 titleVisibility: .visible) {
                 Button("tab.remove.confirm.action", role: .destructive) {
-                    if let id = removeTarget { sessions.removeMachine(id: id) }
+                    if let id = removeTarget { removeMachine(id) }
                     removeTarget = nil
                 }
                 Button("common.cancel", role: .cancel) { removeTarget = nil }
             } message: {
                 Text("tab.remove.confirm.message")
+            }
+            .alert("operation.failed.title", isPresented: Binding(
+                get: { removeFailure != nil }, set: { if !$0 { removeFailure = nil } }
+            )) {
+                Button("sidebar.retry") {
+                    guard let failure = removeFailure else { return }
+                    removeFailure = nil
+                    removeMachine(failure.id)
+                }
+                Button("common.cancel", role: .cancel) { removeFailure = nil }
+            } message: {
+                Text(cleanupFailureMessage(removeFailure?.threadIDs ?? []))
             }
         }
     }
@@ -74,6 +87,22 @@ struct TabBarView: View {
     private var removeConfirmBinding: Binding<Bool> {
         Binding(get: { removeTarget != nil },
                 set: { if !$0 { removeTarget = nil } })
+    }
+
+    private func removeMachine(_ id: UUID) {
+        Task {
+            let result = await sessions.removeMachine(id: id)
+            if case .interruptFailed(let ids) = result {
+                removeFailure = (id, ids)
+            }
+        }
+    }
+
+    private func cleanupFailureMessage(_ ids: [String]) -> String {
+        String.localizedStringWithFormat(
+            L10n.string("sideChat.cleanupFailed %@", locale: LocaleManager.currentLocale),
+            ids.joined(separator: ", ")
+        )
     }
 
     @ViewBuilder private func tab(_ m: MachineConfig) -> some View {
