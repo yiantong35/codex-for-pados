@@ -101,6 +101,20 @@ final class ItemCardRenderTests: XCTestCase {
         XCTAssertEqual(presentation.totalLines, 800)
     }
 
+    func testStreamingAgentTextUsesTheSameByteBudget() {
+        let source = String(repeating: "界", count: MarkdownBlock.maximumInlineBytes)
+        let presentation = TextRenderBudget.streamingAgentText(source)
+
+        XCTAssertTrue(presentation.isTruncated)
+        XCTAssertLessThanOrEqual(presentation.text.utf8.count, MarkdownBlock.maximumInlineBytes)
+        XCTAssertLessThan(presentation.text.utf8.count, source.utf8.count)
+
+        let lines = String(repeating: "line\n", count: MarkdownBlock.maximumInlineLines + 10)
+        let linePresentation = TextRenderBudget.streamingAgentText(lines)
+        XCTAssertTrue(linePresentation.isTruncated)
+        XCTAssertEqual(linePresentation.displayedLines, MarkdownBlock.maximumInlineLines)
+    }
+
     func testCommandLineCountCanBeMaintainedFromDeltas() {
         var count = 0
         var empty = true

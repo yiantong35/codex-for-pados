@@ -171,9 +171,17 @@ final class SessionsManager {
         // resolve 仅在 .ready 前提下评估会话状态（红点仅由 systemError 在已连接时触发），
         // 未连接态绝不产生红点。
         guard s.connection.phase == .ready else { return .disconnected }
-        let statuses = s.projects.allThreadsSorted.compactMap { s.projects.status(of: $0.id) }
+        let threadIds = Self.indicatorThreadIds(
+            projectIds: s.projects.allThreadsSorted.map(\.id),
+            sideChatIds: s.sideChat.sessions.map(\.id)
+        )
+        let statuses = threadIds.compactMap { s.projects.status(of: $0) }
         let hasUnread = s.projects.allThreadsSorted.contains { s.projects.hasUnread($0, isSelected: false) }
         return TabIndicator.resolve(isConnected: true, statuses: statuses, hasUnread: hasUnread)
+    }
+
+    static func indicatorThreadIds(projectIds: [String], sideChatIds: [String]) -> Set<String> {
+        Set(projectIds + sideChatIds)
     }
 
     /// 添加机器表单呈现标志。T8 接表单 sheet（@Observable 类里普通存储属性自动可观察）。

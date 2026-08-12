@@ -6157,6 +6157,12 @@
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "回答" } }
       }
     },
+    "userInput.answerTooLarge %lld %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%lld of %lld bytes. Shorten the answer before submitting." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "当前 %lld 字节，上限 %lld 字节。请缩短内容后再提交。" } }
+      }
+    },
     "userInput.otherPlaceholder": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Other" } },

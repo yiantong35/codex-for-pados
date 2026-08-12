@@ -208,6 +208,37 @@ struct SideChatStoreTests {
         #expect(await mock.sent.contains { $0.contains(RPCMethod.turnInterrupt) })
     }
 
+    @Test func pendingTurnStartRequiresInterruptBeforeClose() async throws {
+        let (mock, _, store) = await makeStore()
+        let responder = respondFork(mock); defer { responder.cancel() }
+        await store.start(fromThreadId: "main-1")
+        let id = try #require(store.selectedId)
+        let conversation = try #require(store.conversationStore(for: id))
+
+        #expect(await conversation.send(input: [.text("start now")], model: nil, effort: nil))
+        for _ in 0..<100 where !(await mock.sent.contains { $0.contains(RPCMethod.turnStart) }) {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+
+        #expect(store.isRunning(id: id))
+        #expect(await store.close(id: id) == .requiresInterrupt)
+        #expect(store.sessions.map(\.id) == [id])
+
+        let startFrame = try #require(await mock.sent.first { $0.contains(RPCMethod.turnStart) })
+        let startObject = try #require(
+            JSONSerialization.jsonObject(with: Data(startFrame.utf8)) as? [String: Any]
+        )
+        let startId = try #require(startObject["id"] as? String)
+        await mock.setAutoRespond(true)
+        let closing = Task { await store.close(id: id, interruptIfRunning: true) }
+        await Task.yield()
+        #expect(store.sessions.map(\.id) == [id])
+        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(startId)","result":{}}"#)
+
+        #expect(await closing.value == .closed)
+        #expect(await mock.sent.contains { $0.contains(RPCMethod.turnInterrupt) })
+    }
+
     @Test func failedInterruptKeepsRunningSessionAndItsState() async throws {
         let (mock, _, store) = await makeStore()
         let r = respondFork(mock); defer { r.cancel() }
@@ -299,6 +330,10 @@ struct SideChatStoreTests {
         #expect(store.sessions.map(\.id) == ["fork-1", "fork-2"])
         #expect(drafts.draft(for: "fork-1") === draft)
         #expect(draft.text == "keep this")
+        #expect(!RootSplitView.shouldClearSideChatInteractionState(
+            after: .interruptFailed(["fork-1"])
+        ))
+        #expect(RootSplitView.shouldClearSideChatInteractionState(after: .reset))
     }
 
     @Test func closeClearsThreadOutbox() async throws {

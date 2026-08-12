@@ -114,8 +114,9 @@ struct ThreadReducer {
                                          output: "", outputLineCount: 0, status: .inProgress,
                                          exitCode: nil, durationMs: nil), &state)
             case "fileChange":
-                upsert(.fileChange(id: id, file: item["file"] as? String ?? "",
-                                   added: 0, removed: 0, diff: ""), &state)
+                if let change = fileChangeItem(id: id, changes: item["changes"]) {
+                    upsert(change, &state)
+                }
             case "reasoning":
                 // 思考/推理项：item.summary/content 可能已带文本（[{type, text}]），否则空串占位（UI 显「正在思考…」）。
                 upsert(.reasoning(id: id, text: reasoningText(from: item)), &state)
@@ -220,12 +221,7 @@ struct ThreadReducer {
                                      exitCode: optionalInt(item["exitCode"]),
                                      durationMs: optionalInt(item["durationMs"]))
         case "fileChange":
-            let changes = item["changes"] as? [[String: Any]] ?? []
-            let combined = changes.compactMap { $0["diff"] as? String }.joined(separator: "\n")
-            let stat = TurnDiffStats.parse(combined)
-            return .fileChange(id: id,
-                               file: changes.first?["path"] as? String ?? "",
-                               added: stat.added, removed: stat.removed, diff: combined)
+            return fileChangeItem(id: id, changes: item["changes"])
         case "mcpToolCall":
             return .mcpToolCall(id: id,
                                 server: item["server"] as? String ?? "",
@@ -581,25 +577,19 @@ struct ThreadReducer {
         }
     }
 
-    /// 处理 fileChange/patchUpdated：遍历 changes[]，对每个 {path, diff} 用 TurnDiffStats 解析行数，
-    /// 落入对应 fileChange item（按 itemId 优先匹配；多文件时按 path 匹配既有 item，缺失则忽略）。
+    private func fileChangeItem(id: String, changes any: Any?) -> ConversationItem? {
+        guard let changes = any as? [[String: Any]] else { return nil }
+        let paths = changes.compactMap { $0["path"] as? String }.filter { !$0.isEmpty }
+        let combined = changes.compactMap { $0["diff"] as? String }.joined(separator: "\n")
+        let stat = TurnDiffStats.parse(combined)
+        return .fileChange(id: id, file: paths.joined(separator: ", "),
+                           added: stat.added, removed: stat.removed, diff: combined)
+    }
+
+    /// patchUpdated is an authoritative snapshot for the whole fileChange item.
     private func applyFilePatch(itemId: String?, params: [String: Any], _ s: inout ConversationState) {
-        let changes = params["changes"] as? [[String: Any]] ?? []
-        for change in changes {
-            let path = change["path"] as? String ?? ""
-            let diff = change["diff"] as? String ?? ""
-            let stat = TurnDiffStats.parse(diff)
-            // 优先按 itemId 命中（单文件常见），否则按 file path 命中既有 item
-            let idx = s.items.firstIndex {
-                if case .fileChange(let id, let f, _, _, _) = $0 {
-                    return (itemId != nil && id == itemId) || f == path
-                }
-                return false
-            }
-            guard let i = idx, case .fileChange(let id, _, _, _, _) = s.items[i] else { continue }
-            s.items[i] = .fileChange(id: id, file: path,
-                                     added: stat.added, removed: stat.removed, diff: diff)
-        }
+        guard let itemId, let item = fileChangeItem(id: itemId, changes: params["changes"]) else { return }
+        upsertOrReplace(item, &s)
     }
 
     private func finishCommand(id: String, status: CommandStatus,

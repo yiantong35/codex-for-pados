@@ -39,9 +39,13 @@ final class ResumeHistoryTests: XCTestCase {
             return XCTFail("应有 fileChange item")
         }
         XCTAssertEqual(id, "call_8gpd2dRXAeIESpvPtjBL7fmp")
-        XCTAssertEqual(file, "/Volumes/mount/workspace/web-dev/AGENTS.md",
-                       "fileChange.file 应取自 changes[0].path")
-        XCTAssertTrue(diff.contains("@@"), "diff 应取自 changes[0].diff")
+        XCTAssertEqual(
+            file,
+            "/Volumes/mount/workspace/web-dev/AGENTS.md, /Volumes/mount/workspace/web-dev/README.md",
+            "fileChange.file 应汇总全部 changes[].path"
+        )
+        XCTAssertTrue(diff.contains("canonical project path") && diff.contains("# web-dev"),
+                      "diff 应汇总全部 changes[].diff")
     }
 
     /// 顺序保持：item 按 turns→items 出现顺序追加，第一条是首个 userMessage。

@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 IOS_DESTINATION="${CODEX_IOS_DESTINATION:-platform=iOS Simulator,name=iPad-Test}"
 DERIVED_DATA="${CODEX_DERIVED_DATA:-$ROOT_DIR/ios/DerivedData}"
+ANALYZE_DERIVED_DATA="${CODEX_ANALYZE_DERIVED_DATA:-$ROOT_DIR/ios/DerivedData-analyze}"
 IOS_PARALLEL_TESTING="${CODEX_IOS_PARALLEL_TESTING:-NO}"
 OPEN_SPEC_CHANGE="${CODEX_OPENSPEC_CHANGE:-functionality-review-fixes}"
 
@@ -33,6 +34,11 @@ test_ios() {
         -destination "$IOS_DESTINATION"
         -derivedDataPath "$DERIVED_DATA"
     )
+    local app="$DERIVED_DATA/Build/Products/Debug-iphonesimulator/CodexRemote.app"
+    if [[ -d "$app" ]] && ! codesign -d --entitlements :- --xml "$app" 2>&1 \
+        | grep -q 'keychain-access-groups'; then
+        xcodebuild clean "${common[@]}" || return $?
+    fi
     xcodebuild test "${common[@]}" \
         -parallel-testing-enabled "$IOS_PARALLEL_TESTING" \
         -skip-testing:CodexRemoteTests/OrientationSnapshotTests \
@@ -43,6 +49,13 @@ test_ios() {
         -test-iterations 3 \
         -retry-tests-on-failure \
         -only-testing:CodexRemoteTests/OrientationSnapshotTests \
+        -skip-testing:CodexRemoteTests/OrientationSnapshotTests/test_workspace_all_panels_snapshot \
+        || return $?
+    xcodebuild test "${common[@]}" \
+        -parallel-testing-enabled NO \
+        -test-iterations 3 \
+        -retry-tests-on-failure \
+        -only-testing:CodexRemoteTests/OrientationSnapshotTests/test_workspace_all_panels_snapshot \
         || return $?
     xcodebuild test "${common[@]}" \
         -parallel-testing-enabled NO \
@@ -76,6 +89,6 @@ run_stage "Analyze iOS app" xcodebuild analyze -quiet \
     -project "$ROOT_DIR/ios/CodexRemote.xcodeproj" \
     -scheme CodexRemote \
     -destination "$IOS_DESTINATION" \
-    -derivedDataPath "$DERIVED_DATA"
+    -derivedDataPath "$ANALYZE_DERIVED_DATA"
 run_stage "Validate OpenSpec" validate_openspec
 run_stage "Check Git diff" check_git_diff
