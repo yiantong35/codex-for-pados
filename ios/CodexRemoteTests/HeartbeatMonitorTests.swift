@@ -68,8 +68,8 @@ final class HeartbeatMonitorTests: XCTestCase {
         let clock = ManualHeartbeatClock()
         let probes = GatedProbe()
         let m = HeartbeatMonitor(
-            config: .init(interval: .seconds(10), inactiveInterval: .seconds(60),
-                          missThreshold: 2, minimumAcceleratedProbeInterval: .seconds(10)),
+            config: .init(interval: .seconds(10), missThreshold: 2,
+                          minimumAcceleratedProbeInterval: .seconds(10)),
             probe: { await probes.run() },
             onUnhealthy: {},
             sleep: { _ in try? await Task.sleep(for: .seconds(3600)) },
@@ -100,16 +100,16 @@ final class HeartbeatMonitorTests: XCTestCase {
         let probes = Counter()
         let sleeps = DurationRecorder()
         let m = HeartbeatMonitor(
-            config: .init(interval: .seconds(10), inactiveInterval: .seconds(60), missThreshold: 2),
+            config: .init(interval: .seconds(10), missThreshold: 2),
             probe: { await probes.increment(); return true },
             onUnhealthy: {},
             sleep: { duration in await sleeps.recordAndPark(duration) })
         m.setTabActive(false)
         m.start()
-        try await waitUntil { await sleeps.values.count >= 1 }
+        try? await Task.sleep(for: .milliseconds(30))
         let firstSleep = await sleeps.values.first
         let inactiveProbeCount = await probes.value
-        XCTAssertEqual(firstSleep, .seconds(60))
+        XCTAssertNil(firstSleep, "非活动 tab 不应启动应用层心跳等待")
         XCTAssertEqual(inactiveProbeCount, 0, "非活动 tab 启动心跳时不应立即探测")
 
         m.setTabActive(true)
@@ -121,18 +121,34 @@ final class HeartbeatMonitorTests: XCTestCase {
         XCTAssertEqual(activeProbeCount, 1, "切为活动 tab 只补一个立即探针")
     }
 
+    func test_inactiveTabStopsAnAlreadyRunningHeartbeat() async throws {
+        let probes = Counter()
+        let m = HeartbeatMonitor(config: .init(interval: .seconds(10)), probe: {
+            await probes.increment(); return true
+        }, onUnhealthy: {}, sleep: { _ in await Task.yield() })
+        m.start()
+        try await waitUntil { await probes.value >= 1 }
+        m.setTabActive(false)
+        let snapshot = await probes.value
+        try? await Task.sleep(for: .milliseconds(50))
+        let afterPause = await probes.value
+        XCTAssertEqual(afterPause, snapshot)
+        m.stop()
+    }
+
     func test_inactiveTabIgnoresAcceleratedProbeSignals() async throws {
         let probes = Counter()
         let sleeps = DurationRecorder()
         let m = HeartbeatMonitor(
-            config: .init(interval: .seconds(10), inactiveInterval: .seconds(60),
-                          minimumAcceleratedProbeInterval: .zero),
+            config: .init(interval: .seconds(10), minimumAcceleratedProbeInterval: .zero),
             probe: { await probes.increment(); return true },
             onUnhealthy: {},
             sleep: { duration in await sleeps.recordAndPark(duration) })
         m.setTabActive(false)
         m.start()
-        try await waitUntil { await sleeps.values.contains(.seconds(60)) }
+        try? await Task.sleep(for: .milliseconds(50))
+        let recordedSleeps = await sleeps.values
+        XCTAssertTrue(recordedSleeps.isEmpty)
 
         for _ in 0..<100 { m.requestAcceleratedProbe() }
         try? await Task.sleep(for: .milliseconds(50))

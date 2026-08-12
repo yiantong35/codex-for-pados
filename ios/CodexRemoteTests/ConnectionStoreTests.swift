@@ -522,6 +522,7 @@ final class ConnectionStoreTests: XCTestCase {
                 HeartbeatMonitor(config: .init(interval: .milliseconds(1), missThreshold: 2),
                                  probe: { false }, onUnhealthy: cb.run,
                                  sleep: { _ in await Task.yield() }) })
+        await store.setTabActive(true)
         await feedInitializeResponse(mock)
         await store.connect(config: .stub)
         try await waitUntil { if case .ready = await store.phase { return true }; return false }

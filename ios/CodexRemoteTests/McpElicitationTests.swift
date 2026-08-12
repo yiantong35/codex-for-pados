@@ -133,6 +133,13 @@ final class McpElicitationTests: XCTestCase {
         )))
     }
 
+    func testInputBindingBudgetHelperTruncatesBySchemaAndUTF8() {
+        let bounded = McpElicitationLimits.boundedInput(String(repeating: "界", count: 10), maxLength: 3)
+        XCTAssertEqual(bounded, "界界界")
+        XCTAssertLessThanOrEqual(McpElicitationLimits.boundedInput(String(repeating: "a", count: 8_000)).utf8.count,
+                                 McpElicitationLimits.maximumInputBytes)
+    }
+
     @MainActor
     func testLocalizedNegativeDecimalIsAcceptedAndSerializedAsNumber() throws {
         let params = formParams(properties: [
