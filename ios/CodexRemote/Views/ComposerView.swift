@@ -32,12 +32,11 @@ struct ComposerView: View {
     @State private var showModelPopover = false
 
     init(store: ConversationStore, draft: ComposerDraft? = nil, isEnabled: Bool = true,
-         photoDataLoader: PhotoDataLoader = .live, showModelPopoverInitially: Bool = false) {
+         photoDataLoader: PhotoDataLoader = .live) {
         self.store = store
         self.isEnabled = isEnabled
         self.photoDataLoader = photoDataLoader
         _draft = State(initialValue: draft ?? ComposerDraft())
-        _showModelPopover = State(initialValue: showModelPopoverInitially)
     }
 
     /// 推理强度可选项（ReasoningEffort 全部 case）。
@@ -187,7 +186,7 @@ struct ComposerView: View {
         .accessibilityLabel(Text("composer.a11y.model"))
         .accessibilityValue(Text(verbatim: modelChipLabel))
         .popover(isPresented: $showModelPopover) {
-            modelPopover.presentationCompactAdaptation(.popover)
+            modelSelectionContent.presentationCompactAdaptation(.popover)
         }
     }
 
@@ -273,17 +272,42 @@ struct ComposerView: View {
 
     /// 模型 + 推理强度选择浮层（inline picker，一屏列出，选中带勾）。
     /// 模型列表来自服务器 model/list（env.models），含「跟随账号默认」项（override=nil）。
-    private var modelPopover: some View {
+    private var modelSelectionContent: some View {
+        ModelSelectionContent(
+            selection: Binding(
+                get: { draft.selection },
+                set: { draft.selection = $0 }
+            ),
+            models: env.models,
+            defaultModel: env.config?.model,
+            defaultEffort: env.config?.modelReasoningEffort,
+            locale: locale,
+            isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+        )
+    }
+}
+
+struct ModelSelectionContent: View {
+    @Binding var selection: ModelSelection
+    let models: [ModelSummary]
+    let defaultModel: String?
+    let defaultEffort: String?
+    let locale: Locale
+    let isAccessibilitySize: Bool
+
+    private static let efforts: [ReasoningEffort] = [.none, .minimal, .low, .medium, .high, .xhigh]
+
+    var body: some View {
         List {
             Button("composer.model.reset") {
-                draft.selection = ModelSelection()
+                selection = ModelSelection()
             }
             Section("composer.model") {
-                Picker("composer.model", selection: $draft.selection.modelOverride) {
+                Picker("composer.model", selection: $selection.modelOverride) {
                     // nil = 跟随账号默认；显示当前默认 slug 便于用户知道会用哪个。
-                    Text("composer.model.default \(env.config?.model ?? "—")")
+                    Text("composer.model.default \(defaultModel ?? "—")")
                         .tag(String?.none)
-                    ForEach(env.models, id: \.slug) { m in
+                    ForEach(models, id: \.slug) { m in
                         Text(m.displayName ?? m.slug).tag(String?.some(m.slug))
                     }
                 }
@@ -291,7 +315,7 @@ struct ComposerView: View {
                 .labelsHidden()
             }
             Section("composer.effort") {
-                Picker("composer.effort", selection: $draft.selection.effortOverride) {
+                Picker("composer.effort", selection: $selection.effortOverride) {
                     Text("composer.effort.default \(defaultEffortLabel)")
                         .tag(ReasoningEffort?.none)
                     ForEach(Self.efforts, id: \.self) { e in
@@ -303,8 +327,8 @@ struct ComposerView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .frame(width: dynamicTypeSize.isAccessibilitySize ? 340 : 280,
-               height: dynamicTypeSize.isAccessibilitySize ? 560 : 440)
+        .frame(width: isAccessibilitySize ? 340 : 280,
+               height: isAccessibilitySize ? 560 : 440)
     }
 
     private func effortLabel(_ effort: ReasoningEffort) -> String {
@@ -312,12 +336,25 @@ struct ComposerView: View {
     }
 
     private var defaultEffortLabel: String {
+        guard let raw = defaultEffort,
+              let effort = ReasoningEffort(rawValue: raw) else { return "—" }
+        return effortLabel(effort)
+    }
+}
+
+private extension ComposerView {
+
+    func effortLabel(_ effort: ReasoningEffort) -> String {
+        L10n.string("composer.effort.\(effort.rawValue)", locale: locale)
+    }
+
+    var defaultEffortLabel: String {
         guard let raw = env.config?.modelReasoningEffort,
               let effort = ReasoningEffort(rawValue: raw) else { return "—" }
         return effortLabel(effort)
     }
 
-    private var modelChipLabel: String {
+    var modelChipLabel: String {
         let model = effectiveModel.flatMap { slug in
             env.models.first(where: { $0.slug == slug })?.displayName ?? slug
         } ?? L10n.string("composer.model.followDefault", locale: locale)

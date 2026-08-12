@@ -532,11 +532,15 @@ struct ThreadReducer {
             guard let i = s.items.firstIndex(where: { $0.id == id }) else { continue }
             switch (buf.kind, s.items[i]) {
             case (.agent, .agentMessage(_, let t)):
-                s.items[i] = .agentMessage(id: id, text: t + buf.text)
+                s.items[i] = .agentMessage(
+                    id: id, text: TextRenderBudget.appendingStream(t, delta: buf.text)
+                )
             case (.reasoning, .reasoning(_, let t)):
                 s.items[i] = .reasoning(id: id, text: t + buf.text)
             case (.command, .commandExecution(_, let c, let o, let lineCount, let st, let ec, let dm)):
-                s.items[i] = .commandExecution(id: id, command: c, output: o + buf.text,
+                s.items[i] = .commandExecution(
+                    id: id, command: c,
+                    output: TextRenderBudget.appendingStream(o, delta: buf.text),
                                                outputLineCount: IncrementalTextLineCount.appending(
                                                    currentCount: lineCount,
                                                    currentIsEmpty: o.isEmpty,

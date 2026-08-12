@@ -8,6 +8,7 @@ struct SidebarView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(ProjectsStore.self) private var projects
     @Environment(ConnectionStore.self) private var connection
+    @Environment(SessionsManager.self) private var sessions
     @Environment(EnvironmentStore.self) private var env
     @Environment(ActiveConversationHolder.self) private var activeConversation
     @Environment(\.scenePhase) private var scenePhase
@@ -152,7 +153,19 @@ struct SidebarView: View {
 
     @ViewBuilder
     private var sidebarEmptyOverlay: some View {
-        if case .failed(let reason) = connection.phase {
+        if connection.phase == .disconnected {
+            ContentUnavailableView {
+                Label("connection.disconnected", systemImage: "wifi.slash")
+            } description: {
+                Text("sidebar.disconnected.desc")
+            } actions: {
+                Button("tab.connect") {
+                    guard let id = sessions.activeSessionId else { return }
+                    sessions.connectMachine(id: id)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        } else if case .failed(let reason) = connection.phase {
             ContentUnavailableView {
                 Label("sidebar.loadFailed.title", systemImage: "wifi.exclamationmark")
             } description: {

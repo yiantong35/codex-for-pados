@@ -98,16 +98,12 @@ final class Session: Identifiable {
     }
     func disconnect() async { await connection.disconnect() }
 
-    @discardableResult
-    func clearSensitiveTransientState() -> Task<Void, Never> {
-        let interruptTask = sideChat.reset()
-        return Task { @MainActor [weak self] in
-            guard let self else { return }
-            let result = await interruptTask.value
-            guard case .reset = result else { return }
-            self.workspaceState.conversationOutboxes.removeAll()
-            self.composerDrafts.removeAll()
-        }
+    func clearSensitiveTransientState() async -> SideChatResetResult {
+        let result = await sideChat.reset().value
+        guard case .reset = result else { return result }
+        workspaceState.conversationOutboxes.removeAll()
+        composerDrafts.removeAll()
+        return .reset
     }
 
     /// 前后台切换（D6=B「后台保连、停止应用层探针」）。

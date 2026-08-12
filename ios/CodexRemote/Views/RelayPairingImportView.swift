@@ -82,6 +82,7 @@ struct RelayPairingImportView: View {
     @State private var vm = RelayPairingImportViewModel()
     @State private var errorText: String?
     @State private var showScanner = false
+    @State private var isImporting = false
     let replacingMachineID: UUID?
     private let onImported: (() -> Void)?
 
@@ -111,7 +112,7 @@ struct RelayPairingImportView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("relayImport.import") { importPairing() }
-                    .disabled(vm.pasted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(isImporting || vm.pasted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         // 扫码用全屏，横竖屏均由 QRScannerView 自适应填满，扫码框不受表单布局挤压。
@@ -267,23 +268,36 @@ struct RelayPairingImportView: View {
 
     /// 解析导入：成功交 addMachineAndConnect（切过去 + 连接），失败展示明确文案。
     private func importPairing() {
+        guard !isImporting else { return }
+        isImporting = true
+        Task { await performImportPairing() }
+    }
+
+    private func performImportPairing() async {
+        defer { isImporting = false }
         do {
             let existing = replacingMachineID.flatMap { id in
                 sessions.machineStore.machines.first { $0.id == id }
             }
             let (m, pc) = try vm.makeMachineConfig(replacing: existing)
-            let succeeded: Bool
+            let result: SessionsManager.DestructiveResult
             if existing != nil {
-                succeeded = sessions.replaceMachineAndConnect(m, pairingCode: pc)
+                result = await sessions.replaceMachineAndConnect(m, pairingCode: pc)
             } else if sessions.machineStore.canAddMore {
                 PendingPairingStore.shared.stash(pc, for: m.id)
-                succeeded = sessions.addMachineAndConnect(m)
+                result = sessions.addMachineAndConnect(m) ? .completed : .failed
             } else {
-                succeeded = false
+                result = .failed
             }
-            if succeeded {
+            switch result {
+            case .completed:
                 if let onImported { onImported() } else { dismiss() }
-            } else {
+            case .interruptFailed(let ids):
+                errorText = String.localizedStringWithFormat(
+                    L10n.string("sideChat.cleanupFailed %@", locale: locale),
+                    ids.joined(separator: ", ")
+                )
+            case .failed:
                 errorText = L10n.string("relayImport.error.saveFailed", locale: locale)
             }
         } catch {

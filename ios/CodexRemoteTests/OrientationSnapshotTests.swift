@@ -223,6 +223,7 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(ActiveConversationHolder())
             .environment(EnvironmentStore())
             .environment(makeConnection())
+            .environment(makeSessions(machineCount: 1))
             .environment(LocaleManager())   // SettingsMenu（侧栏 toolbar，Task 26）依赖
             .environment(ThemeManager())
         snapshot(view, size: portrait, name: "sidebar-grouped", dir: "/tmp/sidebar")
@@ -242,10 +243,27 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(ActiveConversationHolder())
             .environment(EnvironmentStore())
             .environment(makeConnection())
+            .environment(makeSessions(machineCount: 1))
             .environment(LocaleManager())   // SettingsMenu（侧栏 toolbar，Task 26）依赖
             .environment(ThemeManager())
         snapshot(view, size: portrait, name: "sidebar-flat", dir: "/tmp/sidebar",
                  baseline: "sidebar-flat")
+    }
+
+    func test_sidebar_disconnected_visual_baseline() {
+        let projects = ProjectsStore()
+        let connection = makeConnection()
+        connection._test_setPhase(.disconnected)
+        let view = SidebarView(selectedThreadId: .constant(nil))
+            .environment(projects)
+            .environment(ActiveConversationHolder())
+            .environment(EnvironmentStore())
+            .environment(connection)
+            .environment(makeSessions(machineCount: 1))
+            .environment(LocaleManager())
+            .environment(ThemeManager())
+        snapshot(view, size: CGSize(width: 320, height: 500), name: "sidebar-disconnected",
+                 dir: "/tmp/visual-regression", baseline: "sidebar-disconnected")
     }
 
     func test_composer_compact_accessibility_visual_baseline() {
@@ -307,14 +325,15 @@ final class OrientationSnapshotTests: XCTestCase {
                  dir: "/tmp/visual-regression", baseline: "side-chat-selector")
     }
 
-    func test_model_popover_visual_baseline() {
-        let rpc = JSONRPCClient(transport: MockTransport())
-        let store = ConversationStore(rpc: rpc, threadId: "visual-model")
-        let view = ComposerView(store: store, showModelPopoverInitially: true)
-            .environment(EnvironmentStore())
+    func test_model_selection_content_visual_baseline() {
+        let view = ModelSelectionContent(
+            selection: .constant(ModelSelection()),
+            models: [], defaultModel: "account-default", defaultEffort: "medium",
+            locale: Locale(identifier: "zh-Hans"), isAccessibilitySize: true
+        )
             .environment(\.dynamicTypeSize, .accessibility2)
-        snapshot(view, size: CGSize(width: 520, height: 680), name: "model-popover",
-                 dir: "/tmp/visual-regression", baseline: "model-popover")
+        snapshot(view, size: CGSize(width: 340, height: 560), name: "model-selection-content",
+                 dir: "/tmp/visual-regression", baseline: "model-selection-content")
     }
 
     // MARK: - 场景 4：InspectorView 右栏简态（Task 25）

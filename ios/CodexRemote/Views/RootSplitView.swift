@@ -67,6 +67,9 @@ struct RootSplitView: View {
     @State private var widthLoadRevision = 0
     @State private var fileOpenTask: Task<Void, Never>?
     @State private var operationError: String?
+    @State private var selectionReconcileTask: Task<Void, Never>?
+    @State private var isReconcilingSelection = false
+    @State private var pendingSelectionReconcileIDs: Set<String>?
     /// 便利初始化：允许注入面板初始展开态（供快照测试覆盖全开布局）。
     init(initialRightOpen: Bool = false, initialBottomOpen: Bool = false,
          workspaceState: WorkspaceSessionState? = nil) {
@@ -146,9 +149,24 @@ struct RootSplitView: View {
         .sheet(isPresented: $layout.showSettings) { SettingsPageView(systemColorScheme: systemColorScheme) }
         .alert("operation.failed.title", isPresented: Binding(
             get: { operationError != nil },
-            set: { if !$0 { operationError = nil } }
+            set: {
+                if !$0 {
+                    operationError = nil
+                    pendingSelectionReconcileIDs = nil
+                }
+            }
         )) {
-            Button("common.ok", role: .cancel) { operationError = nil }
+            if let ids = pendingSelectionReconcileIDs {
+                Button("sidebar.retry") {
+                    pendingSelectionReconcileIDs = nil
+                    operationError = nil
+                    reconcileSelectedThread(availableIDs: ids)
+                }
+            }
+            Button("common.ok", role: .cancel) {
+                operationError = nil
+                pendingSelectionReconcileIDs = nil
+            }
         } message: {
             Text(operationError ?? "")
         }
@@ -333,36 +351,51 @@ struct RootSplitView: View {
     }
 
     private func reconcileSelectedThread(availableIDs: Set<String>) {
+        guard pendingSelectionReconcileIDs == nil, !isReconcilingSelection else { return }
         let resolved = Self.resolvedSelection(
             current: workspaceState.selectedThreadId,
             availableIDs: availableIDs,
             loadState: projects.loadState
         )
         guard workspaceState.selectedThreadId != resolved else { return }
-        workspaceState.selectedThreadId = resolved
-        activeConversation.state = nil
-        activeConversation.contextIdentity = nil
-        activeConversation.fetchFullDiff = nil
-        activeConversation.startReview = nil
-        activeConversation.applyThreadSnapshot = nil
-        activeConversation.fetchGeneration &+= 1
-        fileOpenTask?.cancel()
-        let sideChatIds = sideChat.sessions.map(\.id)
-        let session = sessions.activeSession
-        let reset = sideChat.reset()
-        Task { @MainActor in
-            switch await reset.value {
-            case .reset:
-                for id in sideChatIds {
-                    session?.approvals.removeAll(threadId: id)
-                    session?.userInputs.removeAll(threadId: id)
-                    session?.mcpElicitations.removeAll(threadId: id)
+        selectionReconcileTask?.cancel()
+        let expectedSelection = workspaceState.selectedThreadId
+        let sideChatIDs = sideChat.sessions.map(\.id)
+        isReconcilingSelection = true
+        selectionReconcileTask = Task {
+            defer { isReconcilingSelection = false }
+            let resetResult = await sideChat.reset().value
+            guard !Task.isCancelled, workspaceState.selectedThreadId == expectedSelection else { return }
+            guard case .reset = resetResult else {
+                if case .interruptFailed(let ids) = resetResult {
+                    pendingSelectionReconcileIDs = availableIDs
+                    operationError = cleanupFailureMessage(ids)
                 }
-            case .interruptFailed:
-                operationError = L10n.string("sideChat.resetFailed", locale: LocaleManager.currentLocale)
+                return
             }
+            pendingSelectionReconcileIDs = nil
+            for id in sideChatIDs {
+                sessions.activeSession?.approvals.removeAll(threadId: id)
+                sessions.activeSession?.userInputs.removeAll(threadId: id)
+                sessions.activeSession?.mcpElicitations.removeAll(threadId: id)
+            }
+            workspaceState.selectedThreadId = resolved
+            activeConversation.state = nil
+            activeConversation.contextIdentity = nil
+            activeConversation.fetchFullDiff = nil
+            activeConversation.startReview = nil
+            activeConversation.applyThreadSnapshot = nil
+            activeConversation.fetchGeneration &+= 1
+            fileOpenTask?.cancel()
+            await fileBrowser.setRoot(nil)
         }
-        Task { await fileBrowser.setRoot(nil) }
+    }
+
+    private func cleanupFailureMessage(_ ids: [String]) -> String {
+        String.localizedStringWithFormat(
+            L10n.string("sideChat.cleanupFailed %@", locale: LocaleManager.currentLocale),
+            ids.joined(separator: ", ")
+        )
     }
 
     static func resolvedSelection(current: String?, availableIDs: Set<String>,
@@ -371,6 +404,8 @@ struct RootSplitView: View {
         return availableIDs.contains(current) ? current : nil
     }
 
+    /// Compatibility predicate used by lifecycle tests and callers that need to decide whether
+    /// transient side-chat interaction state is safe to discard after reset.
     static func shouldClearSideChatInteractionState(after result: SideChatResetResult) -> Bool {
         result == .reset
     }

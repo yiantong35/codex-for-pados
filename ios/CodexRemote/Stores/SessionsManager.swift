@@ -8,6 +8,11 @@ import Observation
 @Observable
 @MainActor
 final class SessionsManager {
+    enum DestructiveResult: Equatable {
+        case completed
+        case interruptFailed([String])
+        case failed
+    }
     let machineStore: MachineStore
     private let transportFactory: @Sendable (ConnectionConfig) async throws -> MessageTransport
     private let resetPairingTrust: @Sendable (UUID) throws -> Void
@@ -82,39 +87,41 @@ final class SessionsManager {
 
     /// 重新配对当前机器：保留 machine id/列表位置，清除旧 TOFU 与稳定会话，再用新载荷重建连接。
     @discardableResult
-    func replaceMachineAndConnect(_ m: MachineConfig, pairingCode: String) -> Bool {
-        guard machineStore.machines.contains(where: { $0.id == m.id }) else { return false }
-        do { try resetPairingTrust(m.id) } catch { return false }
+    func replaceMachineAndConnect(_ m: MachineConfig, pairingCode: String) async -> DestructiveResult {
+        guard machineStore.machines.contains(where: { $0.id == m.id }) else { return .failed }
+        let oldSession = cache[m.id]
+        if let oldSession {
+            let cleanup = await oldSession.clearSensitiveTransientState()
+            if case .interruptFailed(let ids) = cleanup { return .interruptFailed(ids) }
+        }
+        do { try resetPairingTrust(m.id) } catch { return .failed }
 
-        let oldSession = cache.removeValue(forKey: m.id)
-        let cleanup = oldSession?.clearSensitiveTransientState()
+        cache[m.id] = nil
         machineStore.update(m)
         PendingPairingStore.shared.stash(pairingCode, for: m.id)
         setActive(m.id)
-        Task {
-            await cleanup?.value
-            await oldSession?.disconnect()
-        }
-        return true
+        await oldSession?.disconnect()
+        return .completed
     }
 
-    func removeMachine(id: UUID) {
+    func removeMachine(id: UUID) async -> DestructiveResult {
         // 先捕获 session 再清缓存：`Task{}` 体在 @MainActor 稍后调度，若先同步置 nil，
         // 闭包届时读到的 cache[id] 已为 nil → disconnect 短路、断连从不发生（连接泄漏）。
         let s = cache[id]
+        if let s {
+            let cleanup = await s.clearSensitiveTransientState()
+            if case .interruptFailed(let ids) = cleanup { return .interruptFailed(ids) }
+        }
         let removedActiveMachine = machineStore.activeMachineId == id
         s?.setForeground(false)
-        let cleanup = s?.clearSensitiveTransientState()
         cache[id] = nil
         machineStore.remove(id: id)
         // MachineStore 会选出相邻机器，但只有 setActive 才会创建/前台化 Session 并触发懒连。
         if removedActiveMachine, let nextId = machineStore.activeMachineId {
             setActive(nextId)
         }
-        Task {
-            await cleanup?.value
-            await s?.disconnect()
-        }
+        await s?.disconnect()
+        return .completed
     }
 
     /// 重命名某机器 tab 的显示名（TabBarView ⋯ 菜单「重命名」项用）。
