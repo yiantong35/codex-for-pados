@@ -710,6 +710,8 @@ struct FullTextAccessButton: View {
             Label("common.viewFullContent", systemImage: "arrow.up.left.and.arrow.down.right")
         }
         .font(.caption)
+        .minimumHitTarget44()
+        .accessibilityLabel(Text("common.viewFullContent"))
         .sheet(isPresented: $isPresented) {
             NavigationStack {
                 ScrollView([.horizontal, .vertical], showsIndicators: true) {

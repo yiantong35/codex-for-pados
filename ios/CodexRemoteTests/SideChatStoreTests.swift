@@ -267,13 +267,38 @@ struct SideChatStoreTests {
         status.values["fork-2"] = .active(activeFlags: [.waitingOnApproval])
         await mock.setAutoRespond(true)
 
-        await store.reset().value
+        #expect(await store.reset().value == .reset)
 
         #expect(store.sessions.isEmpty)
         let interrupts = await mock.sent.filter { $0.contains(RPCMethod.turnInterrupt) }
         #expect(interrupts.count == 2)
         #expect(interrupts.contains { $0.contains(#""threadId":"fork-1""#) })
         #expect(interrupts.contains { $0.contains(#""threadId":"fork-2""#) })
+    }
+
+    @Test func resetKeepsSessionsAndDraftsWhenHiddenInterruptFails() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let drafts = ComposerDraftStore()
+        let registry = ConversationOutboxRegistry()
+        let status = SideChatThreadStatusStub()
+        let store = SideChatStore(draftStore: drafts, conversationOutboxes: registry,
+                                  threadStatus: { status.values[$0] })
+        store.attach(rpc: rpc)
+        let responder = respondFork(mock)
+        await store.start(fromThreadId: "main-1")
+        await store.start(fromThreadId: "main-1")
+        responder.cancel()
+        let draft = drafts.draft(for: "fork-1")
+        draft.text = "keep this"
+        status.values["fork-1"] = .active(activeFlags: [])
+        await mock.failNextSend(with: .channelClosed(reason: "offline"))
+
+        #expect(await store.reset().value == .interruptFailed(["fork-1"]))
+        #expect(store.sessions.map(\.id) == ["fork-1", "fork-2"])
+        #expect(drafts.draft(for: "fork-1") === draft)
+        #expect(draft.text == "keep this")
     }
 
     @Test func closeClearsThreadOutbox() async throws {

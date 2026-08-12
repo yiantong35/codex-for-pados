@@ -25,6 +25,11 @@ enum SideChatCloseResult: Equatable {
     case interruptFailed
 }
 
+enum SideChatResetResult: Equatable {
+    case reset
+    case interruptFailed([String])
+}
+
 /// 多侧聊生命周期状态层（design D2）：容器持有一份，视图只读渲染。
 /// attach(rpc:) 注入共享 JSONRPCClient（幂等，模式同 FileBrowserStore）。
 /// 每个侧聊只保留 ephemeral fork 元数据，通知订阅由当前可见 ConversationView 独占。
@@ -123,9 +128,27 @@ final class SideChatStore {
     }
 
     @discardableResult
-    func reset() -> Task<Void, Never> {
+    func reset() -> Task<SideChatResetResult, Never> {
         let activeThreadIds = sessions.map(\.id).filter { isRunning(id: $0) }
         let rpc = self.rpc
+        return Task { @MainActor [weak self] in
+            guard let self else { return .reset }
+            guard let rpc else {
+                if !activeThreadIds.isEmpty { return .interruptFailed(activeThreadIds) }
+                self.clearResetState()
+                return .reset
+            }
+            var failed: [String] = []
+            for threadId in activeThreadIds {
+                if !(await Self.interrupt(threadId: threadId, rpc: rpc)) { failed.append(threadId) }
+            }
+            guard failed.isEmpty else { return .interruptFailed(failed) }
+            self.clearResetState()
+            return .reset
+        }
+    }
+
+    private func clearResetState() {
         sessions.forEach {
             draftStore?.removeDraft(for: $0.id)
             conversationOutboxes.remove(threadId: $0.id)
@@ -136,12 +159,6 @@ final class SideChatStore {
         sessions.removeAll()
         selectedId = nil
         startFailed = false
-        return Task {
-            guard let rpc else { return }
-            for threadId in activeThreadIds {
-                _ = await Self.interrupt(threadId: threadId, rpc: rpc)
-            }
-        }
     }
 
     /// 关闭侧聊：移除 metadata；可见 ConversationView 随选择变化销毁并取消自己的订阅。
@@ -191,6 +208,13 @@ final class SideChatStore {
         sessions[index].title = value
         sessions[index].hasMessageSummary = true
     }
+
+    #if DEBUG
+    func setSessionsForTesting(_ sessions: [SideChatSession], selectedId: String?) {
+        self.sessions = sessions
+        self.selectedId = selectedId
+    }
+    #endif
 
     static func makeTitle(index: Int) -> String {
         String.localizedStringWithFormat(

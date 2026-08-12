@@ -274,6 +274,49 @@ final class OrientationSnapshotTests: XCTestCase {
                  dir: "/tmp/visual-regression", baseline: "mcp-compact-a11y")
     }
 
+    func test_approval_card_visual_baseline() {
+        let card = ApprovalCard(
+            id: .string("visual-approval"), method: ServerRequestMethod.cmdApprovalV2,
+            threadId: "visual-thread", title: "git reset --hard HEAD~1",
+            detail: "/repo/codex", proposedPrefix: ["git", "reset"],
+            isFileChange: false, isPermissions: false, reason: "Review this destructive command",
+            requestedNetworkEnabled: nil, requestedFileSystem: nil)
+        let view = ApprovalCardView(card: card)
+            .environment(ApprovalStore())
+            .environment(\.dynamicTypeSize, .accessibility2)
+        snapshot(view, size: CGSize(width: 520, height: 420), name: "approval-card",
+                 dir: "/tmp/visual-regression", baseline: "approval-card")
+    }
+
+    func test_side_chat_selector_visual_baseline() {
+        let store = SideChatStore()
+        store.setSessionsForTesting([
+            SideChatSession(id: "side-a", forkedFromId: "main", index: 1,
+                            title: "侧聊 1 · 检查重连", hasMessageSummary: true),
+            SideChatSession(id: "side-b", forkedFromId: "main", index: 2,
+                            title: "侧聊 2 · 修复布局", hasMessageSummary: true)
+        ], selectedId: "side-b")
+        let view = SideChatView(store: store, mainThreadId: "main-thread")
+            .environment(ConnectionStore(transportFactory: { _ in MockTransport() }))
+            .environment(SessionsManager(
+                machineStore: MachineStore(), transportFactory: { _ in MockTransport() }))
+            .environment(ApprovalStore())
+            .environment(UserInputStore())
+            .environment(McpElicitationStore())
+        snapshot(view, size: CGSize(width: 360, height: 260), name: "side-chat-selector",
+                 dir: "/tmp/visual-regression", baseline: "side-chat-selector")
+    }
+
+    func test_model_popover_visual_baseline() {
+        let rpc = JSONRPCClient(transport: MockTransport())
+        let store = ConversationStore(rpc: rpc, threadId: "visual-model")
+        let view = ComposerView(store: store, showModelPopoverInitially: true)
+            .environment(EnvironmentStore())
+            .environment(\.dynamicTypeSize, .accessibility2)
+        snapshot(view, size: CGSize(width: 520, height: 680), name: "model-popover",
+                 dir: "/tmp/visual-regression", baseline: "model-popover")
+    }
+
     // MARK: - 场景 4：InspectorView 右栏简态（Task 25）
 
     /// 选中线程 → Inspector 展示 cwd/branch/model；新增本地化键必须可解析。

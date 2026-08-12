@@ -178,7 +178,14 @@ struct SideChatView: View {
     private func closeSession(id: String, interrupt: Bool) async {
         let result = await store.close(id: id, interruptIfRunning: interrupt)
         guard result == .closed else {
-            if result == .interruptFailed { closeFailureID = id }
+            switch result {
+            case .requiresInterrupt:
+                pendingCloseID = id
+            case .interruptFailed:
+                closeFailureID = id
+            case .closed:
+                break
+            }
             return
         }
         closeFailureID = nil
