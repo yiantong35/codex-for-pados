@@ -110,7 +110,7 @@ final class Session: Identifiable {
         }
     }
 
-    /// 前后台切换（D6=B「后台保连+降频」）。
+    /// 前后台切换（D6=B「后台保连、停止应用层探针」）。
     /// 前台：开列表轮询 + 补拉最终态；后台：停轮询降频。
     /// A 类广播订阅（projects.attach 的 thread/status/changed）前后台都保留，徽标始终 live；
     /// 会话正文 delta（B 类）由 per-thread ConversationStore 承载，后台 tab 未打开会话本就无订阅，

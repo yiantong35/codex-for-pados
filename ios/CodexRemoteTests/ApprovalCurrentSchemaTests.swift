@@ -26,6 +26,18 @@ final class ApprovalCurrentSchemaTests: XCTestCase {
     }
 
     @MainActor
+    func testPermissionsRejectExcessiveEntriesAndPathLength() throws {
+        let entries = (0...PermissionRequestLimits.maximumEntries).map {
+            "{\"access\":\"read\",\"path\":{\"type\":\"path\",\"path\":\"/p\($0)\"}}"
+        }.joined(separator: ",")
+        let params = "{\"threadId\":\"t\",\"turnId\":\"turn\",\"itemId\":\"item\",\"startedAtMs\":1,\"cwd\":\"/work\",\"permissions\":{\"fileSystem\":{\"entries\":[\(entries)]}}}"
+        XCTAssertThrowsError(try ApprovalRequestDecoder.decode(makeRequest(id: "too-many", method: ServerRequestMethod.permsApprovalV2, params: params)))
+        let longPath = String(repeating: "x", count: PermissionRequestLimits.maximumPathBytes + 1)
+        let longParams = "{\"threadId\":\"t\",\"turnId\":\"turn\",\"itemId\":\"item\",\"startedAtMs\":1,\"cwd\":\"/work\",\"permissions\":{\"fileSystem\":{\"entries\":[{\"access\":\"read\",\"path\":{\"type\":\"path\",\"path\":\"/\(longPath)\"}}]}}}"
+        XCTAssertThrowsError(try ApprovalRequestDecoder.decode(makeRequest(id: "too-long", method: ServerRequestMethod.permsApprovalV2, params: longParams)))
+    }
+
+    @MainActor
     func testMissingRequiredFieldGetsInvalidParamsAndNoCard() async throws {
         let mock = MockTransport()
         let rpc = JSONRPCClient(transport: mock)

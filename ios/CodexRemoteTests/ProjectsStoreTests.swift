@@ -103,6 +103,22 @@ final class ProjectsStoreTests: XCTestCase {
         XCTAssertTrue(s.allThreadsSorted.isEmpty)
     }
 
+    func test_loadFromServer_stopsOnRepeatedCursor() async throws {
+        let mock = MockTransport()
+        let page = #"{"data":[],"nextCursor":"loop","backwardsCursor":null}"#
+        await mock.setThreadListPages(["": page, "loop": page])
+        await mock.setAutoRespond(true)
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let s = ProjectsStore()
+
+        await s.loadFromServer(rpc: rpc)
+
+        let calls = await mock.sent.filter { $0.contains("thread/list") }.count
+        XCTAssertEqual(calls, 2, "重复 cursor 应立即停止，而不是请求满 50 页")
+        XCTAssertEqual(s.loadState, .loaded)
+    }
+
     func test_refreshRecentPage_mergesWithoutDeletingDeepHistory() async throws {
         let s = ProjectsStore()
         s.ingest([thread("deep", cwd: "/repo/deep", updatedAt: 1)])

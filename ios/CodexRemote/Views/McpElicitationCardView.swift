@@ -310,7 +310,17 @@ struct McpElicitationCardView: View {
         Binding(get: {
             if case .text(let value) = drafts[name] { return value }
             return ""
-        }, set: { drafts[name] = $0.isEmpty ? .unset : .text($0) })
+        }, set: { value in
+            let maxLength: Int?
+            if case .form(let fields) = card.mode,
+               case .string(_, _, let maximum) = fields.first(where: { $0.name == name })?.kind {
+                maxLength = maximum
+            } else {
+                maxLength = nil
+            }
+            let bounded = McpElicitationLimits.boundedInput(value, maxLength: maxLength)
+            drafts[name] = bounded.isEmpty ? .unset : .text(bounded)
+        })
     }
 
     private func boolBinding(_ name: String) -> Binding<Bool> {

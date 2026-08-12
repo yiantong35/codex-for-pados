@@ -7,16 +7,13 @@ import Foundation
 final class HeartbeatMonitor {
     struct Config: Sendable {
         var interval: Duration = .seconds(10)
-        var inactiveInterval: Duration = .seconds(60)
         var missThreshold: Int = 2
         var minimumAcceleratedProbeInterval: Duration = .seconds(10)
 
         init(interval: Duration = .seconds(10),
-             inactiveInterval: Duration = .seconds(60),
              missThreshold: Int = 2,
              minimumAcceleratedProbeInterval: Duration = .seconds(10)) {
             self.interval = interval
-            self.inactiveInterval = inactiveInterval
             self.missThreshold = missThreshold
             self.minimumAcceleratedProbeInterval = minimumAcceleratedProbeInterval
         }
@@ -82,13 +79,21 @@ final class HeartbeatMonitor {
         }
     }
 
-    /// Tab 活跃态与 app 前后台正交：活动 tab 10s，非活动 tab 60s；切回活动态补探一次。
+    /// Tab 活跃态与 app 前后台正交：隐藏 tab 停止应用层心跳，切回时立即补探一次。
     func setTabActive(_ active: Bool) {
         guard tabActive != active else { return }
         tabActive = active
         scheduleChanged = true
         waitTask?.cancel()
-        if active { requestAcceleratedProbe() }
+        if active {
+            requestAcceleratedProbe()
+        } else {
+            // Hidden sessions remain connected for status badges, but must not wake the
+            // radio or execute application-level RPC probes.
+            acceleratedProbePending = false
+            loopTask?.cancel()
+            loopTask = nil
+        }
     }
 
     /// peer-left 等提示只请求一次加速探测。突发提示和探测在途提示均合并到一个 pending 位，
@@ -106,13 +111,12 @@ final class HeartbeatMonitor {
     }
 
     private func restartLoopIfNeeded() {
-        guard started, foreground, loopTask == nil else { return }
+        guard started, foreground, tabActive, loopTask == nil else { return }
         loopTask = Task { [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
                 if !self.acceleratedProbePending {
-                    let interval = self.tabActive ? self.config.interval : self.config.inactiveInterval
-                    let waiter = Task { await self.sleep(interval) }
+                    let waiter = Task { await self.sleep(self.config.interval) }
                     self.waitTask = waiter
                     await waiter.value
                     self.waitTask = nil

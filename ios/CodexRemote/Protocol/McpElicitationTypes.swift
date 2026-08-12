@@ -9,6 +9,22 @@ enum McpElicitationLimits {
     static let maximumMessageBytes = 4_096
     static let maximumURLBytes = 4_096
     static let maximumInputBytes = 4_096
+
+    static func boundedInput(_ value: String, maxLength: Int? = nil) -> String {
+        let characterLimit = maxLength.map { max(0, $0) }
+        var usedBytes = 0
+        var usedCharacters = 0
+        var end = value.startIndex
+        for character in value {
+            guard characterLimit.map({ usedCharacters < $0 }) ?? true else { break }
+            let bytes = String(character).utf8.count
+            guard usedBytes + bytes <= maximumInputBytes else { break }
+            usedBytes += bytes
+            usedCharacters += 1
+            end = value.index(after: end)
+        }
+        return String(value[..<end])
+    }
 }
 
 enum McpServerElicitationAction: String, Codable, Sendable, Equatable {

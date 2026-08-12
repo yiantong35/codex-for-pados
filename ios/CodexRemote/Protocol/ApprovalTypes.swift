@@ -221,6 +221,11 @@ struct FileSystemSandboxEntry: Codable, Equatable {
     let path: FileSystemPath
 }
 
+enum PermissionRequestLimits {
+    static let maximumEntries = 256
+    static let maximumPathBytes = 4 * 1_024
+}
+
 /// 授予档案（对齐 GrantedPermissionProfile.ts：network?/fileSystem? 均可选）。
 struct GrantedPermissionProfile: Codable, Equatable {
     let network: AdditionalNetworkPermissions?
@@ -296,7 +301,9 @@ enum ApprovalRequestDecoder {
             case ServerRequestMethod.fileApprovalV2:
                 return .file(try JSONDecoder().decode(FileChangeApprovalParams.self, from: data))
             case ServerRequestMethod.permsApprovalV2:
-                return .permissions(try JSONDecoder().decode(PermissionsRequestApprovalParams.self, from: data))
+                let params = try JSONDecoder().decode(PermissionsRequestApprovalParams.self, from: data)
+                guard validate(params.permissions) else { throw ApprovalProtocolError.invalidParams }
+                return .permissions(params)
             case ServerRequestMethod.execApprovalLegacy:
                 return .legacyCommand(try JSONDecoder().decode(ExecCommandApprovalParams.self, from: data))
             case ServerRequestMethod.applyPatchApprovalLegacy:
@@ -309,6 +316,19 @@ enum ApprovalRequestDecoder {
         } catch {
             throw ApprovalProtocolError.decodingFailed(String(describing: error))
         }
+    }
+
+    private static func validate(_ profile: RequestPermissionProfile) -> Bool {
+        guard let fileSystem = profile.fileSystem else { return true }
+        let legacy = (fileSystem.read ?? []) + (fileSystem.write ?? [])
+        if let entries = fileSystem.entries {
+            guard entries.count + legacy.count <= PermissionRequestLimits.maximumEntries,
+                  entries.allSatisfy({ $0.path.displayValue.utf8.count <= PermissionRequestLimits.maximumPathBytes })
+            else { return false }
+        } else if legacy.count > PermissionRequestLimits.maximumEntries {
+            return false
+        }
+        return legacy.allSatisfy { $0.utf8.count <= PermissionRequestLimits.maximumPathBytes }
     }
 }
 

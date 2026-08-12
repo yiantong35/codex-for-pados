@@ -385,6 +385,7 @@ final class ProjectsStore {
         defer { fullSyncInProgress = false }
         var cursor: String?
         var accumulated: [ThreadSummary] = []
+        var seenCursors: Set<String> = []
         for pageIndex in 0..<Self.maxListPages {
             var params = Self.listParamsForDesktopVisibility()
             params.cursor = cursor
@@ -402,6 +403,7 @@ final class ProjectsStore {
             }
             accumulated.append(contentsOf: resp.data)
             guard let next = resp.nextCursor else { break }
+            guard seenCursors.insert(next).inserted else { break }
             cursor = next
         }
         if let current = self.rpc, current !== rpc { return }
