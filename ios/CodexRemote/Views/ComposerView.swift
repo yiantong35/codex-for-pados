@@ -32,11 +32,12 @@ struct ComposerView: View {
     @State private var showModelPopover = false
 
     init(store: ConversationStore, draft: ComposerDraft? = nil, isEnabled: Bool = true,
-         photoDataLoader: PhotoDataLoader = .live) {
+         photoDataLoader: PhotoDataLoader = .live, showModelPopoverInitially: Bool = false) {
         self.store = store
         self.isEnabled = isEnabled
         self.photoDataLoader = photoDataLoader
         _draft = State(initialValue: draft ?? ComposerDraft())
+        _showModelPopover = State(initialValue: showModelPopoverInitially)
     }
 
     /// 推理强度可选项（ReasoningEffort 全部 case）。

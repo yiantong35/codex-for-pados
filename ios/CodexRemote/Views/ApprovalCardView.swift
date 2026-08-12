@@ -27,6 +27,7 @@ struct ApprovalCardView: View {
             decisionFeedback(submissionState)
             approvalText(Self.sanitizedDisplayText(fileContext?.file ?? card.title),
                          previewLines: 4,
+                         emphasized: true,
                          expanded: $showsFullTitle)
             // F4：权限审批展示知情要素——reason + 请求的 network/fileSystem 条目，
             // 用户批准前看清实际授权范围（守 UI 基线：文本可换行/随 Dynamic Type，无固定宽度）。
@@ -118,8 +119,10 @@ struct ApprovalCardView: View {
 
     private func approvalText(_ text: String,
                               previewLines: Int,
+                              emphasized: Bool = false,
                               expanded: Binding<Bool>) -> some View {
-        ExpandableApprovalText(text: text, previewLines: previewLines, expanded: expanded)
+        ExpandableApprovalText(text: text, previewLines: previewLines,
+                               emphasized: emphasized, expanded: expanded)
     }
 
     @ViewBuilder
@@ -236,6 +239,7 @@ extension ApprovalCardView {
 private struct ExpandableApprovalText: View {
     let text: String
     let previewLines: Int
+    let emphasized: Bool
     @Binding var expanded: Bool
     @State private var availableWidth: CGFloat = 0
 
@@ -251,8 +255,8 @@ private struct ExpandableApprovalText: View {
         VStack(alignment: .leading, spacing: 4) {
             ScrollView {
                 Text(verbatim: text)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
+                    .font(emphasized ? .body.monospaced() : .caption.monospaced())
+                    .foregroundStyle(emphasized ? .primary : .secondary)
                     .textSelection(.enabled)
                     .lineLimit(expanded ? nil : previewLines)
                     .frame(maxWidth: .infinity, alignment: .leading)

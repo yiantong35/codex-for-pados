@@ -101,9 +101,13 @@ final class Session: Identifiable {
     @discardableResult
     func clearSensitiveTransientState() -> Task<Void, Never> {
         let interruptTask = sideChat.reset()
-        workspaceState.conversationOutboxes.removeAll()
-        composerDrafts.removeAll()
-        return interruptTask
+        return Task { @MainActor [weak self] in
+            guard let self else { return }
+            let result = await interruptTask.value
+            guard case .reset = result else { return }
+            self.workspaceState.conversationOutboxes.removeAll()
+            self.composerDrafts.removeAll()
+        }
     }
 
     /// 前后台切换（D6=B「后台保连+降频」）。
