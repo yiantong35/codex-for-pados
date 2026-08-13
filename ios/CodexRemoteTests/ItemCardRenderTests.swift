@@ -115,6 +115,13 @@ final class ItemCardRenderTests: XCTestCase {
         XCTAssertEqual(linePresentation.displayedLines, MarkdownBlock.maximumInlineLines)
     }
 
+    func testPageRangesAdvancePastAnOversizedCharacterCluster() {
+        let cluster = String(repeating: "\u{0301}", count: TextRenderBudget.fullTextPageBytes) + "x"
+        let ranges = PagedTextViewer.pageRanges(for: cluster)
+        XCTAssertFalse(ranges.isEmpty)
+        XCTAssertEqual(ranges.reduce(0) { $0 + cluster[$1].count }, cluster.count)
+    }
+
     func testCommandLineCountCanBeMaintainedFromDeltas() {
         var count = 0
         var empty = true

@@ -181,7 +181,7 @@ struct McpElicitationCardView: View {
         } label: { Label("mcpElicitation.accept", systemImage: "checkmark") }
             .buttonStyle(.borderedProminent)
             .minimumHitTarget44()
-            .disabled(!urlTargetIsAllowed)
+            .disabled(!urlTargetIsAllowed || (card.validationErrors(drafts: drafts).isEmpty == false))
     }
 
     private var urlTargetIsAllowed: Bool {
@@ -311,15 +311,7 @@ struct McpElicitationCardView: View {
             if case .text(let value) = drafts[name] { return value }
             return ""
         }, set: { value in
-            let maxLength: Int?
-            if case .form(let fields) = card.mode,
-               case .string(_, _, let maximum) = fields.first(where: { $0.name == name })?.kind {
-                maxLength = maximum
-            } else {
-                maxLength = nil
-            }
-            let bounded = McpElicitationLimits.boundedInput(value, maxLength: maxLength)
-            drafts[name] = bounded.isEmpty ? .unset : .text(bounded)
+            drafts[name] = value.isEmpty ? .unset : .text(value)
         })
     }
 

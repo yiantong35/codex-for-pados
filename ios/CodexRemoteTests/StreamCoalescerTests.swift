@@ -88,8 +88,7 @@ final class StreamCoalescerTests: XCTestCase {
         XCTAssertEqual(text.components(separatedBy: "步骤一").count - 1, 1)  // 无重复追加
     }
 
-    /// 保真陷阱：commandExecution started → 多条 outputDelta → item/completed（带 aggregatedOutput fallback）。
-    /// finishCommand 用 `o.isEmpty ? fallback : o`；若 delta 未先落地，o 为空 → 误用 fallback。
+    /// 完成态 aggregatedOutput 是服务端权威全文，替换可能漏收/截断的 delta。
     @MainActor
     func test_reducer_command_completed_with_fallback_uses_delta_output() {
         let deltas = ["a.txt\n", "b.txt\n", "c.txt\n"]
@@ -103,13 +102,12 @@ final class StreamCoalescerTests: XCTestCase {
         }
         reducer.apply(notif("item/completed", ["item": ["id": "c1", "type": "commandExecution",
                                                         "status": "completed", "exitCode": 0, "durationMs": 5,
-                                                        "aggregatedOutput": "FALLBACK-不该出现"]]), to: &state)
+                                                        "aggregatedOutput": "AUTHORITATIVE-FULL"]]), to: &state)
 
         guard case .commandExecution(_, _, let out, _, let st, let ec, _)? = state.items.first(where: { $0.id == "c1" }) else {
             return XCTFail("应有 commandExecution c1")
         }
-        XCTAssertEqual(out, baseline)          // 用 delta 累积，非 fallback
-        XCTAssertFalse(out.contains("FALLBACK"))
+        XCTAssertEqual(out, "AUTHORITATIVE-FULL")
         XCTAssertEqual(st, .completed)         // 完成态字段照常落地
         XCTAssertEqual(ec, 0)
     }

@@ -78,6 +78,8 @@ struct SideChatView: View {
             }
             Button("common.cancel", role: .cancel) { renameID = nil }
         }
+        .onAppear { store.setParentThread(mainThreadId) }
+        .onChange(of: mainThreadId) { _, newValue in store.setParentThread(newValue) }
     }
 
     private var selectorBar: some View {
@@ -93,7 +95,7 @@ struct SideChatView: View {
                 .minimumHitTarget44()
                 .disabled(!hasMainThread || connection.phase != .ready || store.isStarting)
 
-                ForEach(store.sessions) { session in
+                ForEach(store.scopedSessions) { session in
                     sessionChip(session)
                 }
             }
@@ -140,7 +142,7 @@ struct SideChatView: View {
         if !hasMainThread {
             emptyState("sideChat.noMainThread")
         } else if let id = store.selectedId,
-                  let session = store.sessions.first(where: { $0.id == id }),
+                  let session = store.scopedSessions.first(where: { $0.id == id }),
                   let conversation = store.conversationStore(for: session.id) {
             ConversationView(
                 threadId: session.id,
