@@ -6414,18 +6414,18 @@
         "en": { "stringUnit": { "state": "translated", "value": "Submit" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "提交" } }
       }
-    }
-  },
-  "conv.reasoning.truncated": {
-    "localizations": {
-      "en": { "stringUnit": { "state": "translated", "value": "Earlier reasoning hidden" } },
-      "zh-Hans": { "stringUnit": { "state": "translated", "value": "已隐藏较早的推理内容" } }
-    }
-  },
-  "conv.reasoning.fullTitle": {
-    "localizations": {
-      "en": { "stringUnit": { "state": "translated", "value": "Reasoning" } },
-      "zh-Hans": { "stringUnit": { "state": "translated", "value": "推理过程" } }
+    },
+    "conv.reasoning.truncated": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Earlier reasoning hidden" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已隐藏较早的推理内容" } }
+      }
+    },
+    "conv.reasoning.fullTitle": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Reasoning" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "推理过程" } }
+      }
     }
   },
   "version": "1.0"
