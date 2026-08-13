@@ -119,9 +119,6 @@ final class Session: Identifiable {
             Task { await projects.refreshNow() }
         } else {
             projects.stopPolling()
-            // Hidden tabs do not keep a relay WebSocket alive only to discover idle expiry.
-            // setActive() will reconnect lazily when this session becomes visible again.
-            Task { await connection.disconnectIfTabInactive() }
         }
     }
 

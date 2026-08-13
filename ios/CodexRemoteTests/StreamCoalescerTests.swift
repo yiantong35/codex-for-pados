@@ -67,7 +67,6 @@ final class StreamCoalescerTests: XCTestCase {
     @MainActor
     func test_reducer_reasoning_completed_with_fallback_no_double_append() {
         let deltas = ["Let ", "me ", "think ", "步骤一", "步骤二"]
-        let baseline = deltas.reduce("", +)
 
         var state = ConversationState(threadId: "t")
         let reducer = ThreadReducer()

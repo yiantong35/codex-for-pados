@@ -135,7 +135,7 @@ final class SideChatStore {
         let title = Self.makeTitle(index: startedCount)
         let session = SideChatSession(
             id: result.threadId,
-            forkedFromId: result.forkedFromId,
+            forkedFromId: result.forkedFromId ?? mainThreadId,
             index: startedCount,
             title: title
         )

@@ -139,6 +139,15 @@ final class McpElicitationTests: XCTestCase {
         XCTAssertFalse(McpElicitationLimits.inputIsTooLarge("界界", maxLength: 3))
     }
 
+    func testObjectFieldAcceptsJSONAndReturnsObject() throws {
+        let card = try McpElicitationCard(request: makeRequest(id: "object", paramsObject: formParams(properties: [
+            "config": ["type": "object", "properties": ["enabled": ["type": "boolean"]]]
+        ])))
+        let response = try card.accept(drafts: ["config": .text("{\"enabled\":true}")])
+        let content = try XCTUnwrap(try jsonObject(response)["content"] as? [String: Any])
+        XCTAssertEqual((content["config"] as? [String: Any])?["enabled"] as? Bool, true)
+    }
+
     @MainActor
     func testLocalizedNegativeDecimalIsAcceptedAndSerializedAsNumber() throws {
         let params = formParams(properties: [

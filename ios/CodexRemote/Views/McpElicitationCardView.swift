@@ -238,6 +238,11 @@ struct McpElicitationCardView: View {
                         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
                     }
                 }
+            case .object:
+                TextEditor(text: textBinding(field.name))
+                    .frame(minHeight: 100)
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.secondary.opacity(0.3)))
+                    .font(.system(.body, design: .monospaced))
             }
             fieldConstraint(field)
             if showValidationErrors, let error = card.validationErrors(drafts: drafts)[field.name] {
@@ -281,7 +286,7 @@ struct McpElicitationCardView: View {
                 } else if let maximum {
                     Text("mcpElicitation.constraint.maxSelections \(maximum)")
                 }
-            case .boolean, .single:
+            case .boolean, .single, .object:
                 EmptyView()
             }
         }
