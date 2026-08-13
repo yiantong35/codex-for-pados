@@ -81,8 +81,12 @@ public final class RelayRooms: @unchecked Sendable {
 
     private let lock = NSLock()
     private var rooms: [String: Room] = [:]
+    private var globalPendingBytes = 0
+    private let maxGlobalPendingBytes: Int
 
-    public init() {}
+    public init(maxGlobalPendingBytes: Int = RelayLimits.maxGlobalBufferedBytes) {
+        self.maxGlobalPendingBytes = max(0, maxGlobalPendingBytes)
+    }
 
     /// 加入角色槽。槽已被占用则**拒绝后到**(不静默覆盖),返回 `.rejectedRoleOccupied`;
     /// 成功则生成并返回 connId。
@@ -106,11 +110,13 @@ public final class RelayRooms: @unchecked Sendable {
             // seal 的 appData 密文,重连 iPad 的 ephemeral 已重生、必然解不开 → 真 stale,必丢。
             // 首次 join 时 pendingForIpad 天然为空,丢弃无害 → iPad 侧无条件丢弃即可,无需时序标记。
             // 零知识不变:仅按方向清连接层缓冲,不解析帧内容。dev 入向(pendingForDev)保持 flush(见下)。
-            room.pendingForIpad = []; room.pendingForIpadBytes = 0   // 丢弃 stale 旧密钥密文(不 flush)
+            globalPendingBytes -= room.pendingForIpadBytes
+            room.pendingForIpad = []; room.pendingForIpadBytes = 0
         case .devMachine:
             if room.dev != nil { lock.unlock(); return .rejectedRoleOccupied }
             room.dev = Slot(connId: connId, delivery: delivery)
             flush = room.pendingForDev
+            globalPendingBytes -= room.pendingForDevBytes
             room.pendingForDev = []; room.pendingForDevBytes = 0
         }
         delivery.stage(contentsOf: flush)                       // 暴露 slot 前先排完历史前缀
@@ -140,6 +146,10 @@ public final class RelayRooms: @unchecked Sendable {
         }
         // 对端缺席 → 有界缓冲（reject-newest）。
         let bytes = frame.utf8.count
+        guard globalPendingBytes + bytes <= maxGlobalPendingBytes else {
+            lock.unlock()
+            return .rejectedBufferFull
+        }
         switch from {
         case .iPad:   // 投给 dev，dev 缺席 → 存 pendingForDev
             if room.pendingForDev.count < RelayLimits.maxRoomBufferedFrames &&
@@ -160,6 +170,7 @@ public final class RelayRooms: @unchecked Sendable {
                 return .rejectedBufferFull
             }
         }
+        globalPendingBytes += bytes
         rooms[sessionId] = room
         lock.unlock()
         return .buffered
@@ -182,6 +193,7 @@ public final class RelayRooms: @unchecked Sendable {
             case .devMachine: if room.dev?.connId == connId { room.dev = nil; removed = true }
             }
             if room.ipad == nil && room.dev == nil {
+                globalPendingBytes -= room.pendingForIpadBytes + room.pendingForDevBytes
                 rooms[sessionId] = nil
             } else {
                 rooms[sessionId] = room

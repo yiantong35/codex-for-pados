@@ -73,6 +73,18 @@ import RelayProtocol
     #expect(received.snapshot == ["buffered-1", "buffered-2", "live"])
 }
 
+@Test func globalBufferBudgetSpansRoomsAndIsReleased() {
+    let rooms = RelayRooms(maxGlobalPendingBytes: 8)
+    guard case let .joined(firstId) = rooms.join(sessionId: "one", role: .iPad, sink: { _ in }) else {
+        return #expect(Bool(false))
+    }
+    rooms.join(sessionId: "two", role: .iPad) { _ in }
+    #expect(rooms.forward(sessionId: "one", from: .iPad, frame: "12345") == .buffered)
+    #expect(rooms.forward(sessionId: "two", from: .iPad, frame: "6789") == .rejectedBufferFull)
+    rooms.leave(sessionId: "one", role: .iPad, connId: firstId)
+    #expect(rooms.forward(sessionId: "two", from: .iPad, frame: "6789") == .buffered)
+}
+
 private final class LockedFrames: @unchecked Sendable {
     private let lock = NSLock()
     private var frames: [String] = []

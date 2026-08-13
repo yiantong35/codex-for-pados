@@ -469,6 +469,11 @@ actor RelayTransport: MessageTransport {
             group.addTask { try await ch.receiveText() }
             group.addTask {
                 await timeoutSleep(seconds)
+                try Task.checkCancellation()
+                // Task cancellation alone does not guarantee that
+                // URLSessionWebSocketTask.receive() returns. Close the channel so
+                // the receive child exits before the task group drains.
+                await ch.close()
                 let message = await MainActor.run {
                     String(format: L10n.string("transport.handshakeTimeout %1$@ %2$@",
                                               locale: LocaleManager.currentLocale),
