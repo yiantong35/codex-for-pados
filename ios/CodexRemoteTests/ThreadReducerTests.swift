@@ -43,6 +43,15 @@ final class ThreadReducerTests: XCTestCase {
         XCTAssertFalse(state.isTurnRunning)   // turn/completed 后不再运行
     }
 
+    func testCompletionUpsertsWhenStartedWasMissed() {
+        var state = ConversationState(threadId: "t")
+        let reducer = ThreadReducer()
+        reducer.apply(notif("item/completed", ["item": ["id": "a", "type": "agentMessage", "text": "final"]]), to: &state)
+        reducer.apply(notif("item/completed", ["item": ["id": "c", "type": "commandExecution", "command": "ls", "status": "completed", "aggregatedOutput": "output"]]), to: &state)
+        XCTAssertTrue(state.items.contains { if case .agentMessage("a", "final") = $0 { return true }; return false })
+        XCTAssertTrue(state.items.contains { if case .commandExecution("c", "ls", "output", _, .completed, _, _) = $0 { return true }; return false })
+    }
+
     func testCompletedAgentAndCommandReplaceTruncatedStreamWithAuthoritativeText() {
         var state = ConversationState(threadId: "t")
         let reducer = ThreadReducer()

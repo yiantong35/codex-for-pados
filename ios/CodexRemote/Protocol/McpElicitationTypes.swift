@@ -44,6 +44,7 @@ enum McpFormFieldKind: Sendable, Equatable {
     case boolean
     case single([McpFormOption])
     case multiple([McpFormOption], minItems: Int?, maxItems: Int?)
+    case object
 }
 
 struct McpFormField: Sendable, Identifiable {
@@ -161,6 +162,11 @@ struct McpElicitationCard: Identifiable, Sendable {
             case .multiple:
                 if let value = value as? [String] { draft = .multiple(Set(value)) }
                 else { draft = field.required ? .multiple([]) : .unset }
+            case .object:
+                if let value, JSONSerialization.isValidJSONObject(value),
+                   let data = try? JSONSerialization.data(withJSONObject: value),
+                   let string = String(data: data, encoding: .utf8) { draft = .text(string) }
+                else { draft = field.required ? .text("{}") : .unset }
             default:
                 if let string = value as? String { draft = .text(string) }
                 else if let number = value as? NSNumber { draft = .text(number.stringValue) }
@@ -240,6 +246,11 @@ struct McpElicitationCard: Identifiable, Sendable {
                     throw McpElicitationError.invalidSchema(name)
                 }
                 kind = .multiple(options, minItems: minimum, maxItems: maximum)
+            case "object":
+                guard let nested = node["properties"] as? [String: Any], !nested.isEmpty else {
+                    throw McpElicitationError.invalidSchema(name)
+                }
+                kind = .object
             default:
                 throw McpElicitationError.unsupportedSchema(name)
             }
@@ -328,6 +339,12 @@ struct McpElicitationCard: Identifiable, Sendable {
         case let (.single(options), .text(value)):
             guard options.contains(where: { $0.value == value }) else { throw McpElicitationError.invalidValue(field.name) }
             return value
+        case (.object, .text(let raw)):
+            guard let data = raw.data(using: .utf8),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw McpElicitationError.invalidValue(field.name)
+            }
+            return object
         case let (.multiple(options, minItems, maxItems), .multiple(selected)):
             guard selected.isSubset(of: Set(options.map(\.value))),
                   minItems.map({ selected.count >= $0 }) ?? true,
@@ -411,6 +428,8 @@ struct McpElicitationCard: Identifiable, Sendable {
                   strings.count <= options.count,
                   Set(strings).count == strings.count else { return false }
             return Set(strings).isSubset(of: Set(options.map(\.value)))
+        case .object:
+            return value is [String: Any] && JSONSerialization.isValidJSONObject(value as Any)
         }
     }
 }

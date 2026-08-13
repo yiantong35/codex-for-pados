@@ -99,16 +99,13 @@ final class ConversationOutbox {
 
     func waitForStartRequestResolution(timeoutNanoseconds: UInt64 = 5_000_000_000) async -> Bool {
         guard isStartRequestPending else { return true }
-        let waiterID = UUID()
-        return await withCheckedContinuation { continuation in
-            startResolutionWaiters[waiterID] = continuation
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(nanoseconds: timeoutNanoseconds)
-                guard let self,
-                      let waiter = self.startResolutionWaiters.removeValue(forKey: waiterID) else { return }
-                waiter.resume(returning: false)
-            }
+        let deadline = ContinuousClock.now + .nanoseconds(Int64(timeoutNanoseconds))
+        while isStartRequestPending {
+            if Task.isCancelled { return false }
+            if ContinuousClock.now >= deadline { return false }
+            try? await Task.sleep(nanoseconds: 50_000_000)
         }
+        return true
     }
 
     var failedEntry: PendingConversationMessage? {

@@ -172,6 +172,7 @@ struct ThreadReducer {
             case "commandExecution":
                 let status = CommandStatus(rawValue: item["status"] as? String ?? "") ?? .completed
                 finishCommand(id: id, status: status,
+                              command: item["command"] as? String ?? "",
                               exitCode: optionalInt(item["exitCode"]),
                               durationMs: optionalInt(item["durationMs"]),
                               fallbackOutput: item["aggregatedOutput"] as? String, &state)
@@ -180,6 +181,9 @@ struct ThreadReducer {
                    let final = item["text"] as? String,
                    let i = state.items.firstIndex(where: { $0.id == id }) {
                     state.items[i] = .agentMessage(id: id, text: final)
+                } else if item["type"] as? String == "agentMessage",
+                          let final = item["text"] as? String {
+                    upsert(.agentMessage(id: id, text: final), &state)
                 }
             case "fileChange":
                 // 完成事件若带 changes（含 diff），落最终态；无 changes 则保留 started/patchUpdated 结果。
@@ -603,10 +607,16 @@ struct ThreadReducer {
     }
 
     private func finishCommand(id: String, status: CommandStatus,
+                               command: String,
                                exitCode: Int?, durationMs: Int?,
                                fallbackOutput: String?, _ s: inout ConversationState) {
-        guard let i = s.items.firstIndex(where: { $0.id == id }),
-              case .commandExecution(_, let c, let o, let lineCount, _, _, _) = s.items[i] else { return }
+        guard let i = s.items.firstIndex(where: { $0.id == id }) else {
+            s.items.append(.commandExecution(id: id, command: command, output: fallbackOutput ?? "",
+                                              outputLineCount: IncrementalTextLineCount.count(fallbackOutput ?? ""),
+                                              status: status, exitCode: exitCode, durationMs: durationMs))
+            return
+        }
+        guard case .commandExecution(_, let c, let o, let lineCount, _, _, _) = s.items[i] else { return }
         // completed/failed/declined 都视为命令已结束，落终态字段。
         // item/completed 的 aggregatedOutput 是服务端权威全文，必须替换可能截断或漏收的 delta。
         let output = fallbackOutput ?? o

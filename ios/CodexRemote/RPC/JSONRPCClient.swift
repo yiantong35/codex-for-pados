@@ -165,7 +165,7 @@ actor JSONRPCClient {
     /// a transport owned by ConnectionStore.
     func abortConnection() async {
         stop()
-        await transport.close()
+        await transport.triggerReconnect()
     }
 
     /// 发起一个请求并挂起等待匹配 id 的响应；error 响应抛出。
