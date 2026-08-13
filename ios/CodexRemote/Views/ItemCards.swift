@@ -829,6 +829,7 @@ struct PagedTextViewer: View {
                 usedBytes += byteCount
                 end = next
             }
+            if end == start { end = text.index(after: start) }
             result.append(start..<end)
             start = end
         }

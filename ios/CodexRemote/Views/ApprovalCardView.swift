@@ -15,6 +15,8 @@ struct ApprovalCardView: View {
         approvals.submissionState(for: card.id)
     }
 
+    private var canApproveFile: Bool { !card.isFileChange || fileContext != nil }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Label(titleKey, systemImage: titleIcon)
@@ -25,6 +27,10 @@ struct ApprovalCardView: View {
                     .foregroundStyle(.secondary)
             }
             decisionFeedback(submissionState)
+            if card.isFileChange && fileContext == nil {
+                Label("approval.fileContextMissing", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption).foregroundStyle(.red)
+            }
             approvalText(Self.sanitizedDisplayText(fileContext?.file ?? card.title),
                          previewLines: 4,
                          emphasized: true,
@@ -143,6 +149,7 @@ struct ApprovalCardView: View {
         Button("approval.yes") { resolve(.approve) }
             .buttonStyle(.borderedProminent)
             .minimumHitTarget44()
+            .disabled(!canApproveFile)
         if let prefix = Self.prefixButtonState(card: card) {
             let displayPrefix = Self.sanitizedDisplayText(prefix.joined(separator: " "))
             Button {
@@ -156,6 +163,7 @@ struct ApprovalCardView: View {
             .minimumHitTarget44()
             .accessibilityLabel(Text("approval.yesPrefix"))
             .accessibilityValue(Text(verbatim: displayPrefix))
+            .disabled(!canApproveFile)
         }
         Button("approval.no", role: .destructive) { resolve(.deny) }
             .minimumHitTarget44()

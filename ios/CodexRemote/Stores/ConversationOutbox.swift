@@ -72,7 +72,7 @@ final class ConversationOutbox {
     private var sendingClientId: String?
     private(set) var failedClientId: String?
     private var rpcIdentity: ObjectIdentifier?
-    private var startResolutionWaiters: [CheckedContinuation<Void, Never>] = []
+    private var startResolutionWaiters: [UUID: CheckedContinuation<Bool, Never>] = [:]
     @ObservationIgnored private let budget: ConversationOutboxBudget
     @ObservationIgnored private let limits: ConversationOutboxLimits
 
@@ -97,9 +97,18 @@ final class ConversationOutbox {
         return entries.contains { $0.clientId == sendingClientId }
     }
 
-    func waitForStartRequestResolution() async {
-        guard isStartRequestPending else { return }
-        await withCheckedContinuation { startResolutionWaiters.append($0) }
+    func waitForStartRequestResolution(timeoutNanoseconds: UInt64 = 5_000_000_000) async -> Bool {
+        guard isStartRequestPending else { return true }
+        let waiterID = UUID()
+        return await withCheckedContinuation { continuation in
+            startResolutionWaiters[waiterID] = continuation
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: timeoutNanoseconds)
+                guard let self,
+                      let waiter = self.startResolutionWaiters.removeValue(forKey: waiterID) else { return }
+                waiter.resume(returning: false)
+            }
+        }
     }
 
     var failedEntry: PendingConversationMessage? {
@@ -245,9 +254,9 @@ final class ConversationOutbox {
 
     private func resumeStartResolutionWaitersIfNeeded() {
         guard !isStartRequestPending else { return }
-        let waiters = startResolutionWaiters
+        let waiters = Array(startResolutionWaiters.values)
         startResolutionWaiters.removeAll()
-        waiters.forEach { $0.resume() }
+        waiters.forEach { $0.resume(returning: true) }
     }
 }
 

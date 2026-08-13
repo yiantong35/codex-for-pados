@@ -58,6 +58,20 @@ final class SideChatStore {
     /// 已开侧聊计数（只增），用于标题 #序号，与 close 无关（关掉不回收序号，避免标题跳变）。
     private var startedCount = 0
 
+    private(set) var parentThreadId: String?
+
+    func setParentThread(_ id: String?) {
+        guard parentThreadId != id else { return }
+        parentThreadId = id
+        if let currentId = selectedId, sessions.first(where: { $0.id == currentId })?.forkedFromId != id {
+            self.selectedId = sessions.first(where: { $0.forkedFromId == id })?.id
+        }
+    }
+
+    var scopedSessions: [SideChatSession] {
+        sessions.filter { $0.forkedFromId == parentThreadId }
+    }
+
     init(draftStore: ComposerDraftStore? = nil,
          conversationOutboxes: ConversationOutboxRegistry = ConversationOutboxRegistry(),
          threadStatus: @escaping ThreadStatusProvider = { _ in nil }) {
@@ -141,7 +155,7 @@ final class SideChatStore {
             var failed: [String] = []
             for threadId in activeThreadIds {
                 let outbox = self.conversationOutboxes.outbox(for: threadId)
-                await outbox.waitForStartRequestResolution()
+                guard await outbox.waitForStartRequestResolution() else { failed.append(threadId); continue }
                 guard self.hasEstablishedTurn(id: threadId) else { continue }
                 if !(await Self.interrupt(threadId: threadId, rpc: rpc)) { failed.append(threadId) }
             }
@@ -171,7 +185,7 @@ final class SideChatStore {
         if isRunning(id: id) {
             guard interruptIfRunning else { return .requiresInterrupt }
             let outbox = conversationOutboxes.outbox(for: id)
-            await outbox.waitForStartRequestResolution()
+            guard await outbox.waitForStartRequestResolution() else { return .interruptFailed }
             if hasEstablishedTurn(id: id) {
                 guard let rpc, await Self.interrupt(threadId: id, rpc: rpc) else {
                     return .interruptFailed

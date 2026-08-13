@@ -43,6 +43,21 @@ final class ThreadReducerTests: XCTestCase {
         XCTAssertFalse(state.isTurnRunning)   // turn/completed 后不再运行
     }
 
+    func testCompletedAgentAndCommandReplaceTruncatedStreamWithAuthoritativeText() {
+        var state = ConversationState(threadId: "t")
+        let reducer = ThreadReducer()
+        reducer.apply(notif("item/started", ["item": ["id": "a", "type": "agentMessage", "text": ""]]), to: &state)
+        reducer.apply(notif("item/agentMessage/delta", ["itemId": "a", "delta": "tail"]), to: &state)
+        reducer.apply(notif("item/completed", ["item": ["id": "a", "type": "agentMessage", "text": "authoritative full text"]]), to: &state)
+        reducer.apply(notif("item/started", ["item": ["id": "c", "type": "commandExecution", "command": "build", "status": "inProgress"]]), to: &state)
+        reducer.apply(notif("item/commandExecution/outputDelta", ["itemId": "c", "delta": "tail"]), to: &state)
+        reducer.apply(notif("item/completed", ["item": ["id": "c", "type": "commandExecution", "command": "build", "status": "completed", "aggregatedOutput": "authoritative full output"]]), to: &state)
+        guard case .agentMessage(_, let agent)? = state.items.first(where: { $0.id == "a" }),
+              case .commandExecution(_, _, let output, _, _, _, _)? = state.items.first(where: { $0.id == "c" }) else { return XCTFail() }
+        XCTAssertEqual(agent, "authoritative full text")
+        XCTAssertEqual(output, "authoritative full output")
+    }
+
     func testTurnStartedMarksRunning() throws {
         var state = ConversationState(threadId: "t")
         let reducer = ThreadReducer()

@@ -70,6 +70,7 @@ struct RootSplitView: View {
     @State private var selectionReconcileTask: Task<Void, Never>?
     @State private var isReconcilingSelection = false
     @State private var pendingSelectionReconcileIDs: Set<String>?
+    @State private var latestSelectionReconcileIDs: Set<String>?
     /// 便利初始化：允许注入面板初始展开态（供快照测试覆盖全开布局）。
     init(initialRightOpen: Bool = false, initialBottomOpen: Bool = false,
          workspaceState: WorkspaceSessionState? = nil) {
@@ -173,7 +174,10 @@ struct RootSplitView: View {
         .onChange(of: sessions.activeSessionId) { _, newId in
             loadColumnWidths(for: newId)
         }
-        .onChange(of: selectedThreadId) { _, _ in fileOpenTask?.cancel() }
+        .onChange(of: selectedThreadId) { _, newId in
+            fileOpenTask?.cancel()
+            sideChat.setParentThread(newId)
+        }
         .onChange(of: projects.allThreadsSorted.map(\.id)) { _, ids in
             reconcileSelectedThread(availableIDs: Set(ids))
         }
@@ -351,7 +355,11 @@ struct RootSplitView: View {
     }
 
     private func reconcileSelectedThread(availableIDs: Set<String>) {
-        guard pendingSelectionReconcileIDs == nil, !isReconcilingSelection else { return }
+        if isReconcilingSelection {
+            latestSelectionReconcileIDs = availableIDs
+            return
+        }
+        guard pendingSelectionReconcileIDs == nil else { return }
         let resolved = Self.resolvedSelection(
             current: workspaceState.selectedThreadId,
             availableIDs: availableIDs,
@@ -363,7 +371,13 @@ struct RootSplitView: View {
         let sideChatIDs = sideChat.sessions.map(\.id)
         isReconcilingSelection = true
         selectionReconcileTask = Task {
-            defer { isReconcilingSelection = false }
+            defer {
+                isReconcilingSelection = false
+                if let latest = latestSelectionReconcileIDs {
+                    latestSelectionReconcileIDs = nil
+                    reconcileSelectedThread(availableIDs: latest)
+                }
+            }
             let resetResult = await sideChat.reset().value
             guard !Task.isCancelled, workspaceState.selectedThreadId == expectedSelection else { return }
             guard case .reset = resetResult else {

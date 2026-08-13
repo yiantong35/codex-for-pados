@@ -174,9 +174,13 @@ struct ThreadReducer {
                 finishCommand(id: id, status: status,
                               exitCode: optionalInt(item["exitCode"]),
                               durationMs: optionalInt(item["durationMs"]),
-                              fallbackOutput: item["aggregatedOutput"] as? String ?? "", &state)
+                              fallbackOutput: item["aggregatedOutput"] as? String, &state)
             case "userMessage", "agentMessage":
-                break   // started 已建项；完成态无额外最终字段。
+                if item["type"] as? String == "agentMessage",
+                   let final = item["text"] as? String,
+                   let i = state.items.firstIndex(where: { $0.id == id }) {
+                    state.items[i] = .agentMessage(id: id, text: final)
+                }
             case "fileChange":
                 // 完成事件若带 changes（含 diff），落最终态；无 changes 则保留 started/patchUpdated 结果。
                 if item["changes"] != nil, let ci = parseItem(item) {
@@ -598,13 +602,13 @@ struct ThreadReducer {
 
     private func finishCommand(id: String, status: CommandStatus,
                                exitCode: Int?, durationMs: Int?,
-                               fallbackOutput: String = "", _ s: inout ConversationState) {
+                               fallbackOutput: String?, _ s: inout ConversationState) {
         guard let i = s.items.firstIndex(where: { $0.id == id }),
               case .commandExecution(_, let c, let o, let lineCount, _, _, _) = s.items[i] else { return }
         // completed/failed/declined 都视为命令已结束，落终态字段。
-        // output 优先保留 delta 累加值；若 delta 未到（如纯 aggregatedOutput 完成事件），用兜底补落。
-        let output = o.isEmpty ? fallbackOutput : o
-        let finalLineCount = o.isEmpty ? IncrementalTextLineCount.count(fallbackOutput) : lineCount
+        // item/completed 的 aggregatedOutput 是服务端权威全文，必须替换可能截断或漏收的 delta。
+        let output = fallbackOutput ?? o
+        let finalLineCount = fallbackOutput.map(IncrementalTextLineCount.count) ?? lineCount
         s.items[i] = .commandExecution(id: id, command: c, output: output,
                                        outputLineCount: finalLineCount,
                                        status: status, exitCode: exitCode, durationMs: durationMs)

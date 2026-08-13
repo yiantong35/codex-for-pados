@@ -1007,6 +1007,12 @@
         }
       }
     },
+    "approval.fileContextMissing": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "File details are unavailable. Refresh or reject this request." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "文件改动详情不可用，请刷新或拒绝此请求。" } }
+      }
+    },
     "approval.no": {
       "localizations": {
         "en": {
