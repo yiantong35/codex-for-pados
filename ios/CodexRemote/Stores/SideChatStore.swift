@@ -140,7 +140,11 @@ final class SideChatStore {
             title: title
         )
         sessions.append(session)
-        selectedId = session.id
+        // A fork can finish after the user has switched the main conversation.
+        // Do not move the current selection into a different parent scope.
+        if parentThreadId == nil || parentThreadId == session.forkedFromId {
+            selectedId = session.id
+        }
     }
 
     @discardableResult
@@ -208,11 +212,14 @@ final class SideChatStore {
             visibleStoreThreadId = nil
         }
         guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return .closed }
+        let removedParent = sessions[idx].forkedFromId
         sessions.remove(at: idx)
         conversationOutboxes.remove(threadId: id)
         draftStore?.removeDraft(for: id)
         if selectedId == id {
-            selectedId = sessions.isEmpty ? nil : sessions[min(idx, sessions.count - 1)].id
+            let parent = removedParent ?? (parentThreadId ?? "")
+            let scoped = sessions.enumerated().filter { $0.element.forkedFromId == parent }
+            selectedId = scoped.isEmpty ? nil : scoped[min(scoped.count - 1, idx)].element.id
         }
         return .closed
     }
@@ -232,11 +239,22 @@ final class SideChatStore {
     private static func interrupt(threadId: String, rpc: JSONRPCClient) async -> Bool {
         guard let data = try? JSONEncoder().encode(TurnInterruptParams(threadId: threadId)),
               let params = try? JSONDecoder().decode(AnyCodable.self, from: data) else { return false }
-        do {
-            _ = try await rpc.send(method: RPCMethod.turnInterrupt, params: params)
-            return true
-        } catch {
-            return false
+        return await withTaskGroup(of: Bool.self) { group in
+            group.addTask {
+                do {
+                    _ = try await rpc.send(method: RPCMethod.turnInterrupt, params: params)
+                    return true
+                } catch { return false }
+            }
+            group.addTask {
+                do {
+                    try await Task.sleep(nanoseconds: 5_000_000_000)
+                    return false
+                } catch { return false }
+            }
+            let result = await group.next() ?? false
+            group.cancelAll()
+            return result
         }
     }
 

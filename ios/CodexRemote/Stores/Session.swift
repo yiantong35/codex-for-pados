@@ -119,6 +119,9 @@ final class Session: Identifiable {
             Task { await projects.refreshNow() }
         } else {
             projects.stopPolling()
+            // Keep the relay connection and lightweight status subscriptions alive for
+            // badges and fast tab switching. ConnectionStore/HeartbeatMonitor already
+            // lower the heartbeat cadence for inactive tabs.
         }
     }
 

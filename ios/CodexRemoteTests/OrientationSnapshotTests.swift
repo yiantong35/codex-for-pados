@@ -597,7 +597,8 @@ final class OrientationSnapshotTests: XCTestCase {
                     "workspace.panel.empty.title", "workspace.panel.empty.desc",
                     "workspace.summary.title", "workspace.summary.diff",
                     "workspace.summary.cwd", "workspace.summary.progress",
-                    "workspace.summary.tasks", "workspace.summary.empty"] {
+                    "workspace.summary.tasks", "workspace.summary.empty",
+                    "conv.reasoning.truncated", "conv.reasoning.fullTitle"] {
             let value = String(localized: String.LocalizationValue(key), bundle: .main)
             XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
         }

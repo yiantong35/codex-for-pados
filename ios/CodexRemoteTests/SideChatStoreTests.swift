@@ -92,6 +92,18 @@ struct SideChatStoreTests {
         #expect(store.sessions.map(\.id) == ["b"])
     }
 
+    @Test func closeReselectsOnlyWithinRemovedSessionParent() async {
+        let (_, _, store) = await makeStore()
+        store.setSessionsForTesting([
+            SideChatSession(id: "a1", forkedFromId: "main-a", title: "A1"),
+            SideChatSession(id: "b1", forkedFromId: "main-b", title: "B1"),
+            SideChatSession(id: "a2", forkedFromId: "main-a", title: "A2")
+        ], selectedId: "a1")
+        store.setParentThread("main-a")
+        _ = await store.close(id: "a1")
+        #expect(store.selectedId == "a2")
+    }
+
     @Test func multipleStartsAreIndependent() async {
         let (mock, _, store) = await makeStore()
         let r = respondFork(mock); defer { r.cancel() }

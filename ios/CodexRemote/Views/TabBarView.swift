@@ -120,11 +120,17 @@ struct TabBarView: View {
             // 内边距放进 label 并配 contentShape，使圆点/文字周围留白也可点切换（避免死区）。
             Button { sessions.setActive(m.id) } label: {
                 HStack(spacing: 6) {
-                    DotView(indicator: indicator)
+                    if removingMachineID == m.id {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(width: 12, height: 12)
+                    } else {
+                        DotView(indicator: indicator)
                         // 圆点按文字「大写字母光学中心」对齐：HStack 默认按 frame 中心对齐，
                         // 但全大写文字（如 MM）无降部，字形光学中心高于 frame 中心 → 圆点显得偏低。
                         // 用 alignmentGuide 把圆点的 center 判定点下移 2pt，使其相对行中心上移、贴合字形。
-                        .alignmentGuide(VerticalAlignment.center) { d in d[VerticalAlignment.center] + 2 }
+                            .alignmentGuide(VerticalAlignment.center) { d in d[VerticalAlignment.center] + 2 }
+                    }
                     Text(m.displayName).lineLimit(1)
                         .foregroundStyle(active ? Color.accentColor : Color.primary)
                 }
@@ -133,7 +139,7 @@ struct TabBarView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(removingMachineID != nil)
+            .disabled(removingMachineID == m.id)
             .accessibilityValue(Text(indicator.accessibilityKey))
             .accessibilityAddTraits(active ? [.isSelected] : [])
 
@@ -154,7 +160,7 @@ struct TabBarView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(removingMachineID != nil)
+            .disabled(removingMachineID == m.id)
         }
         .background(active ? Color.accentColor.opacity(0.12) : Color.clear, in: Capsule())
     }
@@ -174,7 +180,6 @@ struct TabBarView: View {
                 .padding(.horizontal, 10).padding(.vertical, 8)
         }
         .buttonStyle(.plain)
-        .disabled(removingMachineID != nil)
         .minimumHitTarget44()
     }
 }
