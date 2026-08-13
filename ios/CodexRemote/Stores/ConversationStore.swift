@@ -15,6 +15,7 @@ enum ConversationLoadState: Equatable {
 @Observable
 @MainActor
 final class ConversationStore {
+    private static let turnStartTimeout: Duration = .seconds(15)
     private(set) var state: ConversationState
     /// 流式内容每次合并落地递增一次。items 数量不变时，视图仍能感知正文增长。
     private(set) var contentRevision = 0
@@ -251,9 +252,16 @@ final class ConversationStore {
                                      model: next.model, effort: next.effort, cwd: nil)
         Task { [self] in
             do {
-                _ = try await call(RPCMethod.turnStart, params)
+                _ = try await Self.withTimeout(Self.turnStartTimeout) {
+                    try await self.call(RPCMethod.turnStart, params)
+                }
                 outbound.finishSending(clientId: next.clientId)
             } catch {
+                if error is TimeoutError {
+                    // A half-open socket can otherwise retain this lease until relay idle
+                    // expiry. Stop the RPC pump so the pending continuation is released.
+                    await self.rpc.abortConnection()
+                }
                 if Self.isPermanentSendFailure(error),
                    let discarded = outbound.discard(clientId: next.clientId) {
                     state.items.removeAll { $0.id == discarded.localId }
@@ -267,6 +275,21 @@ final class ConversationStore {
                 }
                 state.lastSendError = Self.userFacingSendError(error)
             }
+        }
+    }
+
+    private struct TimeoutError: Error {}
+
+    private static func withTimeout<T: Sendable>(_ duration: Duration,
+                                                  operation: @escaping @Sendable () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask { try await operation() }
+            group.addTask {
+                try await Task.sleep(for: duration)
+                throw TimeoutError()
+            }
+            defer { group.cancelAll() }
+            return try await group.next()!
         }
     }
 

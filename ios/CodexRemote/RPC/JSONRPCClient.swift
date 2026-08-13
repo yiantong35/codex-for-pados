@@ -160,6 +160,14 @@ actor JSONRPCClient {
         finishStreams()
     }
 
+    /// Abort the underlying channel when a request-level timeout proves the connection
+    /// half-open. This is separate from stop() so ordinary stream teardown does not close
+    /// a transport owned by ConnectionStore.
+    func abortConnection() async {
+        stop()
+        await transport.close()
+    }
+
     /// 发起一个请求并挂起等待匹配 id 的响应；error 响应抛出。
     /// 包 `withTaskCancellationHandler`：取消时原子取出并移除该 id 的 pending，以
     /// `CancellationError` resume（同构 failPending，不改按 id 分发）。半开连接（response
