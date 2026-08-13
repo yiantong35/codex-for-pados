@@ -288,6 +288,19 @@ final class ThreadReducerTests: XCTestCase {
         XCTAssertEqual(text, "Let me think")
     }
 
+    func testReasoningStreamUsesBoundedStorage() throws {
+        var state = ConversationState(threadId: "t")
+        let reducer = ThreadReducer()
+        reducer.apply(notif("item/started", ["item": ["id": "R1", "type": "reasoning"]]), to: &state)
+        reducer.apply(notif("item/reasoning/textDelta", [
+            "itemId": "R1", "delta": String(repeating: "旧🙂", count: 800_000)
+        ]), to: &state)
+        reducer.applyCoalesced(reducer.coalescer.drain(), &state)
+        guard case .reasoning(_, let text)? = state.items.first else { return XCTFail() }
+        XCTAssertLessThanOrEqual(text.utf8.count, TextRenderBudget.maximumStoredStreamBytes)
+        XCTAssertTrue(text.hasSuffix("🙂"))
+    }
+
     // item/reasoning/summaryTextDelta 也累加进同一 reasoning item（字段扁平 itemId/delta）。
     func testReasoningSummaryTextDeltaAccumulates() throws {
         var state = ConversationState(threadId: "t")

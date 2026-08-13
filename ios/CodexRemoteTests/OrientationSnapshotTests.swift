@@ -309,9 +309,9 @@ final class OrientationSnapshotTests: XCTestCase {
     func test_side_chat_selector_visual_baseline() {
         let store = SideChatStore()
         store.setSessionsForTesting([
-            SideChatSession(id: "side-a", forkedFromId: "main", index: 1,
+            SideChatSession(id: "side-a", forkedFromId: "main-thread", index: 1,
                             title: "侧聊 1 · 检查重连", hasMessageSummary: true),
-            SideChatSession(id: "side-b", forkedFromId: "main", index: 2,
+            SideChatSession(id: "side-b", forkedFromId: "main-thread", index: 2,
                             title: "侧聊 2 · 修复布局", hasMessageSummary: true)
         ], selectedId: "side-b")
         let view = SideChatView(store: store, mainThreadId: "main-thread")
