@@ -21,6 +21,10 @@ struct SideChatView: View {
         !(mainThreadId ?? "").isEmpty
     }
 
+    private func isClosing(_ id: String) -> Bool {
+        store.closingIDs.contains(id)
+    }
+
     static func contentIdentity(for session: SideChatSession) -> String { session.id }
 
     var body: some View {
@@ -111,6 +115,7 @@ struct SideChatView: View {
                     .font(.caption)
                     .fontWeight(store.selectedId == session.id ? .semibold : .regular)
             }
+            .disabled(isClosing(session.id))
             .buttonStyle(.plain)
             .minimumHitTarget44()
             .accessibilityAddTraits(store.selectedId == session.id ? [.isSelected] : [])
@@ -119,6 +124,7 @@ struct SideChatView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+            .disabled(isClosing(session.id))
             .buttonStyle(.plain)
             .minimumHitTarget44()
             .accessibilityLabel("sideChat.close")
@@ -170,6 +176,7 @@ struct SideChatView: View {
     }
 
     private func requestClose(id: String) {
+        guard !isClosing(id) else { return }
         if store.isRunning(id: id) {
             pendingCloseID = id
         } else {

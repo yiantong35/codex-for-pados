@@ -12,6 +12,7 @@ struct TabBarView: View {
     /// 待移除的机器 id（非空即弹二次确认 confirmationDialog）。
     @State private var removeTarget: UUID?
     @State private var removeFailure: (id: UUID, threadIDs: [String])?
+    @State private var removingMachineID: UUID?
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -60,7 +61,10 @@ struct TabBarView: View {
                 }
                 Button("common.cancel", role: .cancel) { removeTarget = nil }
             } message: {
-                Text("tab.remove.confirm.message")
+                Text(String.localizedStringWithFormat(
+                    L10n.string("tab.remove.confirm.message %@", locale: LocaleManager.currentLocale),
+                    removeTarget.flatMap { id in sessions.machineStore.machines.first(where: { $0.id == id })?.displayName } ?? ""
+                ))
             }
             .alert("operation.failed.title", isPresented: Binding(
                 get: { removeFailure != nil }, set: { if !$0 { removeFailure = nil } }
@@ -90,8 +94,11 @@ struct TabBarView: View {
     }
 
     private func removeMachine(_ id: UUID) {
+        guard removingMachineID == nil else { return }
+        removingMachineID = id
         Task {
             let result = await sessions.removeMachine(id: id)
+            removingMachineID = nil
             if case .interruptFailed(let ids) = result {
                 removeFailure = (id, ids)
             }
@@ -126,6 +133,7 @@ struct TabBarView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .disabled(removingMachineID != nil)
             .accessibilityValue(Text(indicator.accessibilityKey))
             .accessibilityAddTraits(active ? [.isSelected] : [])
 
@@ -146,6 +154,7 @@ struct TabBarView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .disabled(removingMachineID != nil)
         }
         .background(active ? Color.accentColor.opacity(0.12) : Color.clear, in: Capsule())
     }
@@ -165,6 +174,7 @@ struct TabBarView: View {
                 .padding(.horizontal, 10).padding(.vertical, 8)
         }
         .buttonStyle(.plain)
+        .disabled(removingMachineID != nil)
         .minimumHitTarget44()
     }
 }

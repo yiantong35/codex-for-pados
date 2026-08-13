@@ -540,7 +540,9 @@ struct ThreadReducer {
                     id: id, text: TextRenderBudget.appendingStream(t, delta: buf.text)
                 )
             case (.reasoning, .reasoning(_, let t)):
-                s.items[i] = .reasoning(id: id, text: t + buf.text)
+                s.items[i] = .reasoning(
+                    id: id, text: TextRenderBudget.appendingStream(t, delta: buf.text)
+                )
             case (.command, .commandExecution(_, let c, let o, let lineCount, let st, let ec, let dm)):
                 s.items[i] = .commandExecution(
                     id: id, command: c,

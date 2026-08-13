@@ -47,6 +47,8 @@ final class SideChatStore {
     }
     private(set) var isStarting = false
     private(set) var startFailed = false
+    /// IDs currently undergoing interrupt/close/reset. Kept by ID so re-entrant actor calls are idempotent.
+    private(set) var closingIDs: Set<String> = []
 
     private var rpc: JSONRPCClient?
     let conversationOutboxes: ConversationOutboxRegistry
@@ -144,9 +146,14 @@ final class SideChatStore {
     @discardableResult
     func reset() -> Task<SideChatResetResult, Never> {
         let activeThreadIds = sessions.map(\.id).filter { isRunning(id: $0) }
+        let claimed = activeThreadIds.filter { closingIDs.insert($0).inserted }
         let rpc = self.rpc
         return Task { @MainActor [weak self] in
             guard let self else { return .reset }
+            defer { claimed.forEach { self.closingIDs.remove($0) } }
+            guard claimed.count == activeThreadIds.count else {
+                return .interruptFailed(activeThreadIds.filter { !claimed.contains($0) })
+            }
             guard let rpc else {
                 if !activeThreadIds.isEmpty { return .interruptFailed(activeThreadIds) }
                 self.clearResetState()
@@ -175,13 +182,16 @@ final class SideChatStore {
         visibleStoreThreadId = nil
         sessions.removeAll()
         selectedId = nil
+        closingIDs.removeAll()
         startFailed = false
     }
 
     /// 关闭侧聊：移除 metadata；可见 ConversationView 随选择变化销毁并取消自己的订阅。
     @discardableResult
     func close(id: String, interruptIfRunning: Bool = false) async -> SideChatCloseResult {
-        guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return .closed }
+        guard sessions.contains(where: { $0.id == id }) else { return .closed }
+        guard closingIDs.insert(id).inserted else { return .interruptFailed }
+        defer { closingIDs.remove(id) }
         if isRunning(id: id) {
             guard interruptIfRunning else { return .requiresInterrupt }
             let outbox = conversationOutboxes.outbox(for: id)
@@ -197,6 +207,7 @@ final class SideChatStore {
             visibleStore = nil
             visibleStoreThreadId = nil
         }
+        guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return .closed }
         sessions.remove(at: idx)
         conversationOutboxes.remove(threadId: id)
         draftStore?.removeDraft(for: id)

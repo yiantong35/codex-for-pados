@@ -49,10 +49,23 @@ struct ItemCard: View {
                         .font(.callout.italic())
                         .foregroundStyle(.secondary)
                 } else {
-                    Text(verbatim: text)
-                        .font(.callout.italic())
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
+                    let presentation = TextRenderBudget.boundedUTF8Suffix(
+                        text, maximumBytes: TextRenderBudget.maximumStreamingBytes
+                    )
+                    VStack(alignment: .leading, spacing: 4) {
+                        if presentation.truncated {
+                            Label("conv.reasoning.truncated", systemImage: "ellipsis")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Text(verbatim: presentation.text)
+                            .font(.callout.italic())
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                        if presentation.truncated {
+                            FullTextAccessButton(text: text, title: "conv.reasoning.fullTitle")
+                        }
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

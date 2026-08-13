@@ -66,6 +66,32 @@ struct SideChatStoreTests {
         #expect(store.selectedId == store.sessions.first?.id)
     }
 
+    @Test func sessionsAreFilteredByForkParentAndSelectionReconciles() async {
+        let (_, _, store) = await makeStore()
+        store.setSessionsForTesting([
+            SideChatSession(id: "a", forkedFromId: "main-a", title: "A"),
+            SideChatSession(id: "b", forkedFromId: "main-b", title: "B")
+        ], selectedId: "b")
+        store.setParentThread("main-a")
+        #expect(store.scopedSessions.map(\.id) == ["a"])
+        #expect(store.selectedId == "a")
+        store.setParentThread("main-c")
+        #expect(store.selectedId == nil)
+    }
+
+    @Test func duplicateCloseIsIdempotentByID() async {
+        let (_, _, store) = await makeStore()
+        store.setSessionsForTesting([
+            SideChatSession(id: "a", forkedFromId: "main", title: "A"),
+            SideChatSession(id: "b", forkedFromId: "main", title: "B")
+        ], selectedId: "a")
+        async let first = store.close(id: "a")
+        async let second = store.close(id: "a")
+        let results = await [first, second]
+        #expect(results.allSatisfy { $0 == .closed })
+        #expect(store.sessions.map(\.id) == ["b"])
+    }
+
     @Test func multipleStartsAreIndependent() async {
         let (mock, _, store) = await makeStore()
         let r = respondFork(mock); defer { r.cancel() }
