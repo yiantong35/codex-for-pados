@@ -345,6 +345,14 @@ final class ConnectionStore {
         heartbeat?.setTabActive(active)
     }
 
+    /// Close a hidden-tab connection only if the tab is still hidden when this
+    /// asynchronous operation reaches the actor. This prevents a stale hide task
+    /// from closing a newly reconnected active tab.
+    func disconnectIfTabInactive() async {
+        guard !tabActive else { return }
+        await disconnect()
+    }
+
     // MARK: - 握手
 
     /// 建底层 transport + initialize 握手，返回就绪的 JSON-RPC client 及其 transport。

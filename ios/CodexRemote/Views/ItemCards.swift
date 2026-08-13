@@ -351,7 +351,13 @@ final class MessageImageThumbnailCache {
 
     static let shared = MessageImageThumbnailCache()
     private let cache = NSCache<NSString, Entry>()
-    private var inFlight: [String: Task<FileImageThumbnail?, Never>] = [:]
+    private struct InFlight {
+        let task: Task<FileImageThumbnail?, Never>
+        var waiters: Int
+    }
+    private var inFlight: [String: InFlight] = [:]
+    private var activeLoads = 0
+    private var loadWaiters: [CheckedContinuation<Void, Never>] = []
     private let load: Loader
     private static let costLimit = 32 * 1_024 * 1_024
 
@@ -365,20 +371,59 @@ final class MessageImageThumbnailCache {
         if let cached = cache.object(forKey: key) { return cached.image }
         let task: Task<FileImageThumbnail?, Never>
         if let existing = inFlight[cacheKey] {
-            task = existing
+            inFlight[cacheKey]?.waiters += 1
+            task = existing.task
         } else {
             let loader = load
-            let created = Task { await loader(source) }
-            inFlight[cacheKey] = created
+            let created = Task { [weak self] in
+                await self?.acquireLoadSlot()
+                defer { Task { @MainActor [weak self] in self?.releaseLoadSlot() } }
+                return await loader(source)
+            }
+            inFlight[cacheKey] = InFlight(task: created, waiters: 1)
             task = created
         }
-        let thumbnail = await task.value
-        inFlight.removeValue(forKey: cacheKey)
+        let thumbnail = await withTaskCancellationHandler(operation: {
+            await task.value
+        }, onCancel: {
+            Task { @MainActor [weak self] in self?.cancelWaiter(cacheKey: cacheKey) }
+        })
+        if Task.isCancelled { return nil }
+        if let current = inFlight[cacheKey] {
+            if current.waiters <= 1 { inFlight.removeValue(forKey: cacheKey) }
+            else { inFlight[cacheKey]?.waiters -= 1 }
+        }
         guard let thumbnail else { return nil }
         let image = UIImage(cgImage: thumbnail.cgImage)
         let cost = thumbnail.cgImage.bytesPerRow * thumbnail.cgImage.height
         cache.setObject(Entry(image), forKey: key, cost: cost)
         return Task.isCancelled ? nil : image
+    }
+
+    private func cancelWaiter(cacheKey: String) {
+        guard let current = inFlight[cacheKey] else { return }
+        if current.waiters <= 1 {
+            current.task.cancel()
+            inFlight.removeValue(forKey: cacheKey)
+        } else {
+            inFlight[cacheKey]?.waiters -= 1
+        }
+    }
+
+    private func acquireLoadSlot() async {
+        if activeLoads < 2 { activeLoads += 1; return }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            loadWaiters.append(continuation)
+        }
+        activeLoads += 1
+    }
+
+    private func releaseLoadSlot() {
+        activeLoads = max(0, activeLoads - 1)
+        if let next = loadWaiters.first {
+            loadWaiters.removeFirst()
+            next.resume()
+        }
     }
 }
 
@@ -503,7 +548,23 @@ enum TextRenderBudget {
     }
 
     static func appendingStream(_ current: String, delta: String) -> String {
-        boundedUTF8Suffix(current + delta, maximumBytes: maximumStoredStreamBytes).text
+        guard !delta.isEmpty else { return current }
+        var combined = current
+        combined.reserveCapacity(current.utf8.count + delta.utf8.count)
+        combined += delta
+        let overflow = combined.utf8.count - maximumStoredStreamBytes
+        guard overflow > 0 else { return combined }
+        // Drop only the overflowing prefix. Unlike boundedUTF8Suffix this does not
+        // reverse-scan the retained 2 MiB on every 33 ms flush.
+        // Walk only the prefix being discarded so the cut remains on a
+        // Character boundary even when the byte budget splits a UTF-8 scalar.
+        var start = combined.startIndex
+        var remaining = overflow
+        while start < combined.endIndex, remaining > 0 {
+            remaining -= String(combined[start]).utf8.count
+            start = combined.index(after: start)
+        }
+        return String(combined[start...])
     }
 
     static func commandOutput(_ output: String, totalLines: Int? = nil) -> BoundedTextPresentation {
