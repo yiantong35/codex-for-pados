@@ -23,6 +23,8 @@ public enum RelayLimits {
     /// ⑥d：每房间每方向待投递缓冲的总字节上限（512 KiB）。达上限 reject-newest。
     /// worst-case 内存 = maxRooms(500) × 512 KiB ≈ 256 MiB，有界可接受。
     public static let maxRoomBufferedBytes = 512 * 1024
+    /// 进程级离线待投递预算。阻止大量公开 sessionId 房间各自填满配额。
+    public static let maxGlobalBufferedBytes = 8 * 1024 * 1024
 }
 
 /// 分片文本帧累积器：累积到 fin 才产出整消息；超上限即 overflow（调用方须关连接）。

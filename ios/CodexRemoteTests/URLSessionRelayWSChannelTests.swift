@@ -36,6 +36,28 @@ private final class FakeWSTask: WebSocketTaskProtocol, @unchecked Sendable {
     func cancel(with closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) { cancelled = true }
 }
 
+private final class BlockingWSTask: WebSocketTaskProtocol, @unchecked Sendable {
+    private let continuation = OSAllocatedUnfairLock<CheckedContinuation<URLSessionWebSocketTask.Message, Error>?>(initialState: nil)
+    private let didCancel = OSAllocatedUnfairLock(initialState: false)
+
+    func resume() {}
+    func send(_ message: URLSessionWebSocketTask.Message) async throws {}
+    func receive() async throws -> URLSessionWebSocketTask.Message {
+        try await withCheckedThrowingContinuation { cont in
+            let alreadyCancelled = didCancel.withLock { $0 }
+            if alreadyCancelled { cont.resume(throwing: URLError(.cancelled)); return }
+            continuation.withLock { $0 = cont }
+        }
+    }
+    func cancel(with closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+        didCancel.withLock { $0 = true }
+        continuation.withLock { cont in
+            cont?.resume(throwing: URLError(.cancelled))
+            cont = nil
+        }
+    }
+}
+
 final class URLSessionRelayWSChannelTests: XCTestCase {
 
     /// 收 text 帧原样返回。
@@ -88,5 +110,14 @@ final class URLSessionRelayWSChannelTests: XCTestCase {
             }
         }
         XCTAssertEqual(task.sendCount.withLock { $0 }, 0, "关闭后不得再触达底层 task.send")
+    }
+
+    func testCloseReleasesBlockedReceive() async throws {
+        let ch = URLSessionRelayWSChannel(task: BlockingWSTask())
+        let receive = Task { try await ch.receiveText() }
+        await Task.yield()
+        await ch.close()
+        let result = try await receive.value
+        XCTAssertNil(result)
     }
 }
