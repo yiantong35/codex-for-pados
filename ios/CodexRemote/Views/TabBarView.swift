@@ -58,23 +58,11 @@ struct TabBarView: View {
                 }
             }
         } label: {
-            HStack(spacing: 6) {
-                if let machine = activeMachine {
-                    if removingMachineID == machine.id {
-                        ProgressView().controlSize(.small).frame(width: 12, height: 12)
-                    } else {
-                        DotView(indicator: sessions.indicator(for: machine.id))
-                    }
-                    Text(machine.displayName).lineLimit(1)
-                } else {
-                    Image(systemName: "desktopcomputer")
-                    Text("tab.machine.none")
-                }
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+            ViewThatFits(in: .horizontal) {
+                machineMenuLabel(showsName: true)
+                machineMenuLabel(showsName: false)
             }
-            .frame(minHeight: 44)
+            .frame(minWidth: 44, idealWidth: 160, maxWidth: 220, minHeight: 44)
         }
         .accessibilityLabel(Text("tab.machine.switcher"))
         .accessibilityValue(activeMachine.map {
@@ -121,6 +109,34 @@ struct TabBarView: View {
     private var activeMachine: MachineConfig? {
         guard let id = sessions.activeSessionId else { return nil }
         return sessions.machineStore.machines.first { $0.id == id }
+    }
+
+    private func machineMenuLabel(showsName: Bool) -> some View {
+        HStack(spacing: 6) {
+            if let machine = activeMachine {
+                if removingMachineID == machine.id {
+                    ProgressView().controlSize(.small).frame(width: 12, height: 12)
+                } else {
+                    DotView(indicator: sessions.indicator(for: machine.id))
+                }
+                if showsName {
+                    Text(machine.displayName)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .layoutPriority(-1)
+                }
+            } else {
+                Image(systemName: "desktopcomputer")
+                if showsName {
+                    Text("tab.machine.none")
+                        .lineLimit(1)
+                        .layoutPriority(-1)
+                }
+            }
+            Image(systemName: "chevron.down")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private func menuSymbol(for machine: MachineConfig) -> String {

@@ -5934,13 +5934,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Content arrives in a later update"
+            "value": "Select a conversation or continue working to see changes here"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "内容将在后续版本中提供"
+            "value": "选择对话或继续工作后，可在此查看更改"
           }
         }
       }
@@ -5950,13 +5950,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nothing here yet"
+            "value": "No changes to review"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "暂无内容"
+            "value": "暂无可审查的更改"
           }
         }
       }

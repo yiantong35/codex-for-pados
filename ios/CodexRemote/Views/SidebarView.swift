@@ -9,7 +9,6 @@ struct SidebarView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(ProjectsStore.self) private var projects
     @Environment(ConnectionStore.self) private var connection
-    @Environment(SessionsManager.self) private var sessions
     @Environment(EnvironmentStore.self) private var env
     @Environment(ActiveConversationHolder.self) private var activeConversation
     @Environment(\.scenePhase) private var scenePhase
@@ -163,20 +162,13 @@ struct SidebarView: View {
             WorkspaceEmptyState(
                 title: "sidebar.loadFailed.title",
                 description: "sidebar.disconnected.desc",
-                systemImage: "wifi.slash",
-                actionTitle: "connection.reconnect",
-                action: {
-                    guard let id = sessions.activeSessionId else { return }
-                    sessions.connectMachine(id: id)
-                }
+                systemImage: "wifi.slash"
             )
         } else if case .failed = connection.phase {
             WorkspaceEmptyState(
                 title: "sidebar.loadFailed.title",
                 description: "sidebar.disconnected.desc",
-                systemImage: "wifi.exclamationmark",
-                actionTitle: "connection.reconnect",
-                action: { connection.reconnect() }
+                systemImage: "wifi.exclamationmark"
             )
         } else {
             switch projects.loadState {

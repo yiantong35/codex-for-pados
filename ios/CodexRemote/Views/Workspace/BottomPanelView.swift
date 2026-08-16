@@ -77,8 +77,8 @@ struct BottomPanelView: View {
         ZStack {
             // 透明轨道撑满命中区，配合下方 .contentShape 保证透明区仍可命中 DragGesture。
             Color.clear
-            // 顶部 1pt 主题橙分界线：与竖直列分隔线（accentColor）统一，标出下栏与上方列的分界。
-            Rectangle().fill(Color.accentColor).frame(height: 1)
+            // 静止态使用系统语义分隔色；accent 只表达 hover / drag 的交互反馈。
+            Rectangle().fill(Color(uiColor: .separator)).frame(height: 1)
                 .frame(maxHeight: .infinity, alignment: .top)
             Capsule()
                 .fill(active ? Color.accentColor : Color.secondary.opacity(0.55))

@@ -25,23 +25,35 @@ struct WorkspaceEmptyState: View {
     var body: some View {
         ContentUnavailableView {
             Label {
-                Text(title).font(.headline)
+                Text(title)
+                    .font(.headline)
+                    .lineLimit(2, reservesSpace: true)
             } icon: {
                 Image(systemName: systemImage)
-                    .font(.system(size: 40))
+                    .font(.largeTitle)
             }
         } description: {
             if let description {
                 Text(description)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(2, reservesSpace: true)
                     .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(verbatim: " ")
+                    .font(.subheadline)
+                    .lineLimit(2, reservesSpace: true)
+                    .accessibilityHidden(true)
             }
         } actions: {
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
                     .buttonStyle(.bordered)
+                    .frame(minHeight: 44)
+            } else {
+                Color.clear
+                    .frame(height: 44)
+                    .accessibilityHidden(true)
             }
         }
         .multilineTextAlignment(.center)
@@ -50,7 +62,7 @@ struct WorkspaceEmptyState: View {
     }
 }
 
-/// 右栏 / 下栏占位空态（design D5：本期无真实内容，后续 change 填充）。
+/// 审查栏没有可显示变更时的共享空态。
 struct PanelEmptyState: View {
     var body: some View {
         WorkspaceEmptyState(

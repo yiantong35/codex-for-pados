@@ -35,6 +35,11 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.locale) private var locale
     @AccessibilityFocusState private var overlayCloseFocused: Bool
+    @FocusState private var focusedDivider: DividerSide?
+    @State private var hoveredDivider: DividerSide?
+    @State private var draggingDivider: DividerSide?
+
+    private enum DividerSide: Hashable { case left, right }
 
     var body: some View {
         GeometryReader { proxy in
@@ -167,7 +172,8 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
 
     private func leftDivider(total: CGFloat, dividerCount: Int,
                              displayedWidth: CGFloat, otherColumnWidth: CGFloat) -> some View {
-        divider(accessibilityLabel: L10n.string("workspace.column.left.resize", locale: locale),
+        divider(side: .left,
+                accessibilityLabel: L10n.string("workspace.column.left.resize", locale: locale),
                 accessibilityValue: formattedWidth(displayedWidth)) { absX in
             if dragStartX == nil { dragStartX = absX; dragStartWidth = displayedWidth }
             let dx = absX - (dragStartX ?? absX)
@@ -191,7 +197,8 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
 
     private func rightDivider(total: CGFloat, dividerCount: Int,
                               displayedWidth: CGFloat, otherColumnWidth: CGFloat) -> some View {
-        divider(accessibilityLabel: L10n.string("workspace.column.right.resize", locale: locale),
+        divider(side: .right,
+                accessibilityLabel: L10n.string("workspace.column.right.resize", locale: locale),
                 accessibilityValue: formattedWidth(displayedWidth)) { absX in
             if dragStartX == nil { dragStartX = absX; dragStartWidth = displayedWidth }
             let dx = absX - (dragStartX ?? absX)
@@ -214,38 +221,52 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
 
     /// onDrag 回传固定坐标系里的绝对 x；调用方用起点锚差分算增量。
     /// onAdjust 承接 VoiceOver 增 / 减宽（D8）。
-    private func divider(accessibilityLabel: String,
+    private func divider(side: DividerSide,
+                         accessibilityLabel: String,
                          accessibilityValue: String,
                          onDrag: @escaping (CGFloat) -> Void,
                          onAdjust: @escaping (AccessibilityAdjustmentDirection) -> Void) -> some View {
-        ZStack {
-            Color.clear                                             // 透明命中带（把手可隐藏，仍可拖 → spec）
-            // 用主题橙（accentColor，深浅色各自的橙）画分界线，黑底上也醒目。
-            Rectangle().fill(Color.accentColor).frame(width: 1)
-        }
-        .frame(width: WorkspaceMetrics.resizableDividerHitWidth)
-        .padding(.horizontal,
-                 (WorkspaceMetrics.resizableDividerLayoutWidth
-                  - WorkspaceMetrics.resizableDividerHitWidth) / 2)
+        let active = hoveredDivider == side || focusedDivider == side || draggingDivider == side
+        return Rectangle()
+        .fill(Color(uiColor: .separator))
+        .frame(width: active ? 2 : 1)
+        .frame(width: WorkspaceMetrics.resizableDividerLayoutWidth)
         .frame(maxHeight: .infinity)
-        .contentShape(Rectangle())
-        .hoverEffect(.highlight)
-        .gesture(
-            DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.coordinateSpaceName))
-                .onChanged { v in onDrag(v.location.x) }
-                .onEnded { _ in
-                    dragStartX = nil
-                    dragStartWidth = nil
-                    onResizeEnded()
+        .overlay {
+            ZStack {
+                Color.clear
+                if active {
+                    Rectangle().fill(Color.accentColor).frame(width: 2)
                 }
-        )
-        .background {
-            AccessibilityAdjustableElement(
-                label: accessibilityLabel,
-                value: accessibilityValue,
-                onIncrement: { onAdjust(.increment) },
-                onDecrement: { onAdjust(.decrement) }
+            }
+            .frame(width: WorkspaceMetrics.resizableDividerHitWidth)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .hoverEffect(.highlight)
+            .onHover { hoveredDivider = $0 ? side : nil }
+            .focusable()
+            .focused($focusedDivider, equals: side)
+            .gesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.coordinateSpaceName))
+                    .onChanged { v in
+                        draggingDivider = side
+                        onDrag(v.location.x)
+                    }
+                    .onEnded { _ in
+                        draggingDivider = nil
+                        dragStartX = nil
+                        dragStartWidth = nil
+                        onResizeEnded()
+                    }
             )
+            .background {
+                AccessibilityAdjustableElement(
+                    label: accessibilityLabel,
+                    value: accessibilityValue,
+                    onIncrement: { onAdjust(.increment) },
+                    onDecrement: { onAdjust(.decrement) }
+                )
+            }
         }
     }
 
