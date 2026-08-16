@@ -103,7 +103,7 @@ final class WorkspaceMetricsTests: XCTestCase {
         let total: CGFloat = 1_200
         let other: CGFloat = 600
         let expected = total - other
-            - WorkspaceMetrics.resizableDividerHitWidth * 2
+            - WorkspaceMetrics.resizableDividerLayoutWidth * 2
             - WorkspaceMetrics.centerColumnMinWidth
         let w = WorkspaceMetrics.clampColumnWidth(
             1_000, total: total, otherColumnWidth: other,
@@ -147,15 +147,15 @@ final class WorkspaceMetricsTests: XCTestCase {
 
     func testCenterColumnWidthNormalCase() {
         let c = WorkspaceMetrics.centerColumnWidth(total: 1_200, left: 300, right: 320)
-        XCTAssertEqual(c, 1_200 - 300 - 320 - WorkspaceMetrics.resizableDividerHitWidth * 2,
+        XCTAssertEqual(c, 1_200 - 300 - 320 - WorkspaceMetrics.resizableDividerLayoutWidth * 2,
                        accuracy: 0.001)
     }
 
     func testCenterColumnWidthWithSingleDividerReclaimsGap() {
-        // 单栏隐藏：只有 1 条分隔线时，中栏应比默认（2 条）多 resizableDividerHitWidth。
+        // 单栏隐藏：只有 1 条分隔线时，中栏应比默认（2 条）多布局宽。
         let two = WorkspaceMetrics.centerColumnWidth(total: 1_200, left: 300, right: 0, dividerCount: 2)
         let one = WorkspaceMetrics.centerColumnWidth(total: 1_200, left: 300, right: 0, dividerCount: 1)
-        XCTAssertEqual(one - two, WorkspaceMetrics.resizableDividerHitWidth, accuracy: 0.001)
+        XCTAssertEqual(one - two, WorkspaceMetrics.resizableDividerLayoutWidth, accuracy: 0.001)
     }
 
     func testClampColumnWidthDividerCountWidensUpperBound() {
@@ -166,7 +166,7 @@ final class WorkspaceMetricsTests: XCTestCase {
         let one = WorkspaceMetrics.clampColumnWidth(
             9_999, total: 1_200, otherColumnWidth: 600,
             columnMin: WorkspaceMetrics.leftColumnMinWidth, dividerCount: 1)
-        XCTAssertEqual(one - two, WorkspaceMetrics.resizableDividerHitWidth, accuracy: 0.001)
+        XCTAssertEqual(one - two, WorkspaceMetrics.resizableDividerLayoutWidth, accuracy: 0.001)
     }
 
     // MARK: - D4 窄窗三栏降级
@@ -175,7 +175,7 @@ final class WorkspaceMetricsTests: XCTestCase {
         let expected = WorkspaceMetrics.leftColumnMinWidth
             + WorkspaceMetrics.centerColumnMinWidth
             + WorkspaceMetrics.rightColumnMinWidth
-            + WorkspaceMetrics.resizableDividerHitWidth * 2
+            + WorkspaceMetrics.resizableDividerLayoutWidth * 2
         XCTAssertEqual(WorkspaceMetrics.threeColumnMinTotalWidth, expected)
         XCTAssertEqual(WorkspaceMetrics.threeColumnMinTotalWidth, 668)
     }
@@ -194,7 +194,7 @@ final class WorkspaceMetricsTests: XCTestCase {
         XCTAssertFalse(plan.showRight, "空间不足应先收右栏")
         let sum = WorkspaceMetrics.leftColumnMinWidth
             + WorkspaceMetrics.centerColumnMinWidth
-            + WorkspaceMetrics.resizableDividerHitWidth
+            + WorkspaceMetrics.resizableDividerLayoutWidth
         XCTAssertLessThanOrEqual(sum, 500)
     }
 

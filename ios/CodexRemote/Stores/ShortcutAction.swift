@@ -7,7 +7,7 @@ enum ShortcutScope: String {
     case form        // 表单（Esc 取消）
 }
 
-/// 可绑定动作全集（设计 D1）：穷举 22 个动作，编译期保证不漏绑。
+/// 可绑定动作全集。rawValue 兼作持久化 key，新增动作只能追加，不能重命名。
 /// rawValue 兼作 UserDefaults 覆盖表的 key，不可随意改名（会丢已存覆盖）。
 enum ShortcutAction: String, CaseIterable, Identifiable {
     // Tab（global）
@@ -17,6 +17,8 @@ enum ShortcutAction: String, CaseIterable, Identifiable {
     case toggleLeftPanel, toggleRightPanel, toggleBottomPanel, toggleSummary, openSettings
     // 右栏（workspace）
     case rightPanelReview, rightPanelFiles, rightPanelSideChat, rightPanelFullscreen
+    // 对话（workspace）
+    case sendMessage, stopTurn, focusComposer
     // 表单（form，固定）
     case cancelForm
 
@@ -31,7 +33,8 @@ enum ShortcutAction: String, CaseIterable, Identifiable {
              .nextTab, .prevTab, .addMachine:
             return .global
         case .toggleLeftPanel, .toggleRightPanel, .toggleBottomPanel, .toggleSummary, .openSettings,
-             .rightPanelReview, .rightPanelFiles, .rightPanelSideChat, .rightPanelFullscreen:
+             .rightPanelReview, .rightPanelFiles, .rightPanelSideChat, .rightPanelFullscreen,
+             .sendMessage, .stopTurn, .focusComposer:
             return .workspace
         case .cancelForm:
             return .form
@@ -62,6 +65,9 @@ enum ShortcutAction: String, CaseIterable, Identifiable {
         case .rightPanelFiles: return KeyCombo(key: "f", modifiers: [.command, .shift])
         case .rightPanelSideChat: return KeyCombo(key: "c", modifiers: [.command, .shift])
         case .rightPanelFullscreen: return KeyCombo(key: "f", modifiers: [.command, .control])
+        case .sendMessage: return KeyCombo(key: KeyCombo.returnKey, modifiers: .command)
+        case .stopTurn: return KeyCombo(key: ".", modifiers: .command)
+        case .focusComposer: return KeyCombo(key: "l", modifiers: [.command, .shift])
         case .cancelForm: return KeyCombo(key: KeyCombo.escapeKey, modifiers: [])
         }
     }

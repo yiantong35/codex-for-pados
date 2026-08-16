@@ -11,7 +11,7 @@ import SwiftUI
 @MainActor
 final class OrientationSnapshotTests: XCTestCase {
 
-    // iPad 11"（11-inch iPad Pro / Air M2）逻辑点尺寸。
+    // iPad Pro 11-inch (M4) 模拟器逻辑点尺寸。
     private let portrait = CGSize(width: 834, height: 1194)
     private let landscape = CGSize(width: 1194, height: 834)
 
@@ -77,6 +77,23 @@ final class OrientationSnapshotTests: XCTestCase {
         return window
     }
 
+    private func assertSnapshotHasContrast(_ path: String, file: StaticString = #filePath, line: UInt = #line) {
+        guard let image = UIImage(contentsOfFile: path)?.cgImage,
+              let data = image.dataProvider?.data,
+              let bytes = CFDataGetBytePtr(data) else {
+            return XCTFail("无法读取快照像素: \(path)", file: file, line: line)
+        }
+        let byteCount = CFDataGetLength(data)
+        guard byteCount > 4 else { return XCTFail("快照像素为空", file: file, line: line) }
+        var minimum: UInt8 = 255
+        var maximum: UInt8 = 0
+        for offset in stride(from: 0, to: byteCount, by: 4) {
+            minimum = min(minimum, bytes[offset], bytes[offset + 1], bytes[offset + 2])
+            maximum = max(maximum, bytes[offset], bytes[offset + 1], bytes[offset + 2])
+        }
+        XCTAssertGreaterThan(Int(maximum) - Int(minimum), 40, "快照疑似纯色空白", file: file, line: line)
+    }
+
     // MARK: - mock 装配
 
     func test_compact_right_panel_overlay_snapshot() {
@@ -86,7 +103,8 @@ final class OrientationSnapshotTests: XCTestCase {
             leftVisible: true,
             rightVisible: true,
             lastRequested: .right,
-            onResizeEnded: {}
+            onResizeEnded: {},
+            onDismissOverlay: { _ in }
         ) {
             Color.red
         } center: {
@@ -106,7 +124,8 @@ final class OrientationSnapshotTests: XCTestCase {
             leftVisible: true,
             rightVisible: true,
             lastRequested: .left,
-            onResizeEnded: {}
+            onResizeEnded: {},
+            onDismissOverlay: { _ in }
         ) {
             Color.red
         } center: {
@@ -290,6 +309,7 @@ final class OrientationSnapshotTests: XCTestCase {
         let store = ConversationStore(rpc: rpc, threadId: "visual-composer")
         let view = ComposerView(store: store, draft: ComposerDraft())
             .environment(EnvironmentStore())
+            .environment(ShortcutStore(defaults: UserDefaults(suiteName: "snap.composer.\(UUID().uuidString)")!))
             .environment(\.dynamicTypeSize, .accessibility3)
         snapshot(view, size: CGSize(width: 320, height: 220), name: "composer-compact-a11y",
                  dir: "/tmp/visual-regression", baseline: "composer-compact-a11y")
@@ -685,7 +705,7 @@ final class OrientationSnapshotTests: XCTestCase {
 
     private let mcDir = "/tmp/multiconn"
 
-    /// 零机器引导页：图标 + 标题 + 主按钮居中卡片，横竖屏均不崩、PNG 非空。
+    /// 零机器引导页：系统 ContentUnavailableView 横竖屏均不崩、PNG 非空。
     func test_onboarding_portrait_snapshot() {
         let view = OnboardingView().environment(makeSessions(machineCount: 0))
         snapshot(view, size: portrait, name: "onboarding-portrait", dir: mcDir)
@@ -696,17 +716,31 @@ final class OrientationSnapshotTests: XCTestCase {
         snapshot(view, size: landscape, name: "onboarding-landscape", dir: mcDir)
     }
 
-    /// tab 栏多 tab（3 台，高亮第 2 台）：横向 tab 条整体布局横竖屏均不崩、PNG 非空。
-    /// 圆点各色不在此覆盖（依赖 Session 内部 status 难在快照构造）——TabIndicator 各态由
-    /// TabIndicatorTests 单测覆盖、DotView 渲染由 TabBarViewTests 覆盖，此处只验 tab 栏整体布局。
+    /// 系统 toolbar 的 presentation window 无法由 layer.render 捕获；这里直接保护菜单标签的浅色外观。
     func test_tabBar_portrait_snapshot() {
-        let view = TabBarView().environment(makeSessions(machineCount: 3, activeIndex: 1))
-        snapshot(view, size: portrait, name: "tabbar-portrait", dir: mcDir)
+        let view = HStack {
+            TabBarView()
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .background(.bar)
+        .environment(makeSessions(machineCount: 3, activeIndex: 1))
+        snapshot(view, size: CGSize(width: 420, height: 64), name: "machine-switcher-light", dir: mcDir)
+        assertSnapshotHasContrast("\(mcDir)/machine-switcher-light.png")
     }
 
+    /// 同一机器菜单标签的深色快照，保护灰色断线圆点与文字对比度。
     func test_tabBar_landscape_snapshot() {
-        let view = TabBarView().environment(makeSessions(machineCount: 3, activeIndex: 1))
-        snapshot(view, size: landscape, name: "tabbar-landscape", dir: mcDir)
+        let view = HStack {
+            TabBarView()
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .background(.bar)
+        .preferredColorScheme(.dark)
+        .environment(makeSessions(machineCount: 3, activeIndex: 1))
+        snapshot(view, size: CGSize(width: 420, height: 64), name: "machine-switcher-dark", dir: mcDir)
+        assertSnapshotHasContrast("\(mcDir)/machine-switcher-dark.png")
     }
 
     /// 加机器表单：字段 + 公钥块居中卡片（内含 NavigationStack + toolbar），横竖屏均不崩、PNG 非空。
@@ -733,6 +767,22 @@ final class OrientationSnapshotTests: XCTestCase {
         for key in keys {
             let value = String(localized: String.LocalizationValue(key), bundle: .main)
             XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
+        }
+    }
+
+    func test_cameraUsageDescription_catalogHasEnglishAndChineseValues() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let catalogURL = testFile.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("CodexRemote/Resources/InfoPlist.xcstrings")
+        let data = try Data(contentsOf: catalogURL)
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let strings = try XCTUnwrap(root["strings"] as? [String: Any])
+        let camera = try XCTUnwrap(strings["NSCameraUsageDescription"] as? [String: Any])
+        let localizations = try XCTUnwrap(camera["localizations"] as? [String: Any])
+        for language in ["en", "zh-Hans"] {
+            let localization = try XCTUnwrap(localizations[language] as? [String: Any])
+            let unit = try XCTUnwrap(localization["stringUnit"] as? [String: Any])
+            XCTAssertFalse(try XCTUnwrap(unit["value"] as? String).isEmpty)
         }
     }
 

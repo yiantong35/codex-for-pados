@@ -21,20 +21,25 @@ private enum PhotoDataLoaderError: Error { case noData }
 struct ComposerView: View {
     let store: ConversationStore
     let isEnabled: Bool
+    let handlesWorkspaceShortcuts: Bool
     private let photoDataLoader: PhotoDataLoader
     // 服务器驱动的模型数据（model/list + config/read）。绝不硬编码——两种登录（账号/API）
     // 可用模型不同，daemon 已按登录返回真实数据（见 memory: pados-model-server-driven）。
     @Environment(EnvironmentStore.self) private var env
+    @Environment(ShortcutStore.self) private var shortcuts
     @Environment(\.locale) private var locale
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var draft: ComposerDraft
     @State private var showModelPopover = false
+    @FocusState private var inputFocused: Bool
 
     init(store: ConversationStore, draft: ComposerDraft? = nil, isEnabled: Bool = true,
+         handlesWorkspaceShortcuts: Bool = true,
          photoDataLoader: PhotoDataLoader = .live) {
         self.store = store
         self.isEnabled = isEnabled
+        self.handlesWorkspaceShortcuts = handlesWorkspaceShortcuts
         self.photoDataLoader = photoDataLoader
         _draft = State(initialValue: draft ?? ComposerDraft())
     }
@@ -151,6 +156,7 @@ struct ComposerView: View {
         }
         .padding(8)
         .background(.bar)
+        .background { composerShortcutLayer }
         .onChange(of: draft.photoItem) { _, item in
             guard let item else {
                 draft.imageAttachment.clear()
@@ -186,7 +192,9 @@ struct ComposerView: View {
         .accessibilityLabel(Text("composer.a11y.model"))
         .accessibilityValue(Text(verbatim: modelChipLabel))
         .popover(isPresented: $showModelPopover) {
-            modelSelectionContent.presentationCompactAdaptation(.popover)
+            modelSelectionContent
+                .presentationCompactAdaptation(.sheet)
+                .presentationDetents([.medium, .large])
         }
     }
 
@@ -194,6 +202,9 @@ struct ComposerView: View {
         TextField("composer.placeholder", text: text, axis: .vertical)
             .textFieldStyle(.roundedBorder)
             .lineLimit(1...5)
+            .submitLabel(.send)
+            .focused($inputFocused)
+            .onSubmit { performSendShortcut() }
     }
 
     @ViewBuilder
@@ -285,6 +296,34 @@ struct ComposerView: View {
             isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
         )
     }
+
+    @ViewBuilder
+    private var composerShortcutLayer: some View {
+        if handlesWorkspaceShortcuts {
+            Group {
+                Button("") { performSendShortcut() }
+                    .keyboardShortcut(shortcuts.combo(for: .sendMessage).keyboardShortcut)
+                Button("") {
+                    guard store.state.isTurnRunning else { return }
+                    Task { _ = await store.interrupt() }
+                }
+                .keyboardShortcut(shortcuts.combo(for: .stopTurn).keyboardShortcut)
+                Button("") { inputFocused = true }
+                    .keyboardShortcut(shortcuts.combo(for: .focusComposer).keyboardShortcut)
+            }
+            .opacity(0)
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+        }
+    }
+
+    private func performSendShortcut() {
+        guard isEnabled, canSend else { return }
+        Task {
+            if store.state.isTurnRunning { await enqueueCurrent() }
+            else { await send() }
+        }
+    }
 }
 
 struct ModelSelectionContent: View {
@@ -327,8 +366,8 @@ struct ModelSelectionContent: View {
             }
         }
         .listStyle(.insetGrouped)
-        .frame(width: isAccessibilitySize ? 340 : 280,
-               height: isAccessibilitySize ? 560 : 440)
+        .frame(minWidth: 260, idealWidth: 320, maxWidth: 420,
+               minHeight: 340, idealHeight: isAccessibilitySize ? 560 : 440, maxHeight: 620)
     }
 
     private func effortLabel(_ effort: ReasoningEffort) -> String {

@@ -142,6 +142,7 @@ struct ConversationView: View {
                     )
                 })
             }
+            .scrollDismissesKeyboard(.interactively)
             .onPreferenceChange(ConversationScrollMetricsKey.self) { metrics in
                 let wasNearBottom = ScrollAnchorPolicy.isNearBottom(
                     distanceToBottom: Swift.max(0, scrollMetrics.distanceToBottom), threshold: 120
@@ -212,7 +213,8 @@ struct ConversationView: View {
                     ComposerView(
                         store: store,
                         draft: draftStore?.draft(for: threadId),
-                        isEnabled: store.loadState == .loaded
+                        isEnabled: store.loadState == .loaded,
+                        handlesWorkspaceShortcuts: bindsWorkspaceState
                     )
                 }
             }

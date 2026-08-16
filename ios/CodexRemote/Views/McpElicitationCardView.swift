@@ -67,12 +67,16 @@ struct McpElicitationCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Label("mcpElicitation.title", systemImage: "person.crop.circle.badge.questionmark")
-                    .font(.headline)
-                Spacer()
-                Text(UntrustedDisplayText.sanitize(card.serverName))
-                    .font(.caption).foregroundStyle(.secondary)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    requestTitle
+                    Spacer(minLength: 12)
+                    serverName
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    requestTitle
+                    serverName
+                }
             }
             Text(UntrustedDisplayText.sanitize(card.message))
                 .font(.callout).fixedSize(horizontal: false, vertical: true)
@@ -126,6 +130,19 @@ struct McpElicitationCardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .disabled(card.awaitingRecovery || submissionState == .submitting)
         .onAppear { drafts = card.defaultDrafts() }
+    }
+
+    private var requestTitle: some View {
+        Label("mcpElicitation.title", systemImage: "person.crop.circle.badge.questionmark")
+            .font(.headline)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var serverName: some View {
+        Text(UntrustedDisplayText.sanitize(card.serverName))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder

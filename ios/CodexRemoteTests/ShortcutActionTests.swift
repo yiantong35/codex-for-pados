@@ -3,8 +3,8 @@ import SwiftUI
 @testable import CodexRemote
 
 final class ShortcutActionTests: XCTestCase {
-    func test_exactly22Actions() {
-        XCTAssertEqual(ShortcutAction.allCases.count, 22)
+    func test_exactly25Actions() {
+        XCTAssertEqual(ShortcutAction.allCases.count, 25)
     }
 
     func test_rawValuesUnique() {
@@ -32,6 +32,9 @@ final class ShortcutActionTests: XCTestCase {
         XCTAssertEqual(ShortcutAction.rightPanelFiles.defaultCombo, KeyCombo(key: "f", modifiers: [.command, .shift]))
         XCTAssertEqual(ShortcutAction.rightPanelSideChat.defaultCombo, KeyCombo(key: "c", modifiers: [.command, .shift]))
         XCTAssertEqual(ShortcutAction.rightPanelFullscreen.defaultCombo, KeyCombo(key: "f", modifiers: [.command, .control]))
+        XCTAssertEqual(ShortcutAction.sendMessage.defaultCombo, KeyCombo(key: KeyCombo.returnKey, modifiers: .command))
+        XCTAssertEqual(ShortcutAction.stopTurn.defaultCombo, KeyCombo(key: ".", modifiers: .command))
+        XCTAssertEqual(ShortcutAction.focusComposer.defaultCombo, KeyCombo(key: "l", modifiers: [.command, .shift]))
         XCTAssertEqual(ShortcutAction.cancelForm.defaultCombo, KeyCombo(key: KeyCombo.escapeKey, modifiers: []))
     }
 
@@ -45,6 +48,7 @@ final class ShortcutActionTests: XCTestCase {
         XCTAssertEqual(ShortcutAction.tab1.scope, .global)
         XCTAssertEqual(ShortcutAction.toggleLeftPanel.scope, .workspace)
         XCTAssertEqual(ShortcutAction.rightPanelFiles.scope, .workspace)
+        XCTAssertEqual(ShortcutAction.sendMessage.scope, .workspace)
         XCTAssertEqual(ShortcutAction.cancelForm.scope, .form)
     }
 }

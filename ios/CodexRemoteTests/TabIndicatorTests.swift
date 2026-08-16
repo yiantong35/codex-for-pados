@@ -53,9 +53,13 @@ final class TabIndicatorTests: XCTestCase {
         XCTAssertFalse(TabIndicator.error.shouldAnimate(reduceMotion: true))
         XCTAssertFalse(TabIndicator.running.shouldAnimate(reduceMotion: false))
     }
-    func test_statusesHaveDistinctNonColorSymbols() {
-        let symbols = [TabIndicator.unread, .running, .attention, .error, .disconnected]
+    func test_activeStatusesHaveDistinctNonColorSymbols() {
+        let symbols = [TabIndicator.unread, .running, .attention, .error]
             .compactMap(\.symbolName)
-        XCTAssertEqual(Set(symbols).count, 5)
+        XCTAssertEqual(Set(symbols).count, 4)
+    }
+    func test_disconnectedUsesStableSolidDotAndLocalizedAccessibilityValue() {
+        XCTAssertEqual(TabIndicator.disconnected.symbolName, "circle.fill")
+        XCTAssertEqual(TabIndicator.disconnected.accessibilityKeyString, "tab.status.disconnected")
     }
 }

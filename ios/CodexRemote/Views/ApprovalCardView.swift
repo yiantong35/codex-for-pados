@@ -260,6 +260,7 @@ private struct ExpandableApprovalText: View {
     let emphasized: Bool
     @Binding var expanded: Bool
     @State private var availableWidth: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var needsExpansion: Bool {
         ApprovalCardView.needsTextExpansion(
@@ -290,7 +291,8 @@ private struct ExpandableApprovalText: View {
 
             if needsExpansion {
                 Button {
-                    withAnimation { expanded.toggle() }
+                    if reduceMotion { expanded.toggle() }
+                    else { withAnimation { expanded.toggle() } }
                 } label: {
                     Label(expanded ? "approval.showLess" : "approval.showAll",
                           systemImage: expanded ? "chevron.up" : "chevron.down")

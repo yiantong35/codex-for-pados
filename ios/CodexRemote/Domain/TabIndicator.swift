@@ -9,6 +9,10 @@ enum TabIndicator: Equatable {
     var isBlinking: Bool { self == .attention || self == .error }
 
     var accessibilityKey: LocalizedStringKey {
+        LocalizedStringKey(accessibilityKeyString)
+    }
+
+    var accessibilityKeyString: String {
         switch self {
         case .none:         "tab.status.none"
         case .unread:       "tab.status.unread"
@@ -26,7 +30,7 @@ enum TabIndicator: Equatable {
         case .running:      "play.fill"
         case .attention:    "exclamationmark"
         case .error:        "xmark"
-        case .disconnected: "wifi.slash"
+        case .disconnected: "circle.fill"
         }
     }
 
