@@ -11,6 +11,7 @@ struct KeyCombo: Codable, Equatable, Hashable {
 
     /// Esc 哨兵（KeyEquivalent.escape 的字符即 U+001B）。
     static let escapeKey = "\u{1B}"
+    static let returnKey = "\r"
 
     init(key: String, modifiers: EventModifiers) {
         self.key = key.lowercased()
@@ -28,6 +29,7 @@ struct KeyCombo: Codable, Equatable, Hashable {
 
     var keyEquivalent: KeyEquivalent {
         if key == Self.escapeKey { return .escape }
+        if key == Self.returnKey { return .return }
         return KeyEquivalent(Character(key))
     }
 
@@ -43,7 +45,9 @@ struct KeyCombo: Codable, Equatable, Hashable {
         if m.contains(.option)  { s += "⌥" }
         if m.contains(.shift)   { s += "⇧" }
         if m.contains(.command) { s += "⌘" }
-        if key == Self.escapeKey { s += "esc" } else { s += key.uppercased() }
+        if key == Self.escapeKey { s += "esc" }
+        else if key == Self.returnKey { s += "return" }
+        else { s += key.uppercased() }
         return s
     }
 }

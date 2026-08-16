@@ -46,6 +46,7 @@ final class WorkspaceSessionState {
 /// - 下边栏 = VStack 底部兄弟槽：横跨左+中+右、把三栏挤压上移（design D2，布局翻转）。
 /// - 摘要 = :≡ 按钮触发的常驻悬浮浮层（overlay，design D2），非占列。
 struct RootSplitView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(ConnectionStore.self) private var connection
     @Environment(ProjectsStore.self) private var projects
     @Environment(EnvironmentInspectorModel.self) private var envInspector
@@ -218,6 +219,10 @@ struct RootSplitView: View {
 
     @ToolbarContentBuilder
     private var workspaceToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            TabBarView()
+        }
+
         ToolbarItemGroup(placement: .topBarTrailing) {
             Button(action: createThread) { toolbarImage("plus") }
                 .accessibilityLabel(Text("sidebar.newThread"))
@@ -229,28 +234,28 @@ struct RootSplitView: View {
                     label: "workspace.leftPanel.toggle",
                     isOn: layout.leftVisible
                 ) {
-                    withAnimation { layout.leftVisible.toggle(); layout.lastRequested = .left }
+                    animate { layout.leftVisible.toggle(); layout.lastRequested = .left }
                 }
                 panelToolbarButton(
                     symbol: "rectangle.bottomthird.inset.filled",
                     label: "workspace.bottomPanel.toggle",
                     isOn: layout.showBottom
                 ) {
-                    withAnimation { layout.showBottom.toggle() }
+                    animate { layout.showBottom.toggle() }
                 }
                 panelToolbarButton(
                     symbol: "list.bullet",
                     label: "workspace.summary.toggle",
                     isOn: layout.showSummary
                 ) {
-                    withAnimation { layout.showSummary.toggle() }
+                    animate { layout.showSummary.toggle() }
                 }
                 panelToolbarButton(
                     symbol: "rectangle.trailinghalf.inset.filled",
                     label: "workspace.rightPanel.toggle",
                     isOn: layout.showRight
                 ) {
-                    withAnimation { layout.showRight.toggle(); layout.lastRequested = .right }
+                    animate { layout.showRight.toggle(); layout.lastRequested = .right }
                 }
             }
         }
@@ -279,6 +284,11 @@ struct RootSplitView: View {
             .accessibilityLabel(Text(label))
             .accessibilityValue(Text(isOn ? "workspace.panel.shown" : "workspace.panel.hidden"))
             .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+
+    private func animate(_ changes: () -> Void) {
+        if reduceMotion { changes() }
+        else { withAnimation { changes() } }
     }
 
     private func createThread() {
@@ -322,7 +332,14 @@ struct RootSplitView: View {
             rightVisible: layout.showRight,
             lastRequested: layout.lastRequested,
             loadRevision: widthLoadRevision,
-            onResizeEnded: { saveColumnWidths() }
+            onResizeEnded: { saveColumnWidths() },
+            onDismissOverlay: { side in
+                switch side {
+                case .left: layout.leftVisible = false
+                case .right: layout.showRight = false
+                case .none: break
+                }
+            }
         ) {
             SidebarView(selectedThreadId: Binding(
                 get: { workspaceState.selectedThreadId },
@@ -488,38 +505,77 @@ struct ConnectionBanner: View {
     let onRePair: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            switch state {
-            case .reconnecting:
-                ProgressView().controlSize(.small)
-                Text("root.reconnecting")
-                Spacer(minLength: 0)
-            case .failed(let reason):
-                Image(systemName: "wifi.slash")
-                    .accessibilityHidden(true)
-                Text("connection.banner.disconnected")
-                Spacer(minLength: 4)
-                Button { onShowDetails(reason) } label: {
-                    Image(systemName: "info.circle")
-                }
-                .accessibilityLabel(Text("connection.details"))
-                Button("connection.reconnect", action: onReconnect)
-            case .trustRevoked:
-                Image(systemName: "wifi.slash")
-                    .accessibilityHidden(true)
-                Text("connection.trustRevoked")
-                Spacer(minLength: 4)
-                Button("connection.rePair", action: onRePair)
-            }
-        }
+        bannerContent
         .font(.subheadline)
-        .lineLimit(1)
-        .minimumScaleFactor(0.8)
         .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, minHeight: 36, maxHeight: 36)
+        .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, minHeight: 44)
         .background(.thinMaterial)
         .overlay(alignment: .bottom) { Divider() }
         .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder private var bannerContent: some View {
+        switch state {
+        case .reconnecting:
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("root.reconnecting")
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: 44)
+        case .failed(let reason):
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    statusLabel("connection.banner.disconnected")
+                    Spacer(minLength: 4)
+                    failureActions(reason)
+                }
+                VStack(alignment: .leading, spacing: 0) {
+                    statusLabel("connection.banner.disconnected")
+                    HStack(spacing: 8) {
+                        Spacer(minLength: 0)
+                        failureActions(reason)
+                    }
+                }
+            }
+        case .trustRevoked:
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    statusLabel("connection.trustRevoked")
+                    Spacer(minLength: 4)
+                    rePairButton
+                }
+                VStack(alignment: .leading, spacing: 0) {
+                    statusLabel("connection.trustRevoked")
+                    rePairButton.frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            }
+        }
+    }
+
+    private func statusLabel(_ key: LocalizedStringKey) -> some View {
+        Label(key, systemImage: "wifi.slash")
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func failureActions(_ reason: String) -> some View {
+        HStack(spacing: 4) {
+            Button { onShowDetails(reason) } label: {
+                Image(systemName: "info.circle")
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel(Text("connection.details"))
+            Button("connection.reconnect", action: onReconnect)
+                .frame(minHeight: 44)
+        }
+    }
+
+    private var rePairButton: some View {
+        Button("connection.rePair", action: onRePair)
+            .frame(minHeight: 44)
     }
 }
 
@@ -539,6 +595,7 @@ struct ShortcutLayer: View {
     let layout: WorkspaceLayoutStore
     @Environment(SessionsManager.self) private var sessions
     @Environment(ShortcutStore.self) private var shortcuts
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// ⌘1..⌘9 对应的动作（下标 i → 机器数组第 i 项）。
     private static let tabActions: [ShortcutAction] =
@@ -547,13 +604,13 @@ struct ShortcutLayer: View {
     var body: some View {
         Group {
             // 面板（workspace）
-            Button("") { withAnimation { layout.toggleLeftPanel() } }
+            Button("") { animate { layout.toggleLeftPanel() } }
                 .keyboardShortcut(shortcuts.combo(for: .toggleLeftPanel).keyboardShortcut)
-            Button("") { withAnimation { layout.toggleRightPanel() } }
+            Button("") { animate { layout.toggleRightPanel() } }
                 .keyboardShortcut(shortcuts.combo(for: .toggleRightPanel).keyboardShortcut)
-            Button("") { withAnimation { layout.showBottom.toggle() } }
+            Button("") { animate { layout.showBottom.toggle() } }
                 .keyboardShortcut(shortcuts.combo(for: .toggleBottomPanel).keyboardShortcut)
-            Button("") { withAnimation { layout.showSummary.toggle() } }
+            Button("") { animate { layout.showSummary.toggle() } }
                 .keyboardShortcut(shortcuts.combo(for: .toggleSummary).keyboardShortcut)
             Button("") { layout.showSettings = true }
                 .keyboardShortcut(shortcuts.combo(for: .openSettings).keyboardShortcut)
@@ -591,5 +648,10 @@ struct ShortcutLayer: View {
             Button("") { sessions.presentAddMachine() }
                 .keyboardShortcut(shortcuts.combo(for: .addMachine).keyboardShortcut)
         }
+    }
+
+    private func animate(_ changes: () -> Void) {
+        if reduceMotion { changes() }
+        else { withAnimation { changes() } }
     }
 }

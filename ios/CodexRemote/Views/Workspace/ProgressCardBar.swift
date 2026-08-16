@@ -5,6 +5,7 @@ import SwiftUI
 /// 展开 overlay：plan 步骤列表（复用 PlanStepList）+ 压暗 scrim。
 /// 空态（无 plan 且无 diff）：调用方负责不渲染本视图。
 struct ProgressCardBar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let progress: WorkspaceSummary.PlanProgress
     let diff: WorkspaceSummary.DiffLineCounts
     let isRunning: Bool
@@ -109,7 +110,8 @@ struct ProgressCardBar: View {
     }
 
     private func toggleExpanded() {
-        withAnimation { expanded.toggle() }
+        if reduceMotion { expanded.toggle() }
+        else { withAnimation { expanded.toggle() } }
     }
 
     private var expandedPanel: some View {

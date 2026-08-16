@@ -4501,6 +4501,24 @@
         }
       }
     },
+    "shortcut.action.sendMessage": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Send Message" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "发送消息" } }
+      }
+    },
+    "shortcut.action.stopTurn": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Stop Current Turn" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "停止当前任务" } }
+      }
+    },
+    "shortcut.action.focusComposer": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Focus Message Field" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "聚焦消息输入框" } }
+      }
+    },
     "shortcut.action.cancelForm": {
       "localizations": {
         "en": {
@@ -5273,6 +5291,30 @@
         }
       }
     },
+    "tab.machine.section": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Machines" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "机器" } }
+      }
+    },
+    "tab.machine.none": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "No Machine" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "未选择机器" } }
+      }
+    },
+    "tab.machine.switcher": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Switch Machine" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "切换机器" } }
+      }
+    },
+    "tab.add": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Add Machine" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "添加机器" } }
+      }
+    },
     "tab.status.none": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "No activity" } },
@@ -5879,6 +5921,12 @@
             "value": "左面板"
           }
         }
+      }
+    },
+    "workspace.overlay.close": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Close panel" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "关闭面板" } }
       }
     },
     "workspace.panel.empty.desc": {

@@ -14,7 +14,7 @@ final class TabBarViewTests: XCTestCase {
         return SessionsManager(machineStore: store, transportFactory: { _ in MockTransport() })
     }
 
-    /// TabBarView 应能在有机器时挂载渲染而不崩溃（横向 tab 栏 + 圆点 + [+]）。
+    /// toolbar 机器菜单应能在有机器时挂载渲染而不崩溃。
     func test_tabBarView_rendersWithMachines() {
         let sessions = mgr(machines: 3)
         let view = TabBarView().environment(sessions)
@@ -28,7 +28,7 @@ final class TabBarViewTests: XCTestCase {
         XCTAssertEqual(sessions.machineStore.machines.count, 3)
     }
 
-    /// 空机器时也应渲染（只有 [+] 按钮），不崩溃。
+    /// 空机器时也应渲染占位菜单，不崩溃。
     func test_tabBarView_rendersEmpty() {
         let sessions = mgr(machines: 0)
         let hc = UIHostingController(rootView: TabBarView().environment(sessions))
@@ -40,7 +40,7 @@ final class TabBarViewTests: XCTestCase {
 
     /// DotView 覆盖 5 种指示态均可实例化渲染不崩溃（含闪烁态 attention/error）。
     func test_dotView_allIndicatorsRender() {
-        for ind in [TabIndicator.none, .unread, .running, .attention, .error] {
+        for ind in [TabIndicator.none, .unread, .running, .attention, .error, .disconnected] {
             let hc = UIHostingController(rootView: DotView(indicator: ind))
             hc.view.frame = CGRect(x: 0, y: 0, width: 20, height: 20)
             hc.view.setNeedsLayout()

@@ -35,7 +35,6 @@ struct RightPanelContainerView: View {
     @Environment(FileBrowserStore.self) private var fileBrowser
     @Environment(SideChatStore.self) private var sideChat
     @Environment(\.locale) private var locale
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     // 快捷键经布局 store 发一次性右栏意图；本容器消费即复位（设计 D6）。
     @Environment(WorkspaceLayoutStore.self) private var layout
     // 全屏切换快捷键：进入路径由 base 层 ShortcutLayer 承载，但覆盖层为 .fullScreenCover 模态，
@@ -151,18 +150,19 @@ struct RightPanelContainerView: View {
                 Button {
                     selectedTab = tab
                 } label: {
-                    Group {
-                        if dynamicTypeSize.isAccessibilitySize {
+                    ViewThatFits(in: .horizontal) {
+                        Label(tab.label(locale: locale), systemImage: tab.icon)
+                            .labelStyle(.titleAndIcon)
+                        VStack(spacing: 2) {
                             Image(systemName: tab.icon)
-                        } else {
                             Text(tab.label(locale: locale))
+                                .multilineTextAlignment(.center)
                         }
                     }
                         .font(.subheadline)
                         .fontWeight(selectedTab == tab ? .semibold : .regular)
                         .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)          // 窄宽文字降级，不撑破
+                        .lineLimit(2)
                         .frame(maxWidth: .infinity)       // 三 tab 之间等分（每个都 infinity → 均分，不再是首个独占）
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())        // 留白也可命中

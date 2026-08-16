@@ -43,13 +43,14 @@ enum WorkspaceMetrics {
     static let leftColumnDefaultWidth: CGFloat = 220
     static let rightColumnDefaultWidth: CGFloat = 280
 
-    /// 分隔线命中区宽（手感关键：够宽才好抓；也是视觉线所在的透明命中带宽）。
-    static let resizableDividerHitWidth: CGFloat = 14
+    /// 分隔线仍只占 14pt 布局预算，但透明触控面扩展到 HIG 的 44pt。
+    static let resizableDividerLayoutWidth: CGFloat = 14
+    static let resizableDividerHitWidth: CGFloat = 44
 
     /// D4：三栏全开所需最低宽 = 左min + 中min + 右min + 两分隔线（由常量算出，不写死）。
     static let threeColumnMinTotalWidth: CGFloat =
         leftColumnMinWidth + centerColumnMinWidth + rightColumnMinWidth
-        + resizableDividerHitWidth * 2
+        + resizableDividerLayoutWidth * 2
 
     /// D4：窄窗降级决策结果——哪些侧栏应显示（中栏永远完整可见，不含在内）。
     struct ColumnVisibilityPlan: Equatable { let showLeft: Bool; let showRight: Bool }
@@ -63,8 +64,8 @@ enum WorkspaceMetrics {
         if total >= threeColumnMinTotalWidth {
             return ColumnVisibilityPlan(showLeft: wantLeft, showRight: wantRight)
         }
-        let leftPlusCenter = leftColumnMinWidth + centerColumnMinWidth + resizableDividerHitWidth   // 454
-        let centerPlusRight = centerColumnMinWidth + rightColumnMinWidth + resizableDividerHitWidth  // 494
+        let leftPlusCenter = leftColumnMinWidth + centerColumnMinWidth + resizableDividerLayoutWidth
+        let centerPlusRight = centerColumnMinWidth + rightColumnMinWidth + resizableDividerLayoutWidth
         // 中间档 [494,668)：左右单侧都物理可容纳但不能同时。
         if total >= centerPlusRight {
             let wantBoth = wantLeft && wantRight
@@ -90,7 +91,7 @@ enum WorkspaceMetrics {
     static func shouldOverlayRight(total: CGFloat,
                                    wantRight: Bool,
                                    plan: ColumnVisibilityPlan) -> Bool {
-        let centerPlusRight = centerColumnMinWidth + rightColumnMinWidth + resizableDividerHitWidth
+        let centerPlusRight = centerColumnMinWidth + rightColumnMinWidth + resizableDividerLayoutWidth
         return wantRight && !plan.showRight && total < centerPlusRight
     }
 
@@ -99,8 +100,8 @@ enum WorkspaceMetrics {
     static func overlaySide(total: CGFloat, wantLeft: Bool, wantRight: Bool,
                             plan: ColumnVisibilityPlan,
                             lastRequested: RequestedSide) -> RequestedSide {
-        let leftPlusCenter = leftColumnMinWidth + centerColumnMinWidth + resizableDividerHitWidth
-        let centerPlusRight = centerColumnMinWidth + rightColumnMinWidth + resizableDividerHitWidth
+        let leftPlusCenter = leftColumnMinWidth + centerColumnMinWidth + resizableDividerLayoutWidth
+        let centerPlusRight = centerColumnMinWidth + rightColumnMinWidth + resizableDividerLayoutWidth
         let hiddenLeft = wantLeft && !plan.showLeft && total < leftPlusCenter
         let hiddenRight = wantRight && !plan.showRight && total < centerPlusRight
         if hiddenLeft && hiddenRight { return lastRequested == .right ? .right : .left }
@@ -161,7 +162,7 @@ enum WorkspaceMetrics {
                                  dividerCount: Int = 2) -> CGFloat {
         let byTwoThirds = maxColumnWidth(total: total)
         let byCenter = total - otherColumnWidth
-            - resizableDividerHitWidth * CGFloat(dividerCount)
+            - resizableDividerLayoutWidth * CGFloat(dividerCount)
             - centerColumnMinWidth
         let upper = Swift.min(byTwoThirds, byCenter)
         return clamp(proposed, min: columnMin, max: Swift.max(columnMin, upper))
@@ -172,7 +173,7 @@ enum WorkspaceMetrics {
     static func centerColumnWidth(total: CGFloat, left: CGFloat, right: CGFloat,
                                   dividerCount: Int = 2) -> CGFloat {
         Swift.max(centerColumnMinWidth,
-                  total - left - right - resizableDividerHitWidth * CGFloat(dividerCount))
+                  total - left - right - resizableDividerLayoutWidth * CGFloat(dividerCount))
     }
 
     static func columnResizeHandleCenterY(in containerHeight: CGFloat,

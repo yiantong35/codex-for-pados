@@ -72,7 +72,7 @@ final class RelayPairingImportViewModel {
 /// 由 MachineFormView 经 NavigationLink 进入，成功导入后回调交上层保存并 dismiss。
 ///
 /// UI 基线（横竖屏 + 键盘）：ScrollView 包裹 + `.scrollDismissesKeyboard(.interactively)`
-/// 防软键盘遮挡；卡片 `maxWidth: 480` 居中，横竖屏都可用；TextEditor 走标准文本输入，
+/// 防软键盘遮挡；表单 `maxWidth: 480` 居中，横竖屏都可用；TextEditor 走标准文本输入，
 /// 外接键盘可正常输入，Esc 取消（继承 MachineFormView 工具栏的 cancelAction）。
 struct RelayPairingImportView: View {
     @Environment(SessionsManager.self) private var sessions
@@ -98,7 +98,7 @@ struct RelayPairingImportView: View {
             GeometryReader { proxy in
                 ScrollView {
                     VStack {
-                        card.frame(maxWidth: 480)
+                        formContent.frame(maxWidth: 480)
                     }
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: max(0, proxy.size.height - 48), alignment: .center)
@@ -121,7 +121,7 @@ struct RelayPairingImportView: View {
         }
     }
 
-    private var card: some View {
+    private var formContent: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("relayImport.hint")
                 .font(.footnote)
@@ -142,13 +142,7 @@ struct RelayPairingImportView: View {
                 VStack(alignment: .leading, spacing: 8) { pairingActionButtons }
             }
         }
-        .padding(28)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 6)
+        .padding(.vertical, 12)
     }
 
     @ViewBuilder

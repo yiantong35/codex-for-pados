@@ -1,6 +1,13 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "NSCameraUsageDescription" : {
+      "comment" : "Camera permission prompt for relay QR pairing",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Scan the QR code shown by your development machine to import relay pairing details." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "扫描开发机终端二维码以导入 relay 配对。" } }
+      }
+    },
     "NSLocalNetworkUsageDescription" : {
       "comment" : "Local network permission prompt",
       "localizations" : {

@@ -63,6 +63,12 @@ final class KeyComboTests: XCTestCase {
         XCTAssertEqual(combo.keyEquivalent, .escape)
     }
 
+    func test_returnSentinelMapsAndDisplaysAsReturn() {
+        let combo = KeyCombo(key: KeyCombo.returnKey, modifiers: .command)
+        XCTAssertEqual(combo.keyEquivalent, .return)
+        XCTAssertEqual(combo.displayString, "⌘return")
+    }
+
     func test_keyboardShortcut_carriesKeyAndModifiers() {
         let shortcut = KeyCombo(key: "b", modifiers: .command).keyboardShortcut
         XCTAssertEqual(shortcut.key.character, "b")

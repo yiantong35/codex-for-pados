@@ -22,6 +22,8 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
     let loadRevision: Int
     /// 一次拖拽 / 一次无障碍调节结束后回调（Task 4 接持久化 save）。
     let onResizeEnded: () -> Void
+    /// 紧凑窗口覆盖层的统一关闭入口；调用方同步更新面板意图状态。
+    let onDismissOverlay: (WorkspaceMetrics.RequestedSide) -> Void
 
     @ViewBuilder let left: () -> Left
     @ViewBuilder let center: () -> Center
@@ -33,6 +35,7 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
     @State private var dragStartWidth: CGFloat?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.locale) private var locale
+    @AccessibilityFocusState private var overlayCloseFocused: Bool
 
     var body: some View {
         GeometryReader { proxy in
@@ -79,31 +82,21 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
                     }
                 }
                 .frame(width: total, alignment: .leading)
+                .allowsHitTesting(overlaySide == .none)
+                .accessibilityHidden(overlaySide != .none)
 
-                if overlaySide == .left {
-                    left()
-                        .frame(width: WorkspaceMetrics.leftOverlayWidth(
-                            total: total,
-                            preferred: leftWidth))
-                        .frame(maxHeight: .infinity)
-                        .background(Color(.systemBackground))
-                        .shadow(color: .black.opacity(0.22), radius: 16, x: 6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .transition(.move(edge: .leading).combined(with: .opacity))
+                if overlaySide != .none {
+                    Color.black.opacity(0.28)
+                        .contentShape(Rectangle())
+                        .onTapGesture { dismissOverlay(overlaySide) }
+                        .accessibilityHidden(true)
+                        .transition(.opacity)
                         .zIndex(1)
-                }
 
-                if overlaySide == .right {
-                    right()
-                        .frame(width: WorkspaceMetrics.rightOverlayWidth(
-                            total: total,
-                            preferred: rightWidth))
-                        .frame(maxHeight: .infinity)
-                        .background(Color(.systemBackground))
-                        .shadow(color: .black.opacity(0.22), radius: 16, x: -6)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                        .zIndex(1)
+                    overlayPanel(side: overlaySide, total: total)
+                        .transition(.move(edge: overlaySide == .left ? .leading : .trailing)
+                            .combined(with: .opacity))
+                        .zIndex(2)
                 }
             }
             .frame(width: total, alignment: .leading)
@@ -132,7 +125,54 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
             .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: effLeftVisible)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: effRightVisible)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: overlaySide)
+            .onChange(of: overlaySide, initial: true) { _, side in
+                overlayCloseFocused = side != .none
+            }
         }
+    }
+
+    private func overlayPanel(side: WorkspaceMetrics.RequestedSide, total: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Button { dismissOverlay(side) } label: {
+                    Image(systemName: "xmark")
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
+                .accessibilityLabel(Text("workspace.overlay.close"))
+                .accessibilityFocused($overlayCloseFocused)
+            }
+            .frame(height: 44)
+            .padding(.horizontal, 4)
+            Divider()
+
+            if side == .left { left() } else { right() }
+        }
+        .frame(width: overlayWidth(for: side, total: total))
+        .frame(maxHeight: .infinity)
+        .background(Color(.systemBackground))
+        .shadow(color: .black.opacity(0.22), radius: 16,
+                x: side == .left ? 6 : -6)
+        .frame(maxWidth: .infinity,
+               alignment: side == .left ? .leading : .trailing)
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+    }
+
+    private func overlayWidth(for side: WorkspaceMetrics.RequestedSide, total: CGFloat) -> CGFloat {
+        switch side {
+        case .left: return WorkspaceMetrics.leftOverlayWidth(total: total, preferred: leftWidth)
+        case .right: return WorkspaceMetrics.rightOverlayWidth(total: total, preferred: rightWidth)
+        case .none: return 0
+        }
+    }
+
+    private func dismissOverlay(_ side: WorkspaceMetrics.RequestedSide) {
+        overlayCloseFocused = false
+        onDismissOverlay(side)
     }
 
     // MARK: - 左分隔线（只改 leftWidth，右栏不受影响 → 解耦）
@@ -193,7 +233,10 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
             // 用主题橙（accentColor，深浅色各自的橙）画分界线，黑底上也醒目。
             Rectangle().fill(Color.accentColor).frame(width: 1)
         }
-        .frame(width: WorkspaceMetrics.resizableDividerHitWidth)    // 命中区 ≥ 视觉线（D8）
+        .frame(width: WorkspaceMetrics.resizableDividerHitWidth)
+        .padding(.horizontal,
+                 (WorkspaceMetrics.resizableDividerLayoutWidth
+                  - WorkspaceMetrics.resizableDividerHitWidth) / 2)
         .frame(maxHeight: .infinity)
         .contentShape(Rectangle())
         .hoverEffect(.highlight)

@@ -64,13 +64,7 @@ struct RootView: View {
             if sessions.machineStore.machines.isEmpty {
                 OnboardingView()
             } else if let s = sessions.activeSession {
-                // TabBarView 上提到本层（`.id(s.id)` 重建边界之外）：它只读全局 SessionsManager，
-                // 不依赖单 Session，应常驻不随切 tab 重建（否则横滚偏移复位、DotView 闪烁重启、tab 栏本身重建）。
-                // 仅 workspace(for:) 内的 WorkspaceHost 挂 `.id(s.id)` → 切 tab 只重建 workspace 子树。
-                VStack(spacing: 0) {
-                    TabBarView()
-                    workspace(for: s)
-                }
+                workspace(for: s)
             } else {
                 // machines 非空但无 activeSession（近乎不可达）：回落引导页，仍可加/切机器。
                 OnboardingView()
