@@ -471,6 +471,7 @@ private struct ThreadGoalEditorSheet: View {
     @State private var isLoading = true
     @State private var isSaving = false
     @State private var hasGoal = false
+    @State private var loadFailed = false
     @State private var failed = false
     @State private var showClearConfirmation = false
 
@@ -479,6 +480,15 @@ private struct ThreadGoalEditorSheet: View {
             Form {
                 if isLoading {
                     ProgressView("common.loading")
+                } else if loadFailed {
+                    ContentUnavailableView {
+                        Label("operation.failed.title", systemImage: "exclamationmark.triangle")
+                    } description: {
+                        Text("operation.failed.description")
+                    } actions: {
+                        Button("common.retry") { Task { await loadGoal() } }
+                            .frame(minHeight: 44)
+                    }
                 } else {
                     Section("sidebar.goal.objective") {
                         TextEditor(text: $objective).frame(minHeight: 100)
@@ -528,19 +538,31 @@ private struct ThreadGoalEditorSheet: View {
                     .disabled(isLoading || isSaving || objective.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
-            .task {
-                if let goal = await projects.fetchGoal(threadId: thread.id) {
-                    objective = goal.objective
-                    status = goal.status
-                    hasGoal = true
-                }
-                isLoading = false
-            }
+            .task { await loadGoal() }
             .alert("operation.failed.title", isPresented: $failed) {
                 Button("common.ok", role: .cancel) {}
             } message: { Text("operation.failed.description") }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    private func loadGoal() async {
+        isLoading = true
+        loadFailed = false
+        do {
+            if let goal = try await projects.fetchGoal(threadId: thread.id) {
+                objective = goal.objective
+                status = goal.status
+                hasGoal = true
+            } else {
+                objective = ""
+                status = .active
+                hasGoal = false
+            }
+        } catch {
+            loadFailed = true
+        }
+        isLoading = false
     }
 }
 

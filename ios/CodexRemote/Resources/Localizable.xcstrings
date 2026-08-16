@@ -5525,6 +5525,12 @@
         }
       }
     },
+    "terminal.offline.description": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Reconnect to start or continue a terminal session." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重新连接后即可启动或继续终端会话。" } }
+      }
+    },
     "terminal.reconnected": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Reconnected" } },
@@ -6461,6 +6467,12 @@
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Reasoning" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "推理过程" } }
+      }
+    },
+    "thread.create.wait": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "A conversation was just created. Wait a moment and try again." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "刚刚已新建会话，请稍候再试。" } }
       }
     }
   },

@@ -100,6 +100,27 @@ final class OrientationSnapshotTests: XCTestCase {
                  name: "compact-right-overlay", dir: "/tmp/workspace")
     }
 
+    func test_compact_left_navigation_overlay_snapshot() {
+        let view = ResizableColumns(
+            leftWidth: .constant(220),
+            rightWidth: .constant(280),
+            leftVisible: true,
+            rightVisible: true,
+            lastRequested: .left,
+            loadRevision: 0,
+            onResizeEnded: {}
+        ) {
+            Color.red
+        } center: {
+            Color.green
+        } right: {
+            Color.blue
+        }
+
+        snapshot(view, size: CGSize(width: 320, height: 600),
+                 name: "compact-left-overlay", dir: "/tmp/workspace")
+    }
+
     private func makeConnection() -> ConnectionStore {
         // disconnected 态即可：RootSplitView 的 SidebarView .task 在 phase != .ready 时
         // 直接 return，不影响三栏布局。

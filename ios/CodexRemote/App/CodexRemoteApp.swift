@@ -120,6 +120,7 @@ private struct WorkspaceHost: View {
     @Environment(ApprovalStore.self) private var approvals
     @Environment(UserInputStore.self) private var userInputs
     @Environment(McpElicitationStore.self) private var mcpElicitations
+    @Environment(FileBrowserStore.self) private var fileBrowser
     @State private var coordinator: ApprovalCoordinator?
     @State private var userInputCoordinator: UserInputCoordinator?
     @State private var mcpElicitationCoordinator: McpElicitationCoordinator?
@@ -139,7 +140,7 @@ private struct WorkspaceHost: View {
                     )
                 }
             }
-            // 连接就绪/重连成功后把审批层接到当前 rpc；断线（reconnecting）时标记待恢复（绝不自动批准）。
+            // 连接就绪/重连成功后把交互请求层接到当前 rpc；断线时标记待恢复（绝不自动批准）。
             // 用 `.task(id:)` 而非 `.onChange`：`.id(s.id)` 重建 WorkspaceHost 时 @State coordinator 归 nil，
             // 若切到已连接的缓存 Session，rpcIdentity 初值即为该 rpc id（无变化）→ onChange 不触发 →
             // 该 tab 审批层不再绑定。`.task(id:)` 在 `.id` 重建即重跑（bind 幂等：内部先 cancel 旧订阅 Task），
@@ -162,6 +163,7 @@ private struct WorkspaceHost: View {
                     coordinator?.connectionLost()
                     userInputCoordinator?.connectionLost()
                     mcpElicitationCoordinator?.connectionLost()
+                    fileBrowser.handleConnectionLost()
                 }
             }
     }

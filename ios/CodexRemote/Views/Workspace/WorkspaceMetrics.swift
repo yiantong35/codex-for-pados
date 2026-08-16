@@ -94,6 +94,27 @@ enum WorkspaceMetrics {
         return wantRight && !plan.showRight && total < centerPlusRight
     }
 
+    /// Pick the single overlay that can be presented when a side column cannot coexist with the
+    /// center. At extreme widths both sides qualify, so the user's latest request wins.
+    static func overlaySide(total: CGFloat, wantLeft: Bool, wantRight: Bool,
+                            plan: ColumnVisibilityPlan,
+                            lastRequested: RequestedSide) -> RequestedSide {
+        let leftPlusCenter = leftColumnMinWidth + centerColumnMinWidth + resizableDividerHitWidth
+        let centerPlusRight = centerColumnMinWidth + rightColumnMinWidth + resizableDividerHitWidth
+        let hiddenLeft = wantLeft && !plan.showLeft && total < leftPlusCenter
+        let hiddenRight = wantRight && !plan.showRight && total < centerPlusRight
+        if hiddenLeft && hiddenRight { return lastRequested == .right ? .right : .left }
+        if hiddenLeft { return .left }
+        if hiddenRight { return .right }
+        return .none
+    }
+
+    static func leftOverlayWidth(total: CGFloat, preferred: CGFloat) -> CGFloat {
+        Swift.min(total, clamp(preferred,
+                               min: leftColumnMinWidth,
+                               max: rightPanelMaxWidth))
+    }
+
     static func rightOverlayWidth(total: CGFloat, preferred: CGFloat) -> CGFloat {
         Swift.min(total, clamp(preferred,
                                min: rightColumnMinWidth,

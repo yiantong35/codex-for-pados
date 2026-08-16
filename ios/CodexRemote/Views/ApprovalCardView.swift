@@ -26,6 +26,15 @@ struct ApprovalCardView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            if approvals.expiredRecoveryIds.contains(card.id) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("request.recoveryExpired", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                    Button("common.ok") { approvals.discardExpired(card) }
+                        .frame(minHeight: 44)
+                }
+            }
             decisionFeedback(submissionState)
             if card.isFileChange && fileContext == nil {
                 Label("approval.fileContextMissing", systemImage: "exclamationmark.triangle.fill")
@@ -104,7 +113,8 @@ struct ApprovalCardView: View {
                     .fixedSize(horizontal: true, vertical: false)
                 VStack(alignment: .leading, spacing: 8) { approvalButtons }
             }
-            .disabled(card.awaitingRecovery || submissionState == .submitting)
+            .disabled(card.awaitingRecovery || approvals.expiredRecoveryIds.contains(card.id)
+                      || submissionState == .submitting)
         }
         .padding()
         .background(.orange.opacity(0.08))

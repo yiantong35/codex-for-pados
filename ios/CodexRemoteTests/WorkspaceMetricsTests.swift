@@ -251,13 +251,27 @@ final class WorkspaceMetricsTests: XCTestCase {
         }
     }
 
-    /// 极窄 320：列布局保持中栏，但右栏意图由覆盖层承接。
-    func testUltraNarrowKeepsCenterOnly() {
+    /// 极窄 320：列布局保持中栏，最后请求的侧栏由覆盖层承接。
+    func testUltraNarrowUsesLastRequestedOverlay() {
         let plan = WorkspaceMetrics.columnVisibilityPlan(
             total: 320, wantLeft: true, wantRight: true, lastRequested: .right)
         XCTAssertFalse(plan.showLeft); XCTAssertFalse(plan.showRight)
-        XCTAssertTrue(WorkspaceMetrics.shouldOverlayRight(
-            total: 320, wantRight: true, plan: plan))
+        XCTAssertEqual(WorkspaceMetrics.overlaySide(
+            total: 320, wantLeft: true, wantRight: true,
+            plan: plan, lastRequested: .right), .right)
+        XCTAssertEqual(WorkspaceMetrics.overlaySide(
+            total: 320, wantLeft: true, wantRight: true,
+            plan: plan, lastRequested: .left), .left)
+    }
+
+    func testUltraNarrowLeftIntentAlwaysHasNavigationOverlay() {
+        let plan = WorkspaceMetrics.columnVisibilityPlan(
+            total: 320, wantLeft: true, wantRight: false, lastRequested: .left)
+        XCTAssertEqual(WorkspaceMetrics.overlaySide(
+            total: 320, wantLeft: true, wantRight: false,
+            plan: plan, lastRequested: .left), .left)
+        XCTAssertLessThanOrEqual(
+            WorkspaceMetrics.leftOverlayWidth(total: 320, preferred: 420), 320)
     }
 
     func testRightOverlayOnlyUsedBelowSideBySideThreshold() {

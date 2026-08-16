@@ -62,6 +62,16 @@ final class FileBrowserStore {
         fileOpenState = .idle
     }
 
+    /// Physical reconnects can reuse the same RPC object. Invalidate stale filesystem state as
+    /// soon as the connection leaves ready; the existing ready task will reload the current root.
+    func handleConnectionLost() {
+        fileOpenGeneration &+= 1
+        directoryEpoch &+= 1
+        directoryGenerations.removeAll()
+        nodes.removeAll()
+        fileOpenState = .idle
+    }
+
     /// 设根路径 = 当前 cwd。清空缓存与选中文件；非空则拉根，空则进空态不发请求。
     /// async：调用方 await 到根加载完成。thread 切换（cwd 变化）驱动的重叠 setRoot 不做
     /// 硬串行——被 .task(id:) 取消的旧 setRoot 迟到写入会落在旧 rootPath 的 key 下，而每次
