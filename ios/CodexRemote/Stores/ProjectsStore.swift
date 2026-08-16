@@ -389,7 +389,7 @@ final class ProjectsStore {
 
     /// 从服务端拉取并 ingest。跟随 `nextCursor` 翻页直到 nil 或触达硬上限（#7：不能只读首页，
     /// 否则会话数超单页时重连恢复丢会话）。首页请求失败：静默失败保留旧 projects（既有语义）；
-    /// 后续页失败：停止翻页，用已累积的页 ingest（不因某一页失败丢弃已成功拉到的页）。
+    /// 后续页失败或 cursor 异常：停止翻页，并把已成功页与旧快照合并，避免把深历史误删。
     func loadFromServer(rpc: JSONRPCClient) async {
         guard !fullSyncInProgress else { return }
         fullSyncInProgress = true
@@ -398,6 +398,7 @@ final class ProjectsStore {
         var cursor: String?
         var accumulated: [ThreadSummary] = []
         var seenCursors: Set<String> = []
+        var reachedSnapshotEnd = false
         for pageIndex in 0..<Self.maxListPages {
             var params = Self.listParamsForDesktopVisibility()
             params.cursor = cursor
@@ -411,15 +412,24 @@ final class ProjectsStore {
                     if allThreadsSorted.isEmpty { loadState = .failed }
                     return
                 }
-                break                          // 后续页失败：用已累积的页 ingest
+                break
             }
             accumulated.append(contentsOf: resp.data)
-            guard let next = resp.nextCursor else { break }
+            guard let next = resp.nextCursor else {
+                reachedSnapshotEnd = true
+                break
+            }
             guard seenCursors.insert(next).inserted else { break }
             cursor = next
         }
         if let current = self.rpc, current !== rpc { return }
-        ingest(accumulated)
+        if reachedSnapshotEnd {
+            ingest(accumulated)
+        } else {
+            // A partial traversal cannot prove that entries absent from the prefix were deleted.
+            // Preserve the old tail while still publishing successfully refreshed pages.
+            ingest(allThreadsSorted + accumulated)
+        }
         loadState = .loaded
     }
 

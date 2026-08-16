@@ -5,6 +5,7 @@ import SwiftUI
 /// 对话标题取 `name ?? preview`，副标题为相对时间；待批准的对话显示橙色徽标（复刻 desktop）。
 /// 选中态通过 `selectedThreadId` 绑定回 RootSplitView（自绘三栏，已移除 NavigationSplitView）。
 struct SidebarView: View {
+    @MainActor private static var relativeTimeFormatters: [String: RelativeDateTimeFormatter] = [:]
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(ProjectsStore.self) private var projects
     @Environment(ConnectionStore.self) private var connection
@@ -402,8 +403,16 @@ struct SidebarView: View {
     }
 
     static func relativeTime(_ ts: Double, locale: Locale) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.locale = locale
+        let key = locale.identifier
+        let formatter: RelativeDateTimeFormatter
+        if let cached = relativeTimeFormatters[key] {
+            formatter = cached
+        } else {
+            let created = RelativeDateTimeFormatter()
+            created.locale = locale
+            relativeTimeFormatters[key] = created
+            formatter = created
+        }
         return formatter.localizedString(for: Date(timeIntervalSince1970: ts), relativeTo: Date())
     }
 }
