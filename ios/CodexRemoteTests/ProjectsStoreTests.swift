@@ -119,6 +119,39 @@ final class ProjectsStoreTests: XCTestCase {
         XCTAssertEqual(s.loadState, .loaded)
     }
 
+    func test_loadFromServer_laterPageFailurePreservesExistingTail() async throws {
+        let s = ProjectsStore()
+        s.ingest([thread("deep", cwd: "/repo/deep", updatedAt: 1)])
+        let mock = MockTransport()
+        let page1 = #"{"data":[{"id":"recent","sessionId":"recent","preview":"","modelProvider":"openai","createdAt":0,"updatedAt":20,"cwd":"/repo/recent","cliVersion":"0.133.0","name":null,"gitInfo":null}],"nextCursor":"p2","backwardsCursor":null}"#
+        await mock.setThreadListPages(["": page1])
+        await mock.failThreadListRequests(cursors: ["p2"])
+        await mock.setAutoRespond(true)
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+
+        await s.loadFromServer(rpc: rpc)
+
+        XCTAssertEqual(Set(s.allThreadsSorted.map(\.id)), Set(["recent", "deep"]),
+                       "后续页瞬时失败只能刷新已取到的前缀，不能删除旧快照尾部")
+        XCTAssertEqual(s.loadState, .loaded)
+    }
+
+    func test_loadFromServer_completeSnapshotStillRemovesMissingThreads() async throws {
+        let s = ProjectsStore()
+        s.ingest([thread("deleted", cwd: "/repo/deleted", updatedAt: 1)])
+        let mock = MockTransport()
+        await mock.setThreadListResponse(#"{"data":[{"id":"current","sessionId":"current","preview":"","modelProvider":"openai","createdAt":0,"updatedAt":20,"cwd":"/repo/current","cliVersion":"0.133.0","name":null,"gitInfo":null}],"nextCursor":null,"backwardsCursor":null}"#)
+        await mock.setAutoRespond(true)
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+
+        await s.loadFromServer(rpc: rpc)
+
+        XCTAssertEqual(s.allThreadsSorted.map(\.id), ["current"],
+                       "明确到达分页末尾时应继续采用权威替换语义")
+    }
+
     func test_refreshRecentPage_mergesWithoutDeletingDeepHistory() async throws {
         let s = ProjectsStore()
         s.ingest([thread("deep", cwd: "/repo/deep", updatedAt: 1)])

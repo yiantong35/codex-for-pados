@@ -24,17 +24,14 @@ struct QRScannerView: UIViewRepresentable {
         uiView.stop()
     }
 
-    final class PreviewView: UIView, AVCaptureMetadataOutputObjectsDelegate {
+    final class PreviewView: UIView {
         var onScan: ((String) -> Void)?
-        // session 由 AVFoundation 内部线程与主线程共同触碰；标 nonisolated(unsafe)：写入已统一
-        // 串行化到 captureQueue，主队列的 delegate 只读 + 调度，故实际无并发写。
-        private nonisolated(unsafe) let session = AVCaptureSession()
         private var didScan = false
-
-        // #4：单一私有串行队列 + 目标运行态，保证 start/stop 顺序对齐、最终态收敛。
-        private let captureQueue = DispatchQueue(label: "com.codexremote.qr.capture")
-        private nonisolated(unsafe) var desiredRunning = false
-        private nonisolated(unsafe) var inputConfigured = false
+        private lazy var captureWorker = QRScannerCaptureWorker { @MainActor [weak self] value in
+            guard let self, !didScan else { return }
+            didScan = true
+            onScan?(value)
+        }
 
         override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
         private var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
@@ -51,64 +48,93 @@ struct QRScannerView: UIViewRepresentable {
             }
         }
 
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            captureWorker.attach(to: previewLayer)
+        }
+
+        required init?(coder: NSCoder) {
+            super.init(coder: coder)
+            captureWorker.attach(to: previewLayer)
+        }
+
         func start() {
-            captureQueue.async { [weak self] in self?.setDesired(true) }
+            captureWorker.start()
         }
 
         func stop() {
-            // 无条件排队（删掉 isRunning 早退）：保证 dismantle 的 stop 一定排在先前 start 之后。
-            captureQueue.async { [weak self] in self?.setDesired(false) }
+            // Always enqueue stop so it is ordered after an earlier start request.
+            captureWorker.stop()
         }
+    }
+}
 
-        /// 仅在 captureQueue 上执行：更新目标态并把实际态对齐过去。
-        private nonisolated func setDesired(_ running: Bool) {
-            desiredRunning = running
-            switch Self.reconcile(desired: desiredRunning, isRunning: session.isRunning) {
-            case .start:
-                configureInputsIfNeeded()
-                guard session.inputs.isEmpty == false else { return }   // 相机不可用（模拟器）→ 不启
-                session.startRunning()
-            case .stop:
-                session.stopRunning()
-            case .noop:
-                break
-            }
-        }
+/// Owns all blocking AVCaptureSession work on one serial queue. It is deliberately separate from
+/// PreviewView so no UIView/MainActor state is ever captured by the capture queue.
+private final class QRScannerCaptureWorker: NSObject, AVCaptureMetadataOutputObjectsDelegate,
+                                            @unchecked Sendable {
+    private let session = AVCaptureSession()
+    private let captureQueue = DispatchQueue(label: "com.codexremote.qr.capture")
+    private let onScan: @MainActor @Sendable (String) -> Void
+    private var desiredRunning = false
+    private var inputConfigured = false
+    private var didScan = false
 
-        /// 懒配置 input/output（仅一次）。相机不可用时静默返回，session.inputs 保持空。
-        private nonisolated func configureInputsIfNeeded() {
-            guard !inputConfigured else { return }
-            inputConfigured = true
-            guard let device = AVCaptureDevice.default(for: .video),
-                  let input = try? AVCaptureDeviceInput(device: device),
-                  session.canAddInput(input) else { return }
-            session.addInput(input)
-            let output = AVCaptureMetadataOutput()
-            guard session.canAddOutput(output) else { return }
-            session.addOutput(output)
-            output.setMetadataObjectsDelegate(self, queue: .main)
-            output.metadataObjectTypes = [.qr]
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.previewLayer.session = self.session
-                self.previewLayer.videoGravity = .resizeAspectFill
-            }
-        }
+    init(onScan: @escaping @MainActor @Sendable (String) -> Void) {
+        self.onScan = onScan
+    }
 
-        // 回调队列设为 .main（见 configureInputsIfNeeded()），故此 nonisolated 要求可安全断言在主 actor 执行。
-        nonisolated func metadataOutput(_ output: AVCaptureMetadataOutput,
-                                        didOutput objects: [AVMetadataObject],
-                                        from connection: AVCaptureConnection) {
-            // 先在 nonisolated 上下文取出 Sendable 的 String，再进主 actor，避免发送非 Sendable 对象。
-            guard let obj = objects.first as? AVMetadataMachineReadableCodeObject,
-                  let s = obj.stringValue else { return }
-            MainActor.assumeIsolated {
-                guard !didScan else { return }
-                didScan = true
-                onScan?(s)
-            }
-            // 命中后停止（走同一串行路径，避免与 captureQueue 竞争）。
-            captureQueue.async { [weak self] in self?.setDesired(false) }
+    @MainActor
+    func attach(to previewLayer: AVCaptureVideoPreviewLayer) {
+        previewLayer.session = session
+        previewLayer.videoGravity = .resizeAspectFill
+    }
+
+    func start() {
+        captureQueue.async { self.setDesired(true) }
+    }
+
+    func stop() {
+        captureQueue.async { self.setDesired(false) }
+    }
+
+    private func setDesired(_ running: Bool) {
+        desiredRunning = running
+        switch QRScannerView.PreviewView.reconcile(desired: desiredRunning,
+                                                   isRunning: session.isRunning) {
+        case .start:
+            configureInputsIfNeeded()
+            guard !session.inputs.isEmpty else { return }
+            session.startRunning()
+        case .stop:
+            session.stopRunning()
+        case .noop:
+            break
         }
+    }
+
+    private func configureInputsIfNeeded() {
+        guard !inputConfigured else { return }
+        inputConfigured = true
+        guard let device = AVCaptureDevice.default(for: .video),
+              let input = try? AVCaptureDeviceInput(device: device),
+              session.canAddInput(input) else { return }
+        session.addInput(input)
+        let output = AVCaptureMetadataOutput()
+        guard session.canAddOutput(output) else { return }
+        session.addOutput(output)
+        output.setMetadataObjectsDelegate(self, queue: captureQueue)
+        output.metadataObjectTypes = [.qr]
+    }
+
+    nonisolated func metadataOutput(_ output: AVCaptureMetadataOutput,
+                                    didOutput objects: [AVMetadataObject],
+                                    from connection: AVCaptureConnection) {
+        guard !didScan,
+              let object = objects.first as? AVMetadataMachineReadableCodeObject,
+              let value = object.stringValue else { return }
+        didScan = true
+        Task { @MainActor [onScan] in onScan(value) }
+        setDesired(false)
     }
 }

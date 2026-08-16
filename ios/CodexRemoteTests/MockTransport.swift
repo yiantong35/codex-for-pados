@@ -39,6 +39,8 @@ actor MockTransport: MessageTransport {
     /// 完整 result JSON（含 data + nextCursor）。用于 #7 分页测试：驱动多页翻页。
     private var threadListPages: [String: String] = [:]
     func setThreadListPages(_ pages: [String: String]) { threadListPages = pages }
+    private var failingThreadListCursors: Set<String> = []
+    func failThreadListRequests(cursors: Set<String>) { failingThreadListCursors = cursors }
     private var threadListFailuresRemaining = 0
     func failNextThreadListRequests(_ count: Int) { threadListFailuresRemaining = count }
     private var turnStartFailuresRemaining = 0
@@ -86,13 +88,16 @@ actor MockTransport: MessageTransport {
         // thread/start 回定制体（若设了 threadStartResponse）；其余回空对象。
         let resultJSON: String
         if req.method == RPCMethod.threadList {
+            let cursor = (req.params?.value as? [String: Any])?["cursor"] as? String ?? ""
             if threadListFailuresRemaining > 0 {
                 threadListFailuresRemaining -= 1
                 throw MockTransportError.scriptedFailure
             }
+            if failingThreadListCursors.contains(cursor) {
+                throw MockTransportError.scriptedFailure
+            }
             if !threadListPages.isEmpty {
                 // 按请求 cursor 选页（首页 cursor 为 nil → key ""）。
-                let cursor = (req.params?.value as? [String: Any])?["cursor"] as? String ?? ""
                 resultJSON = threadListPages[cursor]
                     ?? #"{"data":[],"nextCursor":null,"backwardsCursor":null}"#
             } else {
