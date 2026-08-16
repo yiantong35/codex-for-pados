@@ -5,6 +5,7 @@ final class UserInputCoordinator {
     let store: UserInputStore
     private var requestTask: Task<Void, Never>?
     private var notificationTask: Task<Void, Never>?
+    private var recoveryTask: Task<Void, Never>?
 
     init(store: UserInputStore) {
         self.store = store
@@ -48,6 +49,14 @@ final class UserInputCoordinator {
                 else { continue }
                 await rpc.discardServerRequest(requestId)
                 self.store.handleServerRequestResolved(requestId)
+            }
+        }
+        recoveryTask?.cancel()
+        if store.hasAwaitingRecovery {
+            recoveryTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                guard !Task.isCancelled else { return }
+                self?.store.expireAwaitingRecovery()
             }
         }
     }

@@ -123,6 +123,12 @@ struct UserInputCard: Identifiable, Sendable, Equatable {
         questions.allSatisfy { (try? answer(for: $0, draft: drafts[$0.id])) != nil }
     }
 
+    func missingQuestionIDs(drafts: [String: UserInputDraft]) -> [String] {
+        questions.compactMap { question in
+            (try? answer(for: question, draft: drafts[question.id])) == nil ? question.id : nil
+        }
+    }
+
     func response(drafts: [String: UserInputDraft]) throws -> ToolRequestUserInputResponse {
         var answers: [String: ToolRequestUserInputAnswer] = [:]
         for question in questions {

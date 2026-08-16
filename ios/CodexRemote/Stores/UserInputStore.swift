@@ -11,6 +11,7 @@ final class UserInputStore {
     private(set) var submissionStates: [RequestId: DecisionSubmissionState] = [:]
     private(set) var autoResolutionDeadlines: [RequestId: Date] = [:]
     private(set) var pausedAutoResolutionIds: Set<RequestId> = []
+    private(set) var expiredRecoveryIds: Set<RequestId> = []
     var resolver: Resolver?
 
     @ObservationIgnored private let sleep: Sleeper
@@ -30,6 +31,7 @@ final class UserInputStore {
             cards.append(card)
         }
         submissionStates[card.id] = .idle
+        expiredRecoveryIds.remove(card.id)
         scheduleAutoResolution(for: card)
     }
 
@@ -99,6 +101,15 @@ final class UserInputStore {
         for index in cards.indices { cards[index].awaitingRecovery = true }
     }
 
+    var hasAwaitingRecovery: Bool { cards.contains { $0.awaitingRecovery } }
+    func expireAwaitingRecovery() {
+        for index in cards.indices where cards[index].awaitingRecovery {
+            cards[index].awaitingRecovery = false
+            expiredRecoveryIds.insert(cards[index].id)
+        }
+    }
+    func discardExpired(_ id: RequestId) { remove(id) }
+
     func removeAll(threadId: String) {
         for id in cards.filter({ $0.threadId == threadId }).map(\.id) { remove(id) }
     }
@@ -142,6 +153,7 @@ final class UserInputStore {
         pausedAutoResolutionIds.remove(id)
         pausedRemainingMilliseconds[id] = nil
         submissionStates[id] = nil
+        expiredRecoveryIds.remove(id)
         cards.removeAll { $0.id == id }
     }
 }

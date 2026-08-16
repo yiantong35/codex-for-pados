@@ -15,6 +15,27 @@ struct DiffFile: Equatable, Identifiable {
 
 /// 解析标准 git unified diff → 按文件的行级结构（纯客户端，供审查面板）。
 enum UnifiedDiffParser {
+    struct BoundedResult {
+        let files: [DiffFile]
+        let truncated: Bool
+    }
+
+    static func parseBounded(_ diff: String, maximumLines: Int) -> BoundedResult {
+        guard maximumLines > 0 else { return BoundedResult(files: [], truncated: !diff.isEmpty) }
+        var end = diff.startIndex
+        var lineCount = 0
+        while end < diff.endIndex, lineCount < maximumLines {
+            if let newline = diff[end...].firstIndex(of: "\n") {
+                end = diff.index(after: newline)
+            } else {
+                end = diff.endIndex
+            }
+            lineCount += 1
+        }
+        let truncated = end < diff.endIndex
+        return BoundedResult(files: parse(String(diff[..<end])), truncated: truncated)
+    }
+
     static func parse(_ diff: String) -> [DiffFile] {
         var files: [DiffFile] = []
         var cur: DiffFile?

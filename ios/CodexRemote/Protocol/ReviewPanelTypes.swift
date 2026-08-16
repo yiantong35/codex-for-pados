@@ -8,7 +8,20 @@ struct ReviewDiffSource: Equatable {
     let diff: String
     let label: String
     var cwd: String?
-    var files: [DiffFile] { UnifiedDiffParser.parse(diff) }
+    let files: [DiffFile]
+    let isTruncated: Bool
+
+    init(diff: String, label: String, cwd: String?) {
+        self.diff = diff
+        self.label = label
+        self.cwd = cwd
+        let parsed = UnifiedDiffParser.parseBounded(
+            diff, maximumLines: DiffRenderBudget.maximumReviewLines
+        )
+        files = parsed.files
+        isTruncated = parsed.truncated
+    }
+
     var isEmpty: Bool { files.isEmpty }
 }
 

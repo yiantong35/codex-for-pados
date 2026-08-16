@@ -149,6 +149,18 @@ final class UserInputStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testUnreplayedRequestExpiresAndCanBeDismissed() throws {
+        let store = UserInputStore()
+        try store.handle(request: makeRequest(id: "expired", params: singleQuestionParams))
+        store.handleConnectionLost()
+        store.expireAwaitingRecovery()
+        XCTAssertTrue(store.expiredRecoveryIds.contains(.string("expired")))
+        XCTAssertFalse(store.cards[0].awaitingRecovery)
+        store.discardExpired(.string("expired"))
+        XCTAssertTrue(store.cards.isEmpty)
+    }
+
+    @MainActor
     func testFailedSubmissionIsVisibleAndCanRetry() async throws {
         let store = UserInputStore()
         var attempts = 0

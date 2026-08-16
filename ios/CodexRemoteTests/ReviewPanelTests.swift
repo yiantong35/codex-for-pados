@@ -165,6 +165,13 @@ struct ReviewPanelTests {
         #expect(src.isEmpty == false)
         #expect(ReviewDiffSource(diff: "", label: "空", cwd: nil).isEmpty)
     }
+    @Test func boundedParserStopsBeforeMaterializingWholeDiff() {
+        let body = (0..<10_000).map { "+line-\($0)" }.joined(separator: "\n")
+        let diff = "diff --git a/a b/a\n--- a/a\n+++ b/a\n@@ -0,0 +1,10000 @@\n" + body
+        let parsed = UnifiedDiffParser.parseBounded(diff, maximumLines: 200)
+        #expect(parsed.truncated)
+        #expect((parsed.files.first?.hunks.flatMap(\.lines).count ?? 0) < 200)
+    }
     @Test func sourceModeResolve() {
         let turn = "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n"
         let full = "diff --git a/y b/y\n--- a/y\n+++ b/y\n@@ -1 +1 @@\n-c\n+d\n"
