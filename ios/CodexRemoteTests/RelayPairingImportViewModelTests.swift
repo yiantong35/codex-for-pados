@@ -5,9 +5,20 @@ import RelayProtocol
 
 @MainActor
 final class RelayPairingImportViewModelTests: XCTestCase {
+    private let validPublicKey = Data(repeating: 1, count: 32).base64EncodedString()
+
+    private func payload(relay: String = "wss://x", sessionID: String = "s",
+                         publicKey: String? = nil, pairingCode: String = "c",
+                         expiration: Int64 = 9_999_999_999) -> String {
+        let key = publicKey ?? validPublicKey
+        return PairingPayload(relayURL: relay, sessionId: sessionID,
+                              devIdentityPubB64: key, pairingCode: pairingCode,
+                              expiresAt: expiration).toURLString()
+    }
+
     func testValidPasteParsesToMachineConfig() throws {
         let vm = RelayPairingImportViewModel()
-        vm.pasted = "codexrelay://pair?relay=wss://x&sid=s&pk=QQ&pc=c&exp=9999999999"
+        vm.pasted = payload()
         let (cfg, pc) = try vm.makeMachineConfig(now: 1)
         // 5.4：断言 relay 结构化三字段非空，pc 单独非空返回（不进 config）。
         XCTAssertFalse(cfg.relayURL.isEmpty)
@@ -21,7 +32,7 @@ final class RelayPairingImportViewModelTests: XCTestCase {
             displayName: "My Mac", relayURL: "wss://old.example/ws",
             sessionId: "old", devIdentityPubB64: "OLD")
         let vm = RelayPairingImportViewModel()
-        vm.pasted = "codexrelay://pair?relay=wss://new.example/ws&sid=new&pk=NEW&pc=c&exp=9999999999"
+        vm.pasted = payload(relay: "wss://new.example/ws", sessionID: "new")
 
         let (config, _) = try vm.makeMachineConfig(now: 1, replacing: existing)
 
@@ -33,7 +44,7 @@ final class RelayPairingImportViewModelTests: XCTestCase {
     /// 6.2：非 loopback 明文 ws 导入即报 insecureScheme（早报错，不等到连接时才失败）。
     func testImportRejectsPlainWsWithSchemeError() {
         let vm = RelayPairingImportViewModel()
-        vm.pasted = "codexrelay://pair?relay=ws://relay.example/ws&sid=s&pk=PUB&pc=C&exp=9999999999"
+        vm.pasted = payload(relay: "ws://relay.example/ws")
         XCTAssertThrowsError(try vm.makeMachineConfig(now: 0)) { error in
             XCTAssertEqual(error as? PairingImportError, .insecureScheme)
         }
@@ -45,7 +56,7 @@ final class RelayPairingImportViewModelTests: XCTestCase {
         let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
         let store = MachineStore(defaults: defaults)
         let vm = RelayPairingImportViewModel()
-        vm.pasted = "codexrelay://pair?relay=wss://r.example/ws&sid=s&pk=PUB&pc=TOPSECRET&exp=9999999999"
+        vm.pasted = payload(relay: "wss://r.example/ws", pairingCode: "TOPSECRET")
         let (config, pc) = try vm.makeMachineConfig(now: 0)
         XCTAssertEqual(pc, "TOPSECRET")
 
@@ -58,7 +69,7 @@ final class RelayPairingImportViewModelTests: XCTestCase {
 
     func testExpiredPayloadRejected() {
         let vm = RelayPairingImportViewModel()
-        vm.pasted = "codexrelay://pair?relay=wss://x&sid=s&pk=QQ&pc=c&exp=1000"
+        vm.pasted = payload(expiration: 1_000)
         XCTAssertThrowsError(try vm.makeMachineConfig(now: 2000))
     }
 
@@ -74,7 +85,7 @@ final class RelayPairingImportViewModelTests: XCTestCase {
     func testScannedValidPayloadParsesToMachineConfig() throws {
         let vm = RelayPairingImportViewModel()
         // 模拟 QRScannerView.onScan 回调把扫得的字符串交给 vm.pasted。
-        let scanned = "codexrelay://pair?relay=wss://x&sid=s&pk=QQ&pc=c&exp=9999999999"
+        let scanned = payload()
         vm.pasted = scanned
         let (cfg, _) = try vm.makeMachineConfig(now: 1)
         XCTAssertFalse(cfg.relayURL.isEmpty, "扫码解析应产出非空 relay 载荷")
@@ -83,9 +94,26 @@ final class RelayPairingImportViewModelTests: XCTestCase {
     /// 扫到过期二维码字符串 → makeMachineConfig 抛 .expired。
     func testScannedExpiredPayloadRejected() {
         let vm = RelayPairingImportViewModel()
-        vm.pasted = "codexrelay://pair?relay=wss://x&sid=s&pk=QQ&pc=c&exp=1000"
+        vm.pasted = payload(expiration: 1_000)
         XCTAssertThrowsError(try vm.makeMachineConfig(now: 2000)) { error in
             XCTAssertEqual(error as? PairingImportError, .expired)
+        }
+    }
+
+    func testInvalidTrustBoundaryFieldsMapToExistingFormatError() {
+        let invalidPayloads = [
+            payload(sessionID: ""),
+            payload(publicKey: "QQ=="),
+            payload(pairingCode: ""),
+            payload(relay: "wss:///missing-host"),
+        ]
+
+        for pasted in invalidPayloads {
+            let vm = RelayPairingImportViewModel()
+            vm.pasted = pasted
+            XCTAssertThrowsError(try vm.makeMachineConfig(now: 1)) { error in
+                XCTAssertEqual(error as? PairingImportError, .badFormat)
+            }
         }
     }
 

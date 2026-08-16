@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import XCTest
 @testable import CodexRemote
 
 @MainActor
@@ -38,6 +39,14 @@ struct FileBrowserStoreTests {
         return sent.filter {
             (try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any])?["method"] as? String == method
         }.count
+    }
+
+    private func establishRoot(_ mock: MockTransport, _ store: FileBrowserStore,
+                               path: String = "/repo") async {
+        let responder = respond(mock, to: RPCMethod.fsReadDirectory,
+                                resultJSON: #"{"entries":[]}"#)
+        await store.setRoot(path)
+        responder.cancel()
     }
 
     private func requestID(_ mock: MockTransport, method: String, path: String) async -> String? {
@@ -150,6 +159,7 @@ struct FileBrowserStoreTests {
 
     @Test func openTextFileClassifiesText() async {
         let (mock, _, store) = await makeStore()
+        await establishRoot(mock, store)
         let responder = respond(mock, to: RPCMethod.fsReadFile, resultJSON: #"{"dataBase64":"aGk="}"#)
         await store.openFile("/repo/a.txt")
         responder.cancel()
@@ -159,6 +169,7 @@ struct FileBrowserStoreTests {
 
     @Test func openBinaryFileClassifiesBinary() async {
         let (mock, _, store) = await makeStore()
+        await establishRoot(mock, store)
         let responder = respond(mock, to: RPCMethod.fsReadFile, resultJSON: #"{"dataBase64":"AA=="}"#)
         await store.openFile("/repo/blob.bin")
         responder.cancel()
@@ -167,6 +178,7 @@ struct FileBrowserStoreTests {
 
     @Test func readFailureHasRetryableFailedState() async {
         let (mock, _, store) = await makeStore()
+        await establishRoot(mock, store)
         let responder = respond(mock, to: RPCMethod.fsReadFile, resultJSON: #"{}"#)
         await store.openFile("/repo/missing.txt")
         responder.cancel()
@@ -176,6 +188,7 @@ struct FileBrowserStoreTests {
 
     @Test func lateResponseFromPreviousSelectionCannotReplaceCurrentFile() async {
         let (mock, _, store) = await makeStore()
+        await establishRoot(mock, store)
         let first = Task { await store.openFile("/repo/a.txt") }
         guard let firstID = await requestID(mock, method: RPCMethod.fsReadFile, path: "/repo/a.txt") else {
             Issue.record("first file request was not sent")
@@ -221,6 +234,7 @@ struct FileBrowserStoreTests {
 
     @Test func wireLimitErrorDegradesFilePreviewToTooLarge() async {
         let (mock, _, store) = await makeStore()
+        await establishRoot(mock, store)
         let open = Task { await store.openFile("/repo/huge.bin") }
         guard let id = await requestID(mock, method: RPCMethod.fsReadFile, path: "/repo/huge.bin") else {
             Issue.record("file request was not sent"); open.cancel(); return
@@ -228,5 +242,92 @@ struct FileBrowserStoreTests {
         await mock.feed(#"{"id":"\#(id)","error":{"code":-32010,"message":"Relay response exceeds 1 MiB wire limit"}}"#)
         await open.value
         #expect(store.selectedFile?.content == .tooLarge)
+    }
+
+}
+
+@MainActor
+final class FileBrowserPathSecurityTests: XCTestCase {
+    private func makeStore() async -> (MockTransport, FileBrowserStore) {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = FileBrowserStore()
+        store.attach(rpc: rpc)
+        return (mock, store)
+    }
+
+    private func respond(_ mock: MockTransport, method: String,
+                         resultJSON: String) -> Task<Void, Never> {
+        Task {
+            for _ in 0..<200 {
+                for frame in await mock.sent {
+                    guard let object = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any],
+                          object["method"] as? String == method,
+                          let id = object["id"] as? String else { continue }
+                    await mock.feed(#"{"id":"\#(id)","result":\#(resultJSON)}"#)
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 5_000_000)
+            }
+        }
+    }
+
+    private func establishRoot(_ mock: MockTransport, _ store: FileBrowserStore) async {
+        let responder = respond(mock, method: RPCMethod.fsReadDirectory,
+                                resultJSON: #"{"entries":[]}"#)
+        await store.setRoot("/repo")
+        responder.cancel()
+    }
+
+    private func requestCount(_ mock: MockTransport, method: String) async -> Int {
+        await mock.sent.filter {
+            (try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any])?["method"] as? String == method
+        }.count
+    }
+
+    func testMalformedServerEntryNamesAreIgnored() async {
+        let (mock, store) = await makeStore()
+        let responder = respond(mock, method: RPCMethod.fsReadDirectory,
+            resultJSON: #"{"entries":[{"fileName":"valid.txt","isDirectory":false,"isFile":true},{"fileName":"..","isDirectory":true,"isFile":false},{"fileName":"sub/escape","isDirectory":false,"isFile":true},{"fileName":"sub\\\\escape","isDirectory":false,"isFile":true},{"fileName":"","isDirectory":false,"isFile":true}]}"#)
+
+        await store.setRoot("/repo")
+        responder.cancel()
+
+        XCTAssertEqual(store.nodes["/repo"]?.entries?.map(\.fileName), ["valid.txt"])
+        XCTAssertEqual(store.childPath(parent: "/repo", entryName: "valid.txt"), "/repo/valid.txt")
+    }
+
+    func testTraversalAbsoluteAndMalformedPathsNeverSendRPC() async {
+        let (mock, store) = await makeStore()
+        await establishRoot(mock, store)
+        let directoryCount = await requestCount(mock, method: RPCMethod.fsReadDirectory)
+        let fileCount = await requestCount(mock, method: RPCMethod.fsReadFile)
+
+        for path in ["/etc/passwd", "/repo/../etc/passwd", "/repo//nested", "relative.txt", "/repo/bad\0name"] {
+            await store.openFile(path)
+            await store.toggleExpand(path)
+        }
+
+        let finalDirectoryCount = await requestCount(mock, method: RPCMethod.fsReadDirectory)
+        let finalFileCount = await requestCount(mock, method: RPCMethod.fsReadFile)
+        XCTAssertEqual(finalDirectoryCount, directoryCount)
+        XCTAssertEqual(finalFileCount, fileCount)
+        XCTAssertEqual(store.fileOpenState, .idle)
+    }
+
+    func testValidNestedPathsRemainAvailable() async {
+        let (mock, store) = await makeStore()
+        await establishRoot(mock, store)
+        XCTAssertEqual(store.childPath(parent: "/repo", entryName: "src"), "/repo/src")
+        XCTAssertEqual(store.childPath(parent: "/repo/src", entryName: "main.swift"), "/repo/src/main.swift")
+
+        let responder = respond(mock, method: RPCMethod.fsReadFile,
+                                resultJSON: #"{"dataBase64":"b2s="}"#)
+        await store.openFile("/repo/src/main.swift")
+        responder.cancel()
+
+        XCTAssertEqual(store.selectedFile?.path, "/repo/src/main.swift")
+        XCTAssertEqual(store.selectedFile?.content, .text("ok"))
     }
 }

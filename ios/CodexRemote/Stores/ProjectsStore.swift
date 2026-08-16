@@ -46,6 +46,10 @@ enum ProjectsLoadState: Equatable {
     case failed
 }
 
+private enum ProjectsRequestError: Error {
+    case timedOut
+}
+
 /// 状态层：拉取 `thread/list`，按 cwd 分组为项目，并维护「待批准」徽标集合。
 @Observable
 @MainActor
@@ -73,14 +77,22 @@ final class ProjectsStore {
     /// 默认参数保证 `ProjectsStore()` 仍可用；`now` 注入供节流测试用假时钟。
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private let pollSleep: @Sendable (UInt64) async -> Void
+    @ObservationIgnored private let requestTimeoutNanos: UInt64
+    @ObservationIgnored private let requestTimeoutSleep: @Sendable (UInt64) async throws -> Void
     init(unreadDefaults: UserDefaults = .standard,
          now: @escaping () -> Date = { Date() },
          pollSleep: @escaping @Sendable (UInt64) async -> Void = {
              try? await Task.sleep(nanoseconds: $0)
+         },
+         requestTimeoutNanos: UInt64 = 15_000_000_000,
+         requestTimeoutSleep: @escaping @Sendable (UInt64) async throws -> Void = {
+             try await Task.sleep(nanoseconds: $0)
          }) {
         self.unreadDefaults = unreadDefaults
         self.now = now
         self.pollSleep = pollSleep
+        self.requestTimeoutNanos = requestTimeoutNanos
+        self.requestTimeoutSleep = requestTimeoutSleep
         self.lastViewedAt = (unreadDefaults.dictionary(forKey: Self.unreadKey) as? [String: Double]) ?? [:]
     }
 
@@ -112,7 +124,8 @@ final class ProjectsStore {
     @ObservationIgnored private var pollingRequested = false
     @ObservationIgnored private var pollBaseIntervalNanos: UInt64 = 30_000_000_000
     @ObservationIgnored private var pollMaxIntervalNanos: UInt64 = 300_000_000_000
-    @ObservationIgnored private var fullSyncInProgress = false
+    @ObservationIgnored private var fullSyncID: UInt64?
+    @ObservationIgnored private var nextFullSyncID: UInt64 = 0
 
     /// 启动周期轮询（D5-b）：列表可见时调用。幂等——已在轮询则忽略。
     /// 默认 30s；失败指数退避到 5min。每周期仅刷新首页，成本不随历史页数增长。
@@ -169,9 +182,13 @@ final class ProjectsStore {
     /// 重连后新连接的官方广播永不刷新列表，UI 停在断线前快照）。
     func attach(rpc: JSONRPCClient) async {
         let rpcChanged = self.rpc !== rpc
+        attachmentGeneration &+= 1
+        let generation = attachmentGeneration
+        // A physical reconnect can reuse the same RPC actor. Its old full sync may still be
+        // awaiting a response that was lost with the previous channel, so release the gate and
+        // let the newly-ready connection establish an authoritative snapshot.
+        fullSyncID = nil
         if rpcChanged {
-            attachmentGeneration &+= 1
-            let generation = attachmentGeneration
             broadcastObserver?.cancel()
             broadcastObserver = nil
             pollGeneration &+= 1
@@ -285,7 +302,7 @@ final class ProjectsStore {
         do {
             let data = try JSONEncoder().encode(ThreadStartParams(cwd: cwd, model: model))
             let any = try JSONDecoder().decode(AnyCodable.self, from: data)
-            let result = try await rpc.send(method: RPCMethod.threadStart, params: any)
+            let result = try await sendWithTimeout(rpc: rpc, method: RPCMethod.threadStart, params: any)
             guard let dict = result.value as? [String: Any],
                   let id = (dict["thread"] as? [String: Any])?["id"] as? String else {
                 createThreadError = L10n.string(
@@ -308,7 +325,7 @@ final class ProjectsStore {
         guard let data = try? JSONEncoder().encode(params),
               let any = try? JSONDecoder().decode(AnyCodable.self, from: data) else { return false }
         do {
-            _ = try await rpc.send(method: method, params: any)
+            _ = try await sendWithTimeout(rpc: rpc, method: method, params: any)
             await loadFromServer(rpc: rpc)
             return true
         } catch {
@@ -343,7 +360,7 @@ final class ProjectsStore {
               ),
               let any = try? JSONDecoder().decode(AnyCodable.self, from: data) else { return false }
         do {
-            let result = try await rpc.send(method: RPCMethod.threadRollback, params: any)
+            let result = try await sendWithTimeout(rpc: rpc, method: RPCMethod.threadRollback, params: any)
             guard let snapshot = result.value as? [String: Any] else { return false }
             applySnapshot?(snapshot)
             await loadFromServer(rpc: rpc)
@@ -368,7 +385,7 @@ final class ProjectsStore {
         guard let rpc else { throw TransportError.notConnected }
         let data = try JSONEncoder().encode(ThreadGoalGetParams(threadId: threadId))
         let any = try JSONDecoder().decode(AnyCodable.self, from: data)
-        let res = try await rpc.send(method: RPCMethod.threadGoalGet, params: any)
+        let res = try await sendWithTimeout(rpc: rpc, method: RPCMethod.threadGoalGet, params: any)
         let resData = try JSONEncoder().encode(res)
         let resp = try JSONDecoder().decode(ThreadGoalGetResponse.self, from: resData)
         return resp.goal
@@ -394,10 +411,15 @@ final class ProjectsStore {
     /// 否则会话数超单页时重连恢复丢会话）。首页请求失败：静默失败保留旧 projects（既有语义）；
     /// 后续页失败或 cursor 异常：停止翻页，并把已成功页与旧快照合并，避免把深历史误删。
     func loadFromServer(rpc: JSONRPCClient) async {
-        guard !fullSyncInProgress else { return }
-        fullSyncInProgress = true
+        guard fullSyncID == nil else { return }
+        nextFullSyncID &+= 1
+        let syncID = nextFullSyncID
+        let generation = attachmentGeneration
+        fullSyncID = syncID
         if allThreadsSorted.isEmpty { loadState = .loading }
-        defer { fullSyncInProgress = false }
+        defer {
+            if fullSyncID == syncID { fullSyncID = nil }
+        }
         var cursor: String?
         var accumulated: [ThreadSummary] = []
         var seenCursors: Set<String> = []
@@ -407,7 +429,8 @@ final class ProjectsStore {
             params.cursor = cursor
             guard let data = try? JSONEncoder().encode(params),
                   let any = try? JSONDecoder().decode(AnyCodable.self, from: data),
-                  let result = try? await rpc.send(method: RPCMethod.threadList, params: any),
+                  let result = try? await sendWithTimeout(
+                    rpc: rpc, method: RPCMethod.threadList, params: any),
                   let resData = try? JSONEncoder().encode(result),
                   let resp = try? JSONDecoder().decode(ThreadListResponse.self, from: resData)
             else {
@@ -425,6 +448,7 @@ final class ProjectsStore {
             guard seenCursors.insert(next).inserted else { break }
             cursor = next
         }
+        guard generation == attachmentGeneration else { return }
         if let current = self.rpc, current !== rpc { return }
         if reachedSnapshotEnd {
             ingest(accumulated)
@@ -442,7 +466,8 @@ final class ProjectsStore {
         let params = Self.listParamsForDesktopVisibility()
         guard let data = try? JSONEncoder().encode(params),
               let any = try? JSONDecoder().decode(AnyCodable.self, from: data),
-              let result = try? await rpc.send(method: RPCMethod.threadList, params: any),
+              let result = try? await sendWithTimeout(
+                rpc: rpc, method: RPCMethod.threadList, params: any),
               let resData = try? JSONEncoder().encode(result),
               let response = try? JSONDecoder().decode(ThreadListResponse.self, from: resData)
         else { return false }
@@ -455,6 +480,30 @@ final class ProjectsStore {
         }
         ingest(Array(merged.values))
         return true
+    }
+
+    private func sendWithTimeout(rpc: JSONRPCClient, method: String,
+                                 params: AnyCodable?) async throws -> AnyCodable {
+        let timeout = requestTimeoutNanos
+        let sleep = requestTimeoutSleep
+        let requestGeneration = attachmentGeneration
+        do {
+            return try await withThrowingTaskGroup(of: AnyCodable.self) { group in
+                group.addTask { try await rpc.send(method: method, params: params) }
+                group.addTask {
+                    try await sleep(timeout)
+                    throw ProjectsRequestError.timedOut
+                }
+                guard let result = try await group.next() else { throw CancellationError() }
+                group.cancelAll()
+                return result
+            }
+        } catch {
+            if error is ProjectsRequestError, requestGeneration == attachmentGeneration {
+                await rpc.abortConnection()
+            }
+            throw error
+        }
     }
 
     /// 启发式分类（D8）：有 gitInfo → 项目（按 originUrl ?? cwd 归组）；否则 → 对话(loose)。
