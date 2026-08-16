@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 自绘三栏容器（custom-resizable-columns，方案 A）：HStack 左｜分隔线｜中｜分隔线｜右，
 /// 替换 NavigationSplitView + .inspector。列宽由 @Binding 驱动 .frame(width:)，
@@ -31,6 +32,7 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
     @State private var dragStartX: CGFloat?
     @State private var dragStartWidth: CGFloat?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.locale) private var locale
 
     var body: some View {
         GeometryReader { proxy in
@@ -43,8 +45,9 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
                 lastRequested: lastRequested)
             let effLeftVisible = plan.showLeft
             let effRightVisible = plan.showRight
-            let overlaysRight = WorkspaceMetrics.shouldOverlayRight(
-                total: total, wantRight: rightVisible, plan: plan)
+            let overlaySide = WorkspaceMetrics.overlaySide(
+                total: total, wantLeft: leftVisible, wantRight: rightVisible,
+                plan: plan, lastRequested: lastRequested)
             // 渲染用列宽：隐藏（含降级收起）时按 0 参与中栏 / clamp 计算，避免读到过期宽度或把
             // 已收起栏的持久宽度算进 otherColumnWidth。列宽持久化（leftWidth/rightWidth 存值）不受影响。
             let dispLeft: CGFloat = effLeftVisible ? leftWidth : 0
@@ -55,7 +58,7 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
                 total: total, left: dispLeft, right: dispRight,
                 dividerCount: dividerCount)
 
-            ZStack(alignment: .trailing) {
+            ZStack {
                 HStack(spacing: 0) {
                     if effLeftVisible {
                         left()
@@ -77,7 +80,20 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
                 }
                 .frame(width: total, alignment: .leading)
 
-                if overlaysRight {
+                if overlaySide == .left {
+                    left()
+                        .frame(width: WorkspaceMetrics.leftOverlayWidth(
+                            total: total,
+                            preferred: leftWidth))
+                        .frame(maxHeight: .infinity)
+                        .background(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.22), radius: 16, x: 6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .transition(.move(edge: .leading).combined(with: .opacity))
+                        .zIndex(1)
+                }
+
+                if overlaySide == .right {
                     right()
                         .frame(width: WorkspaceMetrics.rightOverlayWidth(
                             total: total,
@@ -85,6 +101,7 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
                         .frame(maxHeight: .infinity)
                         .background(Color(.systemBackground))
                         .shadow(color: .black.opacity(0.22), radius: 16, x: -6)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                         .zIndex(1)
                 }
@@ -114,15 +131,15 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
             .coordinateSpace(name: Self.coordinateSpaceName)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: effLeftVisible)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: effRightVisible)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: overlaysRight)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: overlaySide)
         }
     }
 
     // MARK: - 左分隔线（只改 leftWidth，右栏不受影响 → 解耦）
 
     private func leftDivider(total: CGFloat, dividerCount: Int, otherColumnWidth: CGFloat) -> some View {
-        divider(accessibilityLabel: "workspace.column.left.resize",
-                accessibilityValue: "workspace.column.width \(Int(leftWidth))") { absX in
+        divider(accessibilityLabel: L10n.string("workspace.column.left.resize", locale: locale),
+                accessibilityValue: formattedWidth(leftWidth)) { absX in
             if dragStartX == nil { dragStartX = absX; dragStartWidth = leftWidth }
             let dx = absX - (dragStartX ?? absX)
             let base = dragStartWidth ?? leftWidth
@@ -144,8 +161,8 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
     // 拖右分隔线向左（absX 减小）→ 右栏变宽，故用「起点绝对宽 − dx」。
 
     private func rightDivider(total: CGFloat, dividerCount: Int, otherColumnWidth: CGFloat) -> some View {
-        divider(accessibilityLabel: "workspace.column.right.resize",
-                accessibilityValue: "workspace.column.width \(Int(rightWidth))") { absX in
+        divider(accessibilityLabel: L10n.string("workspace.column.right.resize", locale: locale),
+                accessibilityValue: formattedWidth(rightWidth)) { absX in
             if dragStartX == nil { dragStartX = absX; dragStartWidth = rightWidth }
             let dx = absX - (dragStartX ?? absX)
             let base = dragStartWidth ?? rightWidth
@@ -167,8 +184,8 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
 
     /// onDrag 回传固定坐标系里的绝对 x；调用方用起点锚差分算增量。
     /// onAdjust 承接 VoiceOver 增 / 减宽（D8）。
-    private func divider(accessibilityLabel: LocalizedStringKey,
-                         accessibilityValue: LocalizedStringKey,
+    private func divider(accessibilityLabel: String,
+                         accessibilityValue: String,
                          onDrag: @escaping (CGFloat) -> Void,
                          onAdjust: @escaping (AccessibilityAdjustmentDirection) -> Void) -> some View {
         ZStack {
@@ -189,10 +206,19 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
                     onResizeEnded()
                 }
         )
-        .accessibilityElement()
-        .accessibilityLabel(Text(accessibilityLabel))
-        .accessibilityValue(Text(accessibilityValue))
-        .accessibilityAdjustableAction(onAdjust)
+        .background {
+            AccessibilityAdjustableElement(
+                label: accessibilityLabel,
+                value: accessibilityValue,
+                onIncrement: { onAdjust(.increment) },
+                onDecrement: { onAdjust(.decrement) }
+            )
+        }
+    }
+
+    private func formattedWidth(_ width: CGFloat) -> String {
+        String(format: L10n.string("workspace.column.width %lld", locale: locale),
+               locale: locale, Int64(width))
     }
 
     // 总宽突变后，把左右列宽在新总宽下重新收敛（不直接用旧绝对值）。
@@ -211,5 +237,36 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
                 rightWidth, total: total, otherColumnWidth: dispLeft,
                 columnMin: WorkspaceMetrics.rightColumnMinWidth, dividerCount: dividerCount)
         }
+    }
+}
+
+/// UIKit supplies a stable textual accessibility value for adjustable controls. SwiftUI's
+/// adjustable modifier currently exposes these custom drag handles as sliders with a NaN value.
+struct AccessibilityAdjustableElement: UIViewRepresentable {
+    let label: String
+    let value: String
+    let onIncrement: () -> Void
+    let onDecrement: () -> Void
+
+    func makeUIView(context: Context) -> AdjustableView {
+        AdjustableView()
+    }
+
+    func updateUIView(_ view: AdjustableView, context: Context) {
+        view.isAccessibilityElement = true
+        view.accessibilityTraits = [.adjustable]
+        view.accessibilityLabel = label
+        view.accessibilityValue = value
+        view.onIncrement = onIncrement
+        view.onDecrement = onDecrement
+        view.backgroundColor = .clear
+    }
+
+    final class AdjustableView: UIView {
+        var onIncrement: (() -> Void)?
+        var onDecrement: (() -> Void)?
+
+        override func accessibilityIncrement() { onIncrement?() }
+        override func accessibilityDecrement() { onDecrement?() }
     }
 }

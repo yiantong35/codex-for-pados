@@ -28,21 +28,23 @@ struct SidebarView: View {
         // 不用 List(selection:)：系统 sidebar 选中会画一个方框（用户嫌丑 #4），且列隐藏再显示后丢失（#5）。
         // 改为自渲染选中态（threadRow 内点按选择 + 主题色），完全可控、持久、无方框。
         VStack(spacing: 0) {
-            HStack(spacing: 7) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("sidebar.search.placeholder", text: $searchText)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                if !searchText.isEmpty {
-                    Button { searchText = "" } label: { Image(systemName: "xmark.circle.fill") }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                        .minimumHitTarget44()
-                        .accessibilityLabel(Text("common.clear"))
+            WorkspaceHeader {
+                HStack(spacing: 7) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    TextField("sidebar.search.placeholder", text: $searchText)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    if !searchText.isEmpty {
+                        Button { searchText = "" } label: { Image(systemName: "xmark.circle.fill") }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .minimumHitTarget44()
+                            .accessibilityLabel(Text("common.clear"))
+                    }
                 }
+                .padding(.horizontal, 10)
             }
-            .padding(.horizontal, 10)
-            .frame(minHeight: 44)
+            Divider()
 
             List {
             if !searchText.isEmpty {
@@ -69,12 +71,12 @@ struct SidebarView: View {
             .listStyle(.plain)
             .contentMargins(.horizontal, 4, for: .scrollContent)
             .environment(\.defaultMinListRowHeight, 44)
-        }
-        .overlay {
-            if !searchText.isEmpty && filteredThreads.isEmpty {
-                ContentUnavailableView.search(text: searchText)
-            } else if projects.projects.isEmpty && projects.looseConversations.isEmpty {
-                sidebarEmptyOverlay
+            .overlay {
+                if !searchText.isEmpty && filteredThreads.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                } else if projects.projects.isEmpty && projects.looseConversations.isEmpty {
+                    sidebarEmptyOverlay
+                }
             }
         }
         .task(id: connection.phase) {
@@ -155,45 +157,45 @@ struct SidebarView: View {
     @ViewBuilder
     private var sidebarEmptyOverlay: some View {
         if connection.phase == .disconnected {
-            ContentUnavailableView {
-                Label("connection.disconnected", systemImage: "wifi.slash")
-            } description: {
-                Text("sidebar.disconnected.desc")
-            } actions: {
-                Button("tab.connect") {
+            WorkspaceEmptyState(
+                title: "sidebar.loadFailed.title",
+                description: "sidebar.disconnected.desc",
+                systemImage: "wifi.slash",
+                actionTitle: "connection.reconnect",
+                action: {
                     guard let id = sessions.activeSessionId else { return }
                     sessions.connectMachine(id: id)
                 }
-                .buttonStyle(.borderedProminent)
-            }
-        } else if case .failed(let reason) = connection.phase {
-            ContentUnavailableView {
-                Label("sidebar.loadFailed.title", systemImage: "wifi.exclamationmark")
-            } description: {
-                Text(reason)
-            } actions: {
-                Button("connection.reconnect") { connection.reconnect() }
-                    .buttonStyle(.borderedProminent)
-            }
+            )
+        } else if case .failed = connection.phase {
+            WorkspaceEmptyState(
+                title: "sidebar.loadFailed.title",
+                description: "sidebar.disconnected.desc",
+                systemImage: "wifi.exclamationmark",
+                actionTitle: "connection.reconnect",
+                action: { connection.reconnect() }
+            )
         } else {
             switch projects.loadState {
         case .idle, .loading:
             ProgressView("sidebar.loading")
         case .failed:
-            ContentUnavailableView {
-                Label("sidebar.loadFailed.title", systemImage: "wifi.exclamationmark")
-            } description: {
-                Text("sidebar.loadFailed.desc")
-            } actions: {
-                Button("sidebar.retry") {
+            WorkspaceEmptyState(
+                title: "sidebar.loadFailed.title",
+                description: "sidebar.loadFailed.desc",
+                systemImage: "wifi.exclamationmark",
+                actionTitle: "sidebar.retry",
+                action: {
                     guard let rpc = connection.rpc else { return }
                     Task { await projects.loadFromServer(rpc: rpc) }
                 }
-                .buttonStyle(.borderedProminent)
-            }
+            )
         case .loaded:
-            ContentUnavailableView("sidebar.empty.title", systemImage: "tray",
-                                   description: Text("sidebar.empty.desc"))
+            WorkspaceEmptyState(
+                title: "sidebar.empty.title",
+                description: "sidebar.empty.desc",
+                systemImage: "tray"
+            )
             }
         }
     }
@@ -471,6 +473,7 @@ private struct ThreadGoalEditorSheet: View {
     @State private var isLoading = true
     @State private var isSaving = false
     @State private var hasGoal = false
+    @State private var loadFailed = false
     @State private var failed = false
     @State private var showClearConfirmation = false
 
@@ -479,6 +482,15 @@ private struct ThreadGoalEditorSheet: View {
             Form {
                 if isLoading {
                     ProgressView("common.loading")
+                } else if loadFailed {
+                    ContentUnavailableView {
+                        Label("operation.failed.title", systemImage: "exclamationmark.triangle")
+                    } description: {
+                        Text("operation.failed.description")
+                    } actions: {
+                        Button("common.retry") { Task { await loadGoal() } }
+                            .frame(minHeight: 44)
+                    }
                 } else {
                     Section("sidebar.goal.objective") {
                         TextEditor(text: $objective).frame(minHeight: 100)
@@ -528,19 +540,31 @@ private struct ThreadGoalEditorSheet: View {
                     .disabled(isLoading || isSaving || objective.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
-            .task {
-                if let goal = await projects.fetchGoal(threadId: thread.id) {
-                    objective = goal.objective
-                    status = goal.status
-                    hasGoal = true
-                }
-                isLoading = false
-            }
+            .task { await loadGoal() }
             .alert("operation.failed.title", isPresented: $failed) {
                 Button("common.ok", role: .cancel) {}
             } message: { Text("operation.failed.description") }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    private func loadGoal() async {
+        isLoading = true
+        loadFailed = false
+        do {
+            if let goal = try await projects.fetchGoal(threadId: thread.id) {
+                objective = goal.objective
+                status = goal.status
+                hasGoal = true
+            } else {
+                objective = ""
+                status = .active
+                hasGoal = false
+            }
+        } catch {
+            loadFailed = true
+        }
+        isLoading = false
     }
 }
 

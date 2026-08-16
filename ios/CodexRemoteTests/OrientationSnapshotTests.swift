@@ -49,7 +49,7 @@ final class OrientationSnapshotTests: XCTestCase {
 
         hc.view.setNeedsLayout()
         hc.view.layoutIfNeeded()
-        // 给 SwiftUI 多个 runloop 周期完成自绘三栏 GeometryReader 布局 + 顶栏 safeAreaInset 装配。
+        // 给 SwiftUI 多个 runloop 周期完成自绘三栏 GeometryReader 布局 + 系统 toolbar 装配。
         for _ in 0..<3 {
             RunLoop.current.run(until: Date().addingTimeInterval(0.3))
             hc.view.layoutIfNeeded()
@@ -58,8 +58,8 @@ final class OrientationSnapshotTests: XCTestCase {
         // 渲染：挂进 window 拿到 regular size class（自绘三栏容器 ResizableColumns 按 2/3 上界与列宽正确布局），
         // 用 layer.render 同步捕获当前 layer 树（三栏内容 / Form / 列分隔 / 大标题全部正确）。
         // 已知局限：drawHierarchy(afterScreenUpdates:true) 在 UIGraphicsImageRenderer 离屏上下文中
-        // 恒返回空白（需真实屏幕渲染通道）。齿轮已不走系统 toolbar：现挂在自绘顶栏 topBar 的
-        // HStack 内（RootSplitView），随 layer 树同步渲染即可捕获，两个朝向同一份自绘顶栏均接入（见报告）。
+        // 恒返回空白（需真实屏幕渲染通道）。layer.render 会捕获 NavigationStack 的系统 toolbar
+        // 与工作区内容，两个朝向使用同一装配路径。
         let png: Data = autoreleasepool {
             let format = UIGraphicsImageRendererFormat()
             format.scale = 1
@@ -98,6 +98,27 @@ final class OrientationSnapshotTests: XCTestCase {
 
         snapshot(view, size: CGSize(width: 320, height: 600),
                  name: "compact-right-overlay", dir: "/tmp/workspace")
+    }
+
+    func test_compact_left_navigation_overlay_snapshot() {
+        let view = ResizableColumns(
+            leftWidth: .constant(220),
+            rightWidth: .constant(280),
+            leftVisible: true,
+            rightVisible: true,
+            lastRequested: .left,
+            loadRevision: 0,
+            onResizeEnded: {}
+        ) {
+            Color.red
+        } center: {
+            Color.green
+        } right: {
+            Color.blue
+        }
+
+        snapshot(view, size: CGSize(width: 320, height: 600),
+                 name: "compact-left-overlay", dir: "/tmp/workspace")
     }
 
     private func makeConnection() -> ConnectionStore {
@@ -376,6 +397,47 @@ final class OrientationSnapshotTests: XCTestCase {
                  name: "panel-empty", dir: "/tmp/workspace")
     }
 
+    func test_workspace_empty_state_compact_accessibility_dark_snapshot() {
+        let view = VStack(spacing: 0) {
+            WorkspaceHeader { Color.clear }
+            Divider()
+            WorkspaceEmptyState(
+                title: "sidebar.loadFailed.title",
+                description: "sidebar.disconnected.desc",
+                systemImage: "wifi.slash",
+                actionTitle: "connection.reconnect",
+                action: {}
+            )
+        }
+        .environment(\.dynamicTypeSize, .accessibility3)
+        .preferredColorScheme(.dark)
+
+        snapshot(view, size: CGSize(width: 320, height: 500),
+                 name: "workspace-empty-compact-a11y-dark", dir: "/tmp/workspace")
+    }
+
+    func test_connection_banner_states_snapshot() {
+        let view = VStack(spacing: 16) {
+            ConnectionBanner(
+                state: .failed("The relay connection timed out."),
+                onReconnect: {}, onShowDetails: { _ in }, onRePair: {}
+            )
+            ConnectionBanner(
+                state: .reconnecting,
+                onReconnect: {}, onShowDetails: { _ in }, onRePair: {}
+            )
+            ConnectionBanner(
+                state: .trustRevoked,
+                onReconnect: {}, onShowDetails: { _ in }, onRePair: {}
+            )
+            Spacer()
+        }
+        .preferredColorScheme(.dark)
+
+        snapshot(view, size: CGSize(width: 390, height: 180),
+                 name: "connection-banner-states", dir: "/tmp/workspace")
+    }
+
     // MARK: - 场景 5b：右边栏容器视图 RightPanelContainerView（Task 9）
 
     /// 右栏容器：tab 条 + 审查 tab（design D1/D3），渲染不崩溃、PNG 非空，落 /tmp/workspace。
@@ -598,7 +660,8 @@ final class OrientationSnapshotTests: XCTestCase {
                     "workspace.summary.title", "workspace.summary.diff",
                     "workspace.summary.cwd", "workspace.summary.progress",
                     "workspace.summary.tasks", "workspace.summary.empty",
-                    "conv.reasoning.truncated", "conv.reasoning.fullTitle"] {
+                    "conv.reasoning.truncated", "conv.reasoning.fullTitle",
+                    "connection.banner.disconnected", "connection.details", "connection.details.title"] {
             let value = String(localized: String.LocalizationValue(key), bundle: .main)
             XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
         }

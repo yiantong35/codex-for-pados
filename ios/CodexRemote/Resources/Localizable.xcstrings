@@ -1635,6 +1635,24 @@
         }
       }
     },
+    "connection.banner.disconnected": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Disconnected" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已断开" } }
+      }
+    },
+    "connection.details": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Connection details" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接详情" } }
+      }
+    },
+    "connection.details.title": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Connection details" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接详情" } }
+      }
+    },
   "conv.agent.streamingTruncated": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Showing the latest part while the response is streaming" } },
@@ -5013,8 +5031,8 @@
     },
     "sidebar.disconnected.desc": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Connect this machine to load its conversations." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接这台机器后即可加载会话。" } }
+        "en": { "stringUnit": { "state": "translated", "value": "The connection was lost. Reconnect to continue." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接已断开，请重新连接" } }
       }
     },
     "sidebar.empty.desc": {
@@ -5058,7 +5076,7 @@
     "sidebar.loadFailed.title": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Could not load conversations" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "会话加载失败" } }
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法加载会话" } }
       }
     },
     "sidebar.loading": {
@@ -5525,6 +5543,12 @@
         }
       }
     },
+    "terminal.offline.description": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Reconnect to start or continue a terminal session." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重新连接后即可启动或继续终端会话。" } }
+      }
+    },
     "terminal.reconnected": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Reconnected" } },
@@ -5868,7 +5892,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "内容将在后续版本填充"
+            "value": "内容将在后续版本中提供"
           }
         }
       }
@@ -6461,6 +6485,12 @@
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Reasoning" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "推理过程" } }
+      }
+    },
+    "thread.create.wait": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "A conversation was just created. Wait a moment and try again." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "刚刚已新建会话，请稍候再试。" } }
       }
     }
   },

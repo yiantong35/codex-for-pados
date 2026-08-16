@@ -145,8 +145,9 @@ struct RightPanelContainerView: View {
     // infinity 吞掉剩余空间、后续 tab 被裁。改为三标签等分（infinity 均分而非独占）+
     // 文字降级 minimumScaleFactor 兜底 + 全屏入口 fixedSize() 退出对 tab 区的宽度竞争。
     private var tabBar: some View {
-        HStack(spacing: 0) {
-            ForEach(RightPanelTab.allCases) { tab in
+        WorkspaceHeader {
+            HStack(spacing: 0) {
+                ForEach(RightPanelTab.allCases) { tab in
                 Button {
                     selectedTab = tab
                 } label: {
@@ -172,22 +173,22 @@ struct RightPanelContainerView: View {
                 .accessibilityLabel(Text(tab.label(locale: locale)))
             }
             // 全屏 / 收起入口（容器级，三 tab 通用，设计 D5）：固定占位、不参与 tab 等分、不挤占 tab 命中区。
-            Button {
-                isFullscreen.toggle()
-            } label: {
-                Image(systemName: isFullscreen
-                      ? "arrow.down.right.and.arrow.up.left"
-                      : "arrow.up.left.and.arrow.down.right")
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .contentShape(Rectangle())
+                Button {
+                    isFullscreen.toggle()
+                } label: {
+                    Image(systemName: isFullscreen
+                          ? "arrow.down.right.and.arrow.up.left"
+                          : "arrow.up.left.and.arrow.down.right")
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .minimumHitTarget44()
+                .fixedSize()                                  // 固定自身尺寸，不吸收也不挤占 tab 区
+                .accessibilityLabel(Text(isFullscreen ? "rightPanel.fullscreen.exit" : "rightPanel.fullscreen.enter"))
             }
-            .buttonStyle(.plain)
-            .minimumHitTarget44()
-            .fixedSize()                                  // 固定自身尺寸，不吸收也不挤占 tab 区
-            .accessibilityLabel(Text(isFullscreen ? "rightPanel.fullscreen.exit" : "rightPanel.fullscreen.enter"))
         }
-        .background(.bar)
     }
 }
 

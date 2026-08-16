@@ -238,6 +238,24 @@ final class ApprovalStoreTests: XCTestCase {
         XCTAssertEqual(store.cards.first?.awaitingRecovery, false, "重放原地替换应清除断线标记")
     }
 
+    func test_recovery_expiry_unlocks_card_and_allows_local_discard() {
+        let store = ApprovalStore()
+        let req = JSONRPCRequest(id: .string("expired"),
+            method: ServerRequestMethod.cmdApprovalV2,
+            params: AnyCodable(["threadId": "t1", "turnId": "turn", "itemId": "item",
+                                "startedAtMs": 1, "command": "echo hi"]))
+        store.handle(request: req)
+        store.handleConnectionLost()
+
+        XCTAssertTrue(store.hasAwaitingRecovery)
+        store.expireAwaitingRecovery()
+
+        XCTAssertFalse(store.cards[0].awaitingRecovery)
+        XCTAssertTrue(store.expiredRecoveryIds.contains(.string("expired")))
+        store.discardExpired(store.cards[0])
+        XCTAssertTrue(store.cards.isEmpty)
+    }
+
     /// 不同 requestId → 两张卡（不误合并）。
     func test_distinct_request_ids_keep_separate_cards() {
         let store = ApprovalStore()

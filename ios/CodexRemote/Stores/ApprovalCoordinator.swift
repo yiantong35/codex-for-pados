@@ -15,6 +15,7 @@ final class ApprovalCoordinator {
     private let projects: ProjectsStore
     private var serverRequestTask: Task<Void, Never>?
     private var notificationTask: Task<Void, Never>?
+    private var recoveryTask: Task<Void, Never>?
 
     init(store: ApprovalStore, projects: ProjectsStore) {
         self.store = store
@@ -70,10 +71,20 @@ final class ApprovalCoordinator {
                 self.store.handleServerRequestResolved(requestId: id, threadId: tid)
             }
         }
+
+        recoveryTask?.cancel()
+        if store.hasAwaitingRecovery {
+            recoveryTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                guard !Task.isCancelled else { return }
+                self?.store.expireAwaitingRecovery()
+            }
+        }
     }
 
     /// 连接断开：未决审批标记待恢复，绝不自动批准。
     func connectionLost() {
+        recoveryTask?.cancel()
         store.handleConnectionLost()
     }
 

@@ -273,6 +273,7 @@ final class ProjectsStoreTests: XCTestCase {
         fakeNow = Date(timeIntervalSince1970: 1000.3)
         let second = await s.createThread(rpc: rpc)
         XCTAssertNil(second, "2s 内再次新建应被节流拒绝")
+        XCTAssertNotNil(s.createThreadError, "节流必须给 UI 可展示反馈，不能静默无响应")
         let count1 = await mock.sent.filter { $0.contains("thread/start") }.count
         XCTAssertEqual(count1, 1, "节流期内不应再发 thread/start")
 
@@ -282,6 +283,16 @@ final class ProjectsStoreTests: XCTestCase {
         XCTAssertEqual(third, "tid-A", "超过节流窗后应放行新建")
         let count2 = await mock.sent.filter { $0.contains("thread/start") }.count
         XCTAssertEqual(count2, 2, "节流窗后应再发一个 thread/start")
+    }
+
+    func test_fetchGoal_withoutConnection_throws_insteadOfReturningNoGoal() async {
+        let store = ProjectsStore()
+        do {
+            _ = try await store.fetchGoal(threadId: "thread")
+            XCTFail("断线读取 Goal 不得伪装成合法的 goal=nil")
+        } catch {
+            XCTAssertTrue(error is TransportError)
+        }
     }
 
     // D5-a：未知 thread 的 thread/started → 触发重拉（rpc 提供该 thread 时被 ingest）

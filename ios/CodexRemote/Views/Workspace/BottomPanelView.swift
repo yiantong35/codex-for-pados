@@ -8,6 +8,7 @@ struct BottomPanelView: View {
     @Environment(TerminalSession.self) private var terminal
     @Environment(ConnectionStore.self) private var connection
     @Environment(ClipboardPolicyStore.self) private var clipboardPolicy
+    @Environment(\.locale) private var locale
     var cwd: String? = nil
     @State private var hovering = false
     @State private var dragging = false
@@ -19,8 +20,7 @@ struct BottomPanelView: View {
     var body: some View {
         VStack(spacing: 0) {
             dragHandle
-            SwiftTermView(session: terminal, clipboardPolicy: clipboardPolicy)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            terminalContent
         }
         .frame(height: height)
         .onChange(of: maximumHeight, initial: true) { _, newMaximum in
@@ -48,6 +48,28 @@ struct BottomPanelView: View {
 
     /// .task id：连接就绪态 + cwd 组合，cwd 变化时重触发（切会话跟随）。
     private struct TerminalKey: Equatable { let ready: Bool; let cwd: String? }
+
+    @ViewBuilder
+    private var terminalContent: some View {
+        switch connection.phase {
+        case .disconnected, .failed:
+            ContentUnavailableView {
+                Label("connection.disconnected", systemImage: "terminal")
+            } description: {
+                Text("terminal.offline.description")
+            } actions: {
+                Button("connection.reconnect") { connection.reconnect() }
+                    .frame(minHeight: 44)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .connecting, .initializing:
+            ProgressView("common.loading")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .ready, .reconnecting:
+            SwiftTermView(session: terminal, clipboardPolicy: clipboardPolicy)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
 
     /// 可拖把手：纵向拖动改高，松手 clamp 到 [min, max]。
     /// 拖动效果（手势）靠模拟器/UI 测试确认；clamp 逻辑已在 WorkspaceMetricsTests 单测。
@@ -82,19 +104,24 @@ struct BottomPanelView: View {
                     dragStartHeight = nil
                 }
         )
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("workspace.bottomPanel.resize"))
-        .accessibilityValue(Text("workspace.bottomPanel.height \(Int(height))"))
-        .accessibilityAdjustableAction { direction in
-            switch direction {
-            case .increment:
+        .background {
+            AccessibilityAdjustableElement(
+                label: L10n.string("workspace.bottomPanel.resize", locale: locale),
+                value: formattedHeight,
+                onIncrement: {
                 height = WorkspaceMetrics.adjustedBottomHeight(
                     height, increment: true, maximumHeight: maximumHeight)
-            case .decrement:
+                },
+                onDecrement: {
                 height = WorkspaceMetrics.adjustedBottomHeight(
                     height, increment: false, maximumHeight: maximumHeight)
-            @unknown default: break
-            }
+                }
+            )
         }
+    }
+
+    private var formattedHeight: String {
+        String(format: L10n.string("workspace.bottomPanel.height %lld", locale: locale),
+               locale: locale, Int64(height))
     }
 }

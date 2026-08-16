@@ -273,7 +273,10 @@ final class ProjectsStore {
         guard !isCreatingThread else { return nil }   // 防抖：创建进行中拒绝并发重复新建
         let t = now()
         if let last = lastCreateAt, t.timeIntervalSince(last) < Self.createThrottleInterval {
-            return nil                                // 节流：1s 内的连续新建被拒
+            createThreadError = L10n.string(
+                "thread.create.wait", locale: LocaleManager.currentLocale
+            )
+            return nil
         }
         lastCreateAt = t
         createThreadError = nil
@@ -359,15 +362,15 @@ final class ProjectsStore {
     func clearGoal(threadId: String) async -> Bool {
         await sendThenRefresh(RPCMethod.threadGoalClear, ThreadGoalClearParams(threadId: threadId))
     }
-    /// 查目标：返回当前 goal（nil = 未设）。供 UI 打开 goal 编辑面板时预填。
-    func fetchGoal(threadId: String) async -> ThreadGoal? {
-        guard let rpc else { return nil }
-        guard let data = try? JSONEncoder().encode(ThreadGoalGetParams(threadId: threadId)),
-              let any = try? JSONDecoder().decode(AnyCodable.self, from: data),
-              let res = try? await rpc.send(method: RPCMethod.threadGoalGet, params: any),
-              let resData = try? JSONEncoder().encode(res),
-              let resp = try? JSONDecoder().decode(ThreadGoalGetResponse.self, from: resData)
-        else { return nil }
+    /// A successful response may legitimately contain no goal. Transport and decoding failures
+    /// are thrown so the editor cannot mistake them for an empty goal and overwrite server state.
+    func fetchGoal(threadId: String) async throws -> ThreadGoal? {
+        guard let rpc else { throw TransportError.notConnected }
+        let data = try JSONEncoder().encode(ThreadGoalGetParams(threadId: threadId))
+        let any = try JSONDecoder().decode(AnyCodable.self, from: data)
+        let res = try await rpc.send(method: RPCMethod.threadGoalGet, params: any)
+        let resData = try JSONEncoder().encode(res)
+        let resp = try JSONDecoder().decode(ThreadGoalGetResponse.self, from: resData)
         return resp.goal
     }
 

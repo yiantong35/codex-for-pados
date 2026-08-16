@@ -130,6 +130,24 @@ struct FileBrowserStoreTests {
         #expect(store.nodes["/repo"]?.entries?.count == 1)
     }
 
+    @Test func connectionLossInvalidatesTreeAndPreviewBeforeSameRPCReload() async {
+        let (mock, _, store) = await makeStore()
+        let directories = respond(mock, to: RPCMethod.fsReadDirectory,
+            resultJSON: #"{"entries":[{"fileName":"old.txt","isDirectory":false,"isFile":true}]}"#)
+        await store.setRoot("/repo")
+        directories.cancel()
+        let file = respond(mock, to: RPCMethod.fsReadFile, resultJSON: #"{"dataBase64":"b2xk"}"#)
+        await store.openFile("/repo/old.txt")
+        file.cancel()
+
+        store.handleConnectionLost()
+
+        #expect(store.rootPath == "/repo")
+        #expect(store.nodes.isEmpty)
+        #expect(store.fileOpenState == .idle)
+        #expect(store.selectedFile == nil)
+    }
+
     @Test func openTextFileClassifiesText() async {
         let (mock, _, store) = await makeStore()
         let responder = respond(mock, to: RPCMethod.fsReadFile, resultJSON: #"{"dataBase64":"aGk="}"#)

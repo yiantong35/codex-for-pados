@@ -54,6 +54,26 @@ final class TouchAccessibilityTests: XCTestCase {
         }
     }
 
+    func test_adjustableHandleExposesTextValueAndActions() {
+        var value = 220
+        let view = AccessibilityAdjustableElement.AdjustableView()
+        view.isAccessibilityElement = true
+        view.accessibilityTraits = [.adjustable]
+        view.accessibilityLabel = "Resize sidebar"
+        view.accessibilityValue = "220 points wide"
+        view.onIncrement = { value += 40 }
+        view.onDecrement = { value -= 40 }
+
+        XCTAssertEqual(view.accessibilityLabel, "Resize sidebar")
+        XCTAssertEqual(view.accessibilityValue, "220 points wide")
+        XCTAssertTrue(view.accessibilityTraits.contains(.adjustable))
+        XCTAssertFalse(view.accessibilityValue?.lowercased().contains("nan") ?? true)
+        view.accessibilityIncrement()
+        XCTAssertEqual(value, 260)
+        view.accessibilityDecrement()
+        XCTAssertEqual(value, 220)
+    }
+
     /// 2.2b：只有含 plan progress 的卡片才提供展开/收起控件。
     /// diff-only 卡片不能暴露一个点击后无动作的伪按钮。
     func test_progressCardExpandControl_requiresPlanProgress() {

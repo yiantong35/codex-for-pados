@@ -71,6 +71,7 @@ struct ApprovalCard: Identifiable {
 final class ApprovalStore {
     private(set) var cards: [ApprovalCard] = []
     private(set) var submissionStates: [RequestId: DecisionSubmissionState] = [:]
+    private(set) var expiredRecoveryIds: Set<RequestId> = []
 
     /// 回传响应的回调，由接线方注入（实际调用 rpc.respond）。
     /// 返回 respond 是否送达成功：失败时 `resolve` 保留卡片供重试，绝不静默丢弃未决审批（fail-closed）。
@@ -97,6 +98,7 @@ final class ApprovalStore {
             cards.append(card)
         }
         submissionStates[card.id] = .idle
+        expiredRecoveryIds.remove(card.id)
         onPendingChange?(card.threadId, true)
     }
 
@@ -177,13 +179,17 @@ final class ApprovalStore {
     func remove(_ id: RequestId, threadId: String) {
         cards.removeAll { $0.id == id }
         submissionStates[id] = nil
+        expiredRecoveryIds.remove(id)
         if !cards.contains(where: { $0.threadId == threadId }) { onPendingChange?(threadId, false) }
     }
 
     func removeAll(threadId: String) {
         let ids = cards.filter { $0.threadId == threadId }.map(\.id)
         cards.removeAll { $0.threadId == threadId }
-        for id in ids { submissionStates[id] = nil }
+        for id in ids {
+            submissionStates[id] = nil
+            expiredRecoveryIds.remove(id)
+        }
         onPendingChange?(threadId, false)
     }
 
@@ -259,6 +265,20 @@ extension ApprovalStore {
     func handleConnectionLost() {
         for i in cards.indices { cards[i].awaitingRecovery = true }
         for id in submissionStates.keys { submissionStates[id] = .idle }
+    }
+
+    var hasAwaitingRecovery: Bool { cards.contains { $0.awaitingRecovery } }
+
+    func expireAwaitingRecovery() {
+        for index in cards.indices where cards[index].awaitingRecovery {
+            cards[index].awaitingRecovery = false
+            expiredRecoveryIds.insert(cards[index].id)
+        }
+    }
+
+    func discardExpired(_ card: ApprovalCard) {
+        guard expiredRecoveryIds.contains(card.id) else { return }
+        remove(card.id, threadId: card.threadId)
     }
 }
 
