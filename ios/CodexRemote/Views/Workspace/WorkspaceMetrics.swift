@@ -55,6 +55,11 @@ enum WorkspaceMetrics {
     /// D4：窄窗降级决策结果——哪些侧栏应显示（中栏永远完整可见，不含在内）。
     struct ColumnVisibilityPlan: Equatable { let showLeft: Bool; let showRight: Bool }
 
+    struct EffectiveColumnWidths: Equatable {
+        let left: CGFloat
+        let right: CGFloat
+    }
+
     /// #3：窄窗中间档 tiebreaker——记录最近一次被用户请求打开的侧栏。
     enum RequestedSide { case left, right, none }
 
@@ -110,16 +115,70 @@ enum WorkspaceMetrics {
         return .none
     }
 
+    /// Keep a compact overlay from covering the whole workspace. Forty-four points preserves
+    /// both visible center context and a standard-size target for dismissing or changing panels.
+    static let overlayMinimumCenterReveal: CGFloat = 44
+
+    private static func overlayWidth(total: CGFloat, preferred: CGFloat,
+                                     columnMin: CGFloat) -> CGFloat {
+        let available = Swift.max(0, total - overlayMinimumCenterReveal)
+        return Swift.min(available, clamp(preferred, min: columnMin, max: rightPanelMaxWidth))
+    }
+
     static func leftOverlayWidth(total: CGFloat, preferred: CGFloat) -> CGFloat {
-        Swift.min(total, clamp(preferred,
-                               min: leftColumnMinWidth,
-                               max: rightPanelMaxWidth))
+        overlayWidth(total: total, preferred: preferred, columnMin: leftColumnMinWidth)
     }
 
     static func rightOverlayWidth(total: CGFloat, preferred: CGFloat) -> CGFloat {
-        Swift.min(total, clamp(preferred,
-                               min: rightColumnMinWidth,
-                               max: rightPanelMaxWidth))
+        overlayWidth(total: total, preferred: preferred, columnMin: rightColumnMinWidth)
+    }
+
+    /// Derive renderable widths without mutating the user's persisted preferences. When both
+    /// sidebars need to shrink, distribute the available flexible space proportionally while
+    /// preserving each column's minimum and the center workspace minimum.
+    static func effectiveColumnWidths(total: CGFloat,
+                                      preferredLeft: CGFloat,
+                                      preferredRight: CGFloat,
+                                      showLeft: Bool,
+                                      showRight: Bool,
+                                      dividerCount: Int) -> EffectiveColumnWidths {
+        guard showLeft || showRight else { return EffectiveColumnWidths(left: 0, right: 0) }
+        if showLeft, !showRight {
+            return EffectiveColumnWidths(
+                left: clampColumnWidth(
+                    preferredLeft, total: total, otherColumnWidth: 0,
+                    columnMin: leftColumnMinWidth, dividerCount: dividerCount),
+                right: 0)
+        }
+        if showRight, !showLeft {
+            return EffectiveColumnWidths(
+                left: 0,
+                right: clampColumnWidth(
+                    preferredRight, total: total, otherColumnWidth: 0,
+                    columnMin: rightColumnMinWidth, dividerCount: dividerCount))
+        }
+
+        let left = clamp(preferredLeft, min: leftColumnMinWidth, max: rightPanelMaxWidth)
+        let right = clamp(preferredRight, min: rightColumnMinWidth, max: rightPanelMaxWidth)
+        let available = Swift.max(
+            leftColumnMinWidth + rightColumnMinWidth,
+            total - CGFloat(dividerCount) * resizableDividerLayoutWidth - centerColumnMinWidth)
+        guard left + right > available else {
+            return EffectiveColumnWidths(left: left, right: right)
+        }
+
+        let leftFlex = left - leftColumnMinWidth
+        let rightFlex = right - rightColumnMinWidth
+        let availableFlex = Swift.max(
+            0, available - leftColumnMinWidth - rightColumnMinWidth)
+        let flex = leftFlex + rightFlex
+        guard flex > 0 else {
+            return EffectiveColumnWidths(left: leftColumnMinWidth, right: rightColumnMinWidth)
+        }
+        let ratio = Swift.min(1, availableFlex / flex)
+        return EffectiveColumnWidths(
+            left: leftColumnMinWidth + leftFlex * ratio,
+            right: rightColumnMinWidth + rightFlex * ratio)
     }
 
     /// VoiceOver `accessibilityAdjustableAction` 每次增减的列宽步长（D8）。

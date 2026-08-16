@@ -35,19 +35,21 @@ final class ColumnWidthStore {
         defaults.set(data, forKey: key(id))
     }
 
-    /// 解析该机在给定总宽下的合法列宽：有记录则按新总宽重 clamp（旋转 / 分屏收敛），
-    /// 无记录返回默认宽。切 tab / 冷启动时由 RootSplitView 调用写入 WorkspaceLayoutStore。
-    func resolvedWidths(for id: UUID?, total: CGFloat) -> Widths {
+    /// Resolve persisted user preferences independently of the current window width. The layout
+    /// derives effective render widths for each container size without overwriting these values.
+    func preferredWidths(for id: UUID?) -> Widths {
         guard let id, let stored = widths(for: id) else {
             return Widths(left: WorkspaceMetrics.leftColumnDefaultWidth,
                           right: WorkspaceMetrics.rightColumnDefaultWidth)
         }
-        let left = WorkspaceMetrics.clampColumnWidth(
-            stored.left, total: total, otherColumnWidth: stored.right,
-            columnMin: WorkspaceMetrics.leftColumnMinWidth)
-        let right = WorkspaceMetrics.clampColumnWidth(
-            stored.right, total: total, otherColumnWidth: left,
-            columnMin: WorkspaceMetrics.rightColumnMinWidth)
-        return Widths(left: left, right: right)
+        return Widths(
+            left: WorkspaceMetrics.clamp(
+                stored.left,
+                min: WorkspaceMetrics.leftColumnMinWidth,
+                max: WorkspaceMetrics.rightPanelMaxWidth),
+            right: WorkspaceMetrics.clamp(
+                stored.right,
+                min: WorkspaceMetrics.rightColumnMinWidth,
+                max: WorkspaceMetrics.rightPanelMaxWidth))
     }
 }

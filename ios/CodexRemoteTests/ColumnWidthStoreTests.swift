@@ -42,22 +42,32 @@ final class ColumnWidthStoreTests: XCTestCase {
         XCTAssertEqual(reopened.widths(for: id)?.right, 333)
     }
 
-    func testResolveClampsStoredWidthAgainstNewTotal() {
+    func testPreferredWidthsDoNotShrinkWithWindow() {
         let store = makeStore()
         let id = UUID()
-        store.save(machineId: id, left: 800, right: 800)
-        let resolved = store.resolvedWidths(for: id, total: 1_000)
-        let center = WorkspaceMetrics.centerColumnWidth(
-            total: 1_000, left: resolved.left, right: resolved.right)
-        XCTAssertGreaterThanOrEqual(center, WorkspaceMetrics.centerColumnMinWidth)
-        XCTAssertLessThanOrEqual(resolved.left, WorkspaceMetrics.maxColumnWidth(total: 1_000))
-        XCTAssertLessThanOrEqual(resolved.right, WorkspaceMetrics.maxColumnWidth(total: 1_000))
+        store.save(machineId: id, left: 400, right: 320)
+
+        let preferred = store.preferredWidths(for: id)
+
+        XCTAssertEqual(preferred.left, 400)
+        XCTAssertEqual(preferred.right, 320)
     }
 
-    func testResolveReturnsDefaultsWhenNoRecord() {
+    func testPreferredWidthsClampCorruptStoredValuesToGlobalBounds() {
         let store = makeStore()
-        let resolved = store.resolvedWidths(for: UUID(), total: 1_200)
-        XCTAssertEqual(resolved.left, WorkspaceMetrics.leftColumnDefaultWidth)
-        XCTAssertEqual(resolved.right, WorkspaceMetrics.rightColumnDefaultWidth)
+        let id = UUID()
+        store.save(machineId: id, left: 800, right: -20)
+
+        let preferred = store.preferredWidths(for: id)
+
+        XCTAssertEqual(preferred.left, WorkspaceMetrics.rightPanelMaxWidth)
+        XCTAssertEqual(preferred.right, WorkspaceMetrics.rightColumnMinWidth)
+    }
+
+    func testPreferredWidthsReturnDefaultsWhenNoRecord() {
+        let store = makeStore()
+        let preferred = store.preferredWidths(for: UUID())
+        XCTAssertEqual(preferred.left, WorkspaceMetrics.leftColumnDefaultWidth)
+        XCTAssertEqual(preferred.right, WorkspaceMetrics.rightColumnDefaultWidth)
     }
 }

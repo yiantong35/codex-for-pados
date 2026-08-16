@@ -64,8 +64,6 @@ struct RootSplitView: View {
     /// 列宽 session 级持久化（D7）：拖动 save / 切 tab 读回 / 冷启动恢复。
     @State private var columnWidths = ColumnWidthStore()
 
-    /// 每次外部载入列宽（切 tab / 冷启动）自增，驱动 ResizableColumns 用真实总宽重新收敛（修复窄屏恢复溢出）。
-    @State private var widthLoadRevision = 0
     @State private var fileOpenTask: Task<Void, Never>?
     @State private var operationError: String?
     @State private var selectionReconcileTask: Task<Void, Never>?
@@ -234,7 +232,7 @@ struct RootSplitView: View {
                     label: "workspace.leftPanel.toggle",
                     isOn: layout.leftVisible
                 ) {
-                    animate { layout.leftVisible.toggle(); layout.lastRequested = .left }
+                    animate { layout.toggleLeftPanel() }
                 }
                 panelToolbarButton(
                     symbol: "rectangle.bottomthird.inset.filled",
@@ -255,7 +253,7 @@ struct RootSplitView: View {
                     label: "workspace.rightPanel.toggle",
                     isOn: layout.showRight
                 ) {
-                    animate { layout.showRight.toggle(); layout.lastRequested = .right }
+                    animate { layout.toggleRightPanel() }
                 }
             }
         }
@@ -331,7 +329,6 @@ struct RootSplitView: View {
             leftVisible: layout.leftVisible,
             rightVisible: layout.showRight,
             lastRequested: layout.lastRequested,
-            loadRevision: widthLoadRevision,
             onResizeEnded: { saveColumnWidths() },
             onDismissOverlay: { side in
                 switch side {
@@ -373,15 +370,10 @@ struct RootSplitView: View {
 
     private func loadColumnWidths(for id: UUID?) {
         guard let id else { return }
-        let resolved = columnWidths.resolvedWidths(for: id, total: assumedTotalWidth)
-        layout.leftWidth = resolved.left
-        layout.rightWidth = resolved.right
-        // 载入后自增修订号：驱动 ResizableColumns 用真实总宽再收敛（窄屏冷启动/切 tab 恢复防溢出）。
-        widthLoadRevision &+= 1
+        let preferred = columnWidths.preferredWidths(for: id)
+        layout.leftWidth = preferred.left
+        layout.rightWidth = preferred.right
     }
-
-    /// 读回时的保守总宽估计（iPad 11" 横屏宽）；真实几何由 ResizableColumns 的 onChange(of:total, initial:true) 在首帧即重 clamp 纠正。
-    private var assumedTotalWidth: CGFloat { 1_194 }
 
     @ViewBuilder private var content: some View {
         if let id = selectedThreadId {
@@ -539,15 +531,15 @@ struct ConnectionBanner: View {
                     }
                 }
             }
-        case .trustRevoked:
+        case .rePairingRequired(let reason):
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 8) {
-                    statusLabel("connection.trustRevoked")
+                    statusText(reason)
                     Spacer(minLength: 4)
                     rePairButton
                 }
                 VStack(alignment: .leading, spacing: 0) {
-                    statusLabel("connection.trustRevoked")
+                    statusText(reason)
                     rePairButton.frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
@@ -558,6 +550,16 @@ struct ConnectionBanner: View {
         Label(key, systemImage: "wifi.slash")
             .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func statusText(_ value: String) -> some View {
+        Label {
+            Text(verbatim: value)
+        } icon: {
+            Image(systemName: "wifi.slash")
+        }
+        .lineLimit(2)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func failureActions(_ reason: String) -> some View {

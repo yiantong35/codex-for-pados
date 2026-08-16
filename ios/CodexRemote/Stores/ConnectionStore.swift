@@ -594,17 +594,20 @@ final class ConnectionStore {
     }
 }
 
-/// 连接异常横幅态（缺口 3、4）。隐藏为 nil。
-/// 信任撤销（needsRePairing）优先于普通 failed。
+/// Connection banner state. Re-pairing keeps the classified failure reason alongside its action.
 enum ConnectionBannerState: Equatable {
     case reconnecting
     case failed(String)
-    case trustRevoked
+    case rePairingRequired(String)
 }
 
 extension ConnectionStore {
     var bannerState: ConnectionBannerState? {
-        if needsRePairing { return .trustRevoked }
+        if needsRePairing {
+            if case .failed(let reason) = phase { return .rePairingRequired(reason) }
+            return .rePairingRequired(
+                L10n.string("conn.error.trustRevoked", locale: LocaleManager.currentLocale))
+        }
         switch phase {
         case .reconnecting: return .reconnecting
         case .failed(let reason): return .failed(reason)
@@ -617,5 +620,9 @@ extension ConnectionStore {
 extension ConnectionStore {
     func _test_setPhase(_ p: ConnectionPhase) { phase = p }
     func _test_setTrustRevoked() { phase = .failed("trust"); needsRePairing = true }
+    func _test_setRePairingRequired(reason: String) {
+        phase = .failed(reason)
+        needsRePairing = true
+    }
 }
 #endif
