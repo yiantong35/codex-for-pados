@@ -80,6 +80,15 @@ struct McpElicitationCardView: View {
                 Label("mcpElicitation.awaitingRecovery", systemImage: "wifi.exclamationmark")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            if elicitations.expiredRecoveryIds.contains(card.id) {
+                HStack {
+                    Label("request.recoveryExpired", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(.red)
+                    Spacer()
+                    Button("common.ok") { elicitations.discardExpired(card.id) }
+                        .minimumHitTarget44()
+                }
+            }
             decisionFeedback
 
             switch card.mode {
@@ -149,6 +158,7 @@ struct McpElicitationCardView: View {
                 cancelAction.frame(maxWidth: .infinity)
             }
         }
+        .disabled(elicitations.expiredRecoveryIds.contains(card.id))
     }
 
     private var cancelAction: some View {
@@ -181,7 +191,7 @@ struct McpElicitationCardView: View {
         } label: { Label("mcpElicitation.accept", systemImage: "checkmark") }
             .buttonStyle(.borderedProminent)
             .minimumHitTarget44()
-            .disabled(!urlTargetIsAllowed || (card.validationErrors(drafts: drafts).isEmpty == false))
+            .disabled(!urlTargetIsAllowed)
     }
 
     private var urlTargetIsAllowed: Bool {

@@ -331,6 +331,12 @@
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "显示 %1$lld / %2$lld 行差异" } }
       }
     },
+    "review.diffTruncatedUnknown %lld": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Showing the first %lld diff lines" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "显示前 %lld 行差异" } }
+      }
+    },
     "composer.effort.none": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "None" } },
@@ -6197,6 +6203,18 @@
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "%lld of %lld bytes. Shorten the answer before submitting." } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "当前 %lld 字节，上限 %lld 字节。请缩短内容后再提交。" } }
+      }
+    },
+    "userInput.answerRequired": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Answer this question before submitting." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请先回答此问题再提交。" } }
+      }
+    },
+    "request.recoveryExpired": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This request was not restored after reconnecting. Start it again from the conversation." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重连后未能恢复此请求，请从对话中重新发起。" } }
       }
     },
     "userInput.otherPlaceholder": {

@@ -216,7 +216,7 @@ struct RootSplitView: View {
             } label: { Image(systemName: "plus.rectangle") }
             .minimumHitTarget44()
             .accessibilityLabel(Text("sidebar.newThread"))
-            .disabled(connection.phase != .ready || projects.isCreatingThread)
+            .disabled(projects.isCreatingThread)
 
             // 左面板：切换 layout.leftVisible 显隐自绘左列（无系统 columnVisibility / sidebarToggle）。
             Button {

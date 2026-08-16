@@ -5,6 +5,7 @@ struct UserInputCardView: View {
     let card: UserInputCard
     @State private var drafts: [String: UserInputDraft] = [:]
     @State private var countdownExpired = false
+    @State private var showMissingAnswers = false
     @FocusState private var focusedQuestionId: String?
 
     private var submissionState: DecisionSubmissionState {
@@ -19,6 +20,15 @@ struct UserInputCardView: View {
                 Label("userInput.awaitingRecovery", systemImage: "wifi.exclamationmark")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+            if userInputs.expiredRecoveryIds.contains(card.id) {
+                HStack {
+                    Label("request.recoveryExpired", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(.red)
+                    Spacer()
+                    Button("common.ok") { userInputs.discardExpired(card.id) }
+                        .minimumHitTarget44()
+                }
             }
             autoResolutionStatus
             decisionFeedback
@@ -36,15 +46,21 @@ struct UserInputCardView: View {
                 .minimumHitTarget44()
                 Spacer()
                 Button {
+                    let missing = card.missingQuestionIDs(drafts: drafts)
+                    guard missing.isEmpty else {
+                        showMissingAnswers = true
+                        focusedQuestionId = missing.first
+                        return
+                    }
                     Task { await userInputs.submit(card: card, drafts: drafts) }
                 } label: {
                     Label("userInput.submit", systemImage: "paperplane.fill")
                 }
                 .buttonStyle(.borderedProminent)
                 .minimumHitTarget44()
-                .disabled(!card.isSubmittable(drafts: drafts))
             }
-            .disabled(card.awaitingRecovery || submissionState == .submitting)
+            .disabled(card.awaitingRecovery || submissionState == .submitting
+                      || userInputs.expiredRecoveryIds.contains(card.id))
         }
         .padding()
         .background(Color.accentColor.opacity(0.07))
@@ -102,8 +118,10 @@ struct UserInputCardView: View {
     @ViewBuilder
     private func questionView(_ question: ToolRequestUserInputQuestion) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(UntrustedDisplayText.sanitize(question.header))
-                .font(.subheadline.bold())
+            HStack(spacing: 4) {
+                Text(UntrustedDisplayText.sanitize(question.header)).font(.subheadline.bold())
+                Text("*").foregroundStyle(.red).accessibilityLabel("mcpElicitation.required")
+            }
             Text(UntrustedDisplayText.sanitize(question.question))
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
@@ -168,6 +186,11 @@ struct UserInputCardView: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
+            }
+            if showMissingAnswers,
+               card.missingQuestionIDs(drafts: drafts).contains(question.id) {
+                Label("userInput.answerRequired", systemImage: "exclamationmark.circle.fill")
+                    .font(.caption).foregroundStyle(.red)
             }
         }
     }

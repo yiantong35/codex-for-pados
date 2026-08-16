@@ -97,6 +97,15 @@ final class LocalizationFollowsInjectedLocaleTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "app_language")
     }
 
+    @MainActor
+    func test_channelClosedMessage_doesNotExposeTransportDump() {
+        let raw = "Error Domain=NSURLErrorDomain Code=-1004\nUserInfo={very long internal details}"
+        let message = ConnectionStore.friendlyMessage(TransportError.channelClosed(reason: raw))
+        XCTAssertFalse(message.contains("NSURLErrorDomain"))
+        XCTAssertFalse(message.contains("UserInfo"))
+        XCTAssertLessThan(message.count, 160)
+    }
+
     /// #5：currentLocale 读持久化 app_language，与注入同源。
     func test_currentLocale_readsPersistedLanguage() {
         UserDefaults.standard.set(AppLanguage.en.rawValue, forKey: "app_language")

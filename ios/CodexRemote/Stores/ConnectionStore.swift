@@ -526,9 +526,10 @@ final class ConnectionStore {
             switch t {
             case .proxyFailed(let m):
                 return String(format: L10n.string("conn.error.proxyFailed", locale: loc), m)
-            case .channelClosed(let r):
-                return String(format: L10n.string("conn.error.channelClosed", locale: loc),
-                              r ?? L10n.string("conn.error.channelClosedUnknown", locale: loc))
+            case .channelClosed:
+                // Transport reasons often contain multi-line NSError/URLSession dumps.
+                // Keep those in logs; user-facing surfaces need a stable, actionable summary.
+                return L10n.string("conn.error.connectionFailed", locale: loc)
             case .notConnected:
                 return L10n.string("conn.error.notConnected", locale: loc)
             case .handshakeFailed(let m):

@@ -86,7 +86,7 @@ final class McpElicitationTests: XCTestCase {
             "tags": .multiple([]),
         ]))
 
-        let unsupported = #"{"threadId":"t","turnId":"turn","serverName":"x","mode":"form","message":"Nested","requestedSchema":{"type":"object","properties":{"nested":{"type":"object","properties":{}}},"required":["nested"]}}"#
+        let unsupported = #"{"threadId":"t","turnId":"turn","serverName":"x","mode":"form","message":"Nested","requestedSchema":{"type":"object","properties":{"nested":{"type":"null"}},"required":["nested"]}}"#
         XCTAssertThrowsError(try McpElicitationCard(request: makeRequest(id: "bad", params: unsupported)))
     }
 
@@ -148,6 +148,37 @@ final class McpElicitationTests: XCTestCase {
         XCTAssertEqual((content["config"] as? [String: Any])?["enabled"] as? Bool, true)
     }
 
+    func testObjectFieldValidatesNestedRequiredFieldsAndTypes() throws {
+        let card = try McpElicitationCard(request: makeRequest(id: "nested-object", paramsObject: formParams(properties: [
+            "config": [
+                "type": "object",
+                "properties": [
+                    "enabled": ["type": "boolean"],
+                    "limits": [
+                        "type": "object",
+                        "properties": ["retries": ["type": "integer"]],
+                        "required": ["retries"],
+                    ],
+                ],
+                "required": ["enabled", "limits"],
+            ],
+        ])))
+
+        XCTAssertTrue(card.isSubmittable(drafts: [
+            "config": .text(#"{"enabled":true,"limits":{"retries":3}}"#),
+        ]))
+        XCTAssertFalse(card.isSubmittable(drafts: [
+            "config": .text(#"{"enabled":"yes","limits":{"retries":3}}"#),
+        ]))
+        XCTAssertFalse(card.isSubmittable(drafts: [
+            "config": .text(#"{"enabled":true,"limits":{}}"#),
+        ]))
+        XCTAssertEqual(
+            card.validationErrors(drafts: ["config": .text(#"{"enabled":true,"limits":{}}"#)])["config"],
+            .invalidValue("config")
+        )
+    }
+
     @MainActor
     func testLocalizedNegativeDecimalIsAcceptedAndSerializedAsNumber() throws {
         let params = formParams(properties: [
@@ -193,6 +224,18 @@ final class McpElicitationTests: XCTestCase {
         XCTAssertEqual(store.submissionState(for: card.id), .failed)
         let second = await store.resolve(card: card, action: .decline)
         XCTAssertTrue(second)
+        XCTAssertTrue(store.cards.isEmpty)
+    }
+
+    @MainActor
+    func testUnreplayedRequestExpiresAndCanBeDismissed() throws {
+        let store = McpElicitationStore()
+        try store.handle(request: makeRequest(id: "expired", params: formParams))
+        store.handleConnectionLost()
+        store.expireAwaitingRecovery()
+        XCTAssertTrue(store.expiredRecoveryIds.contains(.string("expired")))
+        XCTAssertFalse(store.cards[0].awaitingRecovery)
+        store.discardExpired(.string("expired"))
         XCTAssertTrue(store.cards.isEmpty)
     }
 

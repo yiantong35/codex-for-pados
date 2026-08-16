@@ -8,6 +8,7 @@ final class McpElicitationStore {
 
     private(set) var cards: [McpElicitationCard] = []
     private(set) var submissionStates: [RequestId: DecisionSubmissionState] = [:]
+    private(set) var expiredRecoveryIds: Set<RequestId> = []
     var resolver: Resolver?
 
     func handle(request: JSONRPCRequest) throws {
@@ -18,6 +19,7 @@ final class McpElicitationStore {
             cards.append(card)
         }
         submissionStates[card.id] = .idle
+        expiredRecoveryIds.remove(card.id)
     }
 
     @discardableResult
@@ -42,6 +44,19 @@ final class McpElicitationStore {
     func handleConnectionLost() {
         for index in cards.indices { cards[index].awaitingRecovery = true }
         for id in submissionStates.keys { submissionStates[id] = .idle }
+    }
+
+    var hasAwaitingRecovery: Bool { cards.contains { $0.awaitingRecovery } }
+    func expireAwaitingRecovery() {
+        for index in cards.indices where cards[index].awaitingRecovery {
+            cards[index].awaitingRecovery = false
+            expiredRecoveryIds.insert(cards[index].id)
+        }
+    }
+    func discardExpired(_ id: RequestId) {
+        cards.removeAll { $0.id == id }
+        submissionStates[id] = nil
+        expiredRecoveryIds.remove(id)
     }
 
     func removeAll(threadId: String) {

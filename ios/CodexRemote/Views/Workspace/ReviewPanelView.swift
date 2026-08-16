@@ -49,17 +49,16 @@ struct ReviewPanelView: View {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         // Parser 已携带真实 old/new 行号；双 gutter 便于准确引用 diff。
                         let rows = Array(f.hunks.flatMap { $0.lines }.enumerated())
-                        let visibleRows = Array(rows.prefix(DiffRenderBudget.maximumReviewLines))
-                        ForEach(visibleRows, id: \.offset) { _, line in
+                        ForEach(rows, id: \.offset) { _, line in
                             diffLineRow(line)
                         }
-                        if rows.count > visibleRows.count {
-                            Label("review.diffTruncated \(visibleRows.count) \(rows.count)", systemImage: "scissors")
+                        if source.isTruncated {
+                            Label("review.diffTruncatedUnknown \(rows.count)", systemImage: "scissors")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .padding(8)
                             FullTextAccessButton(
-                                text: Self.fullText(for: f),
+                                text: source.diff,
                                 title: "review.fullContentTitle"
                             )
                             .padding(.horizontal, 8)
