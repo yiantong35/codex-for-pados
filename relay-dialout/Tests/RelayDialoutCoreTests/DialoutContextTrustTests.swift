@@ -189,10 +189,12 @@ private func driveHandshake(context: DialoutContext, hello: ClientHello,
                                  pairingCode: h.pairingCode, expiresAt: h.expiresAt, trust: trust)
     let hello = buildHello(sessionId: "room-x", ipadIdentity: h.ipadIdentity,
                            ipadEphemeral: h.ipadEphemeral, pairingCode: "unused", emptyProof: true)
-    let reject = context.rejectHelloIfUnauthorized(hello)
+    let reject = try context.rejectHelloIfUnauthorized(hello)
     #expect(reject != nil)
     #expect(reject?.reason == .untrusted)
     #expect(reject?.sessionId == "room-x")
+    #expect(try Handshake.verifyRejectHello(reject!, clientHello: hello,
+                                           devIdentityPub: h.devKeyStore.identityPublicKeyRaw) == .untrusted)
 }
 
 /// 未受信任 + 有效 proof → rejectHelloIfUnauthorized 返回 nil（交首配路径校验，不回归）。
@@ -203,7 +205,7 @@ private func driveHandshake(context: DialoutContext, hello: ClientHello,
                                  pairingCode: h.pairingCode, expiresAt: h.expiresAt, trust: trust)
     let hello = buildHello(sessionId: "room-y", ipadIdentity: h.ipadIdentity,
                            ipadEphemeral: h.ipadEphemeral, pairingCode: h.pairingCode, emptyProof: false)
-    #expect(context.rejectHelloIfUnauthorized(hello) == nil)
+    #expect(try context.rejectHelloIfUnauthorized(hello) == nil)
     // 且首配路径确实能成功走通。
     let (frame, ipadSession) = try driveHandshake(
         context: context, hello: hello, ipadIdentity: h.ipadIdentity,
@@ -251,7 +253,7 @@ private func driveHandshake(context: DialoutContext, hello: ClientHello,
                                  pairingCode: h.pairingCode, expiresAt: h.expiresAt, trust: trust)
     let hello = buildHello(sessionId: "room-z", ipadIdentity: h.ipadIdentity,
                            ipadEphemeral: h.ipadEphemeral, pairingCode: "unused", emptyProof: true)
-    #expect(context.rejectHelloIfUnauthorized(hello)?.reason == .untrusted)   // 应被拦截
+    #expect(try context.rejectHelloIfUnauthorized(hello)?.reason == .untrusted)   // 应被拦截
     // 即便无视拦截强行走握手，也必因空 proof 的 HMAC 校验失败而抛，绝不建 session。
     #expect(throws: HandshakeError.pairingCodeMismatch) {
         _ = try context.handleClientHello(JSONEncoder().encode(hello))

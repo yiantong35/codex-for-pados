@@ -253,8 +253,14 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
         }
         // （区别于静默断连，便于 iPad 侧展示明确原因，而非无提示卡住）。
         if let hello = try? JSONDecoder().decode(ClientHello.self, from: data) {
-            if let reject = context.rejectHelloIfUnauthorized(hello) {
-                if let rejData = try? JSONEncoder().encode(reject) { sendFrame(rejData, ctx: ctx) }
+            do {
+                if let reject = try context.rejectHelloIfUnauthorized(hello) {
+                    sendFrame(try JSONEncoder().encode(reject), ctx: ctx)
+                    attempt.markTerminal(.trustRejected)
+                    ctx.close(promise: nil)
+                    return
+                }
+            } catch {
                 attempt.markTerminal(.trustRejected)
                 ctx.close(promise: nil)
                 return

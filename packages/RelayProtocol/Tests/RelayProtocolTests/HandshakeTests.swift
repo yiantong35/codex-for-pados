@@ -263,12 +263,44 @@ private struct HandshakeHarness {
 
 /// RejectHello 过线消息：round-trip 编解码保真，且 kind tag 固定为 "reject"。
 @Test func rejectHelloRoundTrip() throws {
-    let r = RejectHello(sessionId: "sid-1", reason: .trustRevoked)
+    let devIdentity = Curve25519.Signing.PrivateKey()
+    let hello = Handshake.makeClientHello(
+        sessionId: "sid-1", ipadDeviceId: "ipad-1",
+        ipadIdentityPub: Data([1]), ipadEphemeralPub: Data([2]),
+        clientNonce: Data([3, 4]), pairingCode: "code")
+    let r = try Handshake.makeRejectHello(clientHello: hello, reason: .trustRevoked,
+                                          devIdentity: devIdentity)
     let data = try JSONEncoder().encode(r)
     let back = try JSONDecoder().decode(RejectHello.self, from: data)
     #expect(back == r)
     #expect(back.reason == .trustRevoked)
     #expect(back.kind == "reject")
+    #expect(try Handshake.verifyRejectHello(back, clientHello: hello,
+                                           devIdentityPub: devIdentity.publicKey.rawRepresentation) == .trustRevoked)
+}
+
+@Test func rejectHelloRejectsTamperingAndReplay() throws {
+    let devIdentity = Curve25519.Signing.PrivateKey()
+    let hello = Handshake.makeClientHello(
+        sessionId: "sid-1", ipadDeviceId: "ipad-1",
+        ipadIdentityPub: Data([1]), ipadEphemeralPub: Data([2]),
+        clientNonce: Data([3, 4]), pairingCode: "code")
+    let signed = try Handshake.makeRejectHello(clientHello: hello, reason: .trustRevoked,
+                                               devIdentity: devIdentity)
+
+    var tampered = signed
+    tampered.reason = .untrusted
+    #expect(throws: HandshakeError.badServerSignature) {
+        _ = try Handshake.verifyRejectHello(tampered, clientHello: hello,
+                                            devIdentityPub: devIdentity.publicKey.rawRepresentation)
+    }
+
+    var nextHello = hello
+    nextHello.clientNonce = Data([9, 9])
+    #expect(throws: HandshakeError.badServerSignature) {
+        _ = try Handshake.verifyRejectHello(signed, clientHello: nextHello,
+                                            devIdentityPub: devIdentity.publicKey.rawRepresentation)
+    }
 }
 
 /// ServerHello 无 kind 字段：iPad 侧靠该字段做类型判别，

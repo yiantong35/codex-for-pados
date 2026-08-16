@@ -518,10 +518,13 @@ actor RelayTransport: MessageTransport {
             throw TransportError.channelClosed(
                 reason: await localizedMessage("transport.handshakeClosed %@", "ServerHello"))
         }
-        // 先判 RejectHello（独有 `kind` tag；ServerHello 无 kind 故互不误解）：命中 → 抛错，
-        // 首连冒泡为握手失败，重连触发 .trustRevoked 终态不再重连。首连与重连都判。
+        // RejectHello arrives before ServerHello, so it is only authoritative after the paired dev
+        // signature, room/session, and this attempt's nonce all verify. An unsigned legacy reject or
+        // relay-injected frame falls through as an ordinary handshake failure and cannot revoke trust.
         if let rej = try? JSONDecoder().decode(RejectHello.self, from: Data(shText.utf8)), rej.kind == "reject" {
-            throw RejectHelloError(reason: rej.reason)
+            let reason = try Handshake.verifyRejectHello(rej, clientHello: clientHello,
+                                                         devIdentityPub: devIdentityPub)
+            throw RejectHelloError(reason: reason)
         }
         let serverHello = try JSONDecoder().decode(ServerHello.self, from: Data(shText.utf8))
 

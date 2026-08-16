@@ -13,7 +13,7 @@ final class RelayReconnectTests: XCTestCase {
 
     // MARK: 脚本化 channel factory
 
-    enum ConnectBehavior { case succeed, failConnect, reject }
+    enum ConnectBehavior { case succeed, failConnect, reject, forgedReject }
 
     /// 线程安全的连接脚本：按顺序为每次 factory 调用返回一个通道（或抛错模拟连接失败）。
     /// 成功通道复用同一 dev 身份（跨重连 TOFU 一致），并留存最近成功通道供测试模拟瞬断。
@@ -54,9 +54,18 @@ final class RelayReconnectTests: XCTestCase {
             case .failConnect:
                 throw TransportError.channelClosed(reason: "脚本模拟连接失败")
             case .reject:
-                // 收到任何帧（ClientHello）即回 RejectHello（带 kind tag），使 iPad 判为信任撤销。
-                return LoopbackRelayWSChannel { _ in
-                    let rej = RejectHello(sessionId: "s", reason: .trustRevoked)
+                return LoopbackRelayWSChannel { text in
+                    let hello = try JSONDecoder().decode(ClientHello.self, from: Data(text.utf8))
+                    let rej = try Handshake.makeRejectHello(clientHello: hello, reason: .trustRevoked,
+                                                            devIdentity: self.devIdentity)
+                    return String(decoding: try JSONEncoder().encode(rej), as: UTF8.self)
+                }
+            case .forgedReject:
+                return LoopbackRelayWSChannel { text in
+                    let hello = try JSONDecoder().decode(ClientHello.self, from: Data(text.utf8))
+                    let attacker = Curve25519.Signing.PrivateKey()
+                    let rej = try Handshake.makeRejectHello(clientHello: hello, reason: .trustRevoked,
+                                                            devIdentity: attacker)
                     return String(decoding: try JSONEncoder().encode(rej), as: UTF8.self)
                 }
             case .succeed:
@@ -208,6 +217,27 @@ final class RelayReconnectTests: XCTestCase {
             _ = try await iter.next()
             XCTFail("收 RejectHello 后 incoming 应抛错终止")
         } catch { /* 预期 */ }
+    }
+
+    func testForgedRejectDoesNotRevokeTrustAndConsumesReconnectBudget() async throws {
+        let script = ReconnectScript([.succeed, .forgedReject, .failConnect])
+        let policy = RelayReconnectPolicy(maxAttempts: 2, baseDelaySeconds: 0.0, maxDelaySeconds: 0.0,
+                                          sleep: { _ in })
+        let transport = makeTransport(script, policy: policy)
+        var ctrl = transport.control().makeAsyncIterator()
+        try await transport.awaitHandshake()
+
+        await script.currentChannel?.close()
+
+        var events: [TransportControlEvent] = []
+        while let event = await ctrl.next() {
+            events.append(event)
+            if event == .connectionFailed { break }
+        }
+        XCTAssertFalse(events.contains(.trustRevoked),
+                       "relay 用错误身份签名的拒绝不得改变配对信任状态")
+        XCTAssertEqual(events.last, .connectionFailed)
+        XCTAssertEqual(script.connectCount, 3)
     }
 
     /// 主动 close：close() 后 incoming 正常 finish（返回 nil，不抛错），不触发重连（工厂不再被调用）。
