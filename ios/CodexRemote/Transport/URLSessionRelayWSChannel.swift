@@ -1,4 +1,5 @@
 import Foundation
+import RelayProtocol
 
 /// `URLSessionWebSocketTask` 的可注入抽象：单测注入假 task 覆盖收发/关闭行为，不触真网络。
 /// `URLSessionWebSocketTask` 原生就有这些 async 方法，空扩展即可 conform。
@@ -32,19 +33,32 @@ actor URLSessionRelayWSChannel: RelayWSChannel {
     }
 
     func receiveText() async throws -> String? {
-        while true {
-            if closed { return nil }
-            do {
-                switch try await task.receive() {
-                case .string(let s): return s
-                case .data:          continue          // 忽略二进制帧，继续收下一条 text
-                @unknown default:    continue
+        if closed { return nil }
+        do {
+            switch try await task.receive() {
+            case .string(let text):
+                let byteCount = text.utf8.count
+                guard byteCount <= RelayWireLimits.maxMessageBytes else {
+                    closed = true
+                    task.cancel(with: .messageTooBig, reason: nil)
+                    throw TransportError.messageTooLarge(bytes: byteCount, limit: RelayWireLimits.maxMessageBytes)
                 }
-            } catch {
-                // 关闭/取消/网络失败：作流结束（nil）。握手期调用方 receiveText()==nil 会抛明确错误落 .failed。
+                return text
+            case .data:
                 closed = true
-                return nil
+                task.cancel(with: .unsupportedData, reason: nil)
+                throw TransportError.protocolViolation("relay requires text WebSocket frames")
+            @unknown default:
+                closed = true
+                task.cancel(with: .protocolError, reason: nil)
+                throw TransportError.protocolViolation("unsupported WebSocket frame")
             }
+        } catch let error as TransportError {
+            throw error
+        } catch {
+                // 关闭/取消/网络失败：作流结束（nil）。握手期调用方 receiveText()==nil 会抛明确错误落 .failed。
+            closed = true
+            return nil
         }
     }
 

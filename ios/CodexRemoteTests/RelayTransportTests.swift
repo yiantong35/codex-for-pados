@@ -86,6 +86,38 @@ final class RelayTransportTests: XCTestCase {
         let line = try await iter.next()
         XCTAssertEqual(line, "world")
     }
+
+    func testIncomingBufferOverflowClosesChannelAndFailsStream() async throws {
+        let (ipad, dev) = try pairedSessions()
+        let ws = MockRelayWSChannel()
+        let transport = RelayTransport(
+            session: ipad,
+            ws: ws,
+            streamLimits: .init(incomingBufferCount: 1, controlBufferCount: 4)
+        )
+        let stream = transport.incoming()
+
+        for text in ["first", "overflow"] {
+            let envelope = try dev.seal(Data(text.utf8), kind: .appData)
+            await ws.injectIncoming(String(decoding: try envelope.encoded(), as: UTF8.self))
+        }
+        for _ in 0..<100 {
+            if await ws.isClosedForTesting { break }
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+
+        var iterator = stream.makeAsyncIterator()
+        let first = try await iterator.next()
+        XCTAssertEqual(first, "first")
+        do {
+            _ = try await iterator.next()
+            XCTFail("overflow must fail the stream")
+        } catch {
+            XCTAssertEqual(error as? TransportError, .inboundBufferOverflow(limit: 1))
+        }
+        let isClosed = await ws.isClosedForTesting
+        XCTAssertTrue(isClosed)
+    }
 }
 
 /// 内存 mock ws 通道：记录发出的 text 帧，允许测试注入收到的帧。
@@ -113,6 +145,8 @@ actor MockRelayWSChannel: RelayWSChannel {
         waiter?.resume(returning: nil)
         waiter = nil
     }
+
+    var isClosedForTesting: Bool { closed }
 
     /// 测试驱动：模拟服务端推来一帧（有挂起的 receive 则直接喂它，否则入队）。
     func injectIncoming(_ text: String) {

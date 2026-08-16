@@ -6,7 +6,8 @@ protocol KeyStoring {
     func saveKey(_ value: Data)
     /// 可抛版本：默认转调 saveKey（SSH 侧零改动、不抛）。需要真实反馈写失败的实现（relay）可 override。
     func saveKeyThrowing(_ value: Data) throws
-    func loadKey() -> Data?
+    /// Only a confirmed missing record returns nil. Storage failures and corrupt records throw.
+    func loadKey() throws -> Data?
     func deleteKey()
 }
 

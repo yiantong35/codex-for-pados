@@ -10,4 +10,6 @@ enum TransportError: Error, Equatable {
     case trustRevoked                 // 开发机移除信任（收 RejectHello）：可判别类型，供 connect 引导重新配对
     case handshakeRejected(RejectReason)
     case messageTooLarge(bytes: Int, limit: Int)
+    case protocolViolation(String)
+    case inboundBufferOverflow(limit: Int)
 }

@@ -14,6 +14,16 @@ struct DeferredServerRequestLimits: Sendable {
     }
 }
 
+struct JSONRPCStreamLimits: Sendable {
+    let notificationBufferCount: Int
+    let serverRequestBufferCount: Int
+
+    init(notificationBufferCount: Int = 256, serverRequestBufferCount: Int = 32) {
+        self.notificationBufferCount = max(1, notificationBufferCount)
+        self.serverRequestBufferCount = max(1, serverRequestBufferCount)
+    }
+}
+
 /// JSON-RPC 客户端（actor）：消费 transport.incoming()，对每条 JSON 文本解码为
 /// JSONRPCMessage 并分发：
 ///   - .response/.error → 按 id 唤醒等待中的 send(method:params:)（pending 表）
@@ -22,6 +32,7 @@ struct DeferredServerRequestLimits: Sendable {
 actor JSONRPCClient {
     private let transport: MessageTransport
     private let deferredRequestLimits: DeferredServerRequestLimits
+    private let streamLimits: JSONRPCStreamLimits
     private var pending: [RequestId: CheckedContinuation<AnyCodable, Error>] = [:]
     private enum DeferredState {
         case owned(ServerRequestOwner)
@@ -55,6 +66,7 @@ actor JSONRPCClient {
         ServerRequestOwner: [UUID: AsyncStream<JSONRPCRequest>.Continuation]
     ] = [:]
     private var streamsFinished = false
+    private var streamOverflowRecoveryActive = false
     private var pump: Task<Void, Never>?
 
     private let encoder: JSONEncoder = {
@@ -64,9 +76,11 @@ actor JSONRPCClient {
     }()
 
     init(transport: MessageTransport,
-         deferredRequestLimits: DeferredServerRequestLimits = .init()) {
+         deferredRequestLimits: DeferredServerRequestLimits = .init(),
+         streamLimits: JSONRPCStreamLimits = .init()) {
         self.transport = transport
         self.deferredRequestLimits = deferredRequestLimits
+        self.streamLimits = streamLimits
     }
 
     /// 对外通知流（item/turn/thread 等 server notification）。
@@ -78,7 +92,7 @@ actor JSONRPCClient {
         let id = UUID()
         // 通知包含 turn/completed、审批 resolved 等不可重建的控制事件，不能复用交互请求的
         // 24 条保留上限。消费者都必须看到完整有序流；需要压缩时只能在明确可合并的 delta 层做。
-        return AsyncStream(bufferingPolicy: .unbounded) { cont in
+        return AsyncStream(bufferingPolicy: .bufferingOldest(streamLimits.notificationBufferCount)) { cont in
             notificationSubscribers[id] = NotificationSubscriber(
                 methods: methods,
                 threadId: threadId,
@@ -94,14 +108,17 @@ actor JSONRPCClient {
     func serverRequests(for owner: ServerRequestOwner = .approval) -> AsyncStream<JSONRPCRequest> {
         if streamsFinished { return AsyncStream { $0.finish() } }
         let id = UUID()
-        return AsyncStream(bufferingPolicy: .unbounded) { cont in
+        return AsyncStream(bufferingPolicy: .bufferingOldest(streamLimits.serverRequestBufferCount)) { cont in
             serverRequestContinuations[owner, default: [:]][id] = cont
             for requestId in deferredServerRequestOrder {
                 guard case .owned(let requestOwner) = deferredServerRequests[requestId],
                       requestOwner == owner,
                       let request = deferredServerRequestPayloads[requestId]
                 else { continue }
-                cont.yield(request)
+                if case .dropped = cont.yield(request) {
+                    Task { await self.recoverFromStreamOverflow() }
+                    break
+                }
             }
             cont.onTermination = { [weak self] _ in
                 Task { await self?.removeServerRequestContinuation(id, owner: owner) }
@@ -258,7 +275,10 @@ actor JSONRPCClient {
                 .resume(throwing: TransportError.proxyFailed(e.error.message))
         case .notification(let n):
             for subscriber in notificationSubscribers.values where subscriber.matches(n) {
-                subscriber.continuation.yield(n)
+                if case .dropped = subscriber.continuation.yield(n) {
+                    await recoverFromStreamOverflow()
+                    break
+                }
             }
         case .request(let req):
             guard deferredServerRequests[req.id] == nil else { return }
@@ -279,7 +299,12 @@ actor JSONRPCClient {
                 deferredServerRequestTotalBytes += data.count
                 deferredServerRequestCountsByOwner[owner, default: 0] += 1
                 if let continuations = serverRequestContinuations[owner] {
-                    for c in continuations.values { c.yield(req) }
+                    for c in continuations.values {
+                        if case .dropped = c.yield(req) {
+                            await recoverFromStreamOverflow()
+                            break
+                        }
+                    }
                 }
             case .methodNotSupported:
                 try? await respondWithError(
@@ -338,12 +363,23 @@ actor JSONRPCClient {
         pending.removeAll()
     }
 
+    private func recoverFromStreamOverflow() async {
+        guard !streamOverflowRecoveryActive, !streamsFinished else { return }
+        streamOverflowRecoveryActive = true
+        let error = TransportError.inboundBufferOverflow(
+            limit: max(streamLimits.notificationBufferCount, streamLimits.serverRequestBufferCount)
+        )
+        failAllPending(error)
+        await transport.triggerReconnect()
+    }
+
     /// 失败所有在途请求（物理断线时由上层调用）。incoming() 流跨重连不结束，
     /// 故 start() 的「流结束才 failAllPending」覆盖不到物理断线；断线瞬间已发出、
     /// 等响应的请求若不在此失败将永久挂起（响应不会在新通道重放）。调用方据此重试。
     /// 同时失效所有 server→client 延迟请求的响应所有权；这些请求只能由服务端在新连接重发，
     /// 旧 request id 不得在新物理连接上被补发或重复完成。
     func failInflight(_ error: Error) {
+        streamOverflowRecoveryActive = false
         failAllPending(error)
         clearDeferredServerRequests()
     }

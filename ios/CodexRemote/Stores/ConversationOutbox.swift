@@ -72,7 +72,11 @@ final class ConversationOutbox {
     private var sendingClientId: String?
     private(set) var failedClientId: String?
     private var rpcIdentity: ObjectIdentifier?
-    private var startResolutionWaiters: [UUID: CheckedContinuation<Bool, Never>] = [:]
+    private struct StartResolutionWaiter {
+        let continuation: CheckedContinuation<Bool, Never>
+        var timeoutTask: Task<Void, Never>?
+    }
+    private var startResolutionWaiters: [UUID: StartResolutionWaiter] = [:]
     @ObservationIgnored private let budget: ConversationOutboxBudget
     @ObservationIgnored private let limits: ConversationOutboxLimits
 
@@ -99,13 +103,37 @@ final class ConversationOutbox {
 
     func waitForStartRequestResolution(timeoutNanoseconds: UInt64 = 5_000_000_000) async -> Bool {
         guard isStartRequestPending else { return true }
-        let deadline = ContinuousClock.now + .nanoseconds(Int64(timeoutNanoseconds))
-        while isStartRequestPending {
-            if Task.isCancelled { return false }
-            if ContinuousClock.now >= deadline { return false }
-            try? await Task.sleep(nanoseconds: 50_000_000)
+        let id = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                guard isStartRequestPending else {
+                    continuation.resume(returning: true)
+                    return
+                }
+                startResolutionWaiters[id] = StartResolutionWaiter(
+                    continuation: continuation,
+                    timeoutTask: nil
+                )
+                let timeoutTask = Task { @MainActor [weak self] in
+                    do {
+                        try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                    } catch {
+                        return
+                    }
+                    self?.resolveStartResolutionWaiter(id, result: false)
+                }
+                if var waiter = startResolutionWaiters[id] {
+                    waiter.timeoutTask = timeoutTask
+                    startResolutionWaiters[id] = waiter
+                } else {
+                    timeoutTask.cancel()
+                }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.resolveStartResolutionWaiter(id, result: false)
+            }
         }
-        return true
     }
 
     var failedEntry: PendingConversationMessage? {
@@ -253,8 +281,21 @@ final class ConversationOutbox {
         guard !isStartRequestPending else { return }
         let waiters = Array(startResolutionWaiters.values)
         startResolutionWaiters.removeAll()
-        waiters.forEach { $0.resume(returning: true) }
+        waiters.forEach {
+            $0.timeoutTask?.cancel()
+            $0.continuation.resume(returning: true)
+        }
     }
+
+    private func resolveStartResolutionWaiter(_ id: UUID, result: Bool) {
+        guard let waiter = startResolutionWaiters.removeValue(forKey: id) else { return }
+        waiter.timeoutTask?.cancel()
+        waiter.continuation.resume(returning: result)
+    }
+
+#if DEBUG
+    var startResolutionWaiterCount: Int { startResolutionWaiters.count }
+#endif
 }
 
 @Observable

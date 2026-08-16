@@ -86,6 +86,56 @@ final class JSONRPCClientTests: XCTestCase {
         XCTAssertEqual(methods.last, "burst/39")
     }
 
+    func testNotificationBufferOverflowTriggersSingleReconnect() async throws {
+        let mock = MockTransport()
+        let client = JSONRPCClient(
+            transport: mock,
+            streamLimits: .init(notificationBufferCount: 1, serverRequestBufferCount: 2)
+        )
+        let slowStream = await client.notifications()
+        await client.start()
+
+        await mock.feed(lines: (0..<4).map { index in
+            #"{"method":"turn/completed","params":{"threadId":"t","index":\#(index)}}"#
+        })
+
+        for _ in 0..<100 {
+            if await mock.triggerReconnectCount != 0 { break }
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        let reconnectCount = await mock.triggerReconnectCount
+        XCTAssertEqual(reconnectCount, 1)
+        withExtendedLifetime(slowStream) {}
+    }
+
+    func testServerRequestBufferOverflowTriggersSingleReconnect() async throws {
+        let mock = MockTransport()
+        let client = JSONRPCClient(
+            transport: mock,
+            deferredRequestLimits: .init(maximumTotalCount: 8, maximumPerOwnerCount: 8,
+                                         maximumTotalBytes: 8_192),
+            streamLimits: .init(notificationBufferCount: 2, serverRequestBufferCount: 1)
+        )
+        let slowStream = await client.serverRequests(for: .approval)
+        await client.start()
+
+        await mock.feed(lines: [
+            #"{"id":"a","method":"item/fileChange/requestApproval","params":{}}"#,
+            #"{"id":"b","method":"item/commandExecution/requestApproval","params":{}}"#,
+        ])
+
+        for _ in 0..<100 {
+            if await mock.triggerReconnectCount != 0 { break }
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        let reconnectCount = await mock.triggerReconnectCount
+        await client.failInflight(TransportError.channelClosed(reason: "overflow reconnect"))
+        let deferredCount = await client.deferredServerRequestCount()
+        XCTAssertEqual(reconnectCount, 1)
+        XCTAssertEqual(deferredCount, 0)
+        withExtendedLifetime(slowStream) {}
+    }
+
     func testNotificationSubscriptionFiltersMethodAndThreadBeforeDelivery() async throws {
         let mock = MockTransport()
         let client = JSONRPCClient(transport: mock)

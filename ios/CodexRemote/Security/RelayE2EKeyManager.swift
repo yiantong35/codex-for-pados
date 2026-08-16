@@ -5,6 +5,7 @@ import Observation
 /// E2E 身份密钥的 Keychain 适配：独立 account，与 SSH（`ssh-ed25519-private-key`）严格分离。
 /// 复用 KeyStoring.swift 定义的 `KeyStoring` 协议（同 target，internal 可见）。
 struct RelayE2EKeychainStore: KeyStoring {
+    enum ReadError: Error, Equatable { case recordCorrupted }
     let keychain: KeychainStore
     /// 与 SSH account 严格分离，绝不覆盖。
     let account = "relay-e2e-identity-ed25519"
@@ -16,9 +17,10 @@ struct RelayE2EKeychainStore: KeyStoring {
     func saveKeyThrowing(_ value: Data) throws {
         try keychain.save(value.base64EncodedString(), for: account)
     }
-    func loadKey() -> Data? {
-        guard let s = (try? keychain.load(account)) ?? nil, let d = Data(base64Encoded: s) else { return nil }
-        return d
+    func loadKey() throws -> Data? {
+        guard let encoded = try keychain.load(account) else { return nil }
+        guard let data = Data(base64Encoded: encoded) else { throw ReadError.recordCorrupted }
+        return data
     }
     func deleteKey() { try? keychain.delete(account) }
 }
@@ -35,9 +37,6 @@ final class RelayE2EKeyManager {
 
     init(store: KeyStoring) {
         self.store = store
-        if let raw = store.loadKey(), let key = try? Curve25519.Signing.PrivateKey(rawRepresentation: raw) {
-            cachedIdentity = key
-        }
     }
 
     /// 生产：独立 service，与 SSH 的 `com.codexremote.ssh` 分离。
@@ -49,6 +48,15 @@ final class RelayE2EKeyManager {
     @discardableResult
     func identityKey() throws -> Curve25519.Signing.PrivateKey {
         if let k = cachedIdentity { return k }
+        if let raw = try store.loadKey() {
+            do {
+                let key = try Curve25519.Signing.PrivateKey(rawRepresentation: raw)
+                cachedIdentity = key
+                return key
+            } catch {
+                throw RelayE2EKeychainStore.ReadError.recordCorrupted
+            }
+        }
         let k = Curve25519.Signing.PrivateKey()
         try store.saveKeyThrowing(k.rawRepresentation)   // 落盘失败 → 抛出，cachedIdentity 保持 nil
         cachedIdentity = k
