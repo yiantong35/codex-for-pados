@@ -116,10 +116,11 @@ struct FileBrowserView: View {
                 }
                 if let entries = node?.entries, node?.isExpanded == true {
                     ForEach(entries, id: \.fileName) { entry in
-                        let childPath = path + "/" + entry.fileName
-                        row(entry: entry, path: childPath, depth: depth)
-                        if entry.isDirectory {
-                            treeLevel(path: childPath, depth: depth + 1)
+                        if let childPath = store.childPath(parent: path, entryName: entry.fileName) {
+                            row(entry: entry, path: childPath, depth: depth)
+                            if entry.isDirectory {
+                                treeLevel(path: childPath, depth: depth + 1)
+                            }
                         }
                     }
                 }

@@ -1,9 +1,15 @@
 import Foundation
+import Crypto
 
 public enum PairingError: Error, Equatable { case badFormat, missingField(String) }
 
 /// 手动配对载荷：codexrelay://pair?relay=&sid=&pk=&pc=&exp=
 public struct PairingPayload: Codable, Sendable, Equatable {
+    public static let maximumEncodedBytes = 8 * 1024
+    public static let maximumRelayURLBytes = 2 * 1024
+    public static let maximumSessionIDBytes = 256
+    public static let maximumPairingCodeBytes = 512
+
     public var relayURL: String
     public var sessionId: String
     public var devIdentityPubB64: String
@@ -33,17 +39,36 @@ public struct PairingPayload: Codable, Sendable, Equatable {
     }
 
     public init(parsing s: String) throws {
+        guard !s.isEmpty, s.utf8.count <= Self.maximumEncodedBytes else {
+            throw PairingError.badFormat
+        }
         guard let c = URLComponents(string: s), c.scheme == "codexrelay", c.host == "pair"
         else { throw PairingError.badFormat }
-        func q(_ n: String) throws -> String {
-            guard let v = c.queryItems?.first(where: { $0.name == n })?.value else {
+        func q(_ n: String, maximumBytes: Int) throws -> String {
+            let matches = c.queryItems?.filter { $0.name == n } ?? []
+            guard matches.count == 1, let v = matches[0].value else {
                 throw PairingError.missingField(n)
             }
+            guard !v.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  v.utf8.count <= maximumBytes,
+                  !v.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
+            else { throw PairingError.badFormat }
             return v
         }
-        relayURL = try q("relay"); sessionId = try q("sid")
-        devIdentityPubB64 = try q("pk"); pairingCode = try q("pc")
-        guard let exp = Int64(try q("exp")) else { throw PairingError.missingField("exp") }
+
+        relayURL = try q("relay", maximumBytes: Self.maximumRelayURLBytes)
+        sessionId = try q("sid", maximumBytes: Self.maximumSessionIDBytes)
+        devIdentityPubB64 = try q("pk", maximumBytes: 128)
+        pairingCode = try q("pc", maximumBytes: Self.maximumPairingCodeBytes)
+        let expiration = try q("exp", maximumBytes: 20)
+        guard let exp = Int64(expiration) else { throw PairingError.badFormat }
         expiresAt = exp
+
+        guard let relay = URLComponents(string: relayURL),
+              relay.scheme == "ws" || relay.scheme == "wss",
+              let host = relay.host, !host.isEmpty,
+              let identity = Data(base64Encoded: devIdentityPubB64), identity.count == 32,
+              (try? Curve25519.Signing.PublicKey(rawRepresentation: identity)) != nil
+        else { throw PairingError.badFormat }
     }
 }

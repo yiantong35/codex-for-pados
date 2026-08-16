@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import RelayProtocol
 @testable import CodexRemote
 
 /// P3-wss（组 6）：生产强制 wss 的 scheme 校验断言。
@@ -28,9 +29,11 @@ struct RelaySchemeValidationTests {
     /// 6.3：各 scheme 载荷经 ViewModel 的端到端判定矩阵——wss 放行 / 生产明文拒 / 开发 loopback 放行。
     @MainActor
     @Test func importMatrixAcrossSchemes() {
+        let publicKey = Data(repeating: 1, count: 32).base64EncodedString()
         func result(_ relay: String, now: Int64 = 0) -> Error? {
             let vm = RelayPairingImportViewModel()
-            vm.pasted = "codexrelay://pair?relay=\(relay)&sid=s&pk=PUB&pc=C&exp=9999999999"
+            vm.pasted = PairingPayload(relayURL: relay, sessionId: "s",
+                devIdentityPubB64: publicKey, pairingCode: "C", expiresAt: 9_999_999_999).toURLString()
             do { _ = try vm.makeMachineConfig(now: now); return nil } catch { return error }
         }
         #expect(result("wss://relay.example/ws") == nil)                                    // wss 放行

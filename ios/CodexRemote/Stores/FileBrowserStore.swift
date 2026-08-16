@@ -7,6 +7,9 @@ import RelayProtocol
 @Observable
 @MainActor
 final class FileBrowserStore {
+    private static let maximumPathBytes = 4 * 1024
+    private static let maximumEntryNameBytes = 255
+
     /// 目录节点缓存条目。entries == nil 表示尚未加载。
     struct DirNode {
         var entries: [FsReadDirectoryEntry]?
@@ -78,19 +81,21 @@ final class FileBrowserStore {
     /// setRoot 先 removeAll 并改写 rootPath，树只从当前 rootPath 渲染，故陈旧写入是不可达
     /// 孤儿、由下次 removeAll 回收，无可见错误。（若未来需精确取消，可引入 attempt token。）
     func setRoot(_ cwd: String?) async {
-        if rootPath == cwd, cwd == nil || !nodes.isEmpty { return }
+        let root = cwd.flatMap(Self.normalizedAbsolutePath)
+        if rootPath == root, root == nil || !nodes.isEmpty { return }
         fileOpenGeneration &+= 1
         directoryEpoch &+= 1
         directoryGenerations.removeAll()
         nodes.removeAll()
         fileOpenState = .idle
-        rootPath = cwd
-        guard let cwd else { return }
-        await loadDirectory(cwd, expand: true)
+        rootPath = root
+        guard let root else { return }
+        await loadDirectory(root, expand: true)
     }
 
     /// 展开/收起目录。未加载则拉取并缓存；已加载再展开复用缓存不重拉。
     func toggleExpand(_ path: String) async {
+        guard let path = confinedPath(path) else { return }
         if var node = nodes[path], node.entries != nil {
             node.isExpanded.toggle()
             nodes[path] = node
@@ -114,6 +119,7 @@ final class FileBrowserStore {
     /// 进入时置 isOpeningFile 并清空旧 selectedFile（避免预览区停留在上一个文件）；
     /// 返回（成功/失败降级）后复位（设计文档 D，与目录 loading 模式一致）。
     func openFile(_ path: String) async {
+        guard let path = confinedPath(path) else { return }
         fileOpenGeneration &+= 1
         let generation = fileOpenGeneration
         fileOpenState = .loading(path)
@@ -139,8 +145,42 @@ final class FileBrowserStore {
 
     // MARK: - private
 
+    /// Server directory entries are untrusted single components. Returning nil keeps malformed
+    /// entries out of the tree and prevents callers from manufacturing an escaped RPC path.
+    func childPath(parent: String, entryName: String) -> String? {
+        guard let parent = confinedPath(parent), Self.isValidEntryName(entryName) else { return nil }
+        let joined = parent == "/" ? "/\(entryName)" : "\(parent)/\(entryName)"
+        return confinedPath(joined)
+    }
+
+    private static func isValidEntryName(_ name: String) -> Bool {
+        guard !name.isEmpty, name != ".", name != "..",
+              name.utf8.count <= maximumEntryNameBytes else { return false }
+        return !name.contains("/") && !name.contains("\\") && !name.contains("\0")
+    }
+
+    private static func normalizedAbsolutePath(_ path: String) -> String? {
+        guard !path.isEmpty, path.utf8.count <= maximumPathBytes,
+              path.hasPrefix("/"), !path.contains("\0") else { return nil }
+        let components = path.split(separator: "/", omittingEmptySubsequences: true)
+        guard !components.contains("."), !components.contains("..") else { return nil }
+        let normalized = (path as NSString).standardizingPath
+        guard normalized == path || (path != "/" && normalized == String(path.dropLast())) else {
+            return nil
+        }
+        return normalized
+    }
+
+    private func confinedPath(_ path: String) -> String? {
+        guard let root = rootPath, let candidate = Self.normalizedAbsolutePath(path) else { return nil }
+        if root == "/" { return candidate }
+        guard candidate == root || candidate.hasPrefix(root + "/") else { return nil }
+        return candidate
+    }
+
     /// 拉一层目录，写入缓存（含加载/错误态）。expand 决定拉后是否展开。
     private func loadDirectory(_ path: String, expand: Bool) async {
+        guard let path = confinedPath(path) else { return }
         let epoch = directoryEpoch
         let generation = (directoryGenerations[path] ?? 0) + 1
         directoryGenerations[path] = generation
@@ -156,7 +196,7 @@ final class FileBrowserStore {
 
         node.isLoading = false
         if let resp {
-            node.entries = resp.entries
+            node.entries = resp.entries.filter { childPath(parent: path, entryName: $0.fileName) != nil }
             node.isExpanded = expand
         } else {
             node.error = L10n.string("fileBrowser.loadDirFailed", locale: LocaleManager.currentLocale)

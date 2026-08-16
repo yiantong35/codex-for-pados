@@ -152,6 +152,53 @@ final class ProjectsStoreTests: XCTestCase {
                        "明确到达分页末尾时应继续采用权威替换语义")
     }
 
+    func test_reconnectAllowsNewFullSyncWhileOldResponseIsLost() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ProjectsStore(requestTimeoutNanos: 100_000_000)
+        await store.attach(rpc: rpc)
+
+        let stale = Task { await store.loadFromServer(rpc: rpc) }
+        try await waitUntil {
+            await mock.sent.filter { $0.contains("thread/list") }.count == 1
+        }
+
+        // Physical reconnects reuse this RPC actor. Re-attaching must invalidate the stale sync
+        // gate immediately so the ready channel can issue a fresh authoritative request.
+        await store.attach(rpc: rpc)
+        await mock.setThreadListResponse(#"{"data":[{"id":"fresh","sessionId":"fresh","preview":"","modelProvider":"openai","createdAt":0,"updatedAt":20,"cwd":"/repo/current","cliVersion":"0.133.0","name":null,"gitInfo":null}],"nextCursor":null,"backwardsCursor":null}"#)
+        await mock.setAutoRespond(true)
+        await store.loadFromServer(rpc: rpc)
+
+        XCTAssertEqual(store.allThreadsSorted.map(\.id), ["fresh"])
+        let requestCount = await mock.sent.filter { $0.contains("thread/list") }.count
+        XCTAssertEqual(requestCount, 2)
+        await stale.value
+        let supersededReconnectCount = await mock.triggerReconnectCount
+        XCTAssertEqual(supersededReconnectCount, 0,
+                       "superseded request timeout must not disrupt the recovered connection")
+    }
+
+    func test_currentRequestTimeoutReleasesSyncAndTriggersReconnect() async {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ProjectsStore(requestTimeoutNanos: 20_000_000)
+        await store.attach(rpc: rpc)
+
+        await store.loadFromServer(rpc: rpc)
+
+        XCTAssertEqual(store.loadState, .failed)
+        let reconnectCount = await mock.triggerReconnectCount
+        XCTAssertEqual(reconnectCount, 1)
+        await mock.setAutoRespond(true)
+        await store.loadFromServer(rpc: rpc)
+        let requestCount = await mock.sent.filter { $0.contains("thread/list") }.count
+        XCTAssertEqual(requestCount, 2,
+                       "timeout must release the full-sync gate for a later retry")
+    }
+
     func test_refreshRecentPage_mergesWithoutDeletingDeepHistory() async throws {
         let s = ProjectsStore()
         s.ingest([thread("deep", cwd: "/repo/deep", updatedAt: 1)])
@@ -331,10 +378,10 @@ final class ProjectsStoreTests: XCTestCase {
         try await waitUntil { s.allThreadsSorted.contains { $0.id == "real" } }
     }
 
-    private func waitUntil(timeout: TimeInterval = 2.0, _ condition: () -> Bool) async throws {
+    private func waitUntil(timeout: TimeInterval = 2.0, _ condition: () async -> Bool) async throws {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if condition() { return }
+            if await condition() { return }
             try await Task.sleep(nanoseconds: 10_000_000)
         }
         XCTFail("waitUntil timed out")
