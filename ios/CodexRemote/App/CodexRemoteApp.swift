@@ -143,8 +143,8 @@ private struct WorkspaceHost: View {
             // 用 `.task(id:)` 而非 `.onChange`：`.id(s.id)` 重建 WorkspaceHost 时 @State coordinator 归 nil，
             // 若切到已连接的缓存 Session，rpcIdentity 初值即为该 rpc id（无变化）→ onChange 不触发 →
             // 该 tab 审批层不再绑定。`.task(id:)` 在 `.id` 重建即重跑（bind 幂等：内部先 cancel 旧订阅 Task），
-            // 与兄弟 store（SidebarView.swift:43 `.task(id: connection.phase)`）一致。
-            .task(id: rpcIdentity) {
+            // 绑定 key 同时包含 ready 状态，使复用同一 RPC 的物理重连也会启动交互请求恢复窗口。
+            .task(id: coordinatorBindingIdentity) {
                 let coord = coordinator ?? ApprovalCoordinator(store: approvals, projects: projects)
                 coordinator = coord
                 let inputCoord = userInputCoordinator ?? UserInputCoordinator(store: userInputs)
@@ -169,6 +169,11 @@ private struct WorkspaceHost: View {
     /// rpc 实例变化的探测键（ObjectIdentifier 字符串），用于在(重)连后重新 bind。
     private var rpcIdentity: String {
         connection.rpc.map { "\(ObjectIdentifier($0))" } ?? "nil"
+    }
+
+    /// Physical reconnects reuse the JSONRPCClient, so readiness must also invalidate the binding task.
+    private var coordinatorBindingIdentity: String {
+        "\(rpcIdentity):\(connection.phase == .ready ? "ready" : "not-ready")"
     }
 
     @ViewBuilder private var reconnectBanner: some View {

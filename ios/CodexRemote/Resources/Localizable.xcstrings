@@ -2043,6 +2043,24 @@
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "已被开发机移除信任，请重新配对" } }
       }
     },
+    "conn.error.untrusted": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This device is not trusted by the host; please re-pair" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "开发机尚未信任此设备，请重新配对" } }
+      }
+    },
+    "conn.error.pairingInvalid": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "The pairing code is invalid, expired, or already used; scan a new code" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "配对码无效、已过期或已使用，请重新扫描" } }
+      }
+    },
+    "conn.error.versionMismatch": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Relay protocol versions are incompatible; update the app and host" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "中继协议版本不兼容，请升级 App 和开发机组件" } }
+      }
+    },
     "conv.item.unknown": {
       "localizations": {
         "en": {

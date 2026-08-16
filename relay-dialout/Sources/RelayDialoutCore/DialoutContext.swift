@@ -89,6 +89,27 @@ public final class DialoutContext: @unchecked Sendable {
         return nil   // 未受信任但带 proof → 交首配路径校验
     }
 
+    /// Convert a locally classified ClientHello failure into an authenticated wire rejection.
+    /// Unknown/internal failures remain a silent close so implementation details are not exposed.
+    public func rejectHello(for error: Error, clientHello: ClientHello) throws -> RejectHello? {
+        let reason: RejectReason
+        if let dialoutError = error as? DialoutHandshakeError {
+            switch dialoutError {
+            case .pairingExpired, .pairingAlreadyUsed: reason = .pairingInvalid
+            }
+        } else if let handshakeError = error as? HandshakeError {
+            switch handshakeError {
+            case .pairingCodeMismatch: reason = .pairingInvalid
+            case .versionMismatch: reason = .versionMismatch
+            case .badServerSignature, .badClientSignature: return nil
+            }
+        } else {
+            return nil
+        }
+        return try Handshake.makeRejectHello(clientHello: clientHello, reason: reason,
+                                             devIdentity: keyStore.identity)
+    }
+
     /// 处理 ClientHello → 返回要发回 relay 的 ServerHello 编码。
     ///
     /// 按 iPad 身份公钥是否在信任列表分两条路径：

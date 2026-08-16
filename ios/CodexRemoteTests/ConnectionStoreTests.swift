@@ -511,6 +511,41 @@ final class ConnectionStoreTests: XCTestCase {
         if case .failed = await store.phase {} else { XCTFail("信任撤销应落 .failed，实际 \(await store.phase)") }
     }
 
+    func testPairingInvalidControlRequestsFreshPairingCode() async throws {
+        let ctrl = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in ctrl })
+        await feedInitializeResponse(ctrl)
+        await store.connect(config: .stub)
+        try await waitUntil { await store.phase == .ready }
+
+        await ctrl.emitControl(.handshakeRejected(.pairingInvalid))
+        try await waitUntil { await store.needsRePairing }
+        guard case .failed(let message) = await store.phase else {
+            return XCTFail("pairingInvalid should fail the connection")
+        }
+        XCTAssertEqual(message, L10n.string("conn.error.pairingInvalid", locale: LocaleManager.currentLocale))
+    }
+
+    func testVersionMismatchControlRequestsUpgradeWithoutRePairing() async throws {
+        let ctrl = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in ctrl })
+        await feedInitializeResponse(ctrl)
+        await store.connect(config: .stub)
+        try await waitUntil { await store.phase == .ready }
+
+        await ctrl.emitControl(.handshakeRejected(.versionMismatch))
+        try await waitUntil {
+            if case .failed = await store.phase { return true }
+            return false
+        }
+        let needsRePairing = await store.needsRePairing
+        XCTAssertFalse(needsRePairing)
+        guard case .failed(let message) = await store.phase else {
+            return XCTFail("versionMismatch should fail the connection")
+        }
+        XCTAssertEqual(message, L10n.string("conn.error.versionMismatch", locale: LocaleManager.currentLocale))
+    }
+
     /// #2 冷启动首连即遇 trustRevoked：iPad 持 stableSessionId 冷启动做受信任复连，
     /// 开发机在线且已撤销该 iPad → 首连握手第一帧回 RejectHello。此时 observeControl 尚未订阅
     /// （只在 .ready 后订阅），故 .trustRevoked 控制事件无人消费；必须靠 awaitHandshake 冒泡的

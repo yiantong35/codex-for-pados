@@ -61,6 +61,25 @@ final class McpElicitationCoordinatorTests: XCTestCase {
     }
 
     @MainActor
+    func testRebindingSameRPCAfterConnectionLossExpiresUnreplayedRequest() async throws {
+        let rpc = JSONRPCClient(transport: MockTransport())
+        let store = McpElicitationStore()
+        try store.handle(request: JSONRPCRequest(
+            id: .string("recover-mcp"), method: ServerRequestMethod.mcpElicitation,
+            params: AnyCodable([
+                "threadId": "thread-1", "serverName": "server", "mode": "url",
+                "message": "Authorize", "url": "https://example.com", "elicitationId": "e-1",
+            ])
+        ))
+        let coordinator = McpElicitationCoordinator(store: store, recoveryTimeoutNanos: 10_000_000)
+        coordinator.connectionLost()
+
+        await coordinator.bind(rpc: rpc)
+        try await waitUntil { store.expiredRecoveryIds.contains(.string("recover-mcp")) }
+        XCTAssertFalse(store.cards[0].awaitingRecovery)
+    }
+
+    @MainActor
     private func waitUntil(timeout: TimeInterval = 2, _ condition: () async -> Bool) async throws {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

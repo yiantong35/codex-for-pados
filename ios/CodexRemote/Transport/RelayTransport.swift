@@ -298,7 +298,7 @@ actor RelayTransport: MessageTransport {
 
     /// 瞬断后的重连循环：指数退避 + 硬上限 + 有限重试。
     /// - 每次尝试前发 `.reconnecting`、退避挂起；成功 → 回填 ws/重启 read loop → 发 `.ready` 返回。
-    /// - 收 RejectHello → 发 `.trustRevoked` + 终结 incoming，**不再重连**（4.4）。
+    /// - 收 RejectHello → 按签名 reason 发终态控制事件 + 终结 incoming，**不再重连**（4.4）。
     /// - 试满 `maxAttempts` 仍失败 → 发 `.connectionFailed` + 终结 incoming（4.3 终态，绝不无限重连）。
     /// - 主动 close / 任务取消 → 静默退出（不发终态、不再造通道）。
     private func reconnectLoop() async {
@@ -333,10 +333,9 @@ actor RelayTransport: MessageTransport {
                 restartReadLoop()
                 emitControl(.ready)
                 return
-            } catch is RejectHelloError {
-                emitControl(.trustRevoked)
-                finishIncomingTerminal(TransportError.channelClosed(
-                    reason: await localizedMessage("transport.trustRevokedReason")))
+            } catch let rejection as RejectHelloError {
+                emitControl(Self.controlEvent(for: rejection.reason))
+                finishIncomingTerminal(Self.transportError(for: rejection.reason))
                 return
             } catch {
                 rtLog.error("重连尝试 \(attempt) 失败: \(String(describing: error), privacy: .public)")
@@ -430,12 +429,10 @@ actor RelayTransport: MessageTransport {
             startReadLoopIfNeeded()
         } catch let rej as RejectHelloError {
             rtLog.error("首连握手被拒(RejectHello): \(String(describing: rej.reason), privacy: .public)")
-            emitControl(.trustRevoked)
-            // 以可判别类型 .trustRevoked 冒泡（而非通用 channelClosed）：observeControl 尚未订阅
-            // （只在 .ready 后订阅），冷启动首连被撤销时靠此错误让 ConnectionStore.connect 的 catch
-            // 置位 needsRePairing 引导重新配对。
-            markHandshakeFailed(TransportError.trustRevoked)
-            incomingContinuation?.finish(throwing: TransportError.trustRevoked)
+            let error = Self.transportError(for: rej.reason)
+            emitControl(Self.controlEvent(for: rej.reason))
+            markHandshakeFailed(error)
+            incomingContinuation?.finish(throwing: error)
             incomingContinuation = nil
         } catch {
             rtLog.error("握手失败: \(String(describing: error), privacy: .public)")
@@ -446,6 +443,14 @@ actor RelayTransport: MessageTransport {
             incomingContinuation?.finish(throwing: TransportError.channelClosed(reason: "\(error)"))
             incomingContinuation = nil
         }
+    }
+
+    private static func transportError(for reason: RejectReason) -> TransportError {
+        reason == .trustRevoked ? .trustRevoked : .handshakeRejected(reason)
+    }
+
+    private static func controlEvent(for reason: RejectReason) -> TransportControlEvent {
+        reason == .trustRevoked ? .trustRevoked : .handshakeRejected(reason)
     }
 
     /// 在**指定通道**上跑完 iPad 侧握手（首连与每次重连共用编排）：

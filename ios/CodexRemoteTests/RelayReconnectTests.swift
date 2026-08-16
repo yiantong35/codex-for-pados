@@ -13,7 +13,7 @@ final class RelayReconnectTests: XCTestCase {
 
     // MARK: 脚本化 channel factory
 
-    enum ConnectBehavior { case succeed, failConnect, reject, forgedReject }
+    enum ConnectBehavior { case succeed, failConnect, reject, rejectReason(RejectReason), forgedReject }
 
     /// 线程安全的连接脚本：按顺序为每次 factory 调用返回一个通道（或抛错模拟连接失败）。
     /// 成功通道复用同一 dev 身份（跨重连 TOFU 一致），并留存最近成功通道供测试模拟瞬断。
@@ -59,6 +59,13 @@ final class RelayReconnectTests: XCTestCase {
                     let rej = try Handshake.makeRejectHello(clientHello: hello, reason: .trustRevoked,
                                                             devIdentity: self.devIdentity)
                     return String(decoding: try JSONEncoder().encode(rej), as: UTF8.self)
+                }
+            case .rejectReason(let reason):
+                return LoopbackRelayWSChannel { text in
+                    let hello = try JSONDecoder().decode(ClientHello.self, from: Data(text.utf8))
+                    let reject = try Handshake.makeRejectHello(clientHello: hello, reason: reason,
+                                                               devIdentity: self.devIdentity)
+                    return String(decoding: try JSONEncoder().encode(reject), as: UTF8.self)
                 }
             case .forgedReject:
                 return LoopbackRelayWSChannel { text in
@@ -217,6 +224,29 @@ final class RelayReconnectTests: XCTestCase {
             _ = try await iter.next()
             XCTFail("收 RejectHello 后 incoming 应抛错终止")
         } catch { /* 预期 */ }
+    }
+
+    func testPairingInvalidRejectPreservesReasonAndStopsReconnect() async throws {
+        let script = ReconnectScript([.succeed, .rejectReason(.pairingInvalid)])
+        let policy = RelayReconnectPolicy(maxAttempts: 6, baseDelaySeconds: 0, maxDelaySeconds: 0,
+                                          sleep: { _ in })
+        let transport = makeTransport(script, policy: policy)
+        var incoming = transport.incoming().makeAsyncIterator()
+        var control = transport.control().makeAsyncIterator()
+        try await transport.awaitHandshake()
+
+        await script.currentChannel?.close()
+        let reconnecting = await control.next()
+        let rejected = await control.next()
+        XCTAssertEqual(reconnecting, .reconnecting)
+        XCTAssertEqual(rejected, .handshakeRejected(.pairingInvalid))
+        XCTAssertEqual(script.connectCount, 2)
+        do {
+            _ = try await incoming.next()
+            XCTFail("pairing rejection should terminate incoming")
+        } catch let error as TransportError {
+            XCTAssertEqual(error, .handshakeRejected(.pairingInvalid))
+        }
     }
 
     func testForgedRejectDoesNotRevokeTrustAndConsumesReconnectBudget() async throws {

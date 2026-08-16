@@ -6,9 +6,11 @@ final class UserInputCoordinator {
     private var requestTask: Task<Void, Never>?
     private var notificationTask: Task<Void, Never>?
     private var recoveryTask: Task<Void, Never>?
+    private let recoveryTimeoutNanos: UInt64
 
-    init(store: UserInputStore) {
+    init(store: UserInputStore, recoveryTimeoutNanos: UInt64 = 2_000_000_000) {
         self.store = store
+        self.recoveryTimeoutNanos = recoveryTimeoutNanos
     }
 
     func bind(rpc: JSONRPCClient) async {
@@ -53,15 +55,17 @@ final class UserInputCoordinator {
         }
         recoveryTask?.cancel()
         if store.hasAwaitingRecovery {
-            recoveryTask = Task { [weak self] in
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
-                guard !Task.isCancelled else { return }
+            recoveryTask = Task { [weak self, recoveryTimeoutNanos] in
+                do { try await Task.sleep(nanoseconds: recoveryTimeoutNanos) }
+                catch { return }
                 self?.store.expireAwaitingRecovery()
             }
         }
     }
 
     func connectionLost() {
+        recoveryTask?.cancel()
+        recoveryTask = nil
         store.handleConnectionLost()
     }
 
