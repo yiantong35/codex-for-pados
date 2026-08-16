@@ -86,7 +86,6 @@ final class OrientationSnapshotTests: XCTestCase {
             leftVisible: true,
             rightVisible: true,
             lastRequested: .right,
-            loadRevision: 0,
             onResizeEnded: {}
         ) {
             Color.red
@@ -107,7 +106,6 @@ final class OrientationSnapshotTests: XCTestCase {
             leftVisible: true,
             rightVisible: true,
             lastRequested: .left,
-            loadRevision: 0,
             onResizeEnded: {}
         ) {
             Color.red
@@ -427,7 +425,7 @@ final class OrientationSnapshotTests: XCTestCase {
                 onReconnect: {}, onShowDetails: { _ in }, onRePair: {}
             )
             ConnectionBanner(
-                state: .trustRevoked,
+                state: .rePairingRequired("Trust revoked"),
                 onReconnect: {}, onShowDetails: { _ in }, onRePair: {}
             )
             Spacer()
