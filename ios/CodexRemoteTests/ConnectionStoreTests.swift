@@ -439,6 +439,44 @@ final class ConnectionStoreTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(count, 2, "物理重连 .ready 应再触发一次 resync，实际 \(count)")
     }
 
+    func testResumeHandlerAddedWhileReconnectingWaitsForReady() async throws {
+        let ctrl = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in ctrl })
+        await feedInitializeResponse(ctrl)
+        await store.connect(config: .stub)
+        try await waitUntil { await store.phase == .ready }
+
+        await ctrl.emitControl(.reconnecting)
+        try await waitUntil { await store.phase == .reconnecting }
+        let fired = FireBox()
+        _ = await store.addResumeHandler { await fired.bump() }
+        try await Task.sleep(for: .milliseconds(100))
+        let countWhileReconnecting = await fired.count
+        XCTAssertEqual(countWhileReconnecting, 0)
+
+        await ctrl.emitControl(.ready)
+        try await waitUntil { await fired.count == 1 }
+    }
+
+    func testInitialConnectTimeoutIsRetiredAfterReady() async throws {
+        let ctrl = ControlEmittingTransport()
+        let store = await ConnectionStore(
+            transportFactory: { _ in ctrl },
+            connectTimeoutNanos: 120_000_000
+        )
+        await feedInitializeResponse(ctrl)
+        await store.connect(config: .stub)
+        try await waitUntil { await store.phase == .ready }
+
+        await ctrl.emitControl(.reconnecting)
+        try await waitUntil { await store.phase == .reconnecting }
+        try await Task.sleep(for: .milliseconds(180))
+
+        let phaseAfterInitialDeadline = await store.phase
+        XCTAssertEqual(phaseAfterInitialDeadline, .reconnecting,
+                       "首连成功后，旧 timeout 不得把后续物理重连误判为首连失败")
+    }
+
     /// 4.3 消费侧：重连退避耗尽（control 发 .connectionFailed）→ phase 落 .failed，
     /// 且**保留机器配置**（不要求重新配对，needsRePairing 保持 false），供用户手动重连。
     func testConnectionFailedControlKeepsConfigForManualRetry() async throws {

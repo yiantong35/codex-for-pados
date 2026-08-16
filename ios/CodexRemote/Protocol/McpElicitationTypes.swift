@@ -48,11 +48,11 @@ enum McpFormFieldKind: Sendable, Equatable {
 }
 
 indirect enum McpJSONValueSchema: Sendable, Equatable {
-    case string
-    case number(integer: Bool)
+    case string(format: String?, minLength: Int?, maxLength: Int?, allowedValues: Set<String>?)
+    case number(integer: Bool, minimum: Double?, maximum: Double?)
     case boolean
-    case object(properties: [String: McpJSONValueSchema], required: Set<String>)
-    case array(item: McpJSONValueSchema)
+    case object(properties: [String: McpJSONValueSchema], required: Set<String>, allowsAdditionalProperties: Bool)
+    case array(item: McpJSONValueSchema, minItems: Int?, maxItems: Int?)
 }
 
 struct McpFormField: Sendable, Identifiable {
@@ -345,7 +345,8 @@ struct McpElicitationCard: Identifiable, Sendable {
             guard options.contains(where: { $0.value == value }) else { throw McpElicitationError.invalidValue(field.name) }
             return value
         case let (.object(schema), .text(raw)):
-            guard let data = raw.data(using: .utf8),
+            guard raw.utf8.count <= McpElicitationLimits.maximumInputBytes,
+                  let data = raw.data(using: .utf8),
                   let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   validatesJSONValue(object, schema: schema) else {
                 throw McpElicitationError.invalidValue(field.name)
@@ -446,15 +447,42 @@ struct McpElicitationCard: Identifiable, Sendable {
             throw McpElicitationError.invalidSchema(field)
         }
         switch type {
-        case "string": return .string
-        case "integer": return .number(integer: true)
-        case "number": return .number(integer: false)
+        case "string":
+            let format = node["format"] as? String
+            guard format.map({ ["email", "uri", "date", "date-time"].contains($0) }) ?? true else {
+                throw McpElicitationError.invalidSchema(field)
+            }
+            let minimum = int(node["minLength"]), maximum = int(node["maxLength"])
+            guard validBounds(minimum: minimum, maximum: maximum,
+                              upperBound: McpElicitationLimits.maximumInputBytes) else {
+                throw McpElicitationError.invalidSchema(field)
+            }
+            let allowedValues: Set<String>?
+            if node["oneOf"] != nil || node["enum"] != nil {
+                allowedValues = Set(try parseOptions(node, field: field).map(\.value))
+            } else {
+                allowedValues = nil
+            }
+            return .string(format: format, minLength: minimum, maxLength: maximum,
+                           allowedValues: allowedValues)
+        case "integer", "number":
+            let minimum = double(node["minimum"]), maximum = double(node["maximum"])
+            guard validNumberBounds(minimum: minimum, maximum: maximum) else {
+                throw McpElicitationError.invalidSchema(field)
+            }
+            return .number(integer: type == "integer", minimum: minimum, maximum: maximum)
         case "boolean": return .boolean
         case "array":
             guard let item = node["items"] as? [String: Any] else {
                 throw McpElicitationError.invalidSchema(field)
             }
-            return .array(item: try parseJSONSchema(item, field: field, depth: depth + 1))
+            let minimum = int(node["minItems"]), maximum = int(node["maxItems"])
+            guard validBounds(minimum: minimum, maximum: maximum,
+                              upperBound: McpElicitationLimits.maximumInputBytes) else {
+                throw McpElicitationError.invalidSchema(field)
+            }
+            return .array(item: try parseJSONSchema(item, field: field, depth: depth + 1),
+                          minItems: minimum, maxItems: maximum)
         case "object":
             guard let rawProperties = node["properties"] as? [String: Any],
                   rawProperties.count <= McpElicitationLimits.maximumFields else {
@@ -462,9 +490,20 @@ struct McpElicitationCard: Identifiable, Sendable {
             }
             let requiredNames = node["required"] as? [String] ?? []
             let required = Set(requiredNames)
-            guard required.count == requiredNames.count,
+            guard requiredNames.count <= McpElicitationLimits.maximumFields,
+                  required.count == requiredNames.count,
+                  requiredNames.allSatisfy({
+                      validString($0, maximumBytes: McpElicitationLimits.maximumIdentifierBytes)
+                  }),
                   required.isSubset(of: Set(rawProperties.keys)) else {
                 throw McpElicitationError.invalidSchema(field)
+            }
+            let allowsAdditionalProperties: Bool
+            if let raw = node["additionalProperties"] {
+                guard let value = raw as? Bool else { throw McpElicitationError.invalidSchema(field) }
+                allowsAdditionalProperties = value
+            } else {
+                allowsAdditionalProperties = true
             }
             var properties: [String: McpJSONValueSchema] = [:]
             for (name, raw) in rawProperties {
@@ -474,7 +513,8 @@ struct McpElicitationCard: Identifiable, Sendable {
                 }
                 properties[name] = try parseJSONSchema(child, field: "\(field).\(name)", depth: depth + 1)
             }
-            return .object(properties: properties, required: required)
+            return .object(properties: properties, required: required,
+                           allowsAdditionalProperties: allowsAdditionalProperties)
         default:
             throw McpElicitationError.unsupportedSchema(field)
         }
@@ -482,17 +522,28 @@ struct McpElicitationCard: Identifiable, Sendable {
 
     private static func validatesJSONValue(_ value: Any, schema: McpJSONValueSchema) -> Bool {
         switch schema {
-        case .string: return value is String
+        case let .string(format, minLength, maxLength, allowedValues):
+            guard let string = value as? String else { return false }
+            return string.utf8.count <= McpElicitationLimits.maximumInputBytes
+                && (minLength.map { string.count >= $0 } ?? true)
+                && (maxLength.map { string.count <= $0 } ?? true)
+                && (allowedValues.map { $0.contains(string) } ?? true)
+                && valid(string, format: format)
         case .boolean: return value is Bool
-        case .number(let integer):
+        case let .number(integer, minimum, maximum):
             guard !(value is Bool), let number = value as? NSNumber else { return false }
             let double = number.doubleValue
             return double.isFinite && (!integer || double.rounded() == double)
-        case .array(let item):
+                && (minimum.map { double >= $0 } ?? true)
+                && (maximum.map { double <= $0 } ?? true)
+        case let .array(item, minItems, maxItems):
             guard let values = value as? [Any] else { return false }
-            return values.allSatisfy { validatesJSONValue($0, schema: item) }
-        case .object(let properties, let required):
+            return (minItems.map { values.count >= $0 } ?? true)
+                && (maxItems.map { values.count <= $0 } ?? true)
+                && values.allSatisfy { validatesJSONValue($0, schema: item) }
+        case let .object(properties, required, allowsAdditionalProperties):
             guard let object = value as? [String: Any], required.isSubset(of: Set(object.keys)) else { return false }
+            if !allowsAdditionalProperties && !Set(object.keys).isSubset(of: Set(properties.keys)) { return false }
             return object.allSatisfy { key, value in
                 properties[key].map { validatesJSONValue(value, schema: $0) } ?? true
             }

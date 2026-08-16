@@ -161,10 +161,10 @@ actor JSONRPCClient {
     }
 
     /// Abort the underlying channel when a request-level timeout proves the connection
-    /// half-open. This is separate from stop() so ordinary stream teardown does not close
-    /// a transport owned by ConnectionStore.
+    /// half-open. The transport's incoming stream spans physical reconnects, so the pump
+    /// and its subscribers must remain alive for the recovered channel.
     func abortConnection() async {
-        stop()
+        failAllPending(TransportError.channelClosed(reason: "request timed out"))
         await transport.triggerReconnect()
     }
 

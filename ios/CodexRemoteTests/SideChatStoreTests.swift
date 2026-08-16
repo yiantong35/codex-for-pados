@@ -403,4 +403,19 @@ struct SideChatStoreTests {
 
         #expect(second !== rebuiltSecond)
     }
+
+    @Test func closingSelectedSessionUsesItsIndexWithinParentScope() async {
+        let store = SideChatStore()
+        store.setParentThread("parent-a")
+        store.setSessionsForTesting([
+            .init(id: "a1", forkedFromId: "parent-a", title: "a1"),
+            .init(id: "b1", forkedFromId: "parent-b", title: "b1"),
+            .init(id: "a2", forkedFromId: "parent-a", title: "a2"),
+            .init(id: "a3", forkedFromId: "parent-a", title: "a3"),
+            .init(id: "a4", forkedFromId: "parent-a", title: "a4"),
+        ], selectedId: "a2")
+
+        #expect(await store.close(id: "a2") == .closed)
+        #expect(store.selectedId == "a3")
+    }
 }

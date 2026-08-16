@@ -139,13 +139,38 @@ final class McpElicitationTests: XCTestCase {
         XCTAssertFalse(McpElicitationLimits.inputIsTooLarge("界界", maxLength: 3))
     }
 
-    func testObjectFieldAcceptsJSONAndReturnsObject() throws {
-        let card = try McpElicitationCard(request: makeRequest(id: "object", paramsObject: formParams(properties: [
-            "config": ["type": "object", "properties": ["enabled": ["type": "boolean"]]]
-        ])))
-        let response = try card.accept(drafts: ["config": .text("{\"enabled\":true}")])
-        let content = try XCTUnwrap(try jsonObject(response)["content"] as? [String: Any])
-        XCTAssertEqual((content["config"] as? [String: Any])?["enabled"] as? Bool, true)
+    func testObjectFieldPreservesNestedConstraints() throws {
+        let card = try McpElicitationCard(request: makeRequest(id: "object-constraints", paramsObject: formParams(
+            properties: [
+                "config": [
+                    "type": "object",
+                    "properties": [
+                        "name": ["type": "string", "minLength": 2, "maxLength": 4],
+                        "mode": ["type": "string", "enum": ["safe", "fast"]],
+                        "retries": ["type": "integer", "minimum": 1, "maximum": 3],
+                        "tags": [
+                            "type": "array", "minItems": 1, "maxItems": 2,
+                            "items": ["type": "string", "enum": ["a", "b"]],
+                        ],
+                    ],
+                    "required": ["name", "mode", "retries", "tags"],
+                    "additionalProperties": false,
+                ],
+            ]
+        )))
+
+        XCTAssertTrue(card.isSubmittable(drafts: [
+            "config": .text(#"{"name":"cod","mode":"safe","retries":2,"tags":["a","b"]}"#),
+        ]))
+        for invalid in [
+            #"{"name":"c","mode":"safe","retries":2,"tags":["a"]}"#,
+            #"{"name":"cod","mode":"other","retries":2,"tags":["a"]}"#,
+            #"{"name":"cod","mode":"safe","retries":4,"tags":["a"]}"#,
+            #"{"name":"cod","mode":"safe","retries":2,"tags":["a","b","a"]}"#,
+            #"{"name":"cod","mode":"safe","retries":2,"tags":["a"],"extra":true}"#,
+        ] {
+            XCTAssertFalse(card.isSubmittable(drafts: ["config": .text(invalid)]), invalid)
+        }
     }
 
     func testObjectFieldValidatesNestedRequiredFieldsAndTypes() throws {
