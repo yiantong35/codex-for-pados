@@ -109,12 +109,11 @@ struct RootView: View {
     }
 }
 
-/// 工作区宿主：承接从旧 RootView 迁来的 approval coordinator 接线与重连横幅。
+/// 工作区宿主：承接从旧 RootView 迁来的 approval coordinator 接线。
 /// 它读的是**当前 Session** 的 connection/projects/approvals（方案②由 workspace(for:) 注入），
 /// 故 coordinator 绑定到当前连接的 rpc；`.id(s.id)` 挂在本视图 → 切 Session 时 coordinator 一并重建。
 private struct WorkspaceHost: View {
     let workspaceState: WorkspaceSessionState
-    @Environment(SessionsManager.self) private var sessions
     @Environment(ConnectionStore.self) private var connection
     @Environment(ProjectsStore.self) private var projects
     @Environment(ApprovalStore.self) private var approvals
@@ -124,22 +123,10 @@ private struct WorkspaceHost: View {
     @State private var coordinator: ApprovalCoordinator?
     @State private var userInputCoordinator: UserInputCoordinator?
     @State private var mcpElicitationCoordinator: McpElicitationCoordinator?
-    // 信任失效横幅「重新配对」入口：弹配对导入 sheet（fail-closed 引导重配，非静默降级）。
-    @State private var showRePairing = false
-
     var body: some View {
         // TabBarView 已上提到 RootView（`.id(s.id)` 外层，常驻不重建）；本视图只承接
-        // RootSplitView + 重连横幅 + coordinator 接线。切 tab 由外层 `.id(s.id)` 重建本子树。
+        // RootSplitView + coordinator 接线。切 tab 由外层 `.id(s.id)` 重建本子树。
         RootSplitView(workspaceState: workspaceState)
-            .safeAreaInset(edge: .top, spacing: 0) { reconnectBanner }
-            .sheet(isPresented: $showRePairing) {
-                NavigationStack {
-                    RelayPairingImportView(
-                        replacingMachineID: sessions.activeSessionId,
-                        onImported: { showRePairing = false }
-                    )
-                }
-            }
             // 连接就绪/重连成功后把交互请求层接到当前 rpc；断线时标记待恢复（绝不自动批准）。
             // 用 `.task(id:)` 而非 `.onChange`：`.id(s.id)` 重建 WorkspaceHost 时 @State coordinator 归 nil，
             // 若切到已连接的缓存 Session，rpcIdentity 初值即为该 rpc id（无变化）→ onChange 不触发 →
@@ -178,45 +165,4 @@ private struct WorkspaceHost: View {
         "\(rpcIdentity):\(connection.phase == .ready ? "ready" : "not-ready")"
     }
 
-    @ViewBuilder private var reconnectBanner: some View {
-        switch connection.bannerState {
-        case .reconnecting:
-            bannerLabel("root.reconnecting", tint: .yellow)
-        case .failed(let reason):
-            HStack(alignment: .top, spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("connection.disconnected")
-                        .font(.callout.bold())
-                    Text(reason)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .textSelection(.enabled)
-                }
-                Button("connection.reconnect") { connection.reconnect() }
-                    .font(.callout.bold())
-                    .minimumHitTarget44()
-            }
-            .padding(.horizontal, 12).padding(.vertical, 6)
-            .background(Color.red.opacity(0.18))
-            .padding(.top, 8)
-        case .trustRevoked:
-            HStack(spacing: 8) {
-                bannerLabel("connection.trustRevoked", tint: .red)
-                Button("connection.rePair") { showRePairing = true }
-                    .font(.callout.bold())
-            }
-            .padding(.top, 8)
-        case .none:
-            EmptyView()
-        }
-    }
-
-    private func bannerLabel(_ key: LocalizedStringKey, tint: Color) -> some View {
-        Text(key)
-            .font(.callout)
-            .padding(.horizontal, 12).padding(.vertical, 6)
-            .background(tint.opacity(0.3), in: Capsule())
-            .padding(.top, 8)
-    }
 }

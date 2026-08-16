@@ -71,6 +71,9 @@ struct RootSplitView: View {
     @State private var isReconcilingSelection = false
     @State private var pendingSelectionReconcileIDs: Set<String>?
     @State private var latestSelectionReconcileIDs: Set<String>?
+    @State private var showRePairing = false
+    @State private var connectionFailureDetails: String?
+    @State private var manualReconnectInProgress = false
     /// 便利初始化：允许注入面板初始展开态（供快照测试覆盖全开布局）。
     init(initialRightOpen: Bool = false, initialBottomOpen: Bool = false,
          workspaceState: WorkspaceSessionState? = nil) {
@@ -92,62 +95,79 @@ struct RootSplitView: View {
 
     var body: some View {
         @Bindable var layout = layout
-        // 下栏改为 VStack 兄弟槽（不再用 split 的 .safeAreaInset(.bottom)）：
-        // 顶栏与摘要 overlay 迁到自绘三栏容器 resizableColumns 外层（design D6）：顶栏用
-        // .safeAreaInset(.top) 挂外层横跨三栏，摘要用常驻 overlay 落在顶栏下方内容区。
-        GeometryReader { geometry in
-            VStack(spacing: 0) {
-                resizableColumns
-                // 摘要：常驻悬浮浮层（design D2 改）。用 overlay 而非 .popover，故点击别处不收回，
-                // 仅由顶栏摘要按钮显隐。overlay 放在 safeAreaInset 之前 → 浮层落在顶栏「下方」内容区，
-                // 不会遮挡顶栏按钮（否则会盖住摘要按钮本身导致收不回）。
-                .overlay(alignment: .topTrailing) {
-                    if layout.showSummary {
-                        GeometryReader { geometry in
-                            SummaryPopoverView(state: activeConversation.state, thread: selectedThread, env: envInspector,
-                                               onOpenReview: { layout.requestRightPanel(.review) })
-                                .frame(width: min(340, max(0, geometry.size.width - 24)))
-                                .task(id: summaryEnvKey) {
-                                    if connection.phase == .ready, let rpc = connection.rpc {
-                                        envInspector.attach(rpc: rpc)
-                                        await envInspector.refresh(cwd: selectedThread?.cwd)
+        NavigationStack {
+            GeometryReader { geometry in
+                VStack(spacing: 0) {
+                    if let state = effectiveBannerState {
+                        ConnectionBanner(
+                            state: state,
+                            onReconnect: beginManualReconnect,
+                            onShowDetails: { connectionFailureDetails = $0 },
+                            onRePair: { showRePairing = true }
+                        )
+                    }
+
+                    resizableColumns
+                    // 摘要：常驻悬浮浮层（design D2 改）。用 overlay 而非 .popover，故点击别处不收回，
+                    // 仅由系统工具栏摘要按钮显隐；浮层位于工具栏下方的工作区内容层。
+                    .overlay(alignment: .topTrailing) {
+                        if layout.showSummary {
+                            GeometryReader { geometry in
+                                SummaryPopoverView(state: activeConversation.state, thread: selectedThread, env: envInspector,
+                                                   onOpenReview: { layout.requestRightPanel(.review) })
+                                    .frame(width: min(340, max(0, geometry.size.width - 24)))
+                                    .task(id: summaryEnvKey) {
+                                        if connection.phase == .ready, let rpc = connection.rpc {
+                                            envInspector.attach(rpc: rpc)
+                                            await envInspector.refresh(cwd: selectedThread?.cwd)
+                                        }
                                     }
-                                }
-                                .frame(maxHeight: 480)
-                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-                                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))
-                                .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
-                                .padding(.top, 8)
-                                .padding(.trailing, 12)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                                .transition(.opacity.combined(with: .move(edge: .top)))
+                                    .frame(maxHeight: 480)
+                                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+                                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))
+                                    .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
+                                    .padding(.top, 8)
+                                    .padding(.trailing, 12)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                                    .transition(.opacity.combined(with: .move(edge: .top)))
+                            }
                         }
                     }
-                }
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    VStack(spacing: 0) {
-                        topBar
+                    // 下栏：VStack 底部兄弟槽，横跨三栏并把内容挤压上移。
+                    if layout.showBottom {
                         Divider()
+                        BottomPanelView(height: Binding(
+                            get: { workspaceState.bottomHeight },
+                            set: { workspaceState.bottomHeight = $0 }
+                        ), maximumHeight: WorkspaceMetrics.bottomPanelMaximumHeight(
+                            containerHeight: geometry.size.height
+                        ), cwd: selectedThread?.cwd)
+                        .transition(.move(edge: .bottom))
                     }
-                }
-
-            // 下栏：VStack 底部兄弟槽，横跨左+中+右、把 resizableColumns 挤压上移（design D2 目标，改用 VStack 实现）。
-                if layout.showBottom {
-                    Divider()
-                    BottomPanelView(height: Binding(
-                        get: { workspaceState.bottomHeight },
-                        set: { workspaceState.bottomHeight = $0 }
-                    ), maximumHeight: WorkspaceMetrics.bottomPanelMaximumHeight(
-                        containerHeight: geometry.size.height
-                    ), cwd: selectedThread?.cwd)
-                    // 从底部滑入/滑出，配合顶栏按钮的 withAnimation，弹出不再僵硬（#1）。
-                    .transition(.move(edge: .bottom))
                 }
             }
         }
+        .toolbar { workspaceToolbar }
+        .navigationBarTitleDisplayMode(.inline)
         .background { ShortcutLayer(layout: layout) }   // T10：隐藏快捷键层挂稳定独立视图（不随 body 重算重建）
         .environment(activeConversation)
         .sheet(isPresented: $layout.showSettings) { SettingsPageView(systemColorScheme: systemColorScheme) }
+        .sheet(isPresented: $showRePairing) {
+            NavigationStack {
+                RelayPairingImportView(
+                    replacingMachineID: sessions.activeSessionId,
+                    onImported: { showRePairing = false }
+                )
+            }
+        }
+        .alert("connection.details.title", isPresented: Binding(
+            get: { connectionFailureDetails != nil },
+            set: { if !$0 { connectionFailureDetails = nil } }
+        )) {
+            Button("common.ok", role: .cancel) { connectionFailureDetails = nil }
+        } message: {
+            Text(verbatim: connectionFailureDetails ?? "")
+        }
         .alert("operation.failed.title", isPresented: Binding(
             get: { operationError != nil },
             set: {
@@ -184,89 +204,111 @@ struct RootSplitView: View {
         .onChange(of: projects.loadState) { _, _ in
             reconcileSelectedThread(availableIDs: Set(projects.allThreadsSorted.map(\.id)))
         }
+        .onChange(of: connection.phase) { _, phase in
+            if phase == .ready || phase.isFailure {
+                manualReconnectInProgress = false
+            }
+        }
         .task {
             loadColumnWidths(for: sessions.activeSessionId)
         }
     }
 
-    // MARK: - 顶部固定全局工具栏：左面板 · 下面板 · 右面板 · 摘要(:≡) · 设置
+    // MARK: - 原生工作区工具栏
 
-    private var topBar: some View {
-        // 全部按钮靠右；顺序：左面板 · 下面板 · 摘要 · 右面板 · 设置。
-        // 三个面板图标用统一的 inset.filled 矩形族（一致风格，不混描边/填充）；
-        // 摘要用 list.bullet(:≡ 两圆点两横线)；图标走主题色(.tint)、随系统深浅适配。
-        HStack(spacing: 4) {
-            Spacer()
+    @ToolbarContentBuilder
+    private var workspaceToolbar: some ToolbarContent {
+        ToolbarItemGroup(placement: .topBarTrailing) {
+            Button(action: createThread) { toolbarImage("plus") }
+                .accessibilityLabel(Text("sidebar.newThread"))
+                .disabled(projects.isCreatingThread)
 
-            // 新建会话：SidebarView 无导航栏（已移除 NavigationSplitView），故新建入口挂在此自定义顶栏（design D1 深挖）。点击发 thread/start，切 selectedThreadId 进入新会话。
-            // rpc 从 connection 显式取（projects.self.rpc 未经 attach 注入，对齐 loadFromServer(rpc:) 模式）。
-            Button {
-                guard connection.phase == .ready, let rpc = connection.rpc else {
-                    operationError = L10n.string("operation.unavailable.offline", locale: LocaleManager.currentLocale)
-                    return
+            ControlGroup {
+                panelToolbarButton(
+                    symbol: "rectangle.leadinghalf.inset.filled",
+                    label: "workspace.leftPanel.toggle",
+                    isOn: layout.leftVisible
+                ) {
+                    withAnimation { layout.leftVisible.toggle(); layout.lastRequested = .left }
                 }
-                Task {
-                    guard let newId = await projects.createThread(rpc: rpc) else {
-                        if let error = projects.createThreadError { operationError = error }
-                        return
-                    }
-                    workspaceState.selectedThreadId = newId
-                    projects.markViewed(threadId: newId, updatedAt: Date().timeIntervalSince1970)
+                panelToolbarButton(
+                    symbol: "rectangle.bottomthird.inset.filled",
+                    label: "workspace.bottomPanel.toggle",
+                    isOn: layout.showBottom
+                ) {
+                    withAnimation { layout.showBottom.toggle() }
                 }
-            } label: { Image(systemName: "plus.rectangle") }
-            .minimumHitTarget44()
-            .accessibilityLabel(Text("sidebar.newThread"))
-            .disabled(projects.isCreatingThread)
-
-            // 左面板：切换 layout.leftVisible 显隐自绘左列（无系统 columnVisibility / sidebarToggle）。
-            Button {
-                withAnimation { layout.leftVisible.toggle(); layout.lastRequested = .left }
-            } label: { Image(systemName: "rectangle.leadinghalf.inset.filled") }
-            .minimumHitTarget44()
-            .panelToggleState(isOn: layout.leftVisible)
-            .accessibilityLabel(Text("workspace.leftPanel.toggle"))
-            .accessibilityValue(Text(layout.leftVisible ? "workspace.panel.shown" : "workspace.panel.hidden"))
-
-            // 下面板。
-            Button { withAnimation { layout.showBottom.toggle() } } label: {
-                Image(systemName: "rectangle.bottomthird.inset.filled")
+                panelToolbarButton(
+                    symbol: "list.bullet",
+                    label: "workspace.summary.toggle",
+                    isOn: layout.showSummary
+                ) {
+                    withAnimation { layout.showSummary.toggle() }
+                }
+                panelToolbarButton(
+                    symbol: "rectangle.trailinghalf.inset.filled",
+                    label: "workspace.rightPanel.toggle",
+                    isOn: layout.showRight
+                ) {
+                    withAnimation { layout.showRight.toggle(); layout.lastRequested = .right }
+                }
             }
-            .minimumHitTarget44()
-            .panelToggleState(isOn: layout.showBottom)
-            .accessibilityLabel(Text("workspace.bottomPanel.toggle"))
-            .accessibilityValue(Text(layout.showBottom ? "workspace.panel.shown" : "workspace.panel.hidden"))
-
-            // 摘要(:≡ = list.bullet)：常驻悬浮浮层由 body 的 overlay 渲染。
-            Button { withAnimation { layout.showSummary.toggle() } } label: {
-                Image(systemName: "list.bullet")
-            }
-            .minimumHitTarget44()
-            .panelToggleState(isOn: layout.showSummary)
-            .accessibilityLabel(Text("workspace.summary.toggle"))
-            .accessibilityValue(Text(layout.showSummary ? "workspace.panel.shown" : "workspace.panel.hidden"))
-
-            // 右面板。
-            Button { withAnimation { layout.showRight.toggle(); layout.lastRequested = .right } } label: {
-                Image(systemName: "rectangle.trailinghalf.inset.filled")
-            }
-            .minimumHitTarget44()
-            .panelToggleState(isOn: layout.showRight)
-            .accessibilityLabel(Text("workspace.rightPanel.toggle"))
-            .accessibilityValue(Text(layout.showRight ? "workspace.panel.shown" : "workspace.panel.hidden"))
-
-            // 设置：gear 直接打开设置页 .sheet（移除旧 popover，设计 D3）。
-            Button { layout.showSettings = true } label: {
-                Image(systemName: "gearshape")
-                    .accessibilityLabel(Text("settings.accessibility"))
-            }
-            .minimumHitTarget44()
         }
-        .font(.title3)
-        // 图标用 .primary（标签色，随深浅自动适配黑/白），不用 iOS 默认蓝。
-        .tint(Color.primary)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 10)
-        .background(.bar)
+
+        ToolbarItem(placement: .topBarTrailing) {
+            Button { layout.showSettings = true } label: { toolbarImage("gearshape") }
+                .accessibilityLabel(Text("settings.accessibility"))
+        }
+    }
+
+    private func toolbarImage(_ symbol: String, selected: Bool = false) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 21, weight: selected ? .semibold : .regular))
+            .foregroundStyle(selected ? Color.accentColor : Color.primary)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+    }
+
+    private func panelToolbarButton(
+        symbol: String,
+        label: LocalizedStringKey,
+        isOn: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) { toolbarImage(symbol, selected: isOn) }
+            .accessibilityLabel(Text(label))
+            .accessibilityValue(Text(isOn ? "workspace.panel.shown" : "workspace.panel.hidden"))
+            .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+
+    private func createThread() {
+        guard connection.phase == .ready, let rpc = connection.rpc else {
+            operationError = L10n.string("operation.unavailable.offline", locale: LocaleManager.currentLocale)
+            return
+        }
+        Task {
+            guard let newId = await projects.createThread(rpc: rpc) else {
+                if let error = projects.createThreadError { operationError = error }
+                return
+            }
+            workspaceState.selectedThreadId = newId
+            projects.markViewed(threadId: newId, updatedAt: Date().timeIntervalSince1970)
+        }
+    }
+
+    private var effectiveBannerState: ConnectionBannerState? {
+        if manualReconnectInProgress {
+            switch connection.phase {
+            case .connecting, .initializing: return .reconnecting
+            default: break
+            }
+        }
+        return connection.bannerState
+    }
+
+    private func beginManualReconnect() {
+        manualReconnectInProgress = true
+        connection.reconnect()
     }
 
     // MARK: - 自绘三栏（custom-resizable-columns，替换 NavigationSplitView + .inspector）
@@ -335,7 +377,14 @@ struct RootSplitView: View {
             )
             .id(id)
         } else {
-            ContentUnavailableView("split.selectConversation", systemImage: "bubble.left.and.bubble.right")
+            VStack(spacing: 0) {
+                WorkspaceHeader { Color.clear }
+                Divider()
+                WorkspaceEmptyState(
+                    title: "split.selectConversation",
+                    systemImage: "bubble.left.and.bubble.right"
+                )
+            }
         }
     }
 
@@ -425,13 +474,52 @@ struct RootSplitView: View {
     }
 }
 
-private extension View {
-    func panelToggleState(isOn: Bool) -> some View {
-        self
-            .foregroundStyle(isOn ? Color.accentColor : Color.primary)
-            .background(isOn ? Color.accentColor.opacity(0.14) : Color.clear,
-                        in: RoundedRectangle(cornerRadius: 6))
-            .accessibilityAddTraits(isOn ? .isSelected : [])
+private extension ConnectionPhase {
+    var isFailure: Bool {
+        if case .failed = self { return true }
+        return false
+    }
+}
+
+struct ConnectionBanner: View {
+    let state: ConnectionBannerState
+    let onReconnect: () -> Void
+    let onShowDetails: (String) -> Void
+    let onRePair: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            switch state {
+            case .reconnecting:
+                ProgressView().controlSize(.small)
+                Text("root.reconnecting")
+                Spacer(minLength: 0)
+            case .failed(let reason):
+                Image(systemName: "wifi.slash")
+                    .accessibilityHidden(true)
+                Text("connection.banner.disconnected")
+                Spacer(minLength: 4)
+                Button { onShowDetails(reason) } label: {
+                    Image(systemName: "info.circle")
+                }
+                .accessibilityLabel(Text("connection.details"))
+                Button("connection.reconnect", action: onReconnect)
+            case .trustRevoked:
+                Image(systemName: "wifi.slash")
+                    .accessibilityHidden(true)
+                Text("connection.trustRevoked")
+                Spacer(minLength: 4)
+                Button("connection.rePair", action: onRePair)
+            }
+        }
+        .font(.subheadline)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, minHeight: 36, maxHeight: 36)
+        .background(.thinMaterial)
+        .overlay(alignment: .bottom) { Divider() }
+        .accessibilityElement(children: .contain)
     }
 }
 
