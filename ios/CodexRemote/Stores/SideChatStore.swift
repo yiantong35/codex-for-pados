@@ -213,13 +213,15 @@ final class SideChatStore {
         }
         guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return .closed }
         let removedParent = sessions[idx].forkedFromId
+        let scopedIndex = sessions
+            .filter { $0.forkedFromId == removedParent }
+            .firstIndex { $0.id == id }
         sessions.remove(at: idx)
         conversationOutboxes.remove(threadId: id)
         draftStore?.removeDraft(for: id)
         if selectedId == id {
-            let parent = removedParent ?? (parentThreadId ?? "")
-            let scoped = sessions.enumerated().filter { $0.element.forkedFromId == parent }
-            selectedId = scoped.isEmpty ? nil : scoped[min(scoped.count - 1, idx)].element.id
+            let scoped = sessions.filter { $0.forkedFromId == removedParent }
+            selectedId = scoped.isEmpty ? nil : scoped[min(scoped.count - 1, scopedIndex ?? 0)].id
         }
         return .closed
     }

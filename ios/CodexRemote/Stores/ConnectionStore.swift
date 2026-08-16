@@ -108,8 +108,7 @@ final class ConnectionStore {
     private var recoveryTask: Task<Void, Never>?
     private var recoveryEpoch: UInt64 = 0
     private var controlObserver: Task<Void, Never>?
-    /// 当前连接是否已就绪（phase=.ready），用于在 handler 晚于 .ready 注册时补触发首连恢复。
-    private var isReady = false
+    private var connectTimeoutTask: Task<Void, Never>?
     /// 当前连接尝试序号：每次新连接 +1；超时也 +1 以作废仍在后台跑的旧 establish。
     private var activeAttempt = 0
     /// app 前台/后台状态（能耗）：转发给底层 transport 以在后台暂停重连。默认前台。
@@ -142,7 +141,7 @@ final class ConnectionStore {
         let token = ResumeToken(raw: nextResumeTokenRaw); nextResumeTokenRaw &+= 1
         resumeHandlers[token] = ResumeRegistration(threadId: threadId, handler: h)
         // 已就绪且本 token 尚未首连触发过 → 立即补触发恰一次（对齐既有 setResumeHandler 语义）。
-        if isReady, !rejoinedTokens.contains(token) {
+        if phase == .ready, !rejoinedTokens.contains(token) {
             rejoinedTokens.insert(token)
             Task { await h() }
         }
@@ -164,7 +163,7 @@ final class ConnectionStore {
     /// addResumeHandler 晚于首连 .ready 时，会单独补恢复新出现的可见会话。
     /// 物理重连的恢复由 observeControl 的 .ready 分支独立负责，不经此处。
     private func triggerInitialRejoinIfReady() {
-        guard isReady else { return }
+        guard phase == .ready else { return }
         scheduleRecoveryEpoch()
     }
 
@@ -218,6 +217,8 @@ final class ConnectionStore {
         }
         self.config = config
         self.lastConfig = config    // 记录以供心跳判死后 reconnect() 复用（保留机器配置）
+        connectTimeoutTask?.cancel()
+        connectTimeoutTask = nil
         // 新连接作废上一次仍在途的 transport（若上次卡在握手未落地也未超时）：关闭之避免泄漏（#1）。
         if let stale = inFlightTransport {
             inFlightTransport = nil
@@ -231,7 +232,6 @@ final class ConnectionStore {
         recoveryTask = nil
         recoveryEpoch &+= 1
         rejoinedTokens.removeAll()
-        isReady = false
         needsRePairing = false   // 新连接清除上一次的信任撤销引导标记
         connLog.info("connect 开始 relay session=\(config.relaySessionId, privacy: .public) attempt=\(attempt)")
 
@@ -251,7 +251,8 @@ final class ConnectionStore {
                 self.transport = newTransport
                 self.inFlightTransport = nil    // 已落地为 self.transport，不再算「在途」
                 self.phase = .ready
-                self.isReady = true
+                self.connectTimeoutTask?.cancel()
+                self.connectTimeoutTask = nil
                 self.startHeartbeat()   // 首连就绪：起端到端心跳探穿段 B
                 self.observeControl(newTransport)
                 // 把当前前台/后台状态同步给新 transport（能耗：后台连接不应持续重连）。
@@ -263,6 +264,8 @@ final class ConnectionStore {
                 connLog.info("connect 成功 phase=ready")
             } catch {
                 guard attempt == self.activeAttempt else { return }   // 已被超时/新尝试作废
+                self.connectTimeoutTask?.cancel()
+                self.connectTimeoutTask = nil
                 connLog.error("connect 失败: \(String(describing: error), privacy: .public)")
                 // #2 冷启动首连即遇 trustRevoked：RelayTransport 首连收 RejectHello 以可判别类型
                 // .trustRevoked 冒泡（observeControl 尚未订阅，控制事件无人消费）。与 live 重连路径的
@@ -278,9 +281,11 @@ final class ConnectionStore {
 
         // 硬超时：到点若仍未 settle，强制失败并作废本次 attempt。
         let timeoutNanos = connectTimeoutNanos
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: timeoutNanos)
-            guard let self, attempt == self.activeAttempt, !self.phase.isSettled else { return }
+        connectTimeoutTask = Task { [weak self] in
+            do { try await Task.sleep(nanoseconds: timeoutNanos) }
+            catch { return }
+            guard let self, attempt == self.activeAttempt else { return }
+            self.connectTimeoutTask = nil
             connLog.error("connect 超时 attempt=\(attempt)")
             self.phase = .failed(ConnectionTimeoutError().errorDescription
                 ?? L10n.string("conn.error.timeout", locale: LocaleManager.currentLocale))
@@ -296,6 +301,8 @@ final class ConnectionStore {
     /// 主动断开（停止控制信号观察 + 关闭 RPC + 关闭底层 transport）。
     func disconnect() async {
         activeAttempt += 1                // 作废任何在途连接
+        connectTimeoutTask?.cancel()
+        connectTimeoutTask = nil
         stopHeartbeat()                   // 主动断开：停心跳（终态不重连）
         controlObserver?.cancel()
         controlObserver = nil
@@ -308,7 +315,6 @@ final class ConnectionStore {
         // 作废任何仍在握手途中、尚未落地的 transport，避免其传输连接 + 挂起任务泄漏（#1）。
         // take-and-nil：先原子取所有权再 close，避免与在途 establish 的失败清理路径双关同一 transport。
         if let inflight = inFlightTransport { inFlightTransport = nil; await inflight.close() }
-        isReady = false
         recoveryTask?.cancel()
         recoveryTask = nil
         recoveryEpoch &+= 1

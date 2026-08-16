@@ -123,6 +123,30 @@ final class JSONRPCClientTests: XCTestCase {
         await fulfillment(of: [exp], timeout: 2)
     }
 
+    func testAbortConnectionKeepsPumpAndSubscriberStreamsAlive() async throws {
+        let mock = MockTransport()
+        await mock.setAutoRespond(true)
+        let client = JSONRPCClient(transport: mock)
+        let notificationStream = await client.notifications()
+        let requestStream = await client.serverRequests(for: .approval)
+        await client.start()
+
+        await client.abortConnection()
+
+        let reconnectCount = await mock.triggerReconnectCount
+        XCTAssertEqual(reconnectCount, 1)
+        let notification = Task { await notificationStream.first(where: { _ in true }) }
+        let request = Task { await requestStream.first(where: { _ in true }) }
+        await mock.feed(#"{"method":"turn/completed","params":{"threadId":"t"}}"#)
+        await mock.feed(#"{"id":"approval-after-abort","method":"item/commandExecution/requestApproval","params":{}}"#)
+
+        let receivedNotification = await notification.value
+        let receivedRequest = await request.value
+        XCTAssertEqual(receivedNotification?.method, "turn/completed")
+        XCTAssertEqual(receivedRequest?.id, .string("approval-after-abort"))
+        _ = try await client.send(method: RPCMethod.threadList, params: nil)
+    }
+
     // ③ feed 一条 server request → 对应 owner 收到且 method/id 正确，并回 response
     func testServerRequestDispatchedToOwner() async throws {
         let mock = MockTransport()

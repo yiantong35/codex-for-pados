@@ -51,6 +51,7 @@ actor MockTransport: MessageTransport {
 
     /// close() 被调用次数（断言超时/失效时在途 transport 被关闭恰好一次）。
     private(set) var closeCount = 0
+    private(set) var triggerReconnectCount = 0
     /// 握手阻塞开关（默认关）。开启后 `awaitHandshake()` 挂起直到 `close()` 被调用才抛出，
     /// 用于复现「远端接受 exec 但永不发 101 也不关流」导致 doEstablish 永久挂起的泄漏路径。
     private var blockHandshake = false
@@ -142,6 +143,10 @@ actor MockTransport: MessageTransport {
             handshakeWaiter = nil
             w.resume(throwing: TransportError.channelClosed(reason: "连接主动关闭"))
         }
+    }
+
+    func triggerReconnect() async {
+        triggerReconnectCount += 1
     }
 
     // MARK: 测试驱动

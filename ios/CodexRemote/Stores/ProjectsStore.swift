@@ -107,6 +107,8 @@ final class ProjectsStore {
     private var broadcastObserver: Task<Void, Never>?
     /// D5-b：准实时轮询任务；nil = 未轮询。列表可见时启动、退后台/不可见时停止。
     @ObservationIgnored private var pollTask: Task<Void, Never>?
+    @ObservationIgnored private var pollGeneration: UInt64 = 0
+    @ObservationIgnored private var attachmentGeneration: UInt64 = 0
     @ObservationIgnored private var pollingRequested = false
     @ObservationIgnored private var pollBaseIntervalNanos: UInt64 = 30_000_000_000
     @ObservationIgnored private var pollMaxIntervalNanos: UInt64 = 300_000_000_000
@@ -129,14 +131,17 @@ final class ProjectsStore {
         guard pollingRequested, pollTask == nil, rpc != nil else { return }
         let base = pollBaseIntervalNanos
         let maximum = pollMaxIntervalNanos
+        let generation = pollGeneration
         pollTask = Task { [weak self] in
             var delay = base
             while !Task.isCancelled {
                 guard let self else { return }
                 await self.pollSleep(delay)
-                guard !Task.isCancelled, self.pollingRequested, let rpc = self.rpc else { return }
+                guard !Task.isCancelled, generation == self.pollGeneration,
+                      self.pollingRequested, let rpc = self.rpc else { return }
                 let succeeded = await self.refreshRecentPage(rpc: rpc)
-                guard !Task.isCancelled, self.rpc === rpc else { return }
+                guard !Task.isCancelled, generation == self.pollGeneration,
+                      self.rpc === rpc else { return }
                 if succeeded {
                     delay = base
                 } else {
@@ -149,6 +154,7 @@ final class ProjectsStore {
     /// 停止周期轮询（列表不可见/退后台）。
     func stopPolling() {
         pollingRequested = false
+        pollGeneration &+= 1
         pollTask?.cancel()
         pollTask = nil
     }
@@ -163,13 +169,19 @@ final class ProjectsStore {
     /// 重连后新连接的官方广播永不刷新列表，UI 停在断线前快照）。
     func attach(rpc: JSONRPCClient) async {
         let rpcChanged = self.rpc !== rpc
-        self.rpc = rpc
         if rpcChanged {
+            attachmentGeneration &+= 1
+            let generation = attachmentGeneration
             broadcastObserver?.cancel()
             broadcastObserver = nil
-            pollTask?.cancel()
+            pollGeneration &+= 1
+            let oldPollTask = pollTask
             pollTask = nil
+            oldPollTask?.cancel()
+            await oldPollTask?.value
+            guard generation == attachmentGeneration else { return }
         }
+        self.rpc = rpc
         if broadcastObserver == nil {
             let stream = await rpc.notifications(methods: ServerNotificationMethod.projectMethods)
             broadcastObserver = Task { [weak self] in
