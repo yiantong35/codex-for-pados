@@ -487,8 +487,10 @@ final class ConnectionStoreTests: XCTestCase {
         // 首连（isTrustedReconnect=true）通道：对首帧 ClientHello 即回 RejectHello(trustRevoked)。
         let transport = RelayTransport(
             channelFactory: {
-                LoopbackRelayWSChannel { _ in
-                    let rej = RejectHello(sessionId: "sess-cold", reason: .trustRevoked)
+                LoopbackRelayWSChannel { text in
+                    let hello = try JSONDecoder().decode(ClientHello.self, from: Data(text.utf8))
+                    let rej = try Handshake.makeRejectHello(clientHello: hello, reason: .trustRevoked,
+                                                            devIdentity: devIdentity)
                     return String(decoding: try JSONEncoder().encode(rej), as: UTF8.self)
                 }
             },

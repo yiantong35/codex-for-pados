@@ -63,15 +63,22 @@ public enum RejectReason: String, Codable, Sendable, Equatable {
     case versionMismatch
 }
 
-/// 独立过线拒绝消息：dev 握手拒绝时主动发一条再关连接（而非静默 close），
-/// 使 iPad 能区分「应用层拒绝」与「传输层失败」。带独有 `kind` tag 供 iPad 类型判别
-/// （ServerHello 没有 `kind` 字段，解码 RejectHello 时会因缺失该 required 字段而失败）。
+/// 独立过线拒绝消息：dev 握手拒绝时主动发一条再关连接（而非静默 close）。拒绝原因、
+/// sessionId 与本次 ClientHello nonce 均由开发机身份密钥签名；iPad 验证后才能改变信任状态。
+/// 带独有 `kind` tag 供 iPad 类型判别（ServerHello 没有 `kind` 字段）。
 public struct RejectHello: Codable, Sendable, Equatable {
     public var kind: String
     public var sessionId: String
     public var reason: RejectReason
-    public init(sessionId: String, reason: RejectReason) {
-        self.kind = "reject"; self.sessionId = sessionId; self.reason = reason
+    public var echoedClientNonce: Data
+    public var devSignature: Data
+    public init(sessionId: String, reason: RejectReason,
+                echoedClientNonce: Data, devSignature: Data) {
+        self.kind = "reject"
+        self.sessionId = sessionId
+        self.reason = reason
+        self.echoedClientNonce = echoedClientNonce
+        self.devSignature = devSignature
     }
 }
 
@@ -85,6 +92,53 @@ public struct RejectHello: Codable, Sendable, Equatable {
 ///   的 ipadSignature（防未授权 iPad 接管开发机）。
 /// 两端签名与密钥派生共用同一个逐字节一致的 transcript。
 public enum Handshake {
+
+    private static func rejectTranscript(sessionId: String,
+                                         reason: RejectReason,
+                                         clientNonce: Data) -> Data {
+        Transcript.encode([
+            Data("codex-relay-reject-v1".utf8),
+            Data(sessionId.utf8),
+            Data(reason.rawValue.utf8),
+            clientNonce,
+        ])
+    }
+
+    /// Creates an authenticated rejection bound to the current ClientHello. The nonce prevents a
+    /// valid rejection from an earlier handshake being replayed after the device is trusted again.
+    public static func makeRejectHello(clientHello: ClientHello,
+                                       reason: RejectReason,
+                                       devIdentity: Curve25519.Signing.PrivateKey) throws -> RejectHello {
+        let transcript = rejectTranscript(sessionId: clientHello.sessionId,
+                                          reason: reason,
+                                          clientNonce: clientHello.clientNonce)
+        return RejectHello(
+            sessionId: clientHello.sessionId,
+            reason: reason,
+            echoedClientNonce: clientHello.clientNonce,
+            devSignature: try devIdentity.signature(for: transcript)
+        )
+    }
+
+    /// Verifies that a rejection came from the paired developer identity and belongs to this exact
+    /// handshake. Callers must not change trust state when this verification fails.
+    public static func verifyRejectHello(_ reject: RejectHello,
+                                         clientHello: ClientHello,
+                                         devIdentityPub: Data) throws -> RejectReason {
+        guard reject.kind == "reject",
+              reject.sessionId == clientHello.sessionId,
+              reject.echoedClientNonce == clientHello.clientNonce,
+              let devPub = try? Curve25519.Signing.PublicKey(rawRepresentation: devIdentityPub) else {
+            throw HandshakeError.badServerSignature
+        }
+        let transcript = rejectTranscript(sessionId: reject.sessionId,
+                                          reason: reject.reason,
+                                          clientNonce: reject.echoedClientNonce)
+        guard devPub.isValidSignature(reject.devSignature, for: transcript) else {
+            throw HandshakeError.badServerSignature
+        }
+        return reject.reason
+    }
 
     /// 两端一致的 transcript：所有握手公开字段按固定顺序经 Transcript.encode 串接。
     static func transcript(clientHello h: ClientHello, serverHello s: ServerHello) -> Data {

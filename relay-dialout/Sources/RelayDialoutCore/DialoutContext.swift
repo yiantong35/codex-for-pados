@@ -79,11 +79,12 @@ public final class DialoutContext: @unchecked Sendable {
     /// 返回非 nil 表示 dev 应向 iPad 发该 RejectHello 后关连接（而非静默断/继续）。
     /// 未受信任且未持有效 proof（空 proof）→ .untrusted（防降级：判定权在 dev 侧）。
     /// 已在信任列表则 nil（走受信任握手）；未受信任但带 proof 则 nil（走首配校验）。
-    public func rejectHelloIfUnauthorized(_ hello: ClientHello) -> RejectHello? {
+    public func rejectHelloIfUnauthorized(_ hello: ClientHello) throws -> RejectHello? {
         let ipadPub = hello.ipadIdentityPub.base64EncodedString()
         if trust.record(forPubB64: ipadPub) != nil { return nil }   // 受信任 → 走受信任握手
         if hello.pairingCodeProof.isEmpty {                         // 未受信任 + 空 proof → 拒
-            return RejectHello(sessionId: hello.sessionId, reason: .untrusted)
+            return try Handshake.makeRejectHello(clientHello: hello, reason: .untrusted,
+                                                 devIdentity: keyStore.identity)
         }
         return nil   // 未受信任但带 proof → 交首配路径校验
     }
