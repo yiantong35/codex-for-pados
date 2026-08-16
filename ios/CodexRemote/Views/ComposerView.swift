@@ -202,9 +202,8 @@ struct ComposerView: View {
         TextField("composer.placeholder", text: text, axis: .vertical)
             .textFieldStyle(.roundedBorder)
             .lineLimit(1...5)
-            .submitLabel(.send)
+            .submitLabel(.return)
             .focused($inputFocused)
-            .onSubmit { performSendShortcut() }
     }
 
     @ViewBuilder
@@ -318,11 +317,27 @@ struct ComposerView: View {
     }
 
     private func performSendShortcut() {
-        guard isEnabled, canSend else { return }
         Task {
-            if store.state.isTurnRunning { await enqueueCurrent() }
-            else { await send() }
+            await Self.executeSendShortcut(
+                isEnabled: isEnabled,
+                canSend: canSend,
+                isTurnRunning: store.state.isTurnRunning,
+                send: { await send() },
+                enqueue: { await enqueueCurrent() }
+            )
         }
+    }
+
+    static func executeSendShortcut(
+        isEnabled: Bool,
+        canSend: Bool,
+        isTurnRunning: Bool,
+        send: () async -> Void,
+        enqueue: () async -> Void
+    ) async {
+        guard isEnabled, canSend else { return }
+        if isTurnRunning { await enqueue() }
+        else { await send() }
     }
 }
 

@@ -41,7 +41,7 @@ final class WorkspaceSessionState {
 }
 
 /// 主界面（复刻 Codex desktop 五窗口工作区骨架，自绘三栏重构 custom-resizable-columns）：
-/// 顶栏用 safeAreaInset(.top)、摘要用常驻 overlay，均挂在自绘三栏容器 ResizableColumns 外层（design D6）。
+/// 顶栏使用 NavigationStack 的系统 toolbar；摘要用常驻 overlay，挂在自绘三栏容器上。
 /// - 左边栏 = ResizableColumns 左列（条件渲染，leftVisible 承接，D5）；右边栏 = 右列（showRight 承接）。
 /// - 下边栏 = VStack 底部兄弟槽：横跨左+中+右、把三栏挤压上移（design D2，布局翻转）。
 /// - 摘要 = :≡ 按钮触发的常驻悬浮浮层（overlay，design D2），非占列。
@@ -145,9 +145,16 @@ struct RootSplitView: View {
                     }
                 }
             }
+            .toolbar {
+                WorkspaceToolbar(
+                    layout: layout,
+                    isCreatingThread: projects.isCreatingThread,
+                    reduceMotion: reduceMotion,
+                    createThread: createThread
+                )
+            }
+            .navigationBarTitleDisplayMode(.inline)
         }
-        .toolbar { workspaceToolbar }
-        .navigationBarTitleDisplayMode(.inline)
         .background { ShortcutLayer(layout: layout) }   // T10：隐藏快捷键层挂稳定独立视图（不随 body 重算重建）
         .environment(activeConversation)
         .sheet(isPresented: $layout.showSettings) { SettingsPageView(systemColorScheme: systemColorScheme) }
@@ -211,82 +218,6 @@ struct RootSplitView: View {
         .task {
             loadColumnWidths(for: sessions.activeSessionId)
         }
-    }
-
-    // MARK: - 原生工作区工具栏
-
-    @ToolbarContentBuilder
-    private var workspaceToolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            TabBarView()
-        }
-
-        ToolbarItemGroup(placement: .topBarTrailing) {
-            Button(action: createThread) { toolbarImage("plus") }
-                .accessibilityLabel(Text("sidebar.newThread"))
-                .disabled(projects.isCreatingThread)
-
-            ControlGroup {
-                panelToolbarButton(
-                    symbol: "rectangle.leadinghalf.inset.filled",
-                    label: "workspace.leftPanel.toggle",
-                    isOn: layout.leftVisible
-                ) {
-                    animate { layout.toggleLeftPanel() }
-                }
-                panelToolbarButton(
-                    symbol: "rectangle.bottomthird.inset.filled",
-                    label: "workspace.bottomPanel.toggle",
-                    isOn: layout.showBottom
-                ) {
-                    animate { layout.showBottom.toggle() }
-                }
-                panelToolbarButton(
-                    symbol: "list.bullet",
-                    label: "workspace.summary.toggle",
-                    isOn: layout.showSummary
-                ) {
-                    animate { layout.showSummary.toggle() }
-                }
-                panelToolbarButton(
-                    symbol: "rectangle.trailinghalf.inset.filled",
-                    label: "workspace.rightPanel.toggle",
-                    isOn: layout.showRight
-                ) {
-                    animate { layout.toggleRightPanel() }
-                }
-            }
-        }
-
-        ToolbarItem(placement: .topBarTrailing) {
-            Button { layout.showSettings = true } label: { toolbarImage("gearshape") }
-                .accessibilityLabel(Text("settings.accessibility"))
-        }
-    }
-
-    private func toolbarImage(_ symbol: String, selected: Bool = false) -> some View {
-        Image(systemName: symbol)
-            .font(.system(size: 21, weight: selected ? .semibold : .regular))
-            .foregroundStyle(selected ? Color.accentColor : Color.primary)
-            .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
-    }
-
-    private func panelToolbarButton(
-        symbol: String,
-        label: LocalizedStringKey,
-        isOn: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) { toolbarImage(symbol, selected: isOn) }
-            .accessibilityLabel(Text(label))
-            .accessibilityValue(Text(isOn ? "workspace.panel.shown" : "workspace.panel.hidden"))
-            .accessibilityAddTraits(isOn ? .isSelected : [])
-    }
-
-    private func animate(_ changes: () -> Void) {
-        if reduceMotion { changes() }
-        else { withAnimation { changes() } }
     }
 
     private func createThread() {
@@ -480,6 +411,85 @@ struct RootSplitView: View {
     /// transient side-chat interaction state is safe to discard after reset.
     static func shouldClearSideChatInteractionState(after result: SideChatResetResult) -> Bool {
         result == .reset
+    }
+}
+
+/// System toolbar content installed on the navigated workspace content.
+struct WorkspaceToolbar: ToolbarContent {
+    let layout: WorkspaceLayoutStore
+    let isCreatingThread: Bool
+    let reduceMotion: Bool
+    let createThread: () -> Void
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            TabBarView()
+        }
+
+        ToolbarItemGroup(placement: .topBarTrailing) {
+            Button(action: createThread) {
+                toolbarLabel(symbol: "plus", label: "sidebar.newThread")
+            }
+                .disabled(isCreatingThread)
+
+            ControlGroup {
+                panelToolbarButton(
+                    symbol: "rectangle.leadinghalf.inset.filled",
+                    label: "workspace.leftPanel.toggle",
+                    isOn: layout.leftVisible
+                ) { animate { layout.toggleLeftPanel() } }
+                panelToolbarButton(
+                    symbol: "rectangle.bottomthird.inset.filled",
+                    label: "workspace.bottomPanel.toggle",
+                    isOn: layout.showBottom
+                ) { animate { layout.showBottom.toggle() } }
+                panelToolbarButton(
+                    symbol: "list.bullet",
+                    label: "workspace.summary.toggle",
+                    isOn: layout.showSummary
+                ) { animate { layout.showSummary.toggle() } }
+                panelToolbarButton(
+                    symbol: "rectangle.trailinghalf.inset.filled",
+                    label: "workspace.rightPanel.toggle",
+                    isOn: layout.showRight
+                ) { animate { layout.toggleRightPanel() } }
+            }
+        }
+
+        ToolbarItem(placement: .topBarTrailing) {
+            Button { layout.showSettings = true } label: {
+                toolbarLabel(symbol: "gearshape", label: "settings.accessibility")
+            }
+        }
+    }
+
+    private func toolbarLabel(
+        symbol: String,
+        label: LocalizedStringKey,
+        selected: Bool = false
+    ) -> some View {
+        Label(label, systemImage: symbol)
+            .labelStyle(.iconOnly)
+            .font(.system(size: 21, weight: selected ? .semibold : .regular))
+            .foregroundStyle(selected ? Color.accentColor : Color.primary)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+    }
+
+    private func panelToolbarButton(
+        symbol: String,
+        label: LocalizedStringKey,
+        isOn: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) { toolbarLabel(symbol: symbol, label: label, selected: isOn) }
+            .accessibilityValue(Text(isOn ? "workspace.panel.shown" : "workspace.panel.hidden"))
+            .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+
+    private func animate(_ changes: () -> Void) {
+        if reduceMotion { changes() }
+        else { withAnimation { changes() } }
     }
 }
 
