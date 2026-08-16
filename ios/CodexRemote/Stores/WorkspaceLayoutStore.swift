@@ -27,7 +27,8 @@ final class WorkspaceLayoutStore {
     var showBottom: Bool
     var showSummary: Bool
     var showSettings: Bool
-    /// 运行时列宽（custom-resizable-columns，D7）：拖动实时改这里，ColumnWidthStore 负责持久化。
+    /// User-preferred column widths. ResizableColumns derives container-safe effective widths;
+    /// only explicit resize interactions update these preferences, which ColumnWidthStore persists.
     var leftWidth: CGFloat
     var rightWidth: CGFloat
     /// 右栏跳转/全屏一次性信号（设计 D6）；消费即复位为 nil，防自触发回环（功耗约束 4）。

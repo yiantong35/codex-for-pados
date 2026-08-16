@@ -81,7 +81,10 @@ struct SidebarView: View {
         }
         .task(id: connection.phase) {
             // ready 后接线：attach（启动官方广播监听，D5-a）+ 首拉 thread/list 填充。
-            guard connection.phase == .ready, let rpc = connection.rpc else { return }
+            guard connection.phase == .ready, let rpc = connection.rpc else {
+                projects.stopPolling()
+                return
+            }
             await projects.attach(rpc: rpc)
             await env.attach(rpc: rpc)   // 拉 config/model-list，供 composer 服务器驱动选模型
             await projects.loadFromServer(rpc: rpc)

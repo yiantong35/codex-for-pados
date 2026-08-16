@@ -270,8 +270,59 @@ final class WorkspaceMetricsTests: XCTestCase {
         XCTAssertEqual(WorkspaceMetrics.overlaySide(
             total: 320, wantLeft: true, wantRight: false,
             plan: plan, lastRequested: .left), .left)
-        XCTAssertLessThanOrEqual(
-            WorkspaceMetrics.leftOverlayWidth(total: 320, preferred: 420), 320)
+        let overlay = WorkspaceMetrics.leftOverlayWidth(total: 320, preferred: 420)
+        XCTAssertEqual(overlay, 320 - WorkspaceMetrics.overlayMinimumCenterReveal)
+        XCTAssertGreaterThanOrEqual(320 - overlay, WorkspaceMetrics.overlayMinimumCenterReveal)
+    }
+
+    func testUltraNarrowRightOverlayPreservesCenterReveal() {
+        let overlay = WorkspaceMetrics.rightOverlayWidth(total: 320, preferred: 480)
+        XCTAssertEqual(overlay, 320 - WorkspaceMetrics.overlayMinimumCenterReveal)
+        XCTAssertGreaterThanOrEqual(320 - overlay, WorkspaceMetrics.overlayMinimumCenterReveal)
+    }
+
+    func testEffectiveWidthsShrinkWithoutMutatingPreferencesAndRestoreWhenWide() {
+        let preferredLeft: CGFloat = 400
+        let preferredRight: CGFloat = 320
+        let narrow = WorkspaceMetrics.effectiveColumnWidths(
+            total: 700,
+            preferredLeft: preferredLeft,
+            preferredRight: preferredRight,
+            showLeft: true,
+            showRight: true,
+            dividerCount: 2)
+        XCTAssertLessThan(narrow.left, preferredLeft)
+        XCTAssertLessThan(narrow.right, preferredRight)
+        XCTAssertGreaterThanOrEqual(
+            WorkspaceMetrics.centerColumnWidth(
+                total: 700, left: narrow.left, right: narrow.right, dividerCount: 2),
+            WorkspaceMetrics.centerColumnMinWidth)
+
+        let restored = WorkspaceMetrics.effectiveColumnWidths(
+            total: 1_194,
+            preferredLeft: preferredLeft,
+            preferredRight: preferredRight,
+            showLeft: true,
+            showRight: true,
+            dividerCount: 2)
+        XCTAssertEqual(restored.left, preferredLeft)
+        XCTAssertEqual(restored.right, preferredRight)
+    }
+
+    func testEffectiveWidthsUseFullPreferenceWhenOnlyOneSidebarIsVisible() {
+        let widths = WorkspaceMetrics.effectiveColumnWidths(
+            total: 600,
+            preferredLeft: 400,
+            preferredRight: 320,
+            showLeft: false,
+            showRight: true,
+            dividerCount: 1)
+        XCTAssertEqual(widths.left, 0)
+        XCTAssertEqual(widths.right, 306)
+        XCTAssertEqual(
+            WorkspaceMetrics.centerColumnWidth(
+                total: 600, left: widths.left, right: widths.right, dividerCount: 1),
+            WorkspaceMetrics.centerColumnMinWidth)
     }
 
     func testRightOverlayOnlyUsedBelowSideBySideThreshold() {
