@@ -1,4 +1,5 @@
 import XCTest
+import Crypto
 import RelayProtocol
 @testable import CodexRemote
 
@@ -43,9 +44,12 @@ final class MachineConfigTests: XCTestCase {
     }
 
     func test_decodesLegacyPairingWithoutPersistingPairingCode() throws {
+        let devIdentityPubB64 = try Curve25519.Signing.PrivateKey(
+            rawRepresentation: Data(repeating: 0x42, count: 32)
+        ).publicKey.rawRepresentation.base64EncodedString()
         let payload = PairingPayload(relayURL: "wss://pairing.example/ws",
                                      sessionId: "pairing-session",
-                                     devIdentityPubB64: "PAIRING-PK",
+                                     devIdentityPubB64: devIdentityPubB64,
                                      pairingCode: "SECRET-PAIRING-CODE",
                                      expiresAt: 1_900_000_000)
         let object: [String: Any] = [
@@ -71,6 +75,27 @@ final class MachineConfigTests: XCTestCase {
         XCTAssertFalse(normalizedText.contains(payload.pairingCode))
         XCTAssertNil(normalized["pairing"])
         XCTAssertNil(normalized["connection"])
+    }
+
+    func test_rejectsLegacyPairingWithInvalidDevIdentityPublicKey() throws {
+        let payload = PairingPayload(relayURL: "wss://pairing.example/ws",
+                                     sessionId: "pairing-session",
+                                     devIdentityPubB64: "PAIRING-PK",
+                                     pairingCode: "SECRET-PAIRING-CODE",
+                                     expiresAt: 1_900_000_000)
+        let object: [String: Any] = [
+            "id": UUID().uuidString,
+            "displayName": "invalid-legacy-pairing",
+            "connection": [
+                "kind": "relay",
+                "pairing": payload.toURLString(),
+            ],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: object)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(MachineConfig.self, from: data)) { error in
+            XCTAssertEqual(error as? PairingError, .badFormat)
+        }
     }
 }
 
