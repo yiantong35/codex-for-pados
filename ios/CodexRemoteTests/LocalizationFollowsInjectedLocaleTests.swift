@@ -22,7 +22,8 @@ final class LocalizationFollowsInjectedLocaleTests: XCTestCase {
         "review.mode.turn",         // 原 "本轮"
         "review.mode.full",         // 原 "全量"
         "conv.item.unknown",
-        "conn.error.pairingMissing", "conn.error.trustRevoked",
+        "conn.error.pairingMissing", "conn.error.trustRevoked", "conn.error.untrusted",
+        "conn.error.pairingInvalid", "conn.error.versionMismatch",
         "conn.error.timeout", "conn.error.timeoutDetail", "conn.error.connectionFailed",
         "conn.error.proxyFailed", "conn.error.channelClosed", "conn.error.channelClosedUnknown",
         "conn.error.notConnected", "conn.error.handshakeFailed",

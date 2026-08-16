@@ -66,19 +66,7 @@ enum UnifiedDiffParser {
             } else if cur != nil {
                 rawFileLines.append(raw)
             }
-            if raw.hasPrefix("rename from ") {
-                cur?.oldPath = decodePathField(String(raw.dropFirst("rename from ".count))); cur?.kind = .rename
-            } else if raw.hasPrefix("rename to ") {
-                cur?.path = decodePathField(String(raw.dropFirst("rename to ".count))); cur?.kind = .rename
-            } else if raw.hasPrefix("Binary files") {
-                cur?.kind = .binary
-            } else if raw.hasPrefix("--- ") {
-                if decodePathField(String(raw.dropFirst(4))) == "/dev/null" { cur?.kind = .add }
-            } else if raw.hasPrefix("+++ ") {
-                let path = decodePathField(String(raw.dropFirst(4)))
-                if path == "/dev/null" { cur?.kind = .delete }
-                else { cur?.path = stripPrefix(path) } // +++ 是普通修改/新增文件的新路径权威来源
-            } else if raw.hasPrefix("@@") {
+            if raw.hasPrefix("@@") {
                 closeHunk()
                 (oldNo, newNo) = parseHunkHeader(raw)
                 curHunk = DiffHunk(lines: [])
@@ -90,7 +78,19 @@ enum UnifiedDiffParser {
                 } else if raw.hasPrefix(" ") || raw.isEmpty {
                     curHunk?.lines.append(DiffLine(kind: .context, text: raw.isEmpty ? "" : String(raw.dropFirst()), oldLineNo: oldNo, newLineNo: newNo)); oldNo += 1; newNo += 1
                 }
-                // 其它(\ No newline…)忽略
+                // Other hunk metadata (for example, `\ No newline ...`) is ignored.
+            } else if raw.hasPrefix("rename from ") {
+                cur?.oldPath = decodePathField(String(raw.dropFirst("rename from ".count))); cur?.kind = .rename
+            } else if raw.hasPrefix("rename to ") {
+                cur?.path = decodePathField(String(raw.dropFirst("rename to ".count))); cur?.kind = .rename
+            } else if raw.hasPrefix("Binary files") {
+                cur?.kind = .binary
+            } else if raw.hasPrefix("--- ") {
+                if decodePathField(String(raw.dropFirst(4))) == "/dev/null" { cur?.kind = .add }
+            } else if raw.hasPrefix("+++ ") {
+                let path = decodePathField(String(raw.dropFirst(4)))
+                if path == "/dev/null" { cur?.kind = .delete }
+                else { cur?.path = stripPrefix(path) } // +++ 是普通修改/新增文件的新路径权威来源
             }
         }
         closeFile()

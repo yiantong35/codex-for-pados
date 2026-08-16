@@ -215,6 +215,45 @@ private func driveHandshake(context: DialoutContext, hello: ClientHello,
     #expect(ready.devDeviceId == h.devDeviceId)
 }
 
+@Test func clientHelloFailuresProduceSignedSpecificRejectReasons() throws {
+    let h = try DialoutTrustHarness()
+    let trust = try TrustStore(dir: h.trustDir)
+
+    func rejection(context: DialoutContext, hello: ClientHello) throws -> RejectHello {
+        var failure: Error?
+        do { _ = try context.handleClientHello(JSONEncoder().encode(hello)) }
+        catch { failure = error }
+        let error = try #require(failure)
+        let reject = try context.rejectHello(for: error, clientHello: hello)
+        return try #require(reject)
+    }
+
+    let validHello = buildHello(sessionId: "room-reject", ipadIdentity: h.ipadIdentity,
+                                ipadEphemeral: h.ipadEphemeral, pairingCode: h.pairingCode,
+                                emptyProof: false)
+    let expiredContext = DialoutContext(
+        keyStore: h.devKeyStore, devDeviceId: h.devDeviceId, pairingCode: h.pairingCode,
+        expiresAt: Int64(Date().timeIntervalSince1970) - 1, trust: trust)
+    let expired = try rejection(context: expiredContext, hello: validHello)
+    #expect(try Handshake.verifyRejectHello(expired, clientHello: validHello,
+                                            devIdentityPub: h.devKeyStore.identityPublicKeyRaw) == .pairingInvalid)
+
+    let wrongProofContext = DialoutContext(
+        keyStore: h.devKeyStore, devDeviceId: h.devDeviceId, pairingCode: h.pairingCode,
+        expiresAt: h.expiresAt, trust: trust)
+    let wrongProof = buildHello(sessionId: "room-proof", ipadIdentity: h.ipadIdentity,
+                                ipadEphemeral: h.ipadEphemeral, pairingCode: "wrong-code",
+                                emptyProof: false)
+    #expect(try rejection(context: wrongProofContext, hello: wrongProof).reason == .pairingInvalid)
+
+    let versionContext = DialoutContext(
+        keyStore: h.devKeyStore, devDeviceId: h.devDeviceId, pairingCode: h.pairingCode,
+        expiresAt: h.expiresAt, trust: trust)
+    var wrongVersion = validHello
+    wrongVersion.protocolVersion = "relay-e2e-v999"
+    #expect(try rejection(context: versionContext, hello: wrongVersion).reason == .versionMismatch)
+}
+
 /// 重握手：受信任 iPad 在同一 DialoutContext 上连续两次完整握手（模拟弱网重连），
 /// 都成功建 session、都回传 SecureReady，且 stableSessionId 幂等相同（不被 pairingConsumed 挡）。
 @Test func trustedRehandshakeOnSameContextIsIdempotent() throws {

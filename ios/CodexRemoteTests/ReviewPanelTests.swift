@@ -107,6 +107,24 @@ struct ReviewPanelTests {
         #expect(ctx?.oldLineNo == 5)
         #expect(ctx?.newLineNo == 5)
     }
+    @Test func markerLikeHunkContentIsNotParsedAsFileHeaders() {
+        let diff = """
+        diff --git a/query.sql b/query.sql
+        --- a/query.sql
+        +++ b/query.sql
+        @@ -1,2 +1,2 @@
+        --- comment
+        +++ value
+         select 1;
+        """
+        let file = UnifiedDiffParser.parse(diff)[0]
+        #expect(file.path == "query.sql")
+        #expect(file.hunks[0].lines == [
+            DiffLine(kind: .del, text: "-- comment", oldLineNo: 1, newLineNo: nil),
+            DiffLine(kind: .add, text: "++ value", oldLineNo: nil, newLineNo: 1),
+            DiffLine(kind: .context, text: "select 1;", oldLineNo: 2, newLineNo: 2),
+        ])
+    }
     @Test func parseEmpty() {
         #expect(UnifiedDiffParser.parse("").isEmpty)
     }

@@ -65,6 +65,28 @@ final class UserInputCoordinatorTests: XCTestCase {
     }
 
     @MainActor
+    func testRebindingSameRPCAfterConnectionLossExpiresUnreplayedRequest() async throws {
+        let rpc = JSONRPCClient(transport: MockTransport())
+        let store = UserInputStore()
+        try store.handle(request: JSONRPCRequest(
+            id: .string("recover-input"), method: ServerRequestMethod.userInput,
+            params: AnyCodable([
+                "threadId": "thread-1", "turnId": "turn-1", "itemId": "item-1",
+                "questions": [[
+                    "id": "q", "header": "Q", "question": "Question",
+                    "isOther": false, "isSecret": false,
+                ]],
+            ])
+        ))
+        let coordinator = UserInputCoordinator(store: store, recoveryTimeoutNanos: 10_000_000)
+        coordinator.connectionLost()
+
+        await coordinator.bind(rpc: rpc)
+        try await waitUntil { store.expiredRecoveryIds.contains(.string("recover-input")) }
+        XCTAssertFalse(store.cards[0].awaitingRecovery)
+    }
+
+    @MainActor
     private func waitUntil(timeout: TimeInterval = 2, _ condition: () async -> Bool) async throws {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

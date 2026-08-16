@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import os
+import RelayProtocol
 
 private let connLog = Logger(subsystem: "com.tangyujie.codexremote", category: "connection")
 
@@ -273,6 +274,9 @@ final class ConnectionStore {
                 if case TransportError.trustRevoked = error {
                     self.phase = .failed(L10n.string("conn.error.trustRevoked", locale: LocaleManager.currentLocale))
                     self.needsRePairing = true
+                } else if case TransportError.handshakeRejected(let reason) = error {
+                    self.phase = .failed(Self.rejectionMessage(reason))
+                    self.needsRePairing = Self.rejectionNeedsPairing(reason)
                 } else {
                     self.phase = .failed(Self.friendlyMessage(error))
                 }
@@ -514,6 +518,12 @@ final class ConnectionStore {
                     self.recoveryTask = nil
                     self.phase = .failed(L10n.string("conn.error.trustRevoked", locale: LocaleManager.currentLocale))
                     self.needsRePairing = true
+                case .handshakeRejected(let reason):
+                    self.stopHeartbeat()
+                    self.recoveryTask?.cancel()
+                    self.recoveryTask = nil
+                    self.phase = .failed(Self.rejectionMessage(reason))
+                    self.needsRePairing = Self.rejectionNeedsPairing(reason)
                 case .peerLeft:
                     // 非判决（防降级红线）：relay 连接层「对端已离开」只是**提示**，不是判死依据。
                     // 恶意/误报 relay 不能凭空杀健康连接——不改 phase、不断开、不重连，
@@ -542,6 +552,8 @@ final class ConnectionStore {
                 return String(format: L10n.string("conn.error.handshakeFailed", locale: loc), m)
             case .trustRevoked:
                 return L10n.string("conn.error.trustRevoked", locale: loc)
+            case .handshakeRejected(let reason):
+                return rejectionMessage(reason)
             case .messageTooLarge(let bytes, let limit):
                 return String(
                     format: L10n.string("conn.error.messageTooLarge", locale: loc),
@@ -553,6 +565,20 @@ final class ConnectionStore {
             return to.errorDescription ?? L10n.string("conn.error.timeout", locale: loc)
         }
         return error.localizedDescription
+    }
+
+    private static func rejectionNeedsPairing(_ reason: RejectReason) -> Bool {
+        reason != .versionMismatch
+    }
+
+    private static func rejectionMessage(_ reason: RejectReason) -> String {
+        let locale = LocaleManager.currentLocale
+        switch reason {
+        case .trustRevoked: return L10n.string("conn.error.trustRevoked", locale: locale)
+        case .untrusted: return L10n.string("conn.error.untrusted", locale: locale)
+        case .pairingInvalid: return L10n.string("conn.error.pairingInvalid", locale: locale)
+        case .versionMismatch: return L10n.string("conn.error.versionMismatch", locale: locale)
+        }
     }
 
     // MARK: - AnyCodable 编解码桥
