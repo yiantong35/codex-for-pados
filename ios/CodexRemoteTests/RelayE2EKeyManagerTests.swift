@@ -10,6 +10,23 @@ private final class MemoryKeyStore: KeyStoring {
     func deleteKey() { data = nil }
 }
 
+private final class ReadFailingKeyStore: KeyStoring {
+    struct ReadFailed: Error {}
+    private(set) var saveCount = 0
+    func saveKey(_ value: Data) { saveCount += 1 }
+    func saveKeyThrowing(_ value: Data) throws { saveCount += 1 }
+    func loadKey() throws -> Data? { throw ReadFailed() }
+    func deleteKey() {}
+}
+
+private final class CorruptedKeyStore: KeyStoring {
+    private(set) var saveCount = 0
+    func saveKey(_ value: Data) { saveCount += 1 }
+    func saveKeyThrowing(_ value: Data) throws { saveCount += 1 }
+    func loadKey() throws -> Data? { Data([0x01]) }
+    func deleteKey() {}
+}
+
 /// 保存必失败的 store：验证 identityKey() 落盘失败时抛错、不缓存。
 private struct ThrowingKeyStore: KeyStoring {
     struct WriteFailed: Error {}
@@ -47,6 +64,41 @@ final class RelayE2EKeyManagerTests: XCTestCase {
         let m = RelayE2EKeyManager(store: ThrowingKeyStore())
         XCTAssertThrowsError(try m.identityKey())         // 落盘失败必抛
         XCTAssertThrowsError(try m.identityKey())         // 未缓存 → 再次仍抛（不会返回上次的“成功”密钥）
+    }
+
+    func testIdentityReadFailureDoesNotGenerateOrOverwriteIdentity() {
+        let store = ReadFailingKeyStore()
+        let manager = RelayE2EKeyManager(store: store)
+
+        XCTAssertThrowsError(try manager.identityKey()) { error in
+            XCTAssertTrue(error is ReadFailingKeyStore.ReadFailed)
+        }
+        XCTAssertEqual(store.saveCount, 0)
+    }
+
+    func testCorruptedIdentityDoesNotGenerateOrOverwriteIdentity() {
+        let store = CorruptedKeyStore()
+        let manager = RelayE2EKeyManager(store: store)
+
+        XCTAssertThrowsError(try manager.identityKey()) { error in
+            XCTAssertEqual(error as? RelayE2EKeychainStore.ReadError, .recordCorrupted)
+        }
+        XCTAssertEqual(store.saveCount, 0)
+    }
+
+    func testMalformedBase64IdentityRecordFailsClosed() throws {
+        let service = "com.codexremote.test.e2e-corrupt-\(UUID())"
+        let keychain = KeychainStore(service: service)
+        let account = "relay-e2e-identity-ed25519"
+        defer { try? keychain.delete(account) }
+        try keychain.save("not-base64!", for: account)
+
+        XCTAssertThrowsError(try RelayE2EKeyManager(
+            store: RelayE2EKeychainStore(keychain: keychain)
+        ).identityKey()) { error in
+            XCTAssertEqual(error as? RelayE2EKeychainStore.ReadError, .recordCorrupted)
+        }
+        XCTAssertEqual(try keychain.load(account), "not-base64!")
     }
 
     /// 底层 keychain 写盘失败时，relay 身份落盘路径（`saveKeyThrowing`）必须继续 throw、绝不吞掉。

@@ -1,5 +1,6 @@
 import XCTest
 import os
+import RelayProtocol
 @testable import CodexRemote
 
 /// 可注入的假 ws task：脚本化 receive 结果与 send 行为，不触真网络。
@@ -11,6 +12,7 @@ private final class FakeWSTask: WebSocketTaskProtocol, @unchecked Sendable {
     var sendShouldThrow = false
     private(set) var resumed = false
     private(set) var cancelled = false
+    private(set) var closeCode: URLSessionWebSocketTask.CloseCode?
     let sendCount = OSAllocatedUnfairLock(initialState: 0)
 
     init(recv: [Recv] = []) { self.recvScript = recv }
@@ -33,7 +35,10 @@ private final class FakeWSTask: WebSocketTaskProtocol, @unchecked Sendable {
         case .fail(let e): throw e
         }
     }
-    func cancel(with closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) { cancelled = true }
+    func cancel(with closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+        cancelled = true
+        self.closeCode = closeCode
+    }
 }
 
 private final class BlockingWSTask: WebSocketTaskProtocol, @unchecked Sendable {
@@ -67,11 +72,30 @@ final class URLSessionRelayWSChannelTests: XCTestCase {
         XCTAssertEqual(got, "hi")
     }
 
-    /// 二进制帧被忽略，继续收下一条 text。
-    func testReceiveSkipsBinaryFrame() async throws {
-        let ch = URLSessionRelayWSChannel(task: FakeWSTask(recv: [.data(Data([0])), .text("after")]))
-        let got = try await ch.receiveText()
-        XCTAssertEqual(got, "after")
+    func testReceiveBinaryFrameClosesWithProtocolError() async {
+        let task = FakeWSTask(recv: [.data(Data([0])), .text("after")])
+        let ch = URLSessionRelayWSChannel(task: task)
+        await XCTAssertThrowsErrorAsync(try await ch.receiveText()) { error in
+            guard case TransportError.protocolViolation = error else {
+                return XCTFail("unexpected error: \(error)")
+            }
+        }
+        XCTAssertTrue(task.cancelled)
+        XCTAssertEqual(task.closeCode, .unsupportedData)
+    }
+
+    func testReceiveOversizedTextClosesWithMessageTooBig() async {
+        let text = String(repeating: "x", count: RelayWireLimits.maxMessageBytes + 1)
+        let task = FakeWSTask(recv: [.text(text)])
+        let ch = URLSessionRelayWSChannel(task: task)
+        await XCTAssertThrowsErrorAsync(try await ch.receiveText()) { error in
+            XCTAssertEqual(
+                error as? TransportError,
+                .messageTooLarge(bytes: text.utf8.count, limit: RelayWireLimits.maxMessageBytes)
+            )
+        }
+        XCTAssertTrue(task.cancelled)
+        XCTAssertEqual(task.closeCode, .messageTooBig)
     }
 
     /// 连接关闭/取消 → receiveText 返回 nil（供 read loop 收束、供握手期判定连接关闭）。
@@ -119,5 +143,17 @@ final class URLSessionRelayWSChannelTests: XCTestCase {
         await ch.close()
         let result = try await receive.value
         XCTAssertNil(result)
+    }
+}
+
+private func XCTAssertThrowsErrorAsync<T>(
+    _ expression: @autoclosure () async throws -> T,
+    _ errorHandler: (Error) -> Void = { _ in }
+) async {
+    do {
+        _ = try await expression()
+        XCTFail("expected error")
+    } catch {
+        errorHandler(error)
     }
 }

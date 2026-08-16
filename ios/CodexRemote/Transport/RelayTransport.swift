@@ -64,6 +64,16 @@ struct RelayReconnectPolicy: Sendable {
     }
 }
 
+struct RelayTransportStreamLimits: Sendable {
+    let incomingBufferCount: Int
+    let controlBufferCount: Int
+
+    init(incomingBufferCount: Int = 256, controlBufferCount: Int = 32) {
+        self.incomingBufferCount = max(1, incomingBufferCount)
+        self.controlBufferCount = max(1, controlBufferCount)
+    }
+}
+
 /// Relay 传输实现：实现 `MessageTransport` seam，对上层（JSONRPCClient/
 /// ConversationStore/UI）就是「又一个 transport」——上层零改。区别在于本 transport 内部做
 /// **端到端加解密**：明文 JSON-RPC 帧 seal 成 `SecureEnvelope` 密文才出线，收到的密文 open
@@ -91,6 +101,7 @@ struct RelayReconnectPolicy: Sendable {
 ///    （终态）；收 RejectHello 发 `.trustRevoked`（终态，不再重连）。
 /// 退避有硬上限（`RelayReconnectPolicy`）绝不无限重连；主动断 / 信任撤销为终态。
 actor RelayTransport: MessageTransport {
+    private let streamLimits: RelayTransportStreamLimits
 
     /// 已建立的加密会话（iPad 角色）。注入构造路径直接给定；真握手路径由 `performHandshakeOn` 建立后回填。
     private var session: SecureSession?
@@ -147,7 +158,8 @@ actor RelayTransport: MessageTransport {
     private var didStartHandshake = false
 
     /// 注入构造路径：给定一个已建立的 SecureSession（测试/集成用）。握手视为已完成，无工厂故不重连。
-    init(session: SecureSession, ws: RelayWSChannel) {
+    init(session: SecureSession, ws: RelayWSChannel,
+         streamLimits: RelayTransportStreamLimits = .init()) {
         self.session = session
         self.ws = ws
         self.channelFactory = nil
@@ -155,11 +167,16 @@ actor RelayTransport: MessageTransport {
         self.handshakeState = .done
         self.handshakeInputs = nil
         self.reconnect = RelayReconnectPolicy()
+        self.streamLimits = streamLimits
         var inCont: AsyncThrowingStream<String, Error>.Continuation!
-        self.incomingStream = AsyncThrowingStream<String, Error>(bufferingPolicy: .unbounded) { inCont = $0 }
+        self.incomingStream = AsyncThrowingStream<String, Error>(
+            bufferingPolicy: .bufferingOldest(streamLimits.incomingBufferCount)
+        ) { inCont = $0 }
         self.incomingContinuation = inCont
         var ctlCont: AsyncStream<TransportControlEvent>.Continuation!
-        self.controlStream = AsyncStream<TransportControlEvent>(bufferingPolicy: .unbounded) { ctlCont = $0 }
+        self.controlStream = AsyncStream<TransportControlEvent>(
+            bufferingPolicy: .bufferingOldest(streamLimits.controlBufferCount)
+        ) { ctlCont = $0 }
         self.controlContinuation = ctlCont
     }
 
@@ -176,7 +193,8 @@ actor RelayTransport: MessageTransport {
          isTrustedReconnect: Bool,
          stableSessionStore: StableSessionStoring,
          consumePairingCode: @escaping @Sendable () async -> Void = {},
-         reconnect: RelayReconnectPolicy = RelayReconnectPolicy()) {
+         reconnect: RelayReconnectPolicy = RelayReconnectPolicy(),
+         streamLimits: RelayTransportStreamLimits = .init()) {
         self.session = nil
         self.ws = nil
         self.channelFactory = channelFactory
@@ -189,11 +207,16 @@ actor RelayTransport: MessageTransport {
             isTrustedReconnect: isTrustedReconnect, stableSessionStore: stableSessionStore,
             consumePairingCode: consumePairingCode)
         self.reconnect = reconnect
+        self.streamLimits = streamLimits
         var inCont: AsyncThrowingStream<String, Error>.Continuation!
-        self.incomingStream = AsyncThrowingStream<String, Error>(bufferingPolicy: .unbounded) { inCont = $0 }
+        self.incomingStream = AsyncThrowingStream<String, Error>(
+            bufferingPolicy: .bufferingOldest(streamLimits.incomingBufferCount)
+        ) { inCont = $0 }
         self.incomingContinuation = inCont
         var ctlCont: AsyncStream<TransportControlEvent>.Continuation!
-        self.controlStream = AsyncStream<TransportControlEvent>(bufferingPolicy: .unbounded) { ctlCont = $0 }
+        self.controlStream = AsyncStream<TransportControlEvent>(
+            bufferingPolicy: .bufferingOldest(streamLimits.controlBufferCount)
+        ) { ctlCont = $0 }
         self.controlContinuation = ctlCont
     }
 
@@ -245,7 +268,9 @@ actor RelayTransport: MessageTransport {
                 let plaintext = try session.open(env)
                 switch env.kind {
                 case .appData:
-                    emit(String(decoding: plaintext, as: UTF8.self))
+                    guard emit(String(decoding: plaintext, as: UTF8.self)) else {
+                        throw TransportError.inboundBufferOverflow(limit: streamLimits.incomingBufferCount)
+                    }
                 case .secureReady:
                     // 业务 read loop 不期望再收 SecureReady（握手期已消费）；fail-closed 忽略，不误当应用数据 emit。
                     rtLog.error("read loop 收到意外 SecureReady 帧，忽略")
@@ -253,6 +278,9 @@ actor RelayTransport: MessageTransport {
             }
         } catch {
             rtLog.error("read loop 退出/抛错: \(String(describing: error), privacy: .public)")
+            if case TransportError.inboundBufferOverflow = error {
+                await ws?.close()
+            }
             await handleDisconnect(error)
         }
     }
@@ -267,12 +295,29 @@ actor RelayTransport: MessageTransport {
         await reconnectLoop()
     }
 
-    private func emit(_ line: String) {
-        incomingContinuation?.yield(line)
+    @discardableResult
+    private func emit(_ line: String) -> Bool {
+        guard let continuation = incomingContinuation else { return false }
+        switch continuation.yield(line) {
+        case .enqueued: return true
+        case .dropped, .terminated: return false
+        @unknown default: return false
+        }
     }
 
     private func emitControl(_ ev: TransportControlEvent) {
-        controlContinuation?.yield(ev)
+        guard let continuation = controlContinuation else { return }
+        switch continuation.yield(ev) {
+        case .enqueued:
+            return
+        case .dropped, .terminated:
+            activeClose = true
+            finishIncomingTerminal(TransportError.inboundBufferOverflow(limit: streamLimits.controlBufferCount))
+            let channel = ws
+            Task { await channel?.close() }
+        @unknown default:
+            return
+        }
     }
 
     private func finishIncoming(_ error: Error?) async {
@@ -281,7 +326,11 @@ actor RelayTransport: MessageTransport {
             markHandshakeFailed(TransportError.channelClosed(reason: error.map { "\($0)" } ?? fallback))
         }
         if let error {
-            incomingContinuation?.finish(throwing: TransportError.channelClosed(reason: "\(error)"))
+            if case TransportError.inboundBufferOverflow = error {
+                incomingContinuation?.finish(throwing: error)
+            } else {
+                incomingContinuation?.finish(throwing: TransportError.channelClosed(reason: "\(error)"))
+            }
         } else {
             incomingContinuation?.finish()
         }

@@ -3,6 +3,48 @@ import XCTest
 
 @MainActor
 final class ReconnectOutboundQueueTests: XCTestCase {
+    func testStartResolutionWaiterCompletesOnceAndCancelsTimeout() async throws {
+        let outbox = ConversationOutbox()
+        let entry = try outbox.enqueue(input: [.text("pending")], model: nil, effort: nil)
+        _ = outbox.beginSending()
+        let wait = Task { await outbox.waitForStartRequestResolution(timeoutNanoseconds: 1_000_000_000) }
+        await Task.yield()
+        XCTAssertEqual(outbox.startResolutionWaiterCount, 1)
+
+        outbox.finishSending(clientId: entry.clientId)
+        let completed = await wait.value
+        XCTAssertTrue(completed)
+        XCTAssertEqual(outbox.startResolutionWaiterCount, 0)
+        try await Task.sleep(nanoseconds: 20_000_000)
+        XCTAssertEqual(outbox.startResolutionWaiterCount, 0)
+    }
+
+    func testStartResolutionWaiterTimesOutWithoutLeak() async throws {
+        let outbox = ConversationOutbox()
+        _ = try outbox.enqueue(input: [.text("pending")], model: nil, effort: nil)
+        _ = outbox.beginSending()
+
+        let result = await outbox.waitForStartRequestResolution(timeoutNanoseconds: 5_000_000)
+
+        XCTAssertFalse(result)
+        XCTAssertEqual(outbox.startResolutionWaiterCount, 0)
+    }
+
+    func testStartResolutionWaiterCancellationResumesOnceWithoutLeak() async throws {
+        let outbox = ConversationOutbox()
+        _ = try outbox.enqueue(input: [.text("pending")], model: nil, effort: nil)
+        _ = outbox.beginSending()
+        let wait = Task { await outbox.waitForStartRequestResolution(timeoutNanoseconds: 1_000_000_000) }
+        await Task.yield()
+        XCTAssertEqual(outbox.startResolutionWaiterCount, 1)
+
+        wait.cancel()
+
+        let cancelled = await wait.value
+        XCTAssertFalse(cancelled)
+        XCTAssertEqual(outbox.startResolutionWaiterCount, 0)
+    }
+
     func test_ready_does_not_drain_before_authoritative_resume() async throws {
         let mock = MockTransport()
         let rpc = JSONRPCClient(transport: mock)
