@@ -175,7 +175,7 @@ actor RelayTransport: MessageTransport {
         self.incomingContinuation = inCont
         var ctlCont: AsyncStream<TransportControlEvent>.Continuation!
         self.controlStream = AsyncStream<TransportControlEvent>(
-            bufferingPolicy: .bufferingOldest(streamLimits.controlBufferCount)
+            bufferingPolicy: .bufferingNewest(streamLimits.controlBufferCount)
         ) { ctlCont = $0 }
         self.controlContinuation = ctlCont
     }
@@ -215,7 +215,7 @@ actor RelayTransport: MessageTransport {
         self.incomingContinuation = inCont
         var ctlCont: AsyncStream<TransportControlEvent>.Continuation!
         self.controlStream = AsyncStream<TransportControlEvent>(
-            bufferingPolicy: .bufferingOldest(streamLimits.controlBufferCount)
+            bufferingPolicy: .bufferingNewest(streamLimits.controlBufferCount)
         ) { ctlCont = $0 }
         self.controlContinuation = ctlCont
     }
@@ -278,9 +278,10 @@ actor RelayTransport: MessageTransport {
             }
         } catch {
             rtLog.error("read loop 退出/抛错: \(String(describing: error), privacy: .public)")
-            if case TransportError.inboundBufferOverflow = error {
-                await ws?.close()
-            }
+            // A protocol/decryption failure ends ownership of this physical channel just
+            // as surely as a buffer overflow. Close it before reconnecting so replacing
+            // self.ws cannot orphan a live socket that no task is reading.
+            await ws?.close()
             await handleDisconnect(error)
         }
     }
@@ -310,9 +311,21 @@ actor RelayTransport: MessageTransport {
         switch continuation.yield(ev) {
         case .enqueued:
             return
-        case .dropped, .terminated:
+        case .dropped:
             activeClose = true
             finishIncomingTerminal(TransportError.inboundBufferOverflow(limit: streamLimits.controlBufferCount))
+            // bufferingNewest guarantees this terminal event replaces an older hint when
+            // the bounded buffer is full. The consumer therefore observes a detectable
+            // failure instead of a silently dropped control transition.
+            _ = continuation.yield(.connectionFailed)
+            continuation.finish()
+            controlContinuation = nil
+            let channel = ws
+            Task { await channel?.close() }
+        case .terminated:
+            activeClose = true
+            finishIncomingTerminal(TransportError.inboundBufferOverflow(limit: streamLimits.controlBufferCount))
+            controlContinuation = nil
             let channel = ws
             Task { await channel?.close() }
         @unknown default:

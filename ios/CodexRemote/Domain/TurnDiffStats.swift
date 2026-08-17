@@ -40,24 +40,24 @@ enum TurnDiffStats {
             headerNewPath = nil; headerOldPath = nil; renamePath = nil
         }
 
-        for line in diff.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
+        for line in diff.split(separator: "\n", omittingEmptySubsequences: false) {
             if line.hasPrefix("diff --git ") {
                 flushFile()
                 // 形如：diff --git a/old b/new
                 let parts = line.dropFirst("diff --git ".count).split(separator: " ", maxSplits: 1)
                 if parts.count == 2 {
-                    gitOldPath = stripPrefix(String(parts[0]))   // a/old
-                    gitNewPath = stripPrefix(String(parts[1]))   // b/new
+                    gitOldPath = stripPrefix(parts[0])   // a/old
+                    gitNewPath = stripPrefix(parts[1])   // b/new
                 }
                 continue
             }
             if line.hasPrefix("+++ ") {
-                let p = String(line.dropFirst(4))
+                let p = line.dropFirst(4)
                 if p != "/dev/null" { headerNewPath = stripPrefix(p) }
                 continue   // 文件头不计增删
             }
             if line.hasPrefix("--- ") {
-                let p = String(line.dropFirst(4))
+                let p = line.dropFirst(4)
                 if p != "/dev/null" { headerOldPath = stripPrefix(p) }
                 continue
             }
@@ -75,8 +75,8 @@ enum TurnDiffStats {
     }
 
     /// 剥 `a/`、`b/` 前缀（git diff 路径约定）。
-    private static func stripPrefix(_ path: String) -> String {
+    private static func stripPrefix<S: StringProtocol>(_ path: S) -> String {
         if path.hasPrefix("a/") || path.hasPrefix("b/") { return String(path.dropFirst(2)) }
-        return path
+        return String(path)
     }
 }

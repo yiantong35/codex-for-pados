@@ -89,6 +89,7 @@ actor LoopbackRelayWSChannel: RelayWSChannel {
         return await withCheckedContinuation { self.waiter = $0 }
     }
     func close() async { closed = true; waiter?.resume(returning: nil); waiter = nil }
+    var isClosedForTesting: Bool { closed }
 
     private func deliver(_ text: String) {
         if let w = waiter { waiter = nil; w.resume(returning: text) } else { pending.append(text) }

@@ -62,6 +62,24 @@ final class WorkspaceSummaryTests: XCTestCase {
         XCTAssertTrue(WorkspaceSummary.diffLineCounts(in: state).isEmpty)
     }
 
+    func testTurnDiffStatisticsUpdateOnlyWithTurnDiffValue() {
+        var state = ConversationState(threadId: "t")
+        state.turnDiff = """
+        diff --git a/a.swift b/a.swift
+        --- a/a.swift
+        +++ b/a.swift
+        @@ -1 +1,2 @@
+        +new
+        """
+        let cached = state.turnDiffStats
+
+        state.items = [.agentMessage(id: "stream", text: "a streaming token")]
+        XCTAssertEqual(state.turnDiffStats, cached)
+
+        state.turnDiff = ""
+        XCTAssertTrue(state.turnDiffStats.isEmpty)
+    }
+
     func testPlanProgressCountsCompleted() {
         var state = ConversationState(threadId: "t")
         state.plan = [
