@@ -102,6 +102,7 @@ final class RelayReconnectTests: XCTestCase {
     /// 构造受信任复连 transport：脚本化 factory + 新 ephemeral 每握手 + 注入退避策略。
     private func makeTransport(_ script: ReconnectScript,
                                policy: RelayReconnectPolicy,
+                               streamLimits: RelayTransportStreamLimits = .init(),
                                tofu: TOFUStoring = InMemoryTOFUStore()) -> RelayTransport {
         RelayTransport(
             channelFactory: { try script.makeChannel() },
@@ -111,7 +112,8 @@ final class RelayReconnectTests: XCTestCase {
             tofu: tofu, tofuMachineKey: "machine-reconnect",
             isTrustedReconnect: true,
             stableSessionStore: InMemoryStableSessionStore(),
-            reconnect: policy)
+            reconnect: policy,
+            streamLimits: streamLimits)
     }
 
     // MARK: 测试
@@ -150,6 +152,76 @@ final class RelayReconnectTests: XCTestCase {
         XCTAssertEqual(b, "b-echo")
 
         await transport.close()
+    }
+
+    func testMalformedEncryptedFrameClosesOldChannelBeforeReconnect() async throws {
+        let script = ReconnectScript([.succeed, .succeed])
+        let policy = RelayReconnectPolicy(
+            maxAttempts: 2,
+            baseDelaySeconds: 0,
+            maxDelaySeconds: 0,
+            sleep: { _ in }
+        )
+        let transport = makeTransport(script, policy: policy)
+        var control = transport.control().makeAsyncIterator()
+        try await transport.awaitHandshake()
+        let oldChannel = try XCTUnwrap(script.currentChannel)
+
+        await oldChannel.inject("not-a-secure-envelope")
+
+        let reconnecting = await control.next()
+        let ready = await control.next()
+        let oldChannelClosed = await oldChannel.isClosedForTesting
+        XCTAssertEqual(reconnecting, .reconnecting)
+        XCTAssertEqual(ready, .ready)
+        XCTAssertTrue(oldChannelClosed)
+        XCTAssertEqual(script.connectCount, 2)
+        await transport.close()
+    }
+
+    func testControlOverflowClosesChannelAndTerminatesStreams() async throws {
+        let script = ReconnectScript([.succeed])
+        let policy = RelayReconnectPolicy(
+            maxAttempts: 2,
+            baseDelaySeconds: 0,
+            maxDelaySeconds: 0,
+            sleep: { _ in }
+        )
+        let transport = makeTransport(
+            script,
+            policy: policy,
+            streamLimits: .init(incomingBufferCount: 4, controlBufferCount: 1)
+        )
+        let control = transport.control()
+        var incoming = transport.incoming().makeAsyncIterator()
+        try await transport.awaitHandshake()
+        let channel = try XCTUnwrap(script.currentChannel)
+        let signal = try JSONEncoder().encode(
+            RelaySignal(kind: RelaySignal.peerLeftKind, sessionId: "sess-reconnect")
+        )
+        let frame = String(decoding: signal, as: UTF8.self)
+
+        await channel.inject(frame)
+        await channel.inject(frame)
+        for _ in 0..<100 {
+            if await channel.isClosedForTesting { break }
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+
+        var controlIterator = control.makeAsyncIterator()
+        let firstControl = await controlIterator.next()
+        let controlEnd = await controlIterator.next()
+        XCTAssertEqual(firstControl, .connectionFailed)
+        XCTAssertNil(controlEnd)
+        do {
+            _ = try await incoming.next()
+            XCTFail("control overflow must fail the incoming stream")
+        } catch {
+            XCTAssertEqual(error as? TransportError, .inboundBufferOverflow(limit: 1))
+        }
+        let channelClosed = await channel.isClosedForTesting
+        XCTAssertTrue(channelClosed)
+        XCTAssertEqual(script.connectCount, 1)
     }
 
     /// 退避达上限：首连成功 → 瞬断 → 工厂持续失败 maxAttempts 次 → emit .connectionFailed →

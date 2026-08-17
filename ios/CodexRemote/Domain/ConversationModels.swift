@@ -121,7 +121,15 @@ struct ConversationState: Equatable {
     var plan: [TurnPlanStep] = []
     /// 当前 turn 的聚合 unified diff 全文（来自 turn/diff/updated）。
     /// +A−B、变更文件数、change3 逐行 diff 的唯一真相源。
-    var turnDiff: String = ""
+    var turnDiff: String = "" {
+        didSet {
+            guard turnDiff != oldValue else { return }
+            turnDiffStats = TurnDiffStats.parse(turnDiff)
+        }
+    }
+    /// 与 turnDiff 同步更新的派生统计。正文流式 delta 不改变 diff 时直接复用，
+    /// 避免进度卡随 30 Hz ConversationState 发布反复全量扫描同一 diff。
+    private(set) var turnDiffStats = TurnDiffStats.Stats()
     /// 当前会话子智能体聚合状态（批次⑤，agentThreadId → 状态）。
     var subAgents: [String: SubAgentState] = [:]
     /// 进行中的 item id 集合（来源：item/started 加入、item/completed 移除）。

@@ -56,7 +56,7 @@ struct McpStoreTests {
         // attach(rpcB) 的 refresh 已在 mockB 发一次 list；清点后经 rpcB 真实流喂通知，应再发一次
         let before = await mockB.sent.filter { $0.contains("mcpServerStatus/list") }.count
         await mockB.feed(#"{"method":"mcpServer/startupStatus/updated"}"#)
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        try? await Task.sleep(nanoseconds: 350_000_000)
         let after = await mockB.sent.filter { $0.contains("mcpServerStatus/list") }.count
         #expect(after > before)
     }
@@ -72,9 +72,55 @@ struct McpStoreTests {
         // attach 已发一次 list；清点后手动喂通知，应再发一次
         let before = await mock.sent.filter { $0.contains("mcpServerStatus/list") }.count
         store.applyBroadcast(JSONRPCNotification(method: ServerNotificationMethod.mcpServerStatusUpdated, params: nil))
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        try? await Task.sleep(nanoseconds: 350_000_000)
         let after = await mock.sent.filter { $0.contains("mcpServerStatus/list") }.count
         #expect(after > before)
+    }
+
+    @MainActor @Test func burstNotificationsCoalesceIntoOneRefresh() async throws {
+        let mock = MockTransport()
+        await mock.setAutoRespond(true)
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = McpStore()
+        await store.attach(rpc: rpc)
+
+        let before = await mock.sent.filter { $0.contains("mcpServerStatus/list") }.count
+        for _ in 0..<8 {
+            store.applyBroadcast(JSONRPCNotification(
+                method: ServerNotificationMethod.mcpServerStatusUpdated,
+                params: nil
+            ))
+        }
+        try? await Task.sleep(nanoseconds: 350_000_000)
+
+        let after = await mock.sent.filter { $0.contains("mcpServerStatus/list") }.count
+        #expect(after == before + 1)
+    }
+
+    @MainActor @Test func rpcChangeCancelsPendingNotificationRefresh() async throws {
+        let mockA = MockTransport()
+        await mockA.setAutoRespond(true)
+        let rpcA = JSONRPCClient(transport: mockA)
+        await rpcA.start()
+        let mockB = MockTransport()
+        await mockB.setAutoRespond(true)
+        let rpcB = JSONRPCClient(transport: mockB)
+        await rpcB.start()
+        let store = McpStore()
+        await store.attach(rpc: rpcA)
+
+        store.applyBroadcast(JSONRPCNotification(
+            method: ServerNotificationMethod.mcpServerStatusUpdated,
+            params: nil
+        ))
+        let beforeA = await mockA.sent.filter { $0.contains("mcpServerStatus/list") }.count
+        await store.attach(rpc: rpcB)
+        try? await Task.sleep(nanoseconds: 350_000_000)
+
+        let afterA = await mockA.sent.filter { $0.contains("mcpServerStatus/list") }.count
+        #expect(afterA == beforeA)
+        #expect(await mockB.sent.filter { $0.contains("mcpServerStatus/list") }.count == 1)
     }
 
     @MainActor @Test func subscribesBeforeInitialSnapshotCompletes() async {

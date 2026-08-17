@@ -16,8 +16,10 @@ final class McpStore {
 
     private var rpc: JSONRPCClient?
     private var observer: Task<Void, Never>?
+    private var notificationRefreshTask: Task<Void, Never>?
     private var attachmentGeneration = 0
     private var refreshGeneration = 0
+    private static let notificationRefreshDelayNanos: UInt64 = 250_000_000
 
     /// 注入 rpc：拉初值 + 订阅通知。
     /// 同一 rpc 重复 attach 幂等；完整重连换新 rpc 实例时取消旧订阅并对新 rpc 重新订阅
@@ -28,7 +30,12 @@ final class McpStore {
         attachmentGeneration &+= 1
         let generation = attachmentGeneration
         self.rpc = rpc
-        if rpcChanged { observer?.cancel(); observer = nil }
+        if rpcChanged {
+            observer?.cancel()
+            observer = nil
+            notificationRefreshTask?.cancel()
+            notificationRefreshTask = nil
+        }
         let stream = await rpc.notifications(methods: [ServerNotificationMethod.mcpServerStatusUpdated])
         guard generation == attachmentGeneration, self.rpc === rpc else { return }
         observer = Task { [weak self] in
@@ -82,7 +89,20 @@ final class McpStore {
     // MARK: 广播（internal 供单测）
     func applyBroadcast(_ n: JSONRPCNotification) {
         guard n.method == ServerNotificationMethod.mcpServerStatusUpdated else { return }
-        Task { await refresh() }   // D4：整列重拉，不做单项 diff
+        // Daemon startup can emit one status notification per MCP server in a tight burst.
+        // Coalesce the burst before the full-list refresh so N notifications cost one request.
+        notificationRefreshTask?.cancel()
+        let generation = attachmentGeneration
+        notificationRefreshTask = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: Self.notificationRefreshDelayNanos)
+            } catch {
+                return
+            }
+            guard let self, generation == self.attachmentGeneration else { return }
+            self.notificationRefreshTask = nil
+            await self.refresh()
+        }
     }
 
     // MARK: 私有

@@ -8,12 +8,14 @@ enum WorkspaceSummary {
     /// so a streaming token does not invalidate summary and review panels at 30 Hz.
     struct Snapshot: Equatable {
         var turnDiff: String
+        var turnDiffStats: TurnDiffStats.Stats
         var plan: [TurnPlanStep]
         var commandTasks: [CommandTask]
         var subAgents: [String: SubAgentState]
 
         init(state: ConversationState) {
             turnDiff = state.turnDiff
+            turnDiffStats = state.turnDiffStats
             plan = state.plan
             commandTasks = WorkspaceSummary.commandTasks(in: state)
             subAgents = state.subAgents
@@ -28,14 +30,14 @@ enum WorkspaceSummary {
         var isEmpty: Bool { changedFiles == 0 }
     }
 
-    /// 全 turn diff 行数汇总：解析聚合 turnDiff（唯一真相源），与进度卡片同源。
+    /// 全 turn diff 行数汇总：复用 turnDiff 更新时计算的缓存，与进度卡片同源。
     static func diffLineCounts(in state: ConversationState) -> DiffLineCounts {
-        let s = TurnDiffStats.parse(state.turnDiff)
+        let s = state.turnDiffStats
         return DiffLineCounts(added: s.added, removed: s.removed, changedFiles: s.changedFiles)
     }
 
     static func diffLineCounts(in snapshot: Snapshot) -> DiffLineCounts {
-        let counts = TurnDiffStats.parse(snapshot.turnDiff)
+        let counts = snapshot.turnDiffStats
         return DiffLineCounts(added: counts.added, removed: counts.removed,
                               changedFiles: counts.changedFiles)
     }
