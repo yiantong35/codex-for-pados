@@ -35,6 +35,9 @@ final class WorkspaceLayoutStore {
     var pendingRightPanelIntent: RightPanelIntent?
     /// #3：最近一次被打开的侧栏——供 ResizableColumns 在窄窗中间档做 tiebreaker。
     var lastRequested: WorkspaceMetrics.RequestedSide = .none
+    /// 最近一次工作区容器宽度。面板切换必须依据实际呈现（并排列或紧凑覆盖层），
+    /// 不能仅依据用户偏好布尔值，否则宽屏已显示的面板会出现首按无效。
+    private(set) var containerWidth: CGFloat = .greatestFiniteMagnitude
 
     init(leftVisible: Bool = true,
          showRight: Bool = false,
@@ -59,21 +62,47 @@ final class WorkspaceLayoutStore {
         pendingRightPanelIntent = intent
     }
 
+    func updateContainerWidth(_ width: CGFloat) {
+        guard width.isFinite, width > 0 else { return }
+        containerWidth = width
+    }
+
     func toggleRightPanel() {
-        if showRight && lastRequested == .right {
+        if isPresented(.right) {
             showRight = false
         } else {
             showRight = true
+            lastRequested = .right
         }
-        lastRequested = .right
     }
 
     func toggleLeftPanel() {
-        if leftVisible && lastRequested == .left {
+        if isPresented(.left) {
             leftVisible = false
         } else {
             leftVisible = true
+            lastRequested = .left
         }
-        lastRequested = .left
+    }
+
+    private func isPresented(_ side: WorkspaceMetrics.RequestedSide) -> Bool {
+        let plan = WorkspaceMetrics.columnVisibilityPlan(
+            total: containerWidth,
+            wantLeft: leftVisible,
+            wantRight: showRight,
+            lastRequested: lastRequested
+        )
+        let overlay = WorkspaceMetrics.overlaySide(
+            total: containerWidth,
+            wantLeft: leftVisible,
+            wantRight: showRight,
+            plan: plan,
+            lastRequested: lastRequested
+        )
+        switch side {
+        case .left: return plan.showLeft || overlay == .left
+        case .right: return plan.showRight || overlay == .right
+        case .none: return false
+        }
     }
 }

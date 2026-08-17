@@ -3,28 +3,51 @@ import XCTest
 
 @MainActor
 final class WorkspaceLayoutStoreTests: XCTestCase {
-    func test_toggleRight_focusesHiddenRequestedPanelBeforeClosingIt() {
+    func test_toggleRight_closesVisiblePanelOnFirstPressAtWideWidth() {
         let s = WorkspaceLayoutStore(showRight: true)
         s.lastRequested = .left
-
-        s.toggleRightPanel()
-        XCTAssertTrue(s.showRight)
-        XCTAssertEqual(s.lastRequested, .right)
+        s.updateContainerWidth(834)
 
         s.toggleRightPanel()
         XCTAssertFalse(s.showRight)
     }
 
-    func test_toggleLeft_focusesHiddenRequestedPanelBeforeClosingIt() {
+    func test_toggleLeft_closesVisiblePanelOnFirstPressAtWideWidth() {
         let s = WorkspaceLayoutStore(leftVisible: true, showRight: true)
         s.lastRequested = .right
-
-        s.toggleLeftPanel()
-        XCTAssertTrue(s.leftVisible)
-        XCTAssertEqual(s.lastRequested, .left)
+        s.updateContainerWidth(834)
 
         s.toggleLeftPanel()
         XCTAssertFalse(s.leftVisible)
+    }
+
+    func test_toggleRight_switchesToHiddenPanelOnFirstPressAtCompactWidth() {
+        let s = WorkspaceLayoutStore(leftVisible: true, showRight: true)
+        s.updateContainerWidth(600)
+        s.lastRequested = .left
+
+        s.toggleRightPanel()
+
+        XCTAssertTrue(s.showRight)
+        XCTAssertEqual(s.lastRequested, .right)
+        let plan = WorkspaceMetrics.columnVisibilityPlan(
+            total: s.containerWidth,
+            wantLeft: s.leftVisible,
+            wantRight: s.showRight,
+            lastRequested: s.lastRequested
+        )
+        XCTAssertTrue(plan.showRight)
+        XCTAssertFalse(plan.showLeft)
+    }
+
+    func test_toggleCompactOverlayClosesOnFirstPress() {
+        let s = WorkspaceLayoutStore(leftVisible: true, showRight: true)
+        s.updateContainerWidth(320)
+        s.lastRequested = .right
+
+        s.toggleRightPanel()
+
+        XCTAssertFalse(s.showRight)
     }
     func test_defaultValues() {
         let s = WorkspaceLayoutStore()

@@ -78,11 +78,13 @@ struct RelayPairingImportView: View {
     @Environment(SessionsManager.self) private var sessions
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
+    @Environment(\.openURL) private var openURL
 
     @State private var vm = RelayPairingImportViewModel()
     @State private var errorText: String?
     @State private var showScanner = false
     @State private var isImporting = false
+    @State private var cameraAccessDenied = false
     let replacingMachineID: UUID?
     private let onImported: (() -> Void)?
 
@@ -130,10 +132,22 @@ struct RelayPairingImportView: View {
             editor
 
             if let errorText {
-                Text(errorText)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(errorText)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                    if cameraAccessDenied,
+                       let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                        Button {
+                            openURL(settingsURL)
+                        } label: {
+                            Label("relayImport.openSettings", systemImage: "gear")
+                        }
+                        .buttonStyle(.bordered)
+                        .minimumHitTarget44()
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             ViewThatFits(in: .horizontal) {
@@ -156,6 +170,7 @@ struct RelayPairingImportView: View {
             if let s = UIPasteboard.general.string {
                 vm.pasted = s
                 errorText = nil
+                cameraAccessDenied = false
             }
         } label: {
             Label("relayImport.paste", systemImage: "doc.on.clipboard").font(.callout)
@@ -171,6 +186,7 @@ struct RelayPairingImportView: View {
                 showScanner = false
                 vm.pasted = scanned
                 errorText = nil
+                cameraAccessDenied = false
                 importPairing()
             }
             .ignoresSafeArea()
@@ -236,6 +252,7 @@ struct RelayPairingImportView: View {
     /// 扫码入口：先判相机可用性，再按授权状态处理；任何失败都回退手动粘贴（不阻断配对）。
     private func beginScan() {
         errorText = nil
+        cameraAccessDenied = false
         // 相机不可用（模拟器 / 无摄像头设备）→ 提示 + 保留手动粘贴，不 present 扫码。
         guard AVCaptureDevice.default(for: .video) != nil else {
             errorText = L10n.string("relayImport.error.cameraUnavailable", locale: locale)
@@ -251,12 +268,14 @@ struct RelayPairingImportView: View {
                         showScanner = true
                     } else {
                         errorText = L10n.string("relayImport.error.cameraDenied", locale: locale)
+                        cameraAccessDenied = true
                     }
                 }
             }
         default:
             // denied / restricted → 明确提示前往设置或手动粘贴，手动入口始终可用。
             errorText = L10n.string("relayImport.error.cameraDenied", locale: locale)
+            cameraAccessDenied = true
         }
     }
 

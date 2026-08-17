@@ -58,6 +58,30 @@ struct QRScannerView: UIViewRepresentable {
             captureWorker.attach(to: previewLayer)
         }
 
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            updatePreviewRotation()
+        }
+
+        nonisolated static func rotationAngle(for orientation: UIInterfaceOrientation) -> CGFloat? {
+            switch orientation {
+            case .portrait: return 90
+            case .portraitUpsideDown: return 270
+            case .landscapeLeft: return 0
+            case .landscapeRight: return 180
+            case .unknown: return nil
+            @unknown default: return nil
+            }
+        }
+
+        private func updatePreviewRotation() {
+            guard let orientation = window?.windowScene?.interfaceOrientation,
+                  let angle = Self.rotationAngle(for: orientation),
+                  let connection = previewLayer.connection,
+                  connection.isVideoRotationAngleSupported(angle) else { return }
+            connection.videoRotationAngle = angle
+        }
+
         func start() {
             captureWorker.start()
         }

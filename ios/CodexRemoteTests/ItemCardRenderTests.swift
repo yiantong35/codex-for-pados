@@ -174,6 +174,16 @@ final class ItemCardRenderTests: XCTestCase {
         XCTAssertEqual(String(ItemCard.agentText("**bold**").characters), "bold")
     }
 
+    func testInterpolatedCommandMetricsResolveThroughStringCatalog() {
+        let exitCode: LocalizedStringResource = "conv.cmd.exitCode \(7)"
+        let duration: LocalizedStringResource = "conv.cmd.duration \(42)"
+        let count: LocalizedStringResource = "conv.commandsRun \(3)"
+
+        for resource in [exitCode, duration, count] {
+            XCTAssertFalse(String(localized: resource).contains("conv."))
+        }
+    }
+
     func testAgentMarkdownPreservesParagraphListAndCodeBlockBoundaries() {
         let blocks = MarkdownBlock.parse("alpha\n\nbeta\n\n- one\n- two\n\n```swift\nlet x = 1\n```")
         XCTAssertEqual(blocks.map(\.kind), [

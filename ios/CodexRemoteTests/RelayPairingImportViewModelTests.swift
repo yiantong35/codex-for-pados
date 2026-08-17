@@ -128,7 +128,7 @@ final class RelayPairingImportViewModelTests: XCTestCase {
 
     /// 扫码相关本地化键须可解析（扫码按钮 + 相机权限/不可用回退文案）。
     func test_relayImport_scanLocalizationKeys_present() {
-        for key in ["relayImport.scan", "relayImport.error.cameraDenied",
+        for key in ["relayImport.scan", "relayImport.openSettings", "relayImport.error.cameraDenied",
                     "relayImport.error.cameraUnavailable"] {
             let value = String(localized: String.LocalizationValue(key), bundle: .main)
             XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")

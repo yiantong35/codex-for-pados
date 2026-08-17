@@ -24,26 +24,22 @@ struct SettingsPageView: View {
                     .tag(section)
             }
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                // 左上角关闭：明确的 X 按钮，符合 iPad sheet 惯例（唯一关闭入口）。
-                ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .accessibilityLabel(Text("settings.close"))
-                    }
-                    .keyboardShortcut(.cancelAction)   // T11：Esc 关闭设置
+        } detail: {
+            Group {
+                switch selection ?? .default {
+                case .account:    AccountSettingsSectionView()
+                case .appearance: AppearanceSettingsSectionView()
+                case .privacy:    PrivacySettingsSectionView()
+                case .language:   LanguageSettingsSectionView()
+                case .extensions: ExtensionsSectionView()
+                case .shortcuts:  ShortcutsSettingsSectionView()
                 }
             }
-        } detail: {
-            switch selection ?? .default {
-            case .account:    AccountSettingsSectionView()
-            case .appearance: AppearanceSettingsSectionView()
-            case .privacy:    PrivacySettingsSectionView()
-            case .language:   LanguageSettingsSectionView()
-            case .extensions: ExtensionsSectionView()
-            case .shortcuts:  ShortcutsSettingsSectionView()
+            .toolbar {
+                // The visible detail owns dismissal, so compact column collapse cannot hide it.
+                ToolbarItem(placement: .confirmationAction) {
+                    closeButton
+                }
             }
         }
         .task(id: connection.phase) {
@@ -54,6 +50,15 @@ struct SettingsPageView: View {
         // 用 resolvedColorScheme 把 .system 解析成具体值（而非 nil），既能即时切换、
         // 又能从深/浅色正确切回跟随系统（否则 sheet 卡在旧强制值 → 里黑外白）。
         .preferredColorScheme(theme.resolvedColorScheme(system: systemColorScheme))
+    }
+
+    private var closeButton: some View {
+        Button { dismiss() } label: {
+            Image(systemName: "xmark")
+                .accessibilityLabel(Text("settings.close"))
+        }
+        .minimumHitTarget44()
+        .keyboardShortcut(.cancelAction)
     }
 }
 
@@ -73,25 +78,31 @@ struct PrePairingSettingsView: View {
                 Label(section.label, systemImage: section.icon).tag(section)
             }
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button { dismiss() } label: {
-                        Image(systemName: "xmark")
-                            .accessibilityLabel(Text("settings.close"))
-                    }
-                    .minimumHitTarget44()
-                    .keyboardShortcut(.cancelAction)
+        } detail: {
+            Group {
+                switch selection ?? .appearance {
+                case .appearance: AppearanceSettingsSectionView()
+                case .privacy: PrivacySettingsSectionView()
+                case .language: LanguageSettingsSectionView()
+                case .shortcuts: ShortcutsSettingsSectionView()
+                case .account, .extensions: EmptyView()
                 }
             }
-        } detail: {
-            switch selection ?? .appearance {
-            case .appearance: AppearanceSettingsSectionView()
-            case .privacy: PrivacySettingsSectionView()
-            case .language: LanguageSettingsSectionView()
-            case .shortcuts: ShortcutsSettingsSectionView()
-            case .account, .extensions: EmptyView()
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    closeButton
+                }
             }
         }
         .preferredColorScheme(theme.resolvedColorScheme(system: systemColorScheme))
+    }
+
+    private var closeButton: some View {
+        Button { dismiss() } label: {
+            Image(systemName: "xmark")
+                .accessibilityLabel(Text("settings.close"))
+        }
+        .minimumHitTarget44()
+        .keyboardShortcut(.cancelAction)
     }
 }

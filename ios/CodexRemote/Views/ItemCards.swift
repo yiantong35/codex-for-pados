@@ -80,7 +80,7 @@ struct ItemCard: View {
                         .textSelection(.enabled)
                         .padding(8)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.black.opacity(0.05))
+                        .background(Color(uiColor: .secondarySystemBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                     if presentation.isTruncated {
                         Label("conv.output.truncated \(presentation.displayedLines) \(presentation.totalLines)",
