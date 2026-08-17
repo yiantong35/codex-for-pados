@@ -4,6 +4,14 @@ import XCTest
 /// #4：扫码相机启停串行化。模拟器无相机，故只测**纯对齐决策**（不实际起相机）——
 /// 目标态（desiredRunning）与实际运行态经 `reconcile` 收敛，验证「stop 无条件、最终态收敛到停止」不变量。
 final class QRScannerLifecycleTests: XCTestCase {
+    func testPreviewRotationTracksAllInterfaceOrientations() {
+        XCTAssertEqual(QRScannerView.PreviewView.rotationAngle(for: .portrait), 90)
+        XCTAssertEqual(QRScannerView.PreviewView.rotationAngle(for: .portraitUpsideDown), 270)
+        XCTAssertEqual(QRScannerView.PreviewView.rotationAngle(for: .landscapeLeft), 0)
+        XCTAssertEqual(QRScannerView.PreviewView.rotationAngle(for: .landscapeRight), 180)
+        XCTAssertNil(QRScannerView.PreviewView.rotationAngle(for: .unknown))
+    }
+
     /// 目标态 = 停止：无论当前是否在跑，最终决策要么停要么无操作，绝不 start。
     func test_reconcile_desired_stop_never_starts() {
         XCTAssertEqual(QRScannerView.PreviewView.reconcile(desired: false, isRunning: true), .stop)

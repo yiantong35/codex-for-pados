@@ -144,6 +144,10 @@ struct RootSplitView: View {
                         .transition(.move(edge: .bottom))
                     }
                 }
+                .onAppear { layout.updateContainerWidth(geometry.size.width) }
+                .onChange(of: geometry.size.width) { _, width in
+                    layout.updateContainerWidth(width)
+                }
             }
             .toolbar {
                 WorkspaceToolbar(

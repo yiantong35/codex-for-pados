@@ -1739,7 +1739,7 @@
         }
       }
     },
-    "conv.cmd.duration": {
+    "conv.cmd.duration %lld": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -1755,7 +1755,7 @@
         }
       }
     },
-    "conv.cmd.exitCode": {
+    "conv.cmd.exitCode %lld": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -1803,7 +1803,7 @@
         }
       }
     },
-    "conv.commandsRun": {
+    "conv.commandsRun %lld": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -2833,6 +2833,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "导入"
+          }
+        }
+      }
+    },
+    "relayImport.openSettings": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开设置"
           }
         }
       }

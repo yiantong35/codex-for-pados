@@ -30,8 +30,10 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
 
     // 拖动锚点（D2）：记手势起点在固定坐标系里的绝对 x + 起始列宽，
     // 之后用「当前绝对 x − 起点绝对 x」算增量，不用会自我干扰的 translation。
-    @State private var dragStartX: CGFloat?
-    @State private var dragStartWidth: CGFloat?
+    @State private var leftDragStartX: CGFloat?
+    @State private var leftDragStartWidth: CGFloat?
+    @State private var rightDragStartX: CGFloat?
+    @State private var rightDragStartWidth: CGFloat?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.locale) private var locale
     @AccessibilityFocusState private var overlayCloseFocused: Bool
@@ -175,12 +177,18 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
         divider(side: .left,
                 accessibilityLabel: L10n.string("workspace.column.left.resize", locale: locale),
                 accessibilityValue: formattedWidth(displayedWidth)) { absX in
-            if dragStartX == nil { dragStartX = absX; dragStartWidth = displayedWidth }
-            let dx = absX - (dragStartX ?? absX)
-            let base = dragStartWidth ?? displayedWidth
+            if leftDragStartX == nil {
+                leftDragStartX = absX
+                leftDragStartWidth = displayedWidth
+            }
+            let dx = absX - (leftDragStartX ?? absX)
+            let base = leftDragStartWidth ?? displayedWidth
             leftWidth = WorkspaceMetrics.clampColumnWidth(
                 base + dx, total: total, otherColumnWidth: otherColumnWidth,
                 columnMin: WorkspaceMetrics.leftColumnMinWidth, dividerCount: dividerCount)
+        } onDragEnded: {
+            leftDragStartX = nil
+            leftDragStartWidth = nil
         } onAdjust: { direction in
             let delta = direction == .increment
                 ? WorkspaceMetrics.columnResizeAccessibilityStep
@@ -200,12 +208,18 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
         divider(side: .right,
                 accessibilityLabel: L10n.string("workspace.column.right.resize", locale: locale),
                 accessibilityValue: formattedWidth(displayedWidth)) { absX in
-            if dragStartX == nil { dragStartX = absX; dragStartWidth = displayedWidth }
-            let dx = absX - (dragStartX ?? absX)
-            let base = dragStartWidth ?? displayedWidth
+            if rightDragStartX == nil {
+                rightDragStartX = absX
+                rightDragStartWidth = displayedWidth
+            }
+            let dx = absX - (rightDragStartX ?? absX)
+            let base = rightDragStartWidth ?? displayedWidth
             rightWidth = WorkspaceMetrics.clampColumnWidth(
                 base - dx, total: total, otherColumnWidth: otherColumnWidth,
                 columnMin: WorkspaceMetrics.rightColumnMinWidth, dividerCount: dividerCount)
+        } onDragEnded: {
+            rightDragStartX = nil
+            rightDragStartWidth = nil
         } onAdjust: { direction in
             let delta = direction == .increment
                 ? WorkspaceMetrics.columnResizeAccessibilityStep
@@ -225,6 +239,7 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
                          accessibilityLabel: String,
                          accessibilityValue: String,
                          onDrag: @escaping (CGFloat) -> Void,
+                         onDragEnded: @escaping () -> Void,
                          onAdjust: @escaping (AccessibilityAdjustmentDirection) -> Void) -> some View {
         let active = hoveredDivider == side || focusedDivider == side || draggingDivider == side
         return Rectangle()
@@ -254,8 +269,7 @@ struct ResizableColumns<Left: View, Center: View, Right: View>: View {
                     }
                     .onEnded { _ in
                         draggingDivider = nil
-                        dragStartX = nil
-                        dragStartWidth = nil
+                        onDragEnded()
                         onResizeEnded()
                     }
             )

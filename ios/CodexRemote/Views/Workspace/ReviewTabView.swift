@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 审查 tab：数据源切换（本轮/全量）+ 逐行红绿 diff（ReviewPanelView）+ AI 审查发起入口。
 /// 发起入口跟随当前数据源（设计 D1）：本轮→custom{turnDiff}、全量→uncommittedChanges，
@@ -128,6 +129,12 @@ struct ReviewTabView: View {
                 let ok = await activeConversation.startReview?(requestedMode) ?? false
                 reviewFeedback = ok ? .started : .failed
             }
+            if let reviewFeedback {
+                UIAccessibility.post(
+                    notification: .announcement,
+                    argument: L10n.string(reviewFeedback.localizationKey, locale: locale)
+                )
+            }
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             reviewFeedback = nil
             isSubmittingReview = false
@@ -157,6 +164,13 @@ private enum ReviewStartFeedback: Equatable {
     case failed
 
     var labelKey: LocalizedStringKey {
+        switch self {
+        case .started: "review.started"
+        case .failed: "review.startFailed"
+        }
+    }
+
+    var localizationKey: String {
         switch self {
         case .started: "review.started"
         case .failed: "review.startFailed"
