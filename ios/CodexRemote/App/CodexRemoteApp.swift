@@ -15,6 +15,8 @@ struct CodexRemoteApp: App {
     @State private var shortcuts = ShortcutStore()
     // #1：远端终端 OSC 52 写剪贴板门控（默认关闭，fail-closed）。根持有并注入，设置页与终端共享。
     @State private var clipboardPolicy = ClipboardPolicyStore()
+    // global-text-scaling：全局文字缩放 manager，根持有并注入。
+    @State private var textScale = TextScaleManager()
 
     init() {
         Self.purgeLegacySSHKeyOnce()
@@ -28,10 +30,13 @@ struct CodexRemoteApp: App {
                 .environment(themeManager)
                 .environment(shortcuts)
                 .environment(clipboardPolicy)
+                .environment(textScale)
                 // 运行时换语言：注入选定 locale，所有 Text(LocalizedStringKey) 跟随刷新。
                 .environment(\.locale, localeManager.locale)
                 // 运行时换主题：nil = 跟随系统。
                 .preferredColorScheme(themeManager.colorScheme)
+                // 运行时换字号：跟随系统(nil)不注入，覆盖档注入 .dynamicTypeSize（条件修饰）。
+                .modifier(AppDynamicTypeSizeModifier(size: textScale.overrideSize))
                 // 冷启动只连上次活跃机器（D7）；其余懒连。
                 .task { sessions.bootstrapAutoConnect() }
         }

@@ -190,6 +190,20 @@ final class TextScaleManager {
     func reset() { scale = .system }
 }
 
+/// 根注入用条件修饰：覆盖档注入 `.dynamicTypeSize(size)`，跟随系统（nil）**不注入**。
+/// 关键：不用 `.dynamicTypeSize(nil)`——SwiftUI 把 nil 当「未表态」而非「回到系统」，
+/// 会重演 ThemeManager.resolvedColorScheme 注释里记的 nil 陷阱（卡在旧覆盖值）。
+struct AppDynamicTypeSizeModifier: ViewModifier {
+    let size: DynamicTypeSize?
+    func body(content: Content) -> some View {
+        if let size {
+            content.dynamicTypeSize(size)
+        } else {
+            content   // 跟随系统：放行系统 Dynamic Type，不注入覆盖
+        }
+    }
+}
+
 // MARK: - 剪贴板写门控（#1 安全）
 
 /// 远端终端 OSC 52 写系统剪贴板的门控开关。默认关闭（fail-closed）。

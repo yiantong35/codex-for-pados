@@ -74,6 +74,14 @@ final class TextScaleManagerTests: XCTestCase {
         XCTAssertEqual(AppTextScale.nearestOverride(for: .xLarge), .large)
     }
 
+    // 根注入契约：overrideSize 为 nil 即「跟随系统」= 不注入（禁止 .dynamicTypeSize(nil)）。
+    func testSystemYieldsNilOverrideForConditionalInjection() {
+        let m = TextScaleManager(store: defaults)
+        XCTAssertNil(m.overrideSize)          // .system → nil → modifier 走「不注入」分支
+        m.scale = .accessibility
+        XCTAssertEqual(m.overrideSize, .accessibility3)  // 覆盖档 → 注入具体值
+    }
+
     // increase/decrease 用视图传入的基线驱动模型。
     func testIncreaseDecreaseFromBaseline() {
         let m = TextScaleManager(store: defaults)
