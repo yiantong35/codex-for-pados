@@ -73,6 +73,9 @@ struct RootSplitView: View {
     @State private var showRePairing = false
     @State private var connectionFailureDetails: String?
     @State private var manualReconnectInProgress = false
+    // review P2-2：摘要浮层随字号缩放，避免大档裁切。
+    @ScaledMetric private var summaryWidth: CGFloat = 340
+    @ScaledMetric private var summaryMaxHeight: CGFloat = 480
     /// 便利初始化：允许注入面板初始展开态（供快照测试覆盖全开布局）。
     init(initialRightOpen: Bool = false, initialBottomOpen: Bool = false,
          workspaceState: WorkspaceSessionState? = nil) {
@@ -114,14 +117,14 @@ struct RootSplitView: View {
                             GeometryReader { geometry in
                                 SummaryPopoverView(state: activeConversation.state, thread: selectedThread, env: envInspector,
                                                    onOpenReview: { layout.requestRightPanel(.review) })
-                                    .frame(width: min(340, max(0, geometry.size.width - 24)))
+                                    .frame(width: min(summaryWidth, max(0, geometry.size.width - 24)))
                                     .task(id: summaryEnvKey) {
                                         if connection.phase == .ready, let rpc = connection.rpc {
                                             envInspector.attach(rpc: rpc)
                                             await envInspector.refresh(cwd: selectedThread?.cwd)
                                         }
                                     }
-                                    .frame(maxHeight: 480)
+                                    .frame(maxHeight: summaryMaxHeight)
                                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
                                     .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))
                                     .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
