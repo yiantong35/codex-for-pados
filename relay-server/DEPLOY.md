@@ -197,15 +197,14 @@ relay.example.com {
 
 ## 6. 开发机侧：启动 relay-dialout
 
-relay-server 起来后，开发机（macOS）侧跑 `relay-dialout` 拨出，桥接**开发机上已有的共享 daemon**（不自 spawn app-server，proxy 幂等接入，保真跨端同步）。
+relay-server 起来后，开发机（macOS）侧跑 `relay-dialout` 拨出，**自 spawn 一个 `codex app-server --listen stdio://` daemon 并做 stdin/stdout 裸行直管道桥接**（单客户端，零帧翻译；relay-only 架构下不存在可接入的共享 control-socket daemon，desktop Electron GUI 跑的是不可接入的私有 stdio daemon）。
 
 环境变量：
 
 | 变量 | 含义 | 默认 |
 |------|------|------|
 | `RELAY_URL` | relay 地址（生产用 `wss://relay.example.com`，裸机 `ws://<ecs-ip>:9000`） | `wss://relay.example.com` |
-| `CONTROL_SOCK` | 开发机现有共享 daemon 的 control socket 路径 | `~/.codex/control.sock` |
-| `CODEX_PATH` | `codex` 可执行路径 | `codex` |
+| `CODEX_PATH` | `codex` 可执行路径（dialout 自 spawn `app-server --listen stdio://`） | `codex` |
 | `DEV_DEVICE_ID` | 开发机标识（可选） | 随机 `dev-xxxx` |
 
 运行：
@@ -213,7 +212,6 @@ relay-server 起来后，开发机（macOS）侧跑 `relay-dialout` 拨出，桥
 ```bash
 cd relay-dialout
 RELAY_URL="wss://relay.example.com" \
-CONTROL_SOCK="$HOME/.codex/control.sock" \
 swift run relay-dialout
 ```
 
@@ -227,14 +225,14 @@ codexrelay://pair?relay=...&sid=...&pk=...&pc=...&exp=...
 relay-dialout 已拨出 <host>:<port>/relay/<sessionId> (role=devMachine)
 ```
 
-把 `codexrelay://pair?...` 这一行手动搬到 iPad（相册截图 / 消息 / 剪贴板），在 iPad 的「粘贴配对载荷」界面导入即可。relay-dialout 内部：ws 拨出 relay（`x-role: devMachine`）→ 与 iPad 完成握手（验 iPad 签名 + 校验一次性 pairingCode）→ 建 SecureSession → spawn `codex app-server proxy --sock <control.sock>` 桥接共享 daemon → 双向：iPad 密文帧解密写 proxy stdin，proxy stdout 明文加密回发 iPad。pairingCode 握手成功后即失效（一次性）。
+把 `codexrelay://pair?...` 这一行手动搬到 iPad（相册截图 / 消息 / 剪贴板），在 iPad 的「粘贴配对载荷」界面导入即可。relay-dialout 内部：ws 拨出 relay（`x-role: devMachine`）→ 与 iPad 完成握手（验 iPad 签名 + 校验一次性 pairingCode）→ 建 SecureSession → spawn `codex app-server --listen stdio://` daemon 并 stdin/stdout 直管道 → 双向：iPad 密文帧解密写 daemon stdin，daemon stdout 明文加密回发 iPad。pairingCode 握手成功后即失效（一次性）。
 
 ---
 
 ## ✅ 安全前提（已收口）
 
-开发机的 `app-server` 默认绑 `127.0.0.1`（仅本机 loopback）。外部（iPad）流量只能经 relay 的端到端加密通道或 SSH 隧道进入——relay-dialout 在开发机**本机**连 app-server（loopback），SSH transport 走隧道 + Unix socket（`control.sock`），二者均不经此 TCP 监听，故收口不影响正式接入。杜绝了绕过 relay 的明文裸连。
+relay-dialout 自 spawn 的 daemon 以 `--listen stdio://` 运行，**无任何网络监听端口（含 loopback）**；iPad 流量只能经 relay 端到端加密通道进入，dialout 在本机以 stdin/stdout 管道连 daemon，不经任何 TCP 监听。SSH 传输已在 change `remove-ssh-transport`（PR#46）整体移除。网络暴露面全部收敛于 relay-server（零知识）+ E2E 通道，较早前「loopback ws + control.sock」模型更收口。
 
-逃生阀：临时 LAN 裸连排障时可 `CODEX_WS_BIND=0.0.0.0` 启动 `scripts/start-codex-appserver.sh` 覆盖默认绑定（脚本会警示当前处于裸连模式）；日常应留默认 `127.0.0.1`。
+daemon 生命周期 = dialout↔relay 连接生命周期：跨 iPad 弱网重连存活，仅 dialout 自身连接终止（`connectionClose` 帧 / channel inactive）时按**自身 spawn 的精确 PID** 回收——绝不宽匹配 kill `codex`/`app-server`（desktop 私有 daemon 同名，误杀即事故）。
 
-> 历史：探路阶段（relay-e2e-spike）默认绑 `0.0.0.0` 便于 bring-up，此项作为紧后续安全收口任务留待 relay 上线后处理。已由 change `bind-appserver-loopback`（2026-07-24）收口。
+> 历史：探路阶段（relay-e2e-spike）曾设想桥接「开发机已有共享 daemon」（`app-server proxy --sock ~/.codex/control.sock`），实测证伪——该 control.sock 默认不存在、desktop 跑私有 stdio daemon 不可接入，正是 iPad relay「会话加载失败 / 20 秒超时」根因。已由 change `relay-turn-bringup`（2026-08-17，M1 单客户端跑通）改为自 spawn stdio daemon 直管道收口。多客户端实时同步 + approve 广播由后续 change `relay-multiclient-live-sync`（M2）承接。
