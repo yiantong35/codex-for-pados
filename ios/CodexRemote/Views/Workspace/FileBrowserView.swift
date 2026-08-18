@@ -43,6 +43,9 @@ struct FileBrowserView: View {
     let store: FileBrowserStore
 
     private static let threshold: CGFloat = 520
+    // review P2-2：目录树与行号 gutter 随字号缩放，避免大档裁切/挤压。
+    @ScaledMetric private var dirTreeWidth: CGFloat = 220
+    @ScaledMetric private var lineGutterWidth: CGFloat = 44
 
     var body: some View {
         if store.isEmpty {
@@ -54,7 +57,7 @@ struct FileBrowserView: View {
                 GeometryReader { geo in
                     if geo.size.width >= Self.threshold {
                         HStack(spacing: 0) {
-                            directoryTree.frame(width: 220)
+                            directoryTree.frame(width: dirTreeWidth)
                             Divider()
                             contentArea
                         }
@@ -223,7 +226,7 @@ struct FileBrowserView: View {
                             Text("\(idx + 1)")                     // #8a：1-based 行号 gutter
                                 .font(.system(.caption, design: .monospaced))
                                 .foregroundStyle(.secondary)
-                                .frame(width: 44, alignment: .trailing)
+                                .frame(width: lineGutterWidth, alignment: .trailing)
                             Text(line.isEmpty ? " " : String(line))
                                 .font(.system(.caption, design: .monospaced))   // #8d：caption2 → caption
                                 .textSelection(.enabled)                        // #8c：可选可复制
