@@ -58,6 +58,7 @@ final class WorkspaceUIRegressionTests: XCTestCase {
             .environment(LocaleManager())
             .environment(ThemeManager())
             .environment(ShortcutStore())
+            .environment(TextScaleManager())
             .environment(sessions)
         let window = mount(view, size: CGSize(width: 834, height: 1_194))
         defer { unmount(window) }

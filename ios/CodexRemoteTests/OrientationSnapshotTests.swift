@@ -218,6 +218,49 @@ final class OrientationSnapshotTests: XCTestCase {
         snapshot(view, size: landscape, name: "split-landscape")
     }
 
+    // MARK: - 场景 2b：全局文字缩放 .accessibility3 目视快照（global-text-scaling Task 6）
+
+    /// 文字缩放至 .accessibility3 时三栏横屏布局目视快照：叠加 TextScaleManager + dynamicTypeSize，
+    /// 供人工检查摘要浮层完整、文件树/gutter 不截断、进度卡展开层不遮小条。非回归断言（目视工具）。
+    func test_textScale_accessibility3_landscape_snapshot() {
+        let view = RootSplitView()
+            .environment(EnvironmentInspectorModel())
+            .environment(EnvironmentStore())
+            .environment(ApprovalStore())
+            .environment(TerminalSession())
+            .environment(makeConnection())
+            .environment(makeProjects())
+            .environment(FileBrowserStore())
+            .environment(SideChatStore())
+            .environment(LocaleManager())
+            .environment(ThemeManager())
+            .environment(ShortcutStore())
+            .environment(TextScaleManager())
+            .environment(makeSessions(machineCount: 2))
+            .dynamicTypeSize(.accessibility3)
+        snapshot(view, size: landscape, name: "split-a11y3-landscape")
+    }
+
+    /// 文字缩放至 .accessibility3 时三栏竖屏布局目视快照。
+    func test_textScale_accessibility3_portrait_snapshot() {
+        let view = RootSplitView()
+            .environment(EnvironmentInspectorModel())
+            .environment(EnvironmentStore())
+            .environment(ApprovalStore())
+            .environment(TerminalSession())
+            .environment(makeConnection())
+            .environment(makeProjects())
+            .environment(FileBrowserStore())
+            .environment(SideChatStore())
+            .environment(LocaleManager())
+            .environment(ThemeManager())
+            .environment(ShortcutStore())
+            .environment(TextScaleManager())
+            .environment(makeSessions(machineCount: 2))
+            .dynamicTypeSize(.accessibility3)
+        snapshot(view, size: portrait, name: "split-a11y3-portrait")
+    }
+
     /// Task 26：默认态主界面（inspector 默认隐藏 + 设置齿轮移侧栏 + 空态不显大占位）。
     /// RED 落在可判定行为：新增本地化键 `inspector.toggle` 必须可解析（解析失败回落为键名本身）。
     func test_rootsplit_default_layout_snapshot() {
