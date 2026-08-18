@@ -20,7 +20,7 @@ import Glibc
 //  2. NIO ws 客户端拨出 relay（role=devMachine，路径 /relay/{sessionId}，x-role header）。
 //  3. 开发机侧握手：ClientHello → makeServerHello（验 pairingCodeProof）→ ServerHello →
 //     ClientAuth → verifyClientAuthAndFinish（验 iPad 签名）→ dev 侧 SecureSession。
-//  4. 启 ProxyBridge，双向桥接：relay 收 SecureEnvelope → session.open → bridge.write；
+//  4. 启 DaemonBridge，双向桥接：relay 收 SecureEnvelope → session.open → bridge.write；
 //     bridge.incoming 明文 → session.seal → env.encoded() → ws 发 relay。
 //  5. pairingCode 用过一次即失效（握手成功后置内存标记）。
 //
@@ -30,7 +30,6 @@ import Glibc
 // MARK: 配置（环境变量 / 默认）
 let env = ProcessInfo.processInfo.environment
 let relayURL = env["RELAY_URL"] ?? "wss://relay.example.com"
-let sockPath = env["CONTROL_SOCK"] ?? "\(NSHomeDirectory())/.codex/control.sock"
 let codexPath = env["CODEX_PATH"] ?? "codex"
 let keyDir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".codex-relay-dialout")
 
@@ -166,7 +165,7 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
     typealias InboundIn = WebSocketFrame
     typealias OutboundOut = WebSocketFrame
 
-    private let bridge: ProxyBridge
+    private let bridge: DaemonBridge
     private let context: DialoutContext
     private let lifecycle: BridgeLifecycle
     private let outputRouter: BridgeOutputRouter
@@ -174,7 +173,7 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
     private var outputAttachment: BridgeOutputRouter.Attachment?
 
     init(
-        bridge: ProxyBridge,
+        bridge: DaemonBridge,
         context: DialoutContext,
         lifecycle: BridgeLifecycle,
         outputRouter: BridgeOutputRouter,
@@ -338,7 +337,7 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
 
 // MARK: ws 拨出
 let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-let bridge = ProxyBridge(codexPath: codexPath, sockPath: sockPath)
+let bridge = DaemonBridge(codexPath: codexPath)
 let bridgeLifecycle = BridgeLifecycle(bridge: bridge)
 
 final class DialoutStopRelay: @unchecked Sendable {

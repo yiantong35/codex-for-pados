@@ -2,17 +2,25 @@ import Testing
 import Foundation
 @testable import RelayDialoutCore
 
+/// 生产参数必须指向 spawn `codex app-server --listen stdio://`（单客户端裸行 JSON，无监听端口），
+/// 而非旧的 `app-server proxy --sock <path>`（桥接一个不存在的 control.sock=两个月悬案根因）。
+/// 用只读 resolvedArguments 断言，不必真的 spawn daemon。
+@Test func productionArgumentsPointAtStdioListen() {
+    let bridge = DaemonBridge(codexPath: "codex")   // 不注入 arguments → 走生产参数
+    #expect(bridge.resolvedArguments == ["app-server", "--listen", "stdio://"])
+}
+
 @Test func bareExecutableNameResolvesThroughPATH() throws {
     let directory = FileManager.default.temporaryDirectory
-        .appendingPathComponent("proxy-path-\(UUID().uuidString)", isDirectory: true)
+        .appendingPathComponent("daemon-path-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: directory) }
     let executable = directory.appendingPathComponent("codex-test")
     try Data("#!/bin/sh\nexec /bin/sleep 300\n".utf8).write(to: executable)
     try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
 
-    let bridge = ProxyBridge(codexPath: "codex-test", arguments: [], sockPath: "/tmp/unused",
-                             environment: ["PATH": directory.path])
+    let bridge = DaemonBridge(codexPath: "codex-test", arguments: [],
+                              environment: ["PATH": directory.path])
     try bridge.start()
     #expect(bridge.isRunning)
     bridge.terminate()
@@ -20,16 +28,16 @@ import Foundation
 }
 
 @Test func missingBareExecutableFailsBeforeProcessLaunch() {
-    let bridge = ProxyBridge(codexPath: "definitely-not-installed", sockPath: "/tmp/unused",
-                             environment: ["PATH": "/nonexistent"])
-    #expect(throws: ProxyBridgeError.executableNotFound("definitely-not-installed")) {
+    let bridge = DaemonBridge(codexPath: "definitely-not-installed",
+                              environment: ["PATH": "/nonexistent"])
+    #expect(throws: DaemonBridgeError.executableNotFound("definitely-not-installed")) {
         try bridge.start()
     }
 }
 
 @Test func stdinWriterIsBoundedAndPreservesOrder() async throws {
-    let bridge = ProxyBridge(codexPath: "/bin/cat", arguments: [], sockPath: "/tmp/unused",
-                             maximumPendingWriteBytes: 64)
+    let bridge = DaemonBridge(codexPath: "/bin/cat", arguments: [],
+                              maximumPendingWriteBytes: 64)
     try bridge.start()
     let stream = bridge.incoming
     let received = Task { () -> [String] in
@@ -51,10 +59,10 @@ import Foundation
 }
 
 /// terminate() 应非阻塞地发起回收，调用方可在 EventLoop 外显式等待子进程被 reap。
+/// 只对 DaemonBridge 自己持有的 `process` 句柄（精确 PID）操作，绝不按名/宽匹配 kill。
 @Test func terminateReapsSpawnedChildNoZombie() throws {
     // 注入 /bin/sleep 300 作无害长驻子进程 stub（arguments 注入点仅测试用，不改生产路径）。
-    let sock = "/tmp/relay-t5-proxybridge-\(ProcessInfo.processInfo.globallyUniqueString).sock"
-    let bridge = ProxyBridge(codexPath: "/bin/sleep", arguments: ["300"], sockPath: sock)
+    let bridge = DaemonBridge(codexPath: "/bin/sleep", arguments: ["300"])
 
     try bridge.start()
     let pid = bridge.pid
@@ -74,11 +82,9 @@ import Foundation
 
 /// 忽略 SIGTERM 的子进程必须在有界宽限期后，仅按保存的 PID 收到 SIGKILL 并被 reap。
 @Test func stubbornChildIsKilledAfterGracePeriod() throws {
-    let sock = "/tmp/relay-t5-stubborn-\(ProcessInfo.processInfo.globallyUniqueString).sock"
-    let bridge = ProxyBridge(
+    let bridge = DaemonBridge(
         codexPath: "/bin/sh",
         arguments: ["-c", "trap '' TERM; exec /bin/sleep 300"],
-        sockPath: sock,
         terminationGracePeriod: .milliseconds(250)
     )
 
