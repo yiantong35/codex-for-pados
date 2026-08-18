@@ -4647,6 +4647,24 @@
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "聚焦消息输入框" } }
       }
     },
+    "shortcut.action.increaseTextSize": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Increase text size" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "放大文字" } }
+      }
+    },
+    "shortcut.action.decreaseTextSize": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Decrease text size" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "缩小文字" } }
+      }
+    },
+    "shortcut.action.resetTextSize": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Reset text size" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "复位文字大小" } }
+      }
+    },
     "shortcut.action.cancelForm": {
       "localizations": {
         "en": {

@@ -195,6 +195,7 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(LocaleManager())
             .environment(ThemeManager())
             .environment(ShortcutStore())                 // T10
+            .environment(TextScaleManager())              // Task 4：ShortcutLayer 读文字缩放 manager
             .environment(makeSessions(machineCount: 2))   // T10：快捷键层读 SessionsManager
         snapshot(view, size: portrait, name: "split-portrait")
     }
@@ -212,6 +213,7 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(LocaleManager())
             .environment(ThemeManager())
             .environment(ShortcutStore())                 // T10
+            .environment(TextScaleManager())              // Task 4：ShortcutLayer 读文字缩放 manager
             .environment(makeSessions(machineCount: 2))   // T10：快捷键层读 SessionsManager
         snapshot(view, size: landscape, name: "split-landscape")
     }
@@ -236,6 +238,7 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(LocaleManager())
             .environment(ThemeManager())
             .environment(ShortcutStore())                 // T10
+            .environment(TextScaleManager())              // Task 4：ShortcutLayer 读文字缩放 manager
             .environment(makeSessions(machineCount: 2))   // T10：快捷键层读 SessionsManager
         snapshot(view, size: landscape, name: "split-default-layout")
     }
@@ -642,6 +645,7 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(LocaleManager())
             .environment(ThemeManager())
             .environment(ShortcutStore())                 // T10
+            .environment(TextScaleManager())              // Task 4：ShortcutLayer 读文字缩放 manager
             .environment(makeSessions(machineCount: 2))   // T10：快捷键层读 SessionsManager
         snapshot(view, size: landscape, name: "workspace-default", dir: "/tmp/workspace")
     }
@@ -665,6 +669,7 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(ThemeManager())
             .environment(TerminalSession())
             .environment(ShortcutStore())                 // T10
+            .environment(TextScaleManager())              // Task 4：ShortcutLayer 读文字缩放 manager
             .environment(makeSessions(machineCount: 2))   // T10：快捷键层读 SessionsManager
             .environment(ClipboardPolicyStore())          // #1：下栏含终端，读远端剪贴板写门控存储
         snapshot(view, size: landscape, name: "workspace-all-open", dir: "/tmp/workspace")

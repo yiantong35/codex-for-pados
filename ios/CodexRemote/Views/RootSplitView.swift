@@ -611,6 +611,10 @@ struct ShortcutLayer: View {
     let layout: WorkspaceLayoutStore
     @Environment(SessionsManager.self) private var sessions
     @Environment(ShortcutStore.self) private var shortcuts
+    @Environment(TextScaleManager.self) private var textScale
+    // U1：本层挂在根 .dynamicTypeSize 注入之下，读到的即当前**有效**档，
+    // 供「跟随系统」下放大/缩小取基线（baseline(effective:)）。
+    @Environment(\.dynamicTypeSize) private var effectiveSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// ⌘1..⌘9 对应的动作（下标 i → 机器数组第 i 项）。
@@ -631,7 +635,21 @@ struct ShortcutLayer: View {
             Button("") { layout.showSettings = true }
                 .keyboardShortcut(shortcuts.combo(for: .openSettings).keyboardShortcut)
 
-            // 右栏跳转 / 全屏（workspace）——requestRightPanel 先开右栏再发信号
+            // 右栏跳转 / 全屏 + Tab + 文字缩放——各拆子 Group，规避 ViewBuilder 单层 10 子视图上限
+            rightPanelShortcutButtons
+            tabShortcutButtons
+            textScaleButtons
+        }
+        // 投递安全的「隐形但仍注册」组合（替代 .hidden()）：
+        .opacity(0)
+        .frame(width: 0, height: 0)
+        .accessibilityHidden(true)
+    }
+
+    // 右栏跳转 / 全屏（workspace）——requestRightPanel 先开右栏再发信号
+    @ViewBuilder
+    private var rightPanelShortcutButtons: some View {
+        Group {
             Button("") { layout.requestRightPanel(.review) }
                 .keyboardShortcut(shortcuts.combo(for: .rightPanelReview).keyboardShortcut)
             Button("") { layout.requestRightPanel(.files) }
@@ -640,14 +658,7 @@ struct ShortcutLayer: View {
                 .keyboardShortcut(shortcuts.combo(for: .rightPanelSideChat).keyboardShortcut)
             Button("") { layout.requestRightPanel(.toggleFullscreen) }
                 .keyboardShortcut(shortcuts.combo(for: .rightPanelFullscreen).keyboardShortcut)
-
-            // Tab（global）——拆子 Group，规避 ViewBuilder 单层 10 子视图上限
-            tabShortcutButtons
         }
-        // 投递安全的「隐形但仍注册」组合（替代 .hidden()）：
-        .opacity(0)
-        .frame(width: 0, height: 0)
-        .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -664,6 +675,25 @@ struct ShortcutLayer: View {
             Button("") { sessions.presentAddMachine() }
                 .keyboardShortcut(shortcuts.combo(for: .addMachine).keyboardShortcut)
         }
+    }
+
+    // 文字缩放（global，global-text-scaling）：⌘=/⌘-/⌘0。
+    @ViewBuilder
+    private var textScaleButtons: some View {
+        Group {
+            Button("") { applyTextStep(1) }
+                .keyboardShortcut(shortcuts.combo(for: .increaseTextSize).keyboardShortcut)
+            Button("") { applyTextStep(-1) }
+                .keyboardShortcut(shortcuts.combo(for: .decreaseTextSize).keyboardShortcut)
+            Button("") { textScale.reset() }
+                .keyboardShortcut(shortcuts.combo(for: .resetTextSize).keyboardShortcut)
+        }
+    }
+
+    /// U1 分发：先把当前有效档折算为覆盖档基线，再沿阶梯移动一档（钳制两端）。
+    private func applyTextStep(_ delta: Int) {
+        let base = textScale.baseline(effective: effectiveSize)
+        if delta > 0 { textScale.increase(baseline: base) } else { textScale.decrease(baseline: base) }
     }
 
     private func animate(_ changes: () -> Void) {

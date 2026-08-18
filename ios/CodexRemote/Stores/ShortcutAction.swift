@@ -19,6 +19,8 @@ enum ShortcutAction: String, CaseIterable, Identifiable {
     case rightPanelReview, rightPanelFiles, rightPanelSideChat, rightPanelFullscreen
     // 对话（workspace）
     case sendMessage, stopTurn, focusComposer
+    // 文字大小（global，global-text-scaling）——只追加不改名
+    case increaseTextSize, decreaseTextSize, resetTextSize
     // 表单（form，固定）
     case cancelForm
 
@@ -30,7 +32,8 @@ enum ShortcutAction: String, CaseIterable, Identifiable {
     var scope: ShortcutScope {
         switch self {
         case .tab1, .tab2, .tab3, .tab4, .tab5, .tab6, .tab7, .tab8, .tab9,
-             .nextTab, .prevTab, .addMachine:
+             .nextTab, .prevTab, .addMachine,
+             .increaseTextSize, .decreaseTextSize, .resetTextSize:
             return .global
         case .toggleLeftPanel, .toggleRightPanel, .toggleBottomPanel, .toggleSummary, .openSettings,
              .rightPanelReview, .rightPanelFiles, .rightPanelSideChat, .rightPanelFullscreen,
@@ -68,6 +71,9 @@ enum ShortcutAction: String, CaseIterable, Identifiable {
         case .sendMessage: return KeyCombo(key: KeyCombo.returnKey, modifiers: .command)
         case .stopTurn: return KeyCombo(key: ".", modifiers: .command)
         case .focusComposer: return KeyCombo(key: "l", modifiers: [.command, .shift])
+        case .increaseTextSize: return KeyCombo(key: "=", modifiers: .command)   // ⌘= 放大（非 ⌘+，不带 shift）
+        case .decreaseTextSize: return KeyCombo(key: "-", modifiers: .command)   // ⌘- 缩小
+        case .resetTextSize:    return KeyCombo(key: "0", modifiers: .command)   // ⌘0 复位
         case .cancelForm: return KeyCombo(key: KeyCombo.escapeKey, modifiers: [])
         }
     }
