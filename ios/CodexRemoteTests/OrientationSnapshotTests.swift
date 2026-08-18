@@ -770,6 +770,16 @@ final class OrientationSnapshotTests: XCTestCase {
         }
     }
 
+    /// 文字大小分区新增本地化键必须可解析（解析失败回落为键名本身）。
+    func test_textScale_localization_keys_present() {
+        var keys = ["settings.textSize"]
+        keys += AppTextScale.allCases.map { "settings.textSize.\($0.rawValue)" }
+        for key in keys {
+            let value = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
+        }
+    }
+
     func test_cameraUsageDescription_catalogHasEnglishAndChineseValues() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let catalogURL = testFile.deletingLastPathComponent().deletingLastPathComponent()

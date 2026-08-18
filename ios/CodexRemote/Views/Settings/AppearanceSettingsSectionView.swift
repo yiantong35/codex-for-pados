@@ -3,6 +3,7 @@ import SwiftUI
 /// 外观分区（设计 D6）：读改根注入的 ThemeManager，选择即时生效，当前项带勾选标识。
 struct AppearanceSettingsSectionView: View {
     @Environment(ThemeManager.self) private var theme
+    @Environment(TextScaleManager.self) private var textScale
 
     var body: some View {
         List {
@@ -20,6 +21,25 @@ struct AppearanceSettingsSectionView: View {
                         }
                         .contentShape(Rectangle())
                     }
+                }
+            }
+
+            Section("settings.textSize") {
+                ForEach(AppTextScale.allCases) { s in
+                    Button {
+                        textScale.scale = s
+                    } label: {
+                        HStack {
+                            Text(LocalizedStringKey("settings.textSize.\(s.rawValue)"))
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            if textScale.scale == s {
+                                Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .accessibilityAddTraits(textScale.scale == s ? .isSelected : [])
                 }
             }
         }
