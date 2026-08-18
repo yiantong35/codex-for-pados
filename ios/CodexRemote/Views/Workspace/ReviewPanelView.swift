@@ -5,6 +5,9 @@ struct ReviewPanelView: View {
     let source: ReviewDiffSource
     @State private var selectedPath: String?
     private static let threshold: CGFloat = 520
+    // review P2-2：文件树与行号 gutter 随字号缩放，避免大档裁切/挤压。
+    @ScaledMetric private var fileTreeWidth: CGFloat = 200
+    @ScaledMetric private var lineGutterWidth: CGFloat = 38
 
     private var files: [DiffFile] { source.files }
     private var selected: DiffFile? { files.first { $0.path == selectedPath } ?? files.first }
@@ -16,7 +19,7 @@ struct ReviewPanelView: View {
             } else {
                 GeometryReader { geo in
                     if geo.size.width >= Self.threshold {
-                        HStack(spacing: 0) { diffArea; Divider(); fileTree.frame(width: 200) }
+                        HStack(spacing: 0) { diffArea; Divider(); fileTree.frame(width: fileTreeWidth) }
                     } else {
                         VStack(spacing: 0) { fileTree.frame(maxHeight: 180); Divider(); diffArea }
                     }
@@ -109,7 +112,7 @@ struct ReviewPanelView: View {
         Text(value.map(String.init) ?? "")
             .font(.system(.caption2, design: .monospaced))
             .foregroundStyle(.secondary)
-            .frame(width: 38, alignment: .trailing)
+            .frame(width: lineGutterWidth, alignment: .trailing)
             .padding(.trailing, 5)
             .background(Color.secondary.opacity(0.06))
     }
