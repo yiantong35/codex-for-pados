@@ -107,6 +107,89 @@ final class ThemeManager {
     }
 }
 
+// MARK: - 文字大小（global-text-scaling）
+
+/// 全局文字缩放档位（6 档命名阶梯，模型/选择器/快捷键共用）。
+/// rawValue 兼作持久化值，**只追加不改名**（改名会丢已存 app_text_scale）。
+/// `.system` 首位 = 默认（跟随系统，不注入覆盖）；其余五档携带非 nil DynamicTypeSize。
+enum AppTextScale: String, CaseIterable, Identifiable {
+    case system        // 跟随系统（默认，不注入覆盖）
+    case small         // 小（覆盖档下限）
+    case medium        // 中
+    case large         // 大
+    case extraLarge    // 特大
+    case accessibility // 辅助功能（覆盖档上限）
+
+    var id: String { rawValue }
+
+    /// 映射到原生 DynamicTypeSize；`.system` → nil（根视图条件不注入 = 放行系统 Dynamic Type）。
+    var overrideSize: DynamicTypeSize? {
+        switch self {
+        case .system:        return nil
+        case .small:         return .small
+        case .medium:        return .medium
+        case .large:         return .xLarge
+        case .extraLarge:    return .xxxLarge
+        case .accessibility: return .accessibility3
+        }
+    }
+
+    /// 覆盖档有序阶梯（不含 `.system`）：放大/缩小沿此移动一档并钳制两端。
+    static let overrideLadder: [AppTextScale] = [.small, .medium, .large, .extraLarge, .accessibility]
+
+    /// 从 base 沿阶梯移动 delta 档并钳制（下界 `.small`、上界 `.accessibility`）。
+    /// base 若非阶梯档（如 `.system`）兜底取下限索引 0——视图层保证只传阶梯档，此为防御。
+    static func stepped(from base: AppTextScale, by delta: Int) -> AppTextScale {
+        let idx = overrideLadder.firstIndex(of: base) ?? 0
+        let clamped = min(max(idx + delta, 0), overrideLadder.count - 1)
+        return overrideLadder[clamped]
+    }
+
+    /// U1：把当前有效 DynamicTypeSize 映射到最近覆盖档（用作「跟随系统」下放大/缩小的基线）。
+    /// 取阶梯中原生值 `<= size` 的最大档；比下限还小取 `.small`、超上限取 `.accessibility`。
+    /// DynamicTypeSize 符合 Comparable，可直接比较。
+    static func nearestOverride(for size: DynamicTypeSize) -> AppTextScale {
+        var result: AppTextScale = .small
+        for scale in overrideLadder {
+            if let native = scale.overrideSize, native <= size { result = scale }
+        }
+        return result
+    }
+}
+
+/// 文字大小管理器：持久化 "app_text_scale"，映射到 `DynamicTypeSize?`（nil = 跟随系统）。默认跟随系统。
+/// 根视图用条件注入（见 AppDynamicTypeSizeModifier）；快捷键分发经 baseline/increase/decrease/reset。
+@Observable
+final class TextScaleManager {
+    private let store: UserDefaults
+    private static let key = "app_text_scale"
+
+    var scale: AppTextScale {
+        didSet { store.set(scale.rawValue, forKey: Self.key) }
+    }
+
+    init(store: UserDefaults = .standard) {
+        self.store = store
+        if let raw = store.string(forKey: Self.key), let s = AppTextScale(rawValue: raw) {
+            self.scale = s
+        } else {
+            self.scale = .system   // 默认跟随系统
+        }
+    }
+
+    /// 当前应注入的覆盖档（`.system` → nil = 不注入）。
+    var overrideSize: DynamicTypeSize? { scale.overrideSize }
+
+    /// U1 基线：跟随系统时把视图捕获的有效档映射为覆盖档基线，否则即当前档。
+    func baseline(effective: DynamicTypeSize) -> AppTextScale {
+        scale == .system ? AppTextScale.nearestOverride(for: effective) : scale
+    }
+
+    func increase(baseline: AppTextScale) { scale = AppTextScale.stepped(from: baseline, by: 1) }
+    func decrease(baseline: AppTextScale) { scale = AppTextScale.stepped(from: baseline, by: -1) }
+    func reset() { scale = .system }
+}
+
 // MARK: - 剪贴板写门控（#1 安全）
 
 /// 远端终端 OSC 52 写系统剪贴板的门控开关。默认关闭（fail-closed）。
