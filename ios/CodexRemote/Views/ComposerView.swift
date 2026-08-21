@@ -348,6 +348,9 @@ struct ModelSelectionContent: View {
     let defaultEffort: String?
     let locale: Locale
     let isAccessibilitySize: Bool
+    // review P2-2：模型 popover 基线尺寸随字号缩放，避免大档裁切（ideal/max 与 accessibility 分支保留）。
+    @ScaledMetric private var modelPopoverMinWidth: CGFloat = 260
+    @ScaledMetric private var modelPopoverMinHeight: CGFloat = 340
 
     private static let efforts: [ReasoningEffort] = [.none, .minimal, .low, .medium, .high, .xhigh]
 
@@ -381,8 +384,8 @@ struct ModelSelectionContent: View {
             }
         }
         .listStyle(.insetGrouped)
-        .frame(minWidth: 260, idealWidth: 320, maxWidth: 420,
-               minHeight: 340, idealHeight: isAccessibilitySize ? 560 : 440, maxHeight: 620)
+        .frame(minWidth: modelPopoverMinWidth, idealWidth: 320, maxWidth: 420,
+               minHeight: modelPopoverMinHeight, idealHeight: isAccessibilitySize ? 560 : 440, maxHeight: 620)
     }
 
     private func effortLabel(_ effort: ReasoningEffort) -> String {

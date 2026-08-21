@@ -4485,6 +4485,118 @@
         }
       }
     },
+    "settings.textSize": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text Size"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文字大小"
+          }
+        }
+      }
+    },
+    "settings.textSize.accessibility": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accessibility"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "辅助功能"
+          }
+        }
+      }
+    },
+    "settings.textSize.extraLarge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extra Large"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "特大"
+          }
+        }
+      }
+    },
+    "settings.textSize.large": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Large"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大"
+          }
+        }
+      }
+    },
+    "settings.textSize.medium": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medium"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中"
+          }
+        }
+      }
+    },
+    "settings.textSize.small": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Small"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小"
+          }
+        }
+      }
+    },
+    "settings.textSize.system": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow system"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随系统"
+          }
+        }
+      }
+    },
     "settings.title": {
       "localizations": {
         "en": {
@@ -4533,6 +4645,24 @@
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Focus Message Field" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "聚焦消息输入框" } }
+      }
+    },
+    "shortcut.action.increaseTextSize": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Increase text size" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "放大文字" } }
+      }
+    },
+    "shortcut.action.decreaseTextSize": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Decrease text size" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "缩小文字" } }
+      }
+    },
+    "shortcut.action.resetTextSize": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Reset text size" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "复位文字大小" } }
       }
     },
     "shortcut.action.cancelForm": {

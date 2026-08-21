@@ -195,6 +195,7 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(LocaleManager())
             .environment(ThemeManager())
             .environment(ShortcutStore())                 // T10
+            .environment(TextScaleManager())              // Task 4：ShortcutLayer 读文字缩放 manager
             .environment(makeSessions(machineCount: 2))   // T10：快捷键层读 SessionsManager
         snapshot(view, size: portrait, name: "split-portrait")
     }
@@ -212,8 +213,52 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(LocaleManager())
             .environment(ThemeManager())
             .environment(ShortcutStore())                 // T10
+            .environment(TextScaleManager())              // Task 4：ShortcutLayer 读文字缩放 manager
             .environment(makeSessions(machineCount: 2))   // T10：快捷键层读 SessionsManager
         snapshot(view, size: landscape, name: "split-landscape")
+    }
+
+    // MARK: - 场景 2b：全局文字缩放 .accessibility3 目视快照（global-text-scaling Task 6）
+
+    /// 文字缩放至 .accessibility3 时三栏横屏布局目视快照：叠加 TextScaleManager + dynamicTypeSize，
+    /// 供人工检查摘要浮层完整、文件树/gutter 不截断、进度卡展开层不遮小条。非回归断言（目视工具）。
+    func test_textScale_accessibility3_landscape_snapshot() {
+        let view = RootSplitView()
+            .environment(EnvironmentInspectorModel())
+            .environment(EnvironmentStore())
+            .environment(ApprovalStore())
+            .environment(TerminalSession())
+            .environment(makeConnection())
+            .environment(makeProjects())
+            .environment(FileBrowserStore())
+            .environment(SideChatStore())
+            .environment(LocaleManager())
+            .environment(ThemeManager())
+            .environment(ShortcutStore())
+            .environment(TextScaleManager())
+            .environment(makeSessions(machineCount: 2))
+            .dynamicTypeSize(.accessibility3)
+        snapshot(view, size: landscape, name: "split-a11y3-landscape")
+    }
+
+    /// 文字缩放至 .accessibility3 时三栏竖屏布局目视快照。
+    func test_textScale_accessibility3_portrait_snapshot() {
+        let view = RootSplitView()
+            .environment(EnvironmentInspectorModel())
+            .environment(EnvironmentStore())
+            .environment(ApprovalStore())
+            .environment(TerminalSession())
+            .environment(makeConnection())
+            .environment(makeProjects())
+            .environment(FileBrowserStore())
+            .environment(SideChatStore())
+            .environment(LocaleManager())
+            .environment(ThemeManager())
+            .environment(ShortcutStore())
+            .environment(TextScaleManager())
+            .environment(makeSessions(machineCount: 2))
+            .dynamicTypeSize(.accessibility3)
+        snapshot(view, size: portrait, name: "split-a11y3-portrait")
     }
 
     /// Task 26：默认态主界面（inspector 默认隐藏 + 设置齿轮移侧栏 + 空态不显大占位）。
@@ -236,6 +281,7 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(LocaleManager())
             .environment(ThemeManager())
             .environment(ShortcutStore())                 // T10
+            .environment(TextScaleManager())              // Task 4：ShortcutLayer 读文字缩放 manager
             .environment(makeSessions(machineCount: 2))   // T10：快捷键层读 SessionsManager
         snapshot(view, size: landscape, name: "split-default-layout")
     }
@@ -642,6 +688,7 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(LocaleManager())
             .environment(ThemeManager())
             .environment(ShortcutStore())                 // T10
+            .environment(TextScaleManager())              // Task 4：ShortcutLayer 读文字缩放 manager
             .environment(makeSessions(machineCount: 2))   // T10：快捷键层读 SessionsManager
         snapshot(view, size: landscape, name: "workspace-default", dir: "/tmp/workspace")
     }
@@ -665,6 +712,7 @@ final class OrientationSnapshotTests: XCTestCase {
             .environment(ThemeManager())
             .environment(TerminalSession())
             .environment(ShortcutStore())                 // T10
+            .environment(TextScaleManager())              // Task 4：ShortcutLayer 读文字缩放 manager
             .environment(makeSessions(machineCount: 2))   // T10：快捷键层读 SessionsManager
             .environment(ClipboardPolicyStore())          // #1：下栏含终端，读远端剪贴板写门控存储
         snapshot(view, size: landscape, name: "workspace-all-open", dir: "/tmp/workspace")
@@ -764,6 +812,16 @@ final class OrientationSnapshotTests: XCTestCase {
                     "shortcut.recording", "shortcut.fixed",
                     "shortcut.conflict.occupied", "shortcut.conflict.systemReserved"]
         keys += ShortcutAction.allCases.map { "shortcut.action.\($0.rawValue)" }
+        for key in keys {
+            let value = String(localized: String.LocalizationValue(key), bundle: .main)
+            XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
+        }
+    }
+
+    /// 文字大小分区新增本地化键必须可解析（解析失败回落为键名本身）。
+    func test_textScale_localization_keys_present() {
+        var keys = ["settings.textSize"]
+        keys += AppTextScale.allCases.map { "settings.textSize.\($0.rawValue)" }
         for key in keys {
             let value = String(localized: String.LocalizationValue(key), bundle: .main)
             XCTAssertNotEqual(value, key, "缺少 \(key) 本地化键")
