@@ -127,4 +127,33 @@ final class AppearanceLocaleTests: XCTestCase {
         let reopened = ThemeManager(store: d)
         XCTAssertEqual(reopened.theme, .dark)
     }
+
+    // MARK: - 真机回归：文字缩放注入的结构恒定性（Bug 2/3 根因护栏）
+
+    /// AppDynamicTypeSizeModifier 必须结构恒定注入 range：
+    /// 跟随系统(nil) → 全范围（等价不钳制），覆盖档 → 单档钳定。
+    /// 若回归成「nil 不注入 / 某单档」，选档会重建子树 → 关闭设置 sheet、丢失即时生效。
+    func test_dynamicTypeClampRange_systemIsFullRange() {
+        XCTAssertEqual(AppDynamicTypeSizeModifier.clampRange(for: nil),
+                       DynamicTypeSize.xSmall ... DynamicTypeSize.accessibility5,
+                       "跟随系统必须映射为全范围（放行系统 Dynamic Type），而非某单档")
+    }
+
+    func test_dynamicTypeClampRange_overrideClampsToSingleSize() {
+        for scale in AppTextScale.allCases where scale != .system {
+            guard let size = scale.overrideSize else {
+                XCTFail("非 system 档 \(scale.rawValue) 应有非 nil overrideSize"); continue
+            }
+            XCTAssertEqual(AppDynamicTypeSizeModifier.clampRange(for: size), size...size,
+                           "覆盖档 \(scale.rawValue) 应钳定到单档")
+        }
+    }
+
+    /// system 档必须映射为 nil（不注入具体档），其余五档非 nil。
+    func test_textScaleOverrideSizeMapping() {
+        XCTAssertNil(AppTextScale.system.overrideSize)
+        for scale in AppTextScale.allCases where scale != .system {
+            XCTAssertNotNil(scale.overrideSize, "档 \(scale.rawValue) 应有非 nil overrideSize")
+        }
+    }
 }

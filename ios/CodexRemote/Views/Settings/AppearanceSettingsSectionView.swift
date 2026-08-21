@@ -4,6 +4,7 @@ import SwiftUI
 struct AppearanceSettingsSectionView: View {
     @Environment(ThemeManager.self) private var theme
     @Environment(TextScaleManager.self) private var textScale
+    @Environment(\.locale) private var locale
 
     var body: some View {
         List {
@@ -30,7 +31,10 @@ struct AppearanceSettingsSectionView: View {
                         textScale.scale = s
                     } label: {
                         HStack {
-                            Text(LocalizedStringKey("settings.textSize.\(s.rawValue)"))
+                            // 用 L10n 显式查表（跟随注入 locale）。不可写
+                            // `Text(LocalizedStringKey("settings.textSize.\(s.rawValue)"))`：运行时插值构造的
+                            // LocalizedStringKey 会把插值段当 `%@`、查不到表而回退显示原始 key（真机实证）。
+                            Text(verbatim: L10n.string("settings.textSize.\(s.rawValue)", locale: locale))
                                 .foregroundStyle(.primary)
                             Spacer()
                             if textScale.scale == s {

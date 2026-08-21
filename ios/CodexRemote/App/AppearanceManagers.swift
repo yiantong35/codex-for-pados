@@ -190,17 +190,33 @@ final class TextScaleManager {
     func reset() { scale = .system }
 }
 
-/// 根注入用条件修饰：覆盖档注入 `.dynamicTypeSize(size)`，跟随系统（nil）**不注入**。
-/// 关键：不用 `.dynamicTypeSize(nil)`——SwiftUI 把 nil 当「未表态」而非「回到系统」，
-/// 会重演 ThemeManager.resolvedColorScheme 注释里记的 nil 陷阱（卡在旧覆盖值）。
+/// 根注入用修饰：把文字缩放档映射为 `.dynamicTypeSize` 的**范围**恒定注入。
+///
+/// 关键（修真机回归）：**必须结构恒定**——绝不能用 `if size != nil { content.dynamicTypeSize(x) } else { content }`
+/// 这种按 size 有无返回不同视图结构的写法。那样从「跟随系统」(nil) 切到覆盖档时，SwiftUI 判定
+/// 视图 identity 变化 → **重建整棵 RootView 子树**，连带 dismiss 正在呈现的设置 sheet、丢失导航与 @State
+/// （用户表现为「选完档位设置页直接被关掉、也看不到即时生效」）。
+///
+/// 用 range 版 `dynamicTypeSize(_:)` 恒定注入即可两全：
+/// - 覆盖档 → `size...size`：钳定到该档（等价旧的单值注入）。
+/// - 跟随系统 → `.xSmall ... .accessibility5`：全范围 = 不实际钳制，系统 Dynamic Type 原样放行
+///   （规避 `.dynamicTypeSize(nil)` 的「未表态」陷阱，也不改变视图结构）。
+/// 结构恒定后 size 变化只更新参数、不重建子树 → sheet 保持呈现、环境即时刷新。
 struct AppDynamicTypeSizeModifier: ViewModifier {
     let size: DynamicTypeSize?
     func body(content: Content) -> some View {
-        if let size {
-            content.dynamicTypeSize(size)
-        } else {
-            content   // 跟随系统：放行系统 Dynamic Type，不注入覆盖
-        }
+        // 结构恒定：无论 size 有无，都只调用一次 `.dynamicTypeSize(range)`，
+        // 不用 if/else 返回不同视图结构（否则切档重建子树 → 关 sheet、丢 @State）。
+        content.dynamicTypeSize(Self.clampRange(for: size))
+    }
+
+    /// 把覆盖档映射为 `dynamicTypeSize(_:)` 的范围：
+    /// - 覆盖档 → `size...size`（钳定到该档）
+    /// - 跟随系统(nil) → 全范围 `.xSmall ... .accessibility5`（不实际钳制，放行系统 Dynamic Type）
+    /// 提为静态纯函数以便单测（回归护栏：nil 必须映射为全范围而非某单档）。
+    static func clampRange(for size: DynamicTypeSize?) -> ClosedRange<DynamicTypeSize> {
+        if let size { return size...size }
+        return .xSmall ... .accessibility5
     }
 }
 

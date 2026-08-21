@@ -78,9 +78,9 @@ enum ShortcutAction: String, CaseIterable, Identifiable {
         }
     }
 
-    /// 本地化标题 key（值见 Localizable.xcstrings，Task 13 补齐）。
-    var titleKey: LocalizedStringKey { LocalizedStringKey("shortcut.action.\(rawValue)") }
-
-    /// 供设置页显式取 String（分组排序/无障碍用）。
+    /// 本地化标题 key（String 形式）。设置页经 `L10n.string(_:locale:)` 显式查表渲染
+    /// （见 ShortcutsSettingsSectionView 的 `localized(_:)`），跟随应用注入 locale。
+    /// 注意：不要提供 `LocalizedStringKey("shortcut.action.\(rawValue)")` 这类以运行时插值构造的
+    /// `LocalizedStringKey`——SwiftUI 会把插值段当作 `%@` 格式参数、查不到表而回退显示原始 key。
     var titleStringKey: String { "shortcut.action.\(rawValue)" }
 }
