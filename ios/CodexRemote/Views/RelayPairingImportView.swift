@@ -154,10 +154,10 @@ struct RelayPairingImportView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
+            // 扫码 / 粘贴：一左一右两个等宽按钮；窄屏或超大字号放不下时回退为上下堆叠（仍等宽）。
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: 16) { pairingActionButtons; Spacer() }
-                    .fixedSize(horizontal: true, vertical: false)
-                VStack(alignment: .leading, spacing: 8) { pairingActionButtons }
+                HStack(spacing: 12) { pairingActionButtons }
+                VStack(spacing: 8) { pairingActionButtons }
             }
         }
         .padding(.vertical, 12)
@@ -167,7 +167,9 @@ struct RelayPairingImportView: View {
     private var pairingActionButtons: some View {
         Button { beginScan() } label: {
             Label("relayImport.scan", systemImage: "qrcode.viewfinder")
+                .frame(maxWidth: .infinity)
         }
+        .buttonStyle(.bordered)
         .minimumHitTarget44()
 
         Button {
@@ -178,7 +180,9 @@ struct RelayPairingImportView: View {
             }
         } label: {
             Label("relayImport.paste", systemImage: "doc.on.clipboard")
+                .frame(maxWidth: .infinity)
         }
+        .buttonStyle(.bordered)
         .minimumHitTarget44()
     }
 
