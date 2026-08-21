@@ -463,6 +463,7 @@ private struct ThreadGoalEditorSheet: View {
     let thread: ThreadSummary
     @Environment(ProjectsStore.self) private var projects
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
     @State private var objective = ""
     @State private var status: ThreadGoalStatus = .active
     @State private var isLoading = true
@@ -492,7 +493,9 @@ private struct ThreadGoalEditorSheet: View {
                     }
                     Picker("sidebar.goal.status", selection: $status) {
                         ForEach(ThreadGoalStatus.allCases, id: \.self) { value in
-                            Text(LocalizedStringKey("sidebar.goal.status.\(value.rawValue)"))
+                            // L10n 显式查表（跟随注入 locale）。不可用运行时插值构造 LocalizedStringKey：
+                            // 插值段会被当 `%@` 格式参数、查不到表而回退显示原始 key。
+                            Text(verbatim: L10n.string("sidebar.goal.status.\(value.rawValue)", locale: locale))
                                 .tag(value)
                         }
                     }

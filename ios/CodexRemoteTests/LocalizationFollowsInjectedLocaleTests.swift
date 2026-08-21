@@ -116,6 +116,42 @@ final class LocalizationFollowsInjectedLocaleTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "app_language")
     }
 
+    /// 真机回归：文字大小选择器每档标题必须真正查表本地化，不得露原始 key
+    /// （曾用 `Text(LocalizedStringKey("settings.textSize.\(rawValue)"))` 插值构造 → 露 key）。
+    /// 枚举驱动：遍历 AppTextScale.allCases，新增档位自动纳入护栏。
+    func test_textSizeLabels_followInjectedLocale() {
+        let en = Locale(identifier: "en")
+        let zh = Locale(identifier: "zh-Hans")
+        for scale in AppTextScale.allCases {
+            let key = "settings.textSize.\(scale.rawValue)"
+            let e = L10n.string(key, locale: en)
+            let z = L10n.string(key, locale: zh)
+            XCTAssertNotEqual(e, key, "en 缺键或露 key：\(key)")
+            XCTAssertNotEqual(z, key, "zh 缺键或露 key：\(key)")
+            XCTAssertFalse(e.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) },
+                           "en 文字大小档含中文残留：\(key)=\(e)")
+            XCTAssertTrue(z.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) },
+                          "zh 文字大小档应为中文：\(key)=\(z)")
+        }
+    }
+
+    /// 真机回归同类：目标状态选择器每项标题也曾用插值 LocalizedStringKey 露 key。
+    /// ThreadGoalStatus.allCases 为 file-private，此处显式列出 6 态作回归锚。
+    func test_goalStatusLabels_followInjectedLocale() {
+        let en = Locale(identifier: "en")
+        let zh = Locale(identifier: "zh-Hans")
+        let statuses = ["active", "paused", "blocked", "usageLimited", "budgetLimited", "complete"]
+        for raw in statuses {
+            let key = "sidebar.goal.status.\(raw)"
+            let e = L10n.string(key, locale: en)
+            let z = L10n.string(key, locale: zh)
+            XCTAssertNotEqual(e, key, "en 缺键或露 key：\(key)")
+            XCTAssertNotEqual(z, key, "zh 缺键或露 key：\(key)")
+            XCTAssertFalse(e.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) },
+                           "en 目标状态含中文残留：\(key)=\(e)")
+        }
+    }
+
     /// #5：占位假串（如「帮紧你」）不得残留在任何面向用户键。
     func test_noPlaceholderJokeStrings() {
         let langs = [Locale(identifier: "en"), Locale(identifier: "zh-Hans")]
