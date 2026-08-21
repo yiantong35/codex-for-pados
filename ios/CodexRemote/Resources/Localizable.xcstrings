@@ -4538,34 +4538,18 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Large"
+            "value": "Standard"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "大"
+            "value": "标准"
           }
         }
       }
     },
     "settings.textSize.medium": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Medium"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "中"
-          }
-        }
-      }
-    },
-    "settings.textSize.small": {
       "localizations": {
         "en": {
           "stringUnit": {
@@ -4577,6 +4561,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "小"
+          }
+        }
+      }
+    },
+    "settings.textSize.small": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smaller"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更小"
+          }
+        }
+      }
+    },
+    "settings.textSize.xLarge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Large"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大"
           }
         }
       }

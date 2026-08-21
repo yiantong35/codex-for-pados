@@ -26,7 +26,9 @@ struct AppearanceSettingsSectionView: View {
             }
 
             Section("settings.textSize") {
-                ForEach(AppTextScale.allCases) { s in
+                // 只列四个具体档位（不含「跟随系统」）：默认未选择态即跟随系统，
+                // 手动点某档后写入并持久化（用户诉求：不需要跟随系统这个选项）。
+                ForEach(AppTextScale.selectableCases) { s in
                     Button {
                         textScale.scale = s
                     } label: {

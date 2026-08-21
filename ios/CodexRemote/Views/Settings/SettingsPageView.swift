@@ -7,6 +7,7 @@ struct SettingsPageView: View {
     @Environment(ConnectionStore.self) private var connection
     @Environment(EnvironmentStore.self) private var env
     @Environment(ThemeManager.self) private var theme
+    @Environment(TextScaleManager.self) private var textScale
     @State private var selection: SettingsSection? = .default
 
     /// 由呈现方（宿主）传入的真实系统深浅值。用于把 `.system` 主题解析成具体 ColorScheme，
@@ -50,6 +51,10 @@ struct SettingsPageView: View {
         // 用 resolvedColorScheme 把 .system 解析成具体值（而非 nil），既能即时切换、
         // 又能从深/浅色正确切回跟随系统（否则 sheet 卡在旧强制值 → 里黑外白）。
         .preferredColorScheme(theme.resolvedColorScheme(system: systemColorScheme))
+        // 同理：dynamicTypeSize 由 UITraitCollection 背书，sheet 的独立 hosting controller
+        // 从系统 trait 重新取值，**不继承**父树施加的 SwiftUI 钳制（对象型环境能穿透，trait 型不能）。
+        // 故必须在 sheet 内自读 textScale 再施加——否则设置页看不到字号变化（真机实证）。
+        .modifier(AppDynamicTypeSizeModifier(size: textScale.overrideSize))
     }
 
     private var closeButton: some View {
@@ -67,6 +72,7 @@ struct SettingsPageView: View {
 struct PrePairingSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(ThemeManager.self) private var theme
+    @Environment(TextScaleManager.self) private var textScale
     @State private var selection: SettingsSection? = .appearance
     let systemColorScheme: ColorScheme
 
@@ -95,6 +101,8 @@ struct PrePairingSettingsView: View {
             }
         }
         .preferredColorScheme(theme.resolvedColorScheme(system: systemColorScheme))
+        // sheet 内自读 textScale 再施加 dynamicTypeSize 钳制（见 SettingsPageView 同处注释）。
+        .modifier(AppDynamicTypeSizeModifier(size: textScale.overrideSize))
     }
 
     private var closeButton: some View {

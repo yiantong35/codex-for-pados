@@ -109,35 +109,39 @@ final class ThemeManager {
 
 // MARK: - 文字大小（global-text-scaling）
 
-/// 全局文字缩放档位（6 档命名阶梯，模型/选择器/快捷键共用）。
+/// 全局文字缩放档位。默认状态是 `.system`（跟随系统，不注入覆盖，且**不在选择器里出现**）；
+/// 用户在设置里手动选四个具体档位之一后才写入并持久化（此后不再自动回落跟随系统）。
 /// rawValue 兼作持久化值，**只追加不改名**（改名会丢已存 app_text_scale）。
-/// `.system` 首位 = 默认（跟随系统，不注入覆盖）；其余五档携带非 nil DynamicTypeSize。
+/// 四个可选档位以系统默认档 `.large` 为锚：上 1 档（大 .xLarge）、系统默认（标准 .large）、
+/// 下 2 档（小 .medium、更小 .small）。用户诉求＝主要往小、去掉辅助功能/特大等放大档。
 enum AppTextScale: String, CaseIterable, Identifiable {
-    case system        // 跟随系统（默认，不注入覆盖）
-    case small         // 小（覆盖档下限）
-    case medium        // 中
-    case large         // 大
-    case extraLarge    // 特大
-    case accessibility // 辅助功能（覆盖档上限）
+    case system   // 跟随系统（默认/未选择态，不注入覆盖，**不在选择器出现**）
+    case small    // 更小（比系统默认小 2 档）
+    case medium   // 小（比系统默认小 1 档）
+    case large    // 标准（= 系统默认档 .large）
+    case xLarge   // 大（比系统默认大 1 档）
 
     var id: String { rawValue }
 
-    /// 映射到原生 DynamicTypeSize；`.system` → nil（根视图条件不注入 = 放行系统 Dynamic Type）。
+    /// 映射到原生 DynamicTypeSize；`.system` → nil（不注入 = 放行系统 Dynamic Type）。
+    /// 锚在系统默认 `.large`：`large` 即系统默认，`medium`/`small` 明确更小，`xLarge` 略大。
     var overrideSize: DynamicTypeSize? {
         switch self {
-        case .system:        return nil
-        case .small:         return .small
-        case .medium:        return .medium
-        case .large:         return .xLarge
-        case .extraLarge:    return .xxxLarge
-        case .accessibility: return .accessibility3
+        case .system: return nil
+        case .small:  return .small
+        case .medium: return .medium
+        case .large:  return .large
+        case .xLarge: return .xLarge
         }
     }
 
-    /// 覆盖档有序阶梯（不含 `.system`）：放大/缩小沿此移动一档并钳制两端。
-    static let overrideLadder: [AppTextScale] = [.small, .medium, .large, .extraLarge, .accessibility]
+    /// 设置选择器展示的档位（不含 `.system`）。顺序：大 → 标准 → 小 → 更小（自上而下渐小）。
+    static let selectableCases: [AppTextScale] = [.xLarge, .large, .medium, .small]
 
-    /// 从 base 沿阶梯移动 delta 档并钳制（下界 `.small`、上界 `.accessibility`）。
+    /// 覆盖档有序阶梯（不含 `.system`，升序）：放大/缩小沿此移动一档并钳制两端。
+    static let overrideLadder: [AppTextScale] = [.small, .medium, .large, .xLarge]
+
+    /// 从 base 沿阶梯移动 delta 档并钳制（下界 `.small`、上界 `.xLarge`）。
     /// base 若非阶梯档（如 `.system`）兜底取下限索引 0——视图层保证只传阶梯档，此为防御。
     static func stepped(from base: AppTextScale, by delta: Int) -> AppTextScale {
         let idx = overrideLadder.firstIndex(of: base) ?? 0
@@ -146,7 +150,7 @@ enum AppTextScale: String, CaseIterable, Identifiable {
     }
 
     /// U1：把当前有效 DynamicTypeSize 映射到最近覆盖档（用作「跟随系统」下放大/缩小的基线）。
-    /// 取阶梯中原生值 `<= size` 的最大档；比下限还小取 `.small`、超上限取 `.accessibility`。
+    /// 取阶梯中原生值 `<= size` 的最大档；比下限还小取 `.small`、超上限取 `.xLarge`。
     /// DynamicTypeSize 符合 Comparable，可直接比较。
     static func nearestOverride(for size: DynamicTypeSize) -> AppTextScale {
         var result: AppTextScale = .small
