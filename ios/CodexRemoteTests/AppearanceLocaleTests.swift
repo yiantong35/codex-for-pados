@@ -149,11 +149,48 @@ final class AppearanceLocaleTests: XCTestCase {
         }
     }
 
-    /// system 档必须映射为 nil（不注入具体档），其余五档非 nil。
+    /// system 档必须映射为 nil（不注入具体档），其余档非 nil。
     func test_textScaleOverrideSizeMapping() {
         XCTAssertNil(AppTextScale.system.overrideSize)
         for scale in AppTextScale.allCases where scale != .system {
             XCTAssertNotNil(scale.overrideSize, "档 \(scale.rawValue) 应有非 nil overrideSize")
         }
+    }
+
+    // MARK: - 用户诉求回归：四档偏小阶梯 + 选择器不含跟随系统 + 移除辅助功能/特大
+
+    /// 选择器只展示四个具体档位，且**不含** `.system`（默认未选择即跟随系统，无此选项）。
+    /// 顺序固定：大 → 标准 → 小 → 更小。
+    func test_selectableCases_excludesSystemAndIsFourTiers() {
+        XCTAssertEqual(AppTextScale.selectableCases, [.xLarge, .large, .medium, .small])
+        XCTAssertFalse(AppTextScale.selectableCases.contains(.system), "选择器不得含跟随系统")
+        XCTAssertEqual(AppTextScale.selectableCases.count, 4)
+    }
+
+    /// 档位以系统默认 `.large` 为锚：large=系统默认、medium/small 严格更小、xLarge 略大。
+    /// 修「最小档和跟随系统没差」：small(.small) 明确低于系统默认 .large（往下两档）。
+    func test_ladderAnchoredAtSystemDefaultLarge() {
+        XCTAssertEqual(AppTextScale.large.overrideSize, .large, "标准档应等于系统默认 .large")
+        XCTAssertEqual(AppTextScale.xLarge.overrideSize, .xLarge)
+        XCTAssertEqual(AppTextScale.medium.overrideSize, .medium)
+        XCTAssertEqual(AppTextScale.small.overrideSize, .small)
+        // 两个「更小」档严格小于系统默认。
+        XCTAssertLessThan(AppTextScale.medium.overrideSize!, DynamicTypeSize.large)
+        XCTAssertLessThan(AppTextScale.small.overrideSize!, DynamicTypeSize.large)
+        XCTAssertLessThan(AppTextScale.small.overrideSize!, AppTextScale.medium.overrideSize!)
+    }
+
+    /// overrideLadder 升序、且为四个具体档（快捷键放大/缩小沿此移动）。
+    func test_overrideLadderIsAscendingConcrete() {
+        XCTAssertEqual(AppTextScale.overrideLadder, [.small, .medium, .large, .xLarge])
+        let sizes = AppTextScale.overrideLadder.compactMap { $0.overrideSize }
+        XCTAssertEqual(sizes.count, 4)
+        XCTAssertEqual(sizes, sizes.sorted(), "阶梯应按原生字号升序")
+    }
+
+    /// 移除的档位（辅助功能/特大）不得再解码为有效档——旧持久化值回落 nil（→ 跟随系统）。
+    func test_removedTiersNoLongerDecode() {
+        XCTAssertNil(AppTextScale(rawValue: "accessibility"), "辅助功能档应已移除")
+        XCTAssertNil(AppTextScale(rawValue: "extraLarge"), "特大档应已移除")
     }
 }

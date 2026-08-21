@@ -2,8 +2,10 @@ import XCTest
 import SwiftUI
 @testable import CodexRemote
 
-/// TextScaleManager / AppTextScale 的默认值、持久化、6 档钳制、U1 基线映射纯逻辑单测。
+/// TextScaleManager / AppTextScale 的默认值、持久化、四档钳制、U1 基线映射纯逻辑单测。
 /// 独立 UserDefaults suite 隔离，避免污染 standard。
+/// 档位以系统默认 `.large` 为锚：xLarge(大) / large(标准) / medium(小) / small(更小)，
+/// system(跟随系统) 为默认未选择态、不在选择器出现。
 @MainActor
 final class TextScaleManagerTests: XCTestCase {
     private var suiteName: String!
@@ -26,15 +28,14 @@ final class TextScaleManagerTests: XCTestCase {
         XCTAssertNil(TextScaleManager(store: defaults).overrideSize)
     }
 
-    // 6 档命名阶梯 → 原生 DynamicTypeSize 映射。
+    // 四档命名阶梯 → 原生 DynamicTypeSize 映射（+ system 共 5 个 case）。
     func testOverrideSizeMapping() {
         XCTAssertNil(AppTextScale.system.overrideSize)
         XCTAssertEqual(AppTextScale.small.overrideSize, .small)
         XCTAssertEqual(AppTextScale.medium.overrideSize, .medium)
-        XCTAssertEqual(AppTextScale.large.overrideSize, .xLarge)
-        XCTAssertEqual(AppTextScale.extraLarge.overrideSize, .xxxLarge)
-        XCTAssertEqual(AppTextScale.accessibility.overrideSize, .accessibility3)
-        XCTAssertEqual(AppTextScale.allCases.count, 6)
+        XCTAssertEqual(AppTextScale.large.overrideSize, .large)   // 标准 = 系统默认
+        XCTAssertEqual(AppTextScale.xLarge.overrideSize, .xLarge) // 略大
+        XCTAssertEqual(AppTextScale.allCases.count, 5)
     }
 
     // 覆盖档持久化跨重启。
@@ -43,13 +44,13 @@ final class TextScaleManagerTests: XCTestCase {
         XCTAssertEqual(TextScaleManager(store: defaults).scale, .large)
     }
 
-    // 放大沿阶梯并钳制上界（辅助功能）。
+    // 放大沿阶梯并钳制上界（xLarge）。
     func testSteppedClampsUpper() {
-        XCTAssertEqual(AppTextScale.stepped(from: .medium, by: 1), .large)
-        XCTAssertEqual(AppTextScale.stepped(from: .accessibility, by: 1), .accessibility)
+        XCTAssertEqual(AppTextScale.stepped(from: .large, by: 1), .xLarge)
+        XCTAssertEqual(AppTextScale.stepped(from: .xLarge, by: 1), .xLarge)
     }
 
-    // 缩小沿阶梯并钳制下界（小）。
+    // 缩小沿阶梯并钳制下界（small）。
     func testSteppedClampsLower() {
         XCTAssertEqual(AppTextScale.stepped(from: .medium, by: -1), .small)
         XCTAssertEqual(AppTextScale.stepped(from: .small, by: -1), .small)
@@ -58,7 +59,7 @@ final class TextScaleManagerTests: XCTestCase {
     // reset 回跟随系统。
     func testResetReturnsToSystem() {
         let m = TextScaleManager(store: defaults)
-        m.scale = .accessibility
+        m.scale = .xLarge
         m.reset()
         XCTAssertEqual(m.scale, .system)
     }
@@ -68,18 +69,18 @@ final class TextScaleManagerTests: XCTestCase {
         XCTAssertEqual(AppTextScale.nearestOverride(for: .medium), .medium)
         // 比下限还小 → 钳到 .small。
         XCTAssertEqual(AppTextScale.nearestOverride(for: .xSmall), .small)
-        // 超上限 → 钳到 .accessibility。
-        XCTAssertEqual(AppTextScale.nearestOverride(for: .accessibility5), .accessibility)
-        // .large 档原生是 .xLarge：有效 .xLarge 应映射到 .large 而非更高。
-        XCTAssertEqual(AppTextScale.nearestOverride(for: .xLarge), .large)
+        // 超上限 → 钳到 .xLarge。
+        XCTAssertEqual(AppTextScale.nearestOverride(for: .accessibility5), .xLarge)
+        // .large 档原生即 .large：有效 .large 应映射到 .large。
+        XCTAssertEqual(AppTextScale.nearestOverride(for: .large), .large)
     }
 
     // 根注入契约：overrideSize 为 nil 即「跟随系统」= 不注入（禁止 .dynamicTypeSize(nil)）。
     func testSystemYieldsNilOverrideForConditionalInjection() {
         let m = TextScaleManager(store: defaults)
-        XCTAssertNil(m.overrideSize)          // .system → nil → modifier 走「不注入」分支
-        m.scale = .accessibility
-        XCTAssertEqual(m.overrideSize, .accessibility3)  // 覆盖档 → 注入具体值
+        XCTAssertNil(m.overrideSize)          // .system → nil → modifier 走全范围（不钳制）分支
+        m.scale = .xLarge
+        XCTAssertEqual(m.overrideSize, .xLarge)  // 覆盖档 → 注入具体值
     }
 
     // increase/decrease 用视图传入的基线驱动模型。
