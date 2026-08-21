@@ -63,9 +63,13 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase   // D1：app 级前后台唯一来源
 
     var body: some View {
-        // @Bindable 桥接 addMachinePresented，供 sheet 双向绑定（引导态/主界面共用一个稳定挂载层）。
+        // @Bindable 桥接 addMachinePresented，供 sheet 双向绑定。
         @Bindable var sessions = sessions
-        Group {
+        // 用 ZStack（真容器）而非 Group 承载分支：Group 会把 .sheet 透传到「每个子分支」
+        // 各自附加，分支一旦切换（断开态后台重连令 activeSession 抖动→引导/工作区互换）
+        // 就销毁当前承载分支、连带把配对 sheet 自动收回（用户实测：点扫码/粘贴弹窗自己收回）。
+        // ZStack 是单一稳定视图，sheet 附着其上，内部分支切换不再牵连 sheet 生命周期。
+        ZStack {
             if sessions.machineStore.machines.isEmpty {
                 OnboardingView()
             } else if let s = sessions.activeSession {
@@ -75,7 +79,8 @@ struct RootView: View {
                 OnboardingView()
             }
         }
-        // sheet 挂在 RootView（稳定层）：无论引导态还是主界面点 [+]/「添加第一台机器」都能弹出。
+        // sheet 挂在稳定的 ZStack 容器：无论引导态还是主界面点 [+]/「添加第一台机器」都能弹出，
+        // 且分支切换不再误收回。
         .sheet(isPresented: $sessions.addMachinePresented) { MachineFormView() }
         // 能耗（D1）：app 级前后台唯一来源。广播给全部缓存 Session 的 transport
         //（→ 后台暂停重连/握手、回前台恢复）。与 tab 级轮询开关正交。

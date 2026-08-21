@@ -58,11 +58,14 @@ struct TabBarView: View {
                 }
             }
         } label: {
-            ViewThatFits(in: .horizontal) {
-                machineMenuLabel(showsName: true)
-                machineMenuLabel(showsName: false)
-            }
-            .frame(minWidth: 44, idealWidth: 160, maxWidth: 220, minHeight: 44)
+            // 单一健壮 label：机器名始终显示（过长中段截断），不再用 ViewThatFits。
+            // #97 曾用 ViewThatFits(showsName:true/false) 做大字号自适应，但在窄工具栏里
+            // 命中测量不可靠→回退到无名变体（机器名整体消失）且 Menu label 命中区异常
+            // （下拉左右键点击无响应）。名字用 lineLimit(1)+中段截断天然应对超长/大字号，
+            // 无需丢弃名字；maxWidth 限幅避免长名字吃满整条工具栏。
+            machineMenuLabel
+                .frame(minWidth: 44, minHeight: 44)
+                .frame(maxWidth: 220)
         }
         .accessibilityLabel(Text("tab.machine.switcher"))
         .accessibilityValue(activeMachine.map {
@@ -111,7 +114,7 @@ struct TabBarView: View {
         return sessions.machineStore.machines.first { $0.id == id }
     }
 
-    private func machineMenuLabel(showsName: Bool) -> some View {
+    private var machineMenuLabel: some View {
         HStack(spacing: 6) {
             if let machine = activeMachine {
                 if removingMachineID == machine.id {
@@ -119,19 +122,13 @@ struct TabBarView: View {
                 } else {
                     DotView(indicator: sessions.indicator(for: machine.id))
                 }
-                if showsName {
-                    Text(machine.displayName)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .layoutPriority(-1)
-                }
+                Text(machine.displayName)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             } else {
                 Image(systemName: "desktopcomputer")
-                if showsName {
-                    Text("tab.machine.none")
-                        .lineLimit(1)
-                        .layoutPriority(-1)
-                }
+                Text("tab.machine.none")
+                    .lineLimit(1)
             }
             Image(systemName: "chevron.down")
                 .font(.caption2)

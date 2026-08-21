@@ -70,11 +70,15 @@ struct ExtensionsSectionView: View {
         isExpanded: Binding<Bool>, refresh: @escaping () async -> Void,
         @ViewBuilder content: () -> Content
     ) -> some View {
+        // 组标题走 Section 原生 header: 槽位，与其它设置页一样有二级 section header
+        //（账户/外观/隐私/语言/快捷键都有；扩展此前缺）。textCase(nil) 防止分组名被强制大写。
         Section {
-            header(key: key, title: title, count: count, isExpanded: isExpanded, refresh: refresh)
             if isExpanded.wrappedValue {
                 content()
             }
+        } header: {
+            header(key: key, title: title, count: count, isExpanded: isExpanded, refresh: refresh)
+                .textCase(nil)
         }
     }
 
