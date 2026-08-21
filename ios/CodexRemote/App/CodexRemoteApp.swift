@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 @main
 struct CodexRemoteApp: App {
@@ -35,10 +36,37 @@ struct CodexRemoteApp: App {
                 .environment(\.locale, localeManager.locale)
                 // 运行时换主题：nil = 跟随系统。
                 .preferredColorScheme(themeManager.colorScheme)
+                // 关键：把主题落到 UIWindow.overrideUserInterfaceStyle。
+                // SwiftUI 的 .preferredColorScheme 只作用于当前 hosting controller，
+                // **模态 sheet（独立 hosting controller）首帧不继承**——sheet 先用窗口默认外观渲染，
+                // 一个 runloop 后 sheet 内自带的 .preferredColorScheme 才落地、触发 trait 变更重排，
+                // 表现为分组 List「黑底→灰底」中间态（真机实证）。窗口级 override 会同步传播到
+                // 该窗口 VC 层级下的所有已呈现 sheet，首帧即正确 → 消除中间态。
+                .onAppear { Self.applyWindowInterfaceStyle(themeManager.theme) }
+                .onChange(of: themeManager.theme) { _, t in Self.applyWindowInterfaceStyle(t) }
                 // 运行时换字号：跟随系统(nil)不注入，覆盖档注入 .dynamicTypeSize（条件修饰）。
                 .modifier(AppDynamicTypeSizeModifier(size: textScale.overrideSize))
                 // 冷启动只连上次活跃机器（D7）；其余懒连。
                 .task { sessions.bootstrapAutoConnect() }
+        }
+    }
+
+    /// 把 App 主题落到当前所有前台窗口的 `overrideUserInterfaceStyle`，使模态 sheet 首帧即用正确外观
+    /// （规避 sheet 不继承 SwiftUI `.preferredColorScheme` 导致的「黑底→灰底」中间态）。
+    /// `.system` → `.unspecified`（跟随系统，系统外观变化时窗口自动跟随，无需再处理）。
+    private static func applyWindowInterfaceStyle(_ theme: AppTheme) {
+        let style: UIUserInterfaceStyle
+        switch theme {
+        case .system: style = .unspecified
+        case .light:  style = .light
+        case .dark:   style = .dark
+        }
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene,
+                  windowScene.activationState != .background else { continue }
+            for window in windowScene.windows {
+                window.overrideUserInterfaceStyle = style
+            }
         }
     }
 

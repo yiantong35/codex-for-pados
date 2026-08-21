@@ -55,6 +55,8 @@ struct SettingsPageView: View {
         // 从系统 trait 重新取值，**不继承**父树施加的 SwiftUI 钳制（对象型环境能穿透，trait 型不能）。
         // 故必须在 sheet 内自读 textScale 再施加——否则设置页看不到字号变化（真机实证）。
         .modifier(AppDynamicTypeSizeModifier(size: textScale.overrideSize))
+        // iPad 大屏放大 sheet：默认 form 尺寸在 12.9"/13" iPad 上显得过小（真机实证）。
+        .settingsSheetSizing()
     }
 
     private var closeButton: some View {
@@ -64,6 +66,18 @@ struct SettingsPageView: View {
         }
         .minimumHitTarget44()
         .keyboardShortcut(.cancelAction)
+    }
+}
+
+/// 设置 sheet 尺寸：iPad 大屏下把默认 form 尺寸放大到 page（更接近全屏，仍保留 sheet 语义）。
+/// `presentationSizing` 仅 iOS 18+；iOS 17 回落系统默认（form）尺寸。
+private extension View {
+    @ViewBuilder func settingsSheetSizing() -> some View {
+        if #available(iOS 18.0, *) {
+            self.presentationSizing(.page)
+        } else {
+            self
+        }
     }
 }
 
@@ -103,6 +117,8 @@ struct PrePairingSettingsView: View {
         .preferredColorScheme(theme.resolvedColorScheme(system: systemColorScheme))
         // sheet 内自读 textScale 再施加 dynamicTypeSize 钳制（见 SettingsPageView 同处注释）。
         .modifier(AppDynamicTypeSizeModifier(size: textScale.overrideSize))
+        // iPad 大屏放大 sheet（见 SettingsPageView 同处注释）。
+        .settingsSheetSizing()
     }
 
     private var closeButton: some View {
