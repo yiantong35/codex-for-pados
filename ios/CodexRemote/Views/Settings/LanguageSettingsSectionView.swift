@@ -6,7 +6,8 @@ struct LanguageSettingsSectionView: View {
 
     var body: some View {
         List {
-            Section(L10n.string("settings.language", locale: locale.locale)) {
+            // 不再重复页面大标题「语言」（navigationTitle 已给出），去掉冗余 section header。
+            Section {
                 ForEach(AppLanguage.allCases, id: \.self) { lang in
                     Button {
                         locale.language = lang

@@ -8,7 +8,8 @@ struct AccountSettingsSectionView: View {
 
     var body: some View {
         List {
-            Section("settings.account") {
+            // 不再重复页面大标题「账户」（navigationTitle 已给出），去掉冗余 section header。
+            Section {
                 AccountInfoView(account: env.account,
                                 usage: env.usage,
                                 rateLimits: env.rateLimits)
