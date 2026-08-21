@@ -9,6 +9,8 @@ struct PrivacySettingsSectionView: View {
         List {
             Section {
                 Toggle("settings.privacy.allowRemoteClipboardWrite", isOn: $clipboard.allowRemoteWrite)
+            } header: {
+                Text("settings.privacy.clipboard")
             } footer: {
                 Text("settings.privacy.allowRemoteClipboardWrite.footer")
             }
