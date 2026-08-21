@@ -79,6 +79,7 @@ struct RelayPairingImportView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
     @Environment(\.openURL) private var openURL
+    @Environment(TextScaleManager.self) private var textScale
 
     @State private var vm = RelayPairingImportViewModel()
     @State private var errorText: String?
@@ -121,12 +122,15 @@ struct RelayPairingImportView: View {
         .fullScreenCover(isPresented: $showScanner) {
             scannerSheet
         }
+        // 本视图经 .sheet 呈现，拥有独立 hosting controller，不继承根部注入的字号钳制
+        // （对象型环境能穿透 sheet，trait 型的 dynamicTypeSize 不能）。故自读 textScale 再施加，
+        // 让设置页的字号设置也能控制本弹窗（与 SettingsPageView 同款绕过）。
+        .modifier(AppDynamicTypeSizeModifier(size: textScale.overrideSize))
     }
 
     private var formContent: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("relayImport.hint")
-                .font(.footnote)
                 .foregroundStyle(.secondary)
 
             editor
@@ -162,7 +166,7 @@ struct RelayPairingImportView: View {
     @ViewBuilder
     private var pairingActionButtons: some View {
         Button { beginScan() } label: {
-            Label("relayImport.scan", systemImage: "qrcode.viewfinder").font(.callout)
+            Label("relayImport.scan", systemImage: "qrcode.viewfinder")
         }
         .minimumHitTarget44()
 
@@ -173,7 +177,7 @@ struct RelayPairingImportView: View {
                 cameraAccessDenied = false
             }
         } label: {
-            Label("relayImport.paste", systemImage: "doc.on.clipboard").font(.callout)
+            Label("relayImport.paste", systemImage: "doc.on.clipboard")
         }
         .minimumHitTarget44()
     }
@@ -221,7 +225,7 @@ struct RelayPairingImportView: View {
         ZStack(alignment: .topLeading) {
             if vm.pasted.isEmpty {
                 Text("relayImport.placeholder")
-                    .font(.system(.footnote, design: .monospaced))
+                    .font(.system(.body, design: .monospaced))
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 16)
@@ -229,7 +233,7 @@ struct RelayPairingImportView: View {
                     .accessibilityHidden(true)
             }
             TextEditor(text: $vm.pasted)
-                .font(.system(.footnote, design: .monospaced))
+                .font(.system(.body, design: .monospaced))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .scrollContentBackground(.hidden)
