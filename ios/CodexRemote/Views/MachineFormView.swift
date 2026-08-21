@@ -19,5 +19,7 @@ struct MachineFormView: View {
                 }
             }
         }
+        .onAppear { PairingDiag.log.notice("MachineFormView(host1) onAppear") }
+        .onDisappear { PairingDiag.log.notice("MachineFormView(host1) onDisappear") }
     }
 }

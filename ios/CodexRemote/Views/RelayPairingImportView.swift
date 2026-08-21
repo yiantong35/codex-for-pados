@@ -121,11 +121,15 @@ struct RelayPairingImportView: View {
         // 扫码用全屏，横竖屏均由 QRScannerView 自适应填满，扫码框不受表单布局挤压。
         .fullScreenCover(isPresented: $showScanner) {
             scannerSheet
+                .onAppear { PairingDiag.log.notice("scannerCover onAppear") }
+                .onDisappear { PairingDiag.log.notice("scannerCover onDisappear") }
         }
         // 本视图经 .sheet 呈现，拥有独立 hosting controller，不继承根部注入的字号钳制
         // （对象型环境能穿透 sheet，trait 型的 dynamicTypeSize 不能）。故自读 textScale 再施加，
         // 让设置页的字号设置也能控制本弹窗（与 SettingsPageView 同款绕过）。
         .modifier(AppDynamicTypeSizeModifier(size: textScale.overrideSize))
+        .onAppear { PairingDiag.log.notice("RelayPairingImportView onAppear (replacing=\(String(describing: replacingMachineID), privacy: .public))") }
+        .onDisappear { PairingDiag.log.notice("RelayPairingImportView onDisappear") }
     }
 
     private var formContent: some View {
@@ -173,7 +177,10 @@ struct RelayPairingImportView: View {
         .minimumHitTarget44()
 
         Button {
-            if let s = UIPasteboard.general.string {
+            PairingDiag.log.notice("paste tapped (pre-read)")
+            let s0 = UIPasteboard.general.string
+            PairingDiag.log.notice("paste read done (hasString=\(s0 != nil, privacy: .public))")
+            if let s = s0 {
                 vm.pasted = s
                 errorText = nil
                 cameraAccessDenied = false
@@ -261,17 +268,23 @@ struct RelayPairingImportView: View {
     private func beginScan() {
         errorText = nil
         cameraAccessDenied = false
+        PairingDiag.log.notice("scan tapped")
         // 相机不可用（模拟器 / 无摄像头设备）→ 提示 + 保留手动粘贴，不 present 扫码。
         guard AVCaptureDevice.default(for: .video) != nil else {
+            PairingDiag.log.notice("scan: camera unavailable -> early return (no dialog)")
             errorText = L10n.string("relayImport.error.cameraUnavailable", locale: locale)
             return
         }
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        PairingDiag.log.notice("scan: authStatus=\(String(describing: status), privacy: .public)")
+        switch status {
         case .authorized:
             showScanner = true
         case .notDetermined:
+            PairingDiag.log.notice("scan: requesting camera access (system dialog about to appear)")
             AVCaptureDevice.requestAccess(for: .video) { granted in
                 Task { @MainActor in
+                    PairingDiag.log.notice("scan: camera access granted=\(granted, privacy: .public)")
                     if granted {
                         showScanner = true
                     } else {

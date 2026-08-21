@@ -172,6 +172,8 @@ struct RootSplitView: View {
                     onImported: { showRePairing = false }
                 )
             }
+            .onAppear { PairingDiag.log.notice("RePairing sheet(host2) onAppear") }
+            .onDisappear { PairingDiag.log.notice("RePairing sheet(host2) onDisappear") }
         }
         .alert("connection.details.title", isPresented: Binding(
             get: { connectionFailureDetails != nil },

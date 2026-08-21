@@ -84,8 +84,15 @@ struct RootView: View {
         .sheet(isPresented: $sessions.addMachinePresented) { MachineFormView() }
         // 能耗（D1）：app 级前后台唯一来源。广播给全部缓存 Session 的 transport
         //（→ 后台暂停重连/握手、回前台恢复）。与 tab 级轮询开关正交。
-        .onChange(of: scenePhase) { _, phase in
+        .onChange(of: scenePhase) { old, phase in
+            PairingDiag.log.notice("scenePhase \(String(describing: old), privacy: .public) -> \(String(describing: phase), privacy: .public)")
             sessions.setAppForegroundAll(phase == .active)
+        }
+        .onChange(of: sessions.addMachinePresented) { _, v in
+            PairingDiag.log.notice("addMachinePresented -> \(v, privacy: .public)")
+        }
+        .onChange(of: sessions.activeSessionId) { old, new in
+            PairingDiag.log.notice("activeSessionId \(String(describing: old), privacy: .public) -> \(String(describing: new), privacy: .public)")
         }
     }
 
