@@ -30,7 +30,9 @@ struct OnboardingView: View {
                 }
             }
         }
-        .sheet(isPresented: $showSettings) {
+        // fullScreenCover 而非 sheet：iPad 上 .sheet 呈现为居中 form-sheet（小 dialog）且 elevated
+        // 语境致分组 List「黑底→灰底」闪烁；全屏 cover 恒定 base level，形态一致且无中间态（见 RootSplitView 同处注释）。
+        .fullScreenCover(isPresented: $showSettings) {
             PrePairingSettingsView(systemColorScheme: systemColorScheme)
         }
     }
