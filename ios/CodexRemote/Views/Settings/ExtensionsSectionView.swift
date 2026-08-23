@@ -38,6 +38,7 @@ struct ExtensionsSectionView: View {
                   count: hooks.count, isExpanded: $hooksExpanded,
                   refresh: { await hooks.refresh() }) { HooksGroupContent() }
         }
+        .settingsGroupedRowBackground()
         .navigationTitle("settings.extensions")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

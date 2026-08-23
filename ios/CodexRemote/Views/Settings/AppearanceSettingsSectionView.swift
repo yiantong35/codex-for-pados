@@ -49,6 +49,7 @@ struct AppearanceSettingsSectionView: View {
                 }
             }
         }
+        .settingsGroupedRowBackground()
         .navigationTitle("settings.appearance")
     }
 

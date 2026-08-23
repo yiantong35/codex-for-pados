@@ -15,6 +15,7 @@ struct PrivacySettingsSectionView: View {
                 Text("settings.privacy.allowRemoteClipboardWrite.footer")
             }
         }
+        .settingsGroupedRowBackground()
         .navigationTitle("settings.privacy")
     }
 }

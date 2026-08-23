@@ -23,6 +23,7 @@ struct LanguageSettingsSectionView: View {
                 }
             }
         }
+        .settingsGroupedRowBackground()
         .navigationTitle(L10n.string("settings.language", locale: locale.locale))
         .id(locale.locale.identifier)
     }
