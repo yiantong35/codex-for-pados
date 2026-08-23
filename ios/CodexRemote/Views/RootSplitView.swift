@@ -164,7 +164,11 @@ struct RootSplitView: View {
         }
         .background { ShortcutLayer(layout: layout) }   // T10：隐藏快捷键层挂稳定独立视图（不随 body 重算重建）
         .environment(activeConversation)
-        .sheet(isPresented: $layout.showSettings) { SettingsPageView(systemColorScheme: systemColorScheme) }
+        // 设置页用 fullScreenCover 而非 sheet：iPad regular 宽度下 .sheet 会渲染成居中的 form-sheet
+        // （悬浮小 dialog，形态与 iPhone/compact 的全屏 sheet 不一致）；且 form-sheet 是 elevated 语境，
+        // 分组 List 的 secondarySystemGroupedBackground 首帧按 base 解析、一个 runloop 后才转 elevated，
+        // 表现为「黑底→灰底」中间态（真机实证）。fullScreenCover 全屏、恒定 base level，两问题一并消除。
+        .fullScreenCover(isPresented: $layout.showSettings) { SettingsPageView(systemColorScheme: systemColorScheme) }
         .sheet(isPresented: $showRePairing) {
             NavigationStack {
                 RelayPairingImportView(
