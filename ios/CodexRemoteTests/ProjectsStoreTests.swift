@@ -53,6 +53,19 @@ final class ProjectsStoreTests: XCTestCase {
         XCTAssertEqual(s.projects.last?.threads.map(\.id), ["b", "a"])
     }
 
+    // D4:分类不改算法——gitInfo≠nil(cwd 在 git 仓库内)→ 归对应项目组;gitInfo=nil → 游离对话。
+    // cwd 正确后(Task 1/2/4)归组自然与 desktop 一致;分类正确性是 cwd 正确性的结果。
+    func test_ingest_gitInfo_drives_project_vs_loose() {
+        let s = ProjectsStore()
+        s.ingest([
+            thread("p", cwd: "/repo/web-dev", updatedAt: 10, origin: "o/web", git: true), // gitInfo≠nil → 项目
+            thread("l", cwd: "/Users/me", updatedAt: 20),                                  // gitInfo=nil → 游离
+        ])
+        XCTAssertEqual(s.projects.map(\.id), ["o/web"], "有 gitInfo 应归入以 originUrl 为键的项目组")
+        XCTAssertEqual(s.projects.first?.threads.map(\.id), ["p"])
+        XCTAssertEqual(s.looseConversations.map(\.id), ["l"], "无 gitInfo 应留在游离对话")
+    }
+
     func test_ingest_deduplicates_overlapping_pages_by_thread_id() {
         let s = ProjectsStore()
         s.ingest([
