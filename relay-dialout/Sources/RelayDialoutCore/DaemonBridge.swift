@@ -23,6 +23,7 @@ public final class DaemonBridge: @unchecked Sendable {
     private let codexPath: String
     private let overrideArguments: [String]?
     private let environment: [String: String]
+    private let overrideWorkingDirectory: URL?
     private let terminationGracePeriod: Duration
     private let process = Process()
     private let stdinPipe = Pipe()
@@ -43,11 +44,13 @@ public final class DaemonBridge: @unchecked Sendable {
     public init(codexPath: String = "codex",
                 arguments: [String]? = nil,
                 environment: [String: String] = ProcessInfo.processInfo.environment,
+                workingDirectory: URL? = nil,
                 maximumPendingWriteBytes: Int = 4 * 1024 * 1024,
                 terminationGracePeriod: Duration = .seconds(2)) {
         self.codexPath = codexPath
         self.overrideArguments = arguments
         self.environment = environment
+        self.overrideWorkingDirectory = workingDirectory
         self.maximumPendingWriteBytes = max(1, maximumPendingWriteBytes)
         self.terminationGracePeriod = terminationGracePeriod
     }
@@ -64,6 +67,13 @@ public final class DaemonBridge: @unchecked Sendable {
         overrideArguments ?? ["app-server", "--listen", "stdio://"]
     }
 
+    /// start() 实际会设的子进程工作目录:默认用户家目录(中性、稳定、非源码目录、无写副作用),
+    /// 仅测试可注入覆盖以做属性断言,不改生产调用路径。会话显式带 cwd 时以 per-thread cwd 为准,本目录仅兜底。
+    /// 注:兜底路径下(会话未带 cwd 时)app-server 若向相对路径写文件,落点为 $HOME;当前设计中会话均显式带 cwd,风险很低。
+    var resolvedWorkingDirectory: URL {
+        overrideWorkingDirectory ?? FileManager.default.homeDirectoryForCurrentUser
+    }
+
     /// 非正常信号退出时的信号编号；仅在完成回收后有值。
     public var terminationSignal: Int32? {
         processQueue.sync {
@@ -77,6 +87,7 @@ public final class DaemonBridge: @unchecked Sendable {
             process.executableURL = try Self.resolveExecutable(codexPath, environment: environment)
             process.arguments = resolvedArguments
             process.environment = environment
+            process.currentDirectoryURL = resolvedWorkingDirectory   // D3:显式设中性 cwd,子进程不再继承拨出程序启动目录
             process.standardInput = stdinPipe
             process.standardOutput = stdoutPipe
             try process.run()

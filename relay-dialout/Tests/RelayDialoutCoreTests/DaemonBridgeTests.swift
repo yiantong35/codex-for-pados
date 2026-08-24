@@ -102,3 +102,25 @@ import Foundation
     #expect(bridge.pid == pid)
     #expect(bridge.terminationSignal == SIGKILL)
 }
+
+/// D3:生产默认子进程工作目录 = 用户家目录(中性、稳定、非源码目录、无写副作用),
+/// 且绝非拨出程序启动目录——旧缺陷:子进程继承 .../relay-dialout 源码目录,新会话诡异落此。
+@Test func productionWorkingDirectoryIsUserHome() {
+    let bridge = DaemonBridge(codexPath: "codex")   // 不注入 → 走生产默认
+    let home = FileManager.default.homeDirectoryForCurrentUser
+    #expect(bridge.resolvedWorkingDirectory == home)
+    // 旧缺陷:子进程继承拨出程序启动目录(.../relay-dialout 源码目录),新会话诡异落此。
+    // 仅当启动目录确非家目录时才断言「解析目录 ≠ 启动目录」——避免恰好从 $HOME 执行 swift test 时假红。
+    let launchDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).standardizedFileURL
+    if launchDir != home.standardizedFileURL {
+        #expect(bridge.resolvedWorkingDirectory.standardizedFileURL != launchDir)
+    }
+}
+
+/// 注入覆盖便于单测断言(不改生产调用路径)。
+@Test func injectedWorkingDirectoryOverridesDefault() {
+    let temp = FileManager.default.temporaryDirectory
+        .appendingPathComponent("daemon-cwd-\(UUID().uuidString)", isDirectory: true)
+    let bridge = DaemonBridge(codexPath: "codex", workingDirectory: temp)
+    #expect(bridge.resolvedWorkingDirectory == temp)
+}
