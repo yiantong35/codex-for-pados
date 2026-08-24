@@ -100,12 +100,13 @@ struct RelayPairingImportView: View {
 
             GeometryReader { proxy in
                 ScrollView {
-                    VStack {
-                        formContent.frame(maxWidth: 480)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: max(0, proxy.size.height - 48), alignment: .center)
-                    .padding(24)
+                    formContent
+                        .frame(maxWidth: 480)
+                        .frame(maxWidth: .infinity)
+                        // 给定一段**有界**高度（视口高 - 上下 padding），formContent 内部的上下弹性区
+                        // 才有可参照的高度去撑开、把核心块垂直居中（ScrollView 高度无界时弹性区会塌成 0）。
+                        .frame(minHeight: max(0, proxy.size.height - 48))
+                        .padding(24)
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
@@ -128,44 +129,64 @@ struct RelayPairingImportView: View {
         .modifier(AppDynamicTypeSizeModifier(size: textScale.overrideSize))
     }
 
+    /// 三段式垂直居中且报错不位移：上弹性区 / 稳定核心 / 下弹性区。
+    /// 上下弹性区等权 → 核心块（说明+编辑框+按钮）垂直居中，留白上下平摊。
+    /// 报错落在下弹性区顶部、只向下扩进本就属于下半的留白，不算进核心块高度，
+    /// 故上下弹性区分配不变 → 核心块位置恒定、按钮零位移。极端（超大字号+小屏）
+    /// 报错超过下半留白时由外层 ScrollView 兜底滚动，不破版（守 ui-adaptation-baseline）。
     private var formContent: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("relayImport.hint")
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)   // 多语言/多行不截断
+        VStack(alignment: .leading, spacing: 0) {
+            Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)   // 上弹性区
 
-            editor
+            // 稳定核心：位置不随报错出现/消失变化。
+            VStack(alignment: .leading, spacing: 16) {
+                Text("relayImport.hint")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)   // 多语言/多行不截断
 
-            // 扫码 / 粘贴：一左一右两个等宽按钮；窄屏或超大字号放不下时回退为上下堆叠（仍等宽）。
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) { pairingActionButtons }
-                VStack(spacing: 8) { pairingActionButtons }
-            }
+                editor
 
-            // 报错放在按钮下方：出现/消失只在底部增删，不再把按钮相对编辑器顶下去。
-            // 字号与顶部说明一致（同为默认 body，随 AppDynamicTypeSizeModifier 一起缩放），
-            // 并允许多语言下多行换行。
-            if let errorText {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(errorText)
-                        .foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    if cameraAccessDenied,
-                       let settingsURL = URL(string: UIApplication.openSettingsURLString) {
-                        Button {
-                            openURL(settingsURL)
-                        } label: {
-                            Label("relayImport.openSettings", systemImage: "gear")
-                        }
-                        .buttonStyle(StablePairingButtonStyle())
-                        .minimumHitTarget44()
-                    }
+                // 扫码 / 粘贴：一左一右两个等宽按钮；窄屏或超大字号放不下时回退为上下堆叠（仍等宽）。
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) { pairingActionButtons }
+                    VStack(spacing: 8) { pairingActionButtons }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // 下弹性区（与上区等权）：报错锚定其顶部，向下扩，不顶核心块。
+            ZStack(alignment: .top) {
+                Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
+                if errorText != nil {
+                    errorBlock.padding(.top, 16)
+                }
             }
         }
-        .padding(.vertical, 12)
+    }
+
+    /// 报错块：文案 + （相机被拒时）前往设置按钮。
+    /// 字号与顶部说明一致（同为默认 body，随 AppDynamicTypeSizeModifier 一起缩放），多语言下可多行换行。
+    @ViewBuilder
+    private var errorBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let errorText {
+                Text(errorText)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if cameraAccessDenied,
+               let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                Button {
+                    openURL(settingsURL)
+                } label: {
+                    Label("relayImport.openSettings", systemImage: "gear")
+                }
+                .buttonStyle(StablePairingButtonStyle())
+                .minimumHitTarget44()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
