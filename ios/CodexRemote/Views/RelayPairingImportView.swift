@@ -132,14 +132,25 @@ struct RelayPairingImportView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("relayImport.hint")
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)   // 多语言/多行不截断
 
             editor
 
+            // 扫码 / 粘贴：一左一右两个等宽按钮；窄屏或超大字号放不下时回退为上下堆叠（仍等宽）。
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) { pairingActionButtons }
+                VStack(spacing: 8) { pairingActionButtons }
+            }
+
+            // 报错放在按钮下方：出现/消失只在底部增删，不再把按钮相对编辑器顶下去。
+            // 字号与顶部说明一致（同为默认 body，随 AppDynamicTypeSizeModifier 一起缩放），
+            // 并允许多语言下多行换行。
             if let errorText {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text(errorText)
-                        .font(.caption)
                         .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     if cameraAccessDenied,
                        let settingsURL = URL(string: UIApplication.openSettingsURLString) {
                         Button {
@@ -147,17 +158,11 @@ struct RelayPairingImportView: View {
                         } label: {
                             Label("relayImport.openSettings", systemImage: "gear")
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(StablePairingButtonStyle())
                         .minimumHitTarget44()
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            // 扫码 / 粘贴：一左一右两个等宽按钮；窄屏或超大字号放不下时回退为上下堆叠（仍等宽）。
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) { pairingActionButtons }
-                VStack(spacing: 8) { pairingActionButtons }
             }
         }
         .padding(.vertical, 12)
@@ -169,7 +174,7 @@ struct RelayPairingImportView: View {
             Label("relayImport.scan", systemImage: "qrcode.viewfinder")
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(StablePairingButtonStyle())
         .minimumHitTarget44()
 
         Button {
@@ -182,7 +187,7 @@ struct RelayPairingImportView: View {
             Label("relayImport.paste", systemImage: "doc.on.clipboard")
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(StablePairingButtonStyle())
         .minimumHitTarget44()
     }
 
@@ -325,5 +330,36 @@ struct RelayPairingImportView: View {
             errorText = (error as? PairingImportError)?.description(locale: locale)
                 ?? L10n.string("relayImport.error.badFormat", locale: locale)
         }
+    }
+}
+
+/// 配对按钮的固定填充底色：一个只随深浅色（userInterfaceStyle）变的**实心**动态色。
+///
+/// 背景：RelayPairingImportView 经 `.sheet` 呈现，「扫码/粘贴」按钮此前用 `.buttonStyle(.bordered)`。
+/// 系统 `.bordered` 的灰底是一层**材质（material/vibrancy）**，需与背板合成后才成灰；呈现首帧材质尚未
+/// 合成完 → 显白，下一帧合成后才转灰，即用户看到的「先白后灰」（与 AppearanceManagers 里记录的分组框
+/// late-blit 首帧晚绘同源）。改用**实心 fill** 后无材质合成、首帧即终态，天然无此中间态；落定外观仍是
+/// 原本的浅灰底 + 强调色文字。抽为 internal 便于复用与检视。
+enum PairingButtonAppearance {
+    static let stableFillColor = UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(white: 1.0, alpha: 0.12)
+            : UIColor(white: 0.0, alpha: 0.06)
+    }
+}
+
+/// 与系统 `.bordered` 视觉等价，但填充用上面的固定实心色，落定后外观仍是原本的浅灰底 + 强调色文字。
+private struct StablePairingButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(Color.accentColor)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(PairingButtonAppearance.stableFillColor))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .opacity(configuration.isPressed ? 0.55 : 1.0)
     }
 }
