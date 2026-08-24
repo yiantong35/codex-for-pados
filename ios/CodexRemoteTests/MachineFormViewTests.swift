@@ -19,7 +19,8 @@ final class MachineFormViewTests: XCTestCase {
     /// MachineFormView（relay 配对导入入口）可挂载渲染不崩溃。
     func test_machineFormView_rendersWithoutCrash() {
         let sessions = mgr(machines: 0)
-        let hc = UIHostingController(rootView: MachineFormView().environment(sessions))
+        let hc = UIHostingController(rootView: MachineFormView().environment(sessions)
+            .environment(TextScaleManager()))
         hc.view.frame = CGRect(x: 0, y: 0, width: 390, height: 700)
         let window = UIWindow(frame: hc.view.frame)
         window.rootViewController = hc

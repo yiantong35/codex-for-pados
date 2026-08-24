@@ -794,11 +794,13 @@ final class OrientationSnapshotTests: XCTestCase {
     /// 加机器表单：字段 + 公钥块居中卡片（内含 NavigationStack + toolbar），横竖屏均不崩、PNG 非空。
     func test_machineForm_portrait_snapshot() {
         let view = MachineFormView().environment(makeSessions(machineCount: 0))
+            .environment(TextScaleManager())
         snapshot(view, size: portrait, name: "machineform-portrait", dir: mcDir)
     }
 
     func test_machineForm_landscape_snapshot() {
         let view = MachineFormView().environment(makeSessions(machineCount: 0))
+            .environment(TextScaleManager())
         snapshot(view, size: landscape, name: "machineform-landscape", dir: mcDir)
     }
 
