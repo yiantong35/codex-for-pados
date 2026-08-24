@@ -17,4 +17,19 @@ final class ThreadCreationAvailableTests: XCTestCase {
         XCTAssertTrue(types.contains("ThreadStartParams"), "ThreadStartParams 应已恢复")
         XCTAssertTrue(types.contains("ThreadForkParams"), "ThreadForkParams 应已新增")
     }
+
+    /// D1:顶栏游离新建入口(无项目归属、cwd=nil)必须移除。结构性断言——不挂靠 WorkspaceUIRegressionTests
+    /// (本分支 2 个 toolbar 渲染测试已知在 test host 不渲染)。
+    func testTopBarFloatingNewThreadRemoved() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // CodexRemoteTests
+            .deletingLastPathComponent()   // ios
+        let src = try String(
+            contentsOf: root.appendingPathComponent("CodexRemote/Views/RootSplitView.swift"),
+            encoding: .utf8)
+        XCTAssertFalse(src.contains("createThread: createThread"),
+                       "WorkspaceToolbar 不应再接顶栏 createThread 闭包")
+        XCTAssertFalse(src.contains("projects.createThread(rpc: rpc)"),
+                       "nil-cwd 的游离新建调用路径应已移除")
+    }
 }

@@ -13,9 +13,7 @@ final class WorkspaceUIRegressionTests: XCTestCase {
                 .toolbar {
                     WorkspaceToolbar(
                         layout: layout,
-                        isCreatingThread: false,
-                        reduceMotion: true,
-                        createThread: {}
+                        reduceMotion: true
                     )
                 }
                 .navigationBarTitleDisplayMode(.inline)
@@ -27,7 +25,7 @@ final class WorkspaceUIRegressionTests: XCTestCase {
         let labels = accessibilityLabels(in: window)
         let locale = LocaleManager.currentLocale
         for key in [
-            "tab.machine.switcher", "sidebar.newThread", "workspace.leftPanel.toggle",
+            "tab.machine.switcher", "workspace.leftPanel.toggle",
             "workspace.bottomPanel.toggle", "workspace.summary.toggle",
             "workspace.rightPanel.toggle", "settings.accessibility"
         ] {
@@ -62,7 +60,7 @@ final class WorkspaceUIRegressionTests: XCTestCase {
         let window = mount(view, size: CGSize(width: 834, height: 1_194))
         defer { unmount(window) }
         let labels = accessibilityLabels(in: window)
-        for key in ["tab.machine.switcher", "sidebar.newThread", "settings.accessibility"] {
+        for key in ["tab.machine.switcher", "settings.accessibility"] {
             XCTAssertTrue(labels.contains(L10n.string(key, locale: LocaleManager.currentLocale)),
                           "RootSplitView did not install runtime toolbar item \(key): \(labels.sorted())")
         }

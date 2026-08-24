@@ -152,9 +152,7 @@ struct RootSplitView: View {
             .toolbar {
                 WorkspaceToolbar(
                     layout: layout,
-                    isCreatingThread: projects.isCreatingThread,
-                    reduceMotion: reduceMotion,
-                    createThread: createThread
+                    reduceMotion: reduceMotion
                 )
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -221,21 +219,6 @@ struct RootSplitView: View {
         }
         .task {
             loadColumnWidths(for: sessions.activeSessionId)
-        }
-    }
-
-    private func createThread() {
-        guard connection.phase == .ready, let rpc = connection.rpc else {
-            operationError = L10n.string("operation.unavailable.offline", locale: LocaleManager.currentLocale)
-            return
-        }
-        Task {
-            guard let newId = await projects.createThread(rpc: rpc) else {
-                if let error = projects.createThreadError { operationError = error }
-                return
-            }
-            workspaceState.selectedThreadId = newId
-            projects.markViewed(threadId: newId, updatedAt: Date().timeIntervalSince1970)
         }
     }
 
@@ -421,9 +404,7 @@ struct RootSplitView: View {
 /// System toolbar content installed on the navigated workspace content.
 struct WorkspaceToolbar: ToolbarContent {
     let layout: WorkspaceLayoutStore
-    let isCreatingThread: Bool
     let reduceMotion: Bool
-    let createThread: () -> Void
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
@@ -431,11 +412,6 @@ struct WorkspaceToolbar: ToolbarContent {
         }
 
         ToolbarItemGroup(placement: .topBarTrailing) {
-            Button(action: createThread) {
-                toolbarLabel(symbol: "plus", label: "sidebar.newThread")
-            }
-                .disabled(isCreatingThread)
-
             ControlGroup {
                 panelToolbarButton(
                     symbol: "rectangle.leadinghalf.inset.filled",
