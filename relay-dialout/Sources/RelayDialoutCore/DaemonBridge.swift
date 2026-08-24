@@ -69,6 +69,7 @@ public final class DaemonBridge: @unchecked Sendable {
 
     /// start() 实际会设的子进程工作目录:默认用户家目录(中性、稳定、非源码目录、无写副作用),
     /// 仅测试可注入覆盖以做属性断言,不改生产调用路径。会话显式带 cwd 时以 per-thread cwd 为准,本目录仅兜底。
+    /// 注:兜底路径下(会话未带 cwd 时)app-server 若向相对路径写文件,落点为 $HOME;当前设计中会话均显式带 cwd,风险很低。
     var resolvedWorkingDirectory: URL {
         overrideWorkingDirectory ?? FileManager.default.homeDirectoryForCurrentUser
     }
