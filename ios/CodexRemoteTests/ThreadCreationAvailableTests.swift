@@ -32,4 +32,19 @@ final class ThreadCreationAvailableTests: XCTestCase {
         XCTAssertFalse(src.contains("projects.createThread(rpc: rpc)"),
                        "nil-cwd 的游离新建调用路径应已移除")
     }
+
+    /// D1/D2:项目行菜单承载「新建会话」并携带该项目 cwd。结构性断言(View 触发逻辑不易单测,
+    /// 与 store 帧含 cwd 契约测试 test_createThread_encodes_cwd_in_frame 互补)。
+    func testProjectRowNewThreadPassesProjectCwd() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let src = try String(
+            contentsOf: root.appendingPathComponent("CodexRemote/Views/SidebarView.swift"),
+            encoding: .utf8)
+        XCTAssertTrue(src.contains("func projectActions"),
+                      "项目行应新增 projectActions 菜单承载新建会话")
+        XCTAssertTrue(src.contains("cwd: project.cwd"),
+                      "项目内新建应携带 project.cwd")
+    }
 }

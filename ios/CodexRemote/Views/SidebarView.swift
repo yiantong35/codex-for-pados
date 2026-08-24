@@ -218,7 +218,18 @@ struct SidebarView: View {
                         .foregroundStyle(.white)
                         .accessibilityLabel(Text("sidebar.pendingApproval"))
                 }
+                Menu {
+                    projectActions(project)
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel(Text("sidebar.actions \(project.displayName)"))
             }
+            .contextMenu { projectActions(project) }
         }
     }
 
@@ -350,6 +361,31 @@ struct SidebarView: View {
         Button(role: .destructive) {
             deleteTarget = thread
         } label: { Label("sidebar.delete", systemImage: "trash") }
+    }
+
+    @ViewBuilder
+    private func projectActions(_ project: Project) -> some View {
+        Button {
+            createThreadInProject(project)
+        } label: { Label("sidebar.newThread", systemImage: "plus") }
+            .disabled(connection.phase != .ready)
+    }
+
+    /// 项目内新建:持久会话(落盘、进左栏),携带 project.cwd → 归入该项目组。
+    /// 与侧聊(ephemeral fork,不落盘)语义分开。离线沿用 operation.unavailable.offline(fail-closed)。
+    private func createThreadInProject(_ project: Project) {
+        guard connection.phase == .ready, let rpc = connection.rpc else {
+            operationError = L10n.string("operation.unavailable.offline", locale: locale)
+            return
+        }
+        Task {
+            guard let newId = await projects.createThread(rpc: rpc, cwd: project.cwd) else {
+                if let err = projects.createThreadError { operationError = err }
+                return
+            }
+            selectedThreadId = newId
+            projects.markViewed(threadId: newId, updatedAt: Date().timeIntervalSince1970)
+        }
     }
 
     private var deleteConfirmationTitle: String {
