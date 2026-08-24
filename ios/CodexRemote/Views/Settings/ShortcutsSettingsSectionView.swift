@@ -33,6 +33,7 @@ struct ShortcutsSettingsSectionView: View {
                 }
             }
         }
+        .settingsGroupedRowBackground()
         .navigationTitle("settings.shortcuts")
     }
 

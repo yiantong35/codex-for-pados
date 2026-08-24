@@ -14,6 +14,7 @@ struct AccountSettingsSectionView: View {
                                 rateLimits: env.rateLimits)
             }
         }
+        .settingsGroupedRowBackground()
         .navigationTitle("settings.account")
     }
 }

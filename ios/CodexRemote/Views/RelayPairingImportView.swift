@@ -100,12 +100,13 @@ struct RelayPairingImportView: View {
 
             GeometryReader { proxy in
                 ScrollView {
-                    VStack {
-                        formContent.frame(maxWidth: 480)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: max(0, proxy.size.height - 48), alignment: .center)
-                    .padding(24)
+                    formContent
+                        .frame(maxWidth: 480)
+                        .frame(maxWidth: .infinity)
+                        // 给定一段**有界**高度（视口高 - 上下 padding），formContent 内部的上下弹性区
+                        // 才有可参照的高度去撑开、把核心块垂直居中（ScrollView 高度无界时弹性区会塌成 0）。
+                        .frame(minHeight: max(0, proxy.size.height - 48))
+                        .padding(24)
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
@@ -128,39 +129,64 @@ struct RelayPairingImportView: View {
         .modifier(AppDynamicTypeSizeModifier(size: textScale.overrideSize))
     }
 
+    /// 三段式垂直居中且报错不位移：上弹性区 / 稳定核心 / 下弹性区。
+    /// 上下弹性区等权 → 核心块（说明+编辑框+按钮）垂直居中，留白上下平摊。
+    /// 报错落在下弹性区顶部、只向下扩进本就属于下半的留白，不算进核心块高度，
+    /// 故上下弹性区分配不变 → 核心块位置恒定、按钮零位移。极端（超大字号+小屏）
+    /// 报错超过下半留白时由外层 ScrollView 兜底滚动，不破版（守 ui-adaptation-baseline）。
     private var formContent: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("relayImport.hint")
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 0) {
+            Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)   // 上弹性区
 
-            editor
+            // 稳定核心：位置不随报错出现/消失变化。
+            VStack(alignment: .leading, spacing: 16) {
+                Text("relayImport.hint")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)   // 多语言/多行不截断
 
-            if let errorText {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(errorText)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                    if cameraAccessDenied,
-                       let settingsURL = URL(string: UIApplication.openSettingsURLString) {
-                        Button {
-                            openURL(settingsURL)
-                        } label: {
-                            Label("relayImport.openSettings", systemImage: "gear")
-                        }
-                        .buttonStyle(.bordered)
-                        .minimumHitTarget44()
-                    }
+                editor
+
+                // 扫码 / 粘贴：一左一右两个等宽按钮；窄屏或超大字号放不下时回退为上下堆叠（仍等宽）。
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) { pairingActionButtons }
+                    VStack(spacing: 8) { pairingActionButtons }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            // 扫码 / 粘贴：一左一右两个等宽按钮；窄屏或超大字号放不下时回退为上下堆叠（仍等宽）。
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) { pairingActionButtons }
-                VStack(spacing: 8) { pairingActionButtons }
+            // 下弹性区（与上区等权）：报错锚定其顶部，向下扩，不顶核心块。
+            ZStack(alignment: .top) {
+                Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
+                if errorText != nil {
+                    errorBlock.padding(.top, 16)
+                }
             }
         }
-        .padding(.vertical, 12)
+    }
+
+    /// 报错块：文案 + （相机被拒时）前往设置按钮。
+    /// 字号与顶部说明一致（同为默认 body，随 AppDynamicTypeSizeModifier 一起缩放），多语言下可多行换行。
+    @ViewBuilder
+    private var errorBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let errorText {
+                Text(errorText)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if cameraAccessDenied,
+               let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                Button {
+                    openURL(settingsURL)
+                } label: {
+                    Label("relayImport.openSettings", systemImage: "gear")
+                }
+                .buttonStyle(StablePairingButtonStyle())
+                .minimumHitTarget44()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -169,7 +195,7 @@ struct RelayPairingImportView: View {
             Label("relayImport.scan", systemImage: "qrcode.viewfinder")
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(StablePairingButtonStyle())
         .minimumHitTarget44()
 
         Button {
@@ -182,7 +208,7 @@ struct RelayPairingImportView: View {
             Label("relayImport.paste", systemImage: "doc.on.clipboard")
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(StablePairingButtonStyle())
         .minimumHitTarget44()
     }
 
@@ -325,5 +351,36 @@ struct RelayPairingImportView: View {
             errorText = (error as? PairingImportError)?.description(locale: locale)
                 ?? L10n.string("relayImport.error.badFormat", locale: locale)
         }
+    }
+}
+
+/// 配对按钮的固定填充底色：一个只随深浅色（userInterfaceStyle）变的**实心**动态色。
+///
+/// 背景：RelayPairingImportView 经 `.sheet` 呈现，「扫码/粘贴」按钮此前用 `.buttonStyle(.bordered)`。
+/// 系统 `.bordered` 的灰底是一层**材质（material/vibrancy）**，需与背板合成后才成灰；呈现首帧材质尚未
+/// 合成完 → 显白，下一帧合成后才转灰，即用户看到的「先白后灰」（与 AppearanceManagers 里记录的分组框
+/// late-blit 首帧晚绘同源）。改用**实心 fill** 后无材质合成、首帧即终态，天然无此中间态；落定外观仍是
+/// 原本的浅灰底 + 强调色文字。抽为 internal 便于复用与检视。
+enum PairingButtonAppearance {
+    static let stableFillColor = UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(white: 1.0, alpha: 0.12)
+            : UIColor(white: 0.0, alpha: 0.06)
+    }
+}
+
+/// 与系统 `.bordered` 视觉等价，但填充用上面的固定实心色，落定后外观仍是原本的浅灰底 + 强调色文字。
+private struct StablePairingButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(Color.accentColor)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(PairingButtonAppearance.stableFillColor))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .opacity(configuration.isPressed ? 0.55 : 1.0)
     }
 }

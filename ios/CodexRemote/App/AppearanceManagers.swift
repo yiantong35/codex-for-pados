@@ -224,6 +224,26 @@ struct AppDynamicTypeSizeModifier: ViewModifier {
     }
 }
 
+// MARK: - 分组设置 List 抗闪修复（问题2 真因收口）
+
+extension View {
+    /// 消除深色下设置分组 box「黑底→灰底」首帧闪烁。
+    ///
+    /// 真因（CADisplayLink 逐帧取证：15 帧 trait 恒为 Dark/Base、box 恒为 28,28,30 灰、
+    /// page 恒为 0,0,0 黑，颜色/trait 全程不变）：闪烁**不是** colorScheme/level 重解析，而是
+    /// `List`(.insetGrouped) 底层 UITableView 的 grouped cell 填充由 UIKit 在 `willDisplayCell`/
+    /// 布局阶段晚一个 runloop 才 blit——首帧纯黑 page(systemGroupedBackground) 从 box 区域透出（黑），
+    /// 下一帧 table 才绘上灰色 cell 填充（灰）。故 #110（窗口深色）/#111（fullScreenCover base level）
+    /// 都在改错误维度、治不好。
+    ///
+    /// 修法：用 `listRowBackground` 把 box 填充改由 SwiftUI 随行内容在**同一渲染事务**合成，
+    /// 首帧即 present，不再依赖 UITableView 的晚绘制路径 → 结构上不可能出现黑首帧。
+    /// 色值仍取语义色 `secondarySystemGroupedBackground`，深浅自适应不变。
+    func settingsGroupedRowBackground() -> some View {
+        listRowBackground(Color(uiColor: .secondarySystemGroupedBackground))
+    }
+}
+
 // MARK: - 剪贴板写门控（#1 安全）
 
 /// 远端终端 OSC 52 写系统剪贴板的门控开关。默认关闭（fail-closed）。

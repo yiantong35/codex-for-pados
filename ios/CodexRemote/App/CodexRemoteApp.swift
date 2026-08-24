@@ -46,6 +46,10 @@ struct CodexRemoteApp: App {
                 .onChange(of: themeManager.theme) { _, t in Self.applyWindowInterfaceStyle(t) }
                 // 运行时换字号：跟随系统(nil)不注入，覆盖档注入 .dynamicTypeSize（条件修饰）。
                 .modifier(AppDynamicTypeSizeModifier(size: textScale.overrideSize))
+                // 把 app 字号档同步到窗口 trait，使系统级 UIMenu（机器切换弹窗）等 UIKit 呈现界面也跟随。
+                // 与上面 SwiftUI 端 clamp 恒定落同一档、不叠加放大（见 applyWindowContentSizeCategory 注释）。
+                .onAppear { Self.applyWindowContentSizeCategory(textScale.overrideSize) }
+                .onChange(of: textScale.overrideSize) { _, s in Self.applyWindowContentSizeCategory(s) }
                 // 冷启动只连上次活跃机器（D7）；其余懒连。
                 .task { sessions.bootstrapAutoConnect() }
         }
@@ -67,6 +71,48 @@ struct CodexRemoteApp: App {
             for window in windowScene.windows {
                 window.overrideUserInterfaceStyle = style
             }
+        }
+    }
+
+    /// 把 App 文字大小档落到当前所有前台窗口的 `traitOverrides.preferredContentSizeCategory`，
+    /// 使**系统级 UIKit 呈现界面**（机器切换的系统 `Menu`、alert、context menu 等）也跟随 app 字号。
+    ///
+    /// 为什么需要：SwiftUI 的 `.dynamicTypeSize`（AppDynamicTypeSizeModifier）只作用于 SwiftUI 内容树，
+    /// **不写回 UIWindow 的 UITraitCollection**；而系统 UIMenu 由 UIKit 依呈现上下文的 trait 渲染，
+    /// 故此前只认 iOS 系统字号、无视 app 内「文字大小」。窗口级 trait 覆盖填平这一缺口。
+    ///
+    /// 不会与 SwiftUI 端叠加放大：`.dynamicTypeSize(size...size)` 是**钳制**（输出恒为 size），
+    /// 无论入参 trait 为何都落到同一档 → SwiftUI 内容与系统 Menu 同档、不双重缩放。
+    /// `.system`(nil) → `.unspecified`：清除覆盖、放行系统 Dynamic Type（与 SwiftUI 端全范围放行一致）。
+    private static func applyWindowContentSizeCategory(_ size: DynamicTypeSize?) {
+        let category = contentSizeCategory(for: size)
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene,
+                  windowScene.activationState != .background else { continue }
+            for window in windowScene.windows {
+                window.traitOverrides.preferredContentSizeCategory = category
+            }
+        }
+    }
+
+    /// `DynamicTypeSize?` → `UIContentSizeCategory`。nil → `.unspecified`（不覆盖，放行系统档）。
+    /// 全枚举覆盖 + `@unknown default` 兜底：即便 overrideSize 未来扩档也不静默错映。
+    private static func contentSizeCategory(for size: DynamicTypeSize?) -> UIContentSizeCategory {
+        guard let size else { return .unspecified }
+        switch size {
+        case .xSmall:         return .extraSmall
+        case .small:          return .small
+        case .medium:         return .medium
+        case .large:          return .large
+        case .xLarge:         return .extraLarge
+        case .xxLarge:        return .extraExtraLarge
+        case .xxxLarge:       return .extraExtraExtraLarge
+        case .accessibility1: return .accessibilityMedium
+        case .accessibility2: return .accessibilityLarge
+        case .accessibility3: return .accessibilityExtraLarge
+        case .accessibility4: return .accessibilityExtraExtraLarge
+        case .accessibility5: return .accessibilityExtraExtraExtraLarge
+        @unknown default:     return .unspecified
         }
     }
 
