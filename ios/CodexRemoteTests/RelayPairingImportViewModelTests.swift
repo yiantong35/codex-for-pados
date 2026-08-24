@@ -181,6 +181,7 @@ final class RelayPairingImportViewModelTests: XCTestCase {
     func test_relayImport_portrait_snapshot() {
         let view = NavigationStack { RelayPairingImportView() }
             .environment(makeSessions())
+            .environment(TextScaleManager())
         snapshot(view, size: portrait, name: "import-portrait")
     }
 
@@ -188,6 +189,7 @@ final class RelayPairingImportViewModelTests: XCTestCase {
     func test_relayImport_landscape_snapshot() {
         let view = NavigationStack { RelayPairingImportView() }
             .environment(makeSessions())
+            .environment(TextScaleManager())
         snapshot(view, size: landscape, name: "import-landscape")
     }
 
