@@ -254,6 +254,24 @@ final class ProjectsStoreTests: XCTestCase {
         XCTAssertEqual(newId, "new-tid-1", "createThread 应返回响应 thread.id")
     }
 
+    // D2：项目内新建以 cwd=project.cwd 发 thread/start，发出帧须含 "cwd":"<project.cwd>"。
+    // 锁定 store 侧编码契约（D2 UI 接线在 SidebarView，见结构性断言）；mock rpc 捕获发出帧。
+    func test_createThread_encodes_cwd_in_frame() async {
+        let s = ProjectsStore()
+        let mock = MockTransport()
+        await mock.setAutoRespondThreadStart(#"{"thread":{"id":"tid"}}"#)
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+
+        _ = await s.createThread(rpc: rpc, cwd: "/repo/web-dev")
+
+        let sent = await mock.sent
+        XCTAssertTrue(
+            sent.contains { $0.contains("thread/start") && $0.contains("\"cwd\":\"/repo/web-dev\"") },
+            "项目内新建应携带 cwd=project.cwd；实际：\(sent)"
+        )
+    }
+
     // Task 0.5：响应缺 thread.id（畸形/拒绝）→ 返回 nil，不崩溃。
     func test_createThread_returns_nil_on_malformed_response() async {
         let s = ProjectsStore()
