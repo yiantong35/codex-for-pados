@@ -3,22 +3,6 @@ import XCTest
 
 @MainActor
 final class ThreadCreationTests: XCTestCase {
-    func testStartSendsThreadStart() async throws {
-        let mock = MockTransport()
-        let rpc = JSONRPCClient(transport: mock)
-        await rpc.start()
-        let store = ConversationStore(rpc: rpc, threadId: "t1")
-
-        await store.start(cwd: "/repo", model: "gpt-5")
-        try await Task.sleep(nanoseconds: 200_000_000)
-
-        let sent = await mock.sent
-        XCTAssertTrue(sent.contains { $0.contains("thread/start") },
-                      "应发 thread/start；实际：\(sent)")
-        XCTAssertTrue(sent.contains { $0.contains("\"cwd\":\"/repo\"") },
-                      "thread/start 应携带 cwd；实际：\(sent)")
-    }
-
     func testForkSendsThreadForkWithSourceId() async throws {
         let mock = MockTransport()
         let rpc = JSONRPCClient(transport: mock)

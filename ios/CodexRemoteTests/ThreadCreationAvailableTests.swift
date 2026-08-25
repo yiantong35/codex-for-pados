@@ -3,19 +3,17 @@ import XCTest
 
 @MainActor
 final class ThreadCreationAvailableTests: XCTestCase {
-    /// 反转 follower 的「禁发起」守护：iPad 作为对等客户端，建会话能力必须可用。
-    /// 防止「恢复入口」被未来改动悄悄删回从端定位。
+    /// 守护:session fork / 侧聊所依赖的会话派生能力符号必须存在,防被未来改动误删。
+    /// (start() 已作为 UI 无调用者的死代码移除,不在守护范围。)
     func testSourceHasThreadCreationSymbols() throws {
         let root = URL(fileURLWithPath: #filePath)        // .../ios/CodexRemoteTests/ThreadCreationAvailableTests.swift
             .deletingLastPathComponent()                  // CodexRemoteTests
             .deletingLastPathComponent()                  // ios
         let conv = try String(contentsOf: root.appendingPathComponent("CodexRemote/Stores/ConversationStore.swift"), encoding: .utf8)
-        XCTAssertTrue(conv.contains("func start("), "ConversationStore.start() 应已恢复")
-        XCTAssertTrue(conv.contains("func fork("), "ConversationStore.fork() 应已新增")
-        XCTAssertTrue(conv.contains("threadStart"), "应引用 RPCMethod.threadStart")
+        XCTAssertTrue(conv.contains("func fork("), "ConversationStore.fork() 应存在")
         let types = try String(contentsOf: root.appendingPathComponent("CodexRemote/Protocol/ThreadTypes.swift"), encoding: .utf8)
-        XCTAssertTrue(types.contains("ThreadStartParams"), "ThreadStartParams 应已恢复")
-        XCTAssertTrue(types.contains("ThreadForkParams"), "ThreadForkParams 应已新增")
+        XCTAssertTrue(types.contains("ThreadStartParams"), "ThreadStartParams 应存在(ProjectsStore.createThread 使用)")
+        XCTAssertTrue(types.contains("ThreadForkParams"), "ThreadForkParams 应存在")
     }
 
     /// D1:顶栏游离新建入口(无项目归属、cwd=nil)必须移除。结构性断言——不挂靠 WorkspaceUIRegressionTests
