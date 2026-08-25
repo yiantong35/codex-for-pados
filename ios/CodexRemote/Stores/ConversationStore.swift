@@ -177,20 +177,6 @@ final class ConversationStore {
         }
     }
 
-    /// 新建对话：发 thread/start。fire-and-forget——网络调用包进 Task{} 立即返回；
-    /// 返回的新 threadId 异步写回 state。响应 shape 为 {thread:{id,...},...}（protocol v2）。
-    func start(cwd: String? = nil, model: String? = nil) async {
-        let params = ThreadStartParams(cwd: cwd, model: model)
-        Task { [weak self] in
-            guard let self else { return }
-            guard let result = try? await self.call(RPCMethod.threadStart, params) else { return }
-            if let dict = result.value as? [String: Any],
-               let newId = (dict["thread"] as? [String: Any])?["id"] as? String {
-                self.state.threadId = newId
-            }
-        }
-    }
-
     /// fork 结果：新侧聊 threadId + daemon 记录的父指针（forkedFromId，用于标题展示）。
     struct ForkResult: Equatable {
         let threadId: String
