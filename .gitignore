@@ -1,6 +1,13 @@
 # Node (comet CLI 本地安装的副产物)
 node_modules/
 
+# Comet 工作流本地文件(项目规定 comet 相关不入库;worktree 经 .worktreeinclude 携带)
+/comet.yaml
+/package.json
+/package-lock.json
+/scripts/comet-build-check.sh
+/scripts/comet-verify-check.sh
+
 # macOS
 .DS_Store
 
