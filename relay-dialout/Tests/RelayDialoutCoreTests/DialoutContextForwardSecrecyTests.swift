@@ -13,7 +13,7 @@ import RelayProtocol
 /// 每次调用都用新的 DialoutContext + 新 iPad 身份/临时密钥，模拟一次独立握手。
 private func devEphemeralPubForOneHandshake(keyStore: DevKeyStore, pairingCode: String) throws -> Data {
     let trust = try TrustStore(dir: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
-    let ctx = DialoutContext(keyStore: keyStore, devDeviceId: "dev",
+    let ctx = DialoutContext(keyStore: keyStore, devDeviceId: "dev", sessionId: "room",
                              pairingCode: pairingCode, expiresAt: Int64.max, trust: trust)
     let ipadIdentity = Curve25519.Signing.PrivateKey()
     let ipadEphemeral = Curve25519.KeyAgreement.PrivateKey()
@@ -56,7 +56,7 @@ private func devEphemeralPubForOneHandshake(keyStore: DevKeyStore, pairingCode: 
     defer { try? FileManager.default.removeItem(at: dir) }
     let keyStore = try DevKeyStore(dir: dir)
     let trust = try TrustStore(dir: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
-    let ctx = DialoutContext(keyStore: keyStore, devDeviceId: "dev",
+    let ctx = DialoutContext(keyStore: keyStore, devDeviceId: "dev", sessionId: "room",
                              pairingCode: "c", expiresAt: Int64.max, trust: trust)
 
     let ipadIdentity = Curve25519.Signing.PrivateKey()

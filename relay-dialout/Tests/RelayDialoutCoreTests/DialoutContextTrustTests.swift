@@ -30,8 +30,10 @@ private struct DialoutTrustHarness {
     var ipadPubB64: String { ipadIdentity.publicKey.rawRepresentation.base64EncodedString() }
 
     /// 用给定的 TrustStore 造一个 DialoutContext 并走完握手；返回加密回传帧 + iPad 侧 session。
+    /// context 注入的 sessionId 与 ClientHello 房间号一致（与 main.swift 实际行为对齐）。
     func runHandshake(trust: TrustStore, sessionId: String) throws -> (readyFrame: Data, ipadSession: SecureSession) {
         let context = DialoutContext(keyStore: devKeyStore, devDeviceId: devDeviceId,
+                                     sessionId: sessionId,
                                      pairingCode: pairingCode, expiresAt: expiresAt, trust: trust)
         // 1. iPad → ClientHello
         let clientNonce = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
@@ -89,7 +91,8 @@ private struct DialoutTrustHarness {
     let h = try DialoutTrustHarness()
     let trust = try TrustStore(dir: h.trustDir)
     let context = DialoutContext(keyStore: h.devKeyStore, devDeviceId: h.devDeviceId,
-                                 pairingCode: h.pairingCode, expiresAt: h.expiresAt, trust: trust)
+                                 sessionId: "room-1", pairingCode: h.pairingCode,
+                                 expiresAt: h.expiresAt, trust: trust)
     let clientNonce = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
     let hello = Handshake.makeClientHello(
         sessionId: "room-1", ipadDeviceId: "ipad-1",
@@ -172,7 +175,7 @@ private func driveHandshake(context: DialoutContext, hello: ClientHello,
     try trust.trust(ipadPubB64: h.ipadPubB64, stableSessionId: "stable-preset", label: nil)  // 预置信任
     // pairingCode 已过期：受信任复连不该被过期挡。
     let context = DialoutContext(keyStore: h.devKeyStore, devDeviceId: h.devDeviceId,
-                                 pairingCode: h.pairingCode,
+                                 sessionId: "room-1", pairingCode: h.pairingCode,
                                  expiresAt: Int64(Date().timeIntervalSince1970) - 10, trust: trust)
     let hello = buildHello(sessionId: "room-1", ipadIdentity: h.ipadIdentity,
                            ipadEphemeral: h.ipadEphemeral, pairingCode: "unused", emptyProof: true)
@@ -186,7 +189,8 @@ private func driveHandshake(context: DialoutContext, hello: ClientHello,
     let h = try DialoutTrustHarness()
     let trust = try TrustStore(dir: h.trustDir)   // 空信任列表
     let context = DialoutContext(keyStore: h.devKeyStore, devDeviceId: h.devDeviceId,
-                                 pairingCode: h.pairingCode, expiresAt: h.expiresAt, trust: trust)
+                                 sessionId: "room-x", pairingCode: h.pairingCode,
+                                 expiresAt: h.expiresAt, trust: trust)
     let hello = buildHello(sessionId: "room-x", ipadIdentity: h.ipadIdentity,
                            ipadEphemeral: h.ipadEphemeral, pairingCode: "unused", emptyProof: true)
     let reject = try context.rejectHelloIfUnauthorized(hello)
@@ -202,7 +206,8 @@ private func driveHandshake(context: DialoutContext, hello: ClientHello,
     let h = try DialoutTrustHarness()
     let trust = try TrustStore(dir: h.trustDir)
     let context = DialoutContext(keyStore: h.devKeyStore, devDeviceId: h.devDeviceId,
-                                 pairingCode: h.pairingCode, expiresAt: h.expiresAt, trust: trust)
+                                 sessionId: "room-y", pairingCode: h.pairingCode,
+                                 expiresAt: h.expiresAt, trust: trust)
     let hello = buildHello(sessionId: "room-y", ipadIdentity: h.ipadIdentity,
                            ipadEphemeral: h.ipadEphemeral, pairingCode: h.pairingCode, emptyProof: false)
     #expect(try context.rejectHelloIfUnauthorized(hello) == nil)
@@ -232,23 +237,24 @@ private func driveHandshake(context: DialoutContext, hello: ClientHello,
                                 ipadEphemeral: h.ipadEphemeral, pairingCode: h.pairingCode,
                                 emptyProof: false)
     let expiredContext = DialoutContext(
-        keyStore: h.devKeyStore, devDeviceId: h.devDeviceId, pairingCode: h.pairingCode,
+        keyStore: h.devKeyStore, devDeviceId: h.devDeviceId, sessionId: "room-reject",
+        pairingCode: h.pairingCode,
         expiresAt: Int64(Date().timeIntervalSince1970) - 1, trust: trust)
     let expired = try rejection(context: expiredContext, hello: validHello)
     #expect(try Handshake.verifyRejectHello(expired, clientHello: validHello,
                                             devIdentityPub: h.devKeyStore.identityPublicKeyRaw) == .pairingInvalid)
 
     let wrongProofContext = DialoutContext(
-        keyStore: h.devKeyStore, devDeviceId: h.devDeviceId, pairingCode: h.pairingCode,
-        expiresAt: h.expiresAt, trust: trust)
+        keyStore: h.devKeyStore, devDeviceId: h.devDeviceId, sessionId: "room-proof",
+        pairingCode: h.pairingCode, expiresAt: h.expiresAt, trust: trust)
     let wrongProof = buildHello(sessionId: "room-proof", ipadIdentity: h.ipadIdentity,
                                 ipadEphemeral: h.ipadEphemeral, pairingCode: "wrong-code",
                                 emptyProof: false)
     #expect(try rejection(context: wrongProofContext, hello: wrongProof).reason == .pairingInvalid)
 
     let versionContext = DialoutContext(
-        keyStore: h.devKeyStore, devDeviceId: h.devDeviceId, pairingCode: h.pairingCode,
-        expiresAt: h.expiresAt, trust: trust)
+        keyStore: h.devKeyStore, devDeviceId: h.devDeviceId, sessionId: "room-reject",
+        pairingCode: h.pairingCode, expiresAt: h.expiresAt, trust: trust)
     var wrongVersion = validHello
     wrongVersion.protocolVersion = "relay-e2e-v999"
     #expect(try rejection(context: versionContext, hello: wrongVersion).reason == .versionMismatch)
@@ -261,7 +267,8 @@ private func driveHandshake(context: DialoutContext, hello: ClientHello,
     let trust = try TrustStore(dir: h.trustDir)
     try trust.trust(ipadPubB64: h.ipadPubB64, stableSessionId: "stable-fixed", label: nil)  // 预置信任
     let context = DialoutContext(keyStore: h.devKeyStore, devDeviceId: h.devDeviceId,
-                                 pairingCode: h.pairingCode, expiresAt: h.expiresAt, trust: trust)
+                                 sessionId: "room-a", pairingCode: h.pairingCode,
+                                 expiresAt: h.expiresAt, trust: trust)
 
     func reconnect(_ sessionId: String) throws -> String {
         // 每次弱网重连都用新的临时交换密钥（真实场景），身份不变。
@@ -289,7 +296,8 @@ private func driveHandshake(context: DialoutContext, hello: ClientHello,
     let h = try DialoutTrustHarness()
     let trust = try TrustStore(dir: h.trustDir)
     let context = DialoutContext(keyStore: h.devKeyStore, devDeviceId: h.devDeviceId,
-                                 pairingCode: h.pairingCode, expiresAt: h.expiresAt, trust: trust)
+                                 sessionId: "room-z", pairingCode: h.pairingCode,
+                                 expiresAt: h.expiresAt, trust: trust)
     let hello = buildHello(sessionId: "room-z", ipadIdentity: h.ipadIdentity,
                            ipadEphemeral: h.ipadEphemeral, pairingCode: "unused", emptyProof: true)
     #expect(try context.rejectHelloIfUnauthorized(hello)?.reason == .untrusted)   // 应被拦截
@@ -313,7 +321,8 @@ private func driveHandshake(context: DialoutContext, hello: ClientHello,
     )
 
     let context = DialoutContext(keyStore: h.devKeyStore, devDeviceId: h.devDeviceId,
-                                 pairingCode: h.pairingCode, expiresAt: h.expiresAt, trust: trust)
+                                 sessionId: "room-1", pairingCode: h.pairingCode,
+                                 expiresAt: h.expiresAt, trust: trust)
     let clientNonce = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
     let hello = Handshake.makeClientHello(
         sessionId: "room-1", ipadDeviceId: "ipad-1",
@@ -342,7 +351,8 @@ private func driveHandshake(context: DialoutContext, hello: ClientHello,
     let trust = try TrustStore(dir: h.trustDir)
     try trust.trust(ipadPubB64: h.ipadPubB64, stableSessionId: "stable-fixed", label: nil)  // 预置信任
     let context = DialoutContext(keyStore: h.devKeyStore, devDeviceId: h.devDeviceId,
-                                 pairingCode: h.pairingCode, expiresAt: h.expiresAt, trust: trust)
+                                 sessionId: "room-a", pairingCode: h.pairingCode,
+                                 expiresAt: h.expiresAt, trust: trust)
 
     func reconnect(_ sessionId: String) throws -> SecureReady {
         let ephemeral = Curve25519.KeyAgreement.PrivateKey()
@@ -369,7 +379,8 @@ private func driveHandshake(context: DialoutContext, hello: ClientHello,
     let h = try DialoutTrustHarness()
     let trust = try TrustStore(dir: h.trustDir)
     let context = DialoutContext(keyStore: h.devKeyStore, devDeviceId: h.devDeviceId,
-                                 pairingCode: h.pairingCode, expiresAt: h.expiresAt, trust: trust)
+                                 sessionId: "room-1", pairingCode: h.pairingCode,
+                                 expiresAt: h.expiresAt, trust: trust)
     // 第一台 iPad 首配成功，消费掉 pairingCode。
     let hello1 = buildHello(sessionId: "room-1", ipadIdentity: h.ipadIdentity,
                             ipadEphemeral: h.ipadEphemeral, pairingCode: h.pairingCode, emptyProof: false)
@@ -385,4 +396,108 @@ private func driveHandshake(context: DialoutContext, hello: ClientHello,
     #expect(throws: DialoutHandshakeError.pairingAlreadyUsed) {
         _ = try context.handleClientHello(JSONEncoder().encode(hello2))
     }
+}
+
+// MARK: - relay-dialout-room-migration：稳定房间前置（首配 fallback = 启动房间号注入值）
+
+/// ① 首配：落盘的稳定 sessionId == init 注入的启动房间号；SecureReady 回传同一值。
+@Test func firstPairingAdoptsInjectedBootRoomAsStableSessionId() throws {
+    let h = try DialoutTrustHarness()
+    let trust = try TrustStore(dir: h.trustDir)
+    let (frame, ipadSession) = try h.runHandshake(trust: trust, sessionId: "boot-room-1")
+
+    #expect(trust.record(forPubB64: h.ipadPubB64)?.stableSessionId == "boot-room-1")
+    let ready = try JSONDecoder().decode(
+        SecureReady.self, from: try ipadSession.open(try SecureEnvelope(decoding: frame)))
+    #expect(ready.stableSessionId == "boot-room-1")
+}
+
+/// ①b dev 权威性（防未来重构）：首配路径落盘值取 init 注入值，绝不取 hello.sessionId——
+/// 恶意客户端/中转谎报 hello 房间号也无法污染持久化的稳定 sessionId（若改回 ?? hello.sessionId 此测试变红）。
+@Test func firstPairingIgnoresHelloSessionIdUsesInjectedValue() throws {
+    let h = try DialoutTrustHarness()
+    let trust = try TrustStore(dir: h.trustDir)
+    let context = DialoutContext(keyStore: h.devKeyStore, devDeviceId: h.devDeviceId,
+                                 sessionId: "boot-authority", pairingCode: h.pairingCode,
+                                 expiresAt: h.expiresAt, trust: trust)
+    // hello 谎报房间号 "liar-room"（proof 按同一 pairingCode 正常生成，握手可过）。
+    let hello = buildHello(sessionId: "liar-room", ipadIdentity: h.ipadIdentity,
+                           ipadEphemeral: h.ipadEphemeral, pairingCode: h.pairingCode, emptyProof: false)
+    let (frame, ipadSession) = try driveHandshake(
+        context: context, hello: hello, ipadIdentity: h.ipadIdentity,
+        ipadEphemeral: h.ipadEphemeral, devIdentityPubRaw: h.devKeyStore.identityPublicKeyRaw)
+    let ready = try JSONDecoder().decode(
+        SecureReady.self, from: try ipadSession.open(try SecureEnvelope(decoding: frame)))
+    #expect(trust.record(forPubB64: h.ipadPubB64)?.stableSessionId == "boot-authority")
+    #expect(ready.stableSessionId == "boot-authority")
+}
+
+/// ② 复连模式不退化：预置信任记录时，即便注入值与记录值不同（结构上 main 不会发生，
+/// 防未来重构破坏不变量），落盘/回传仍为记录值——注入值不覆盖。
+@Test func reconnectModeRecordValueWinsOverInjectedSessionId() throws {
+    let h = try DialoutTrustHarness()
+    let trust = try TrustStore(dir: h.trustDir)
+    try trust.trust(ipadPubB64: h.ipadPubB64, stableSessionId: "stable-preset", label: nil)
+    let context = DialoutContext(keyStore: h.devKeyStore, devDeviceId: h.devDeviceId,
+                                 sessionId: "injected-other", pairingCode: h.pairingCode,
+                                 expiresAt: h.expiresAt, trust: trust)
+    let ephemeral = Curve25519.KeyAgreement.PrivateKey()
+    let hello = buildHello(sessionId: "stable-preset", ipadIdentity: h.ipadIdentity,
+                           ipadEphemeral: ephemeral, pairingCode: "unused", emptyProof: true)
+    let (frame, ipadSession) = try driveHandshake(
+        context: context, hello: hello, ipadIdentity: h.ipadIdentity,
+        ipadEphemeral: ephemeral, devIdentityPubRaw: h.devKeyStore.identityPublicKeyRaw)
+    let ready = try JSONDecoder().decode(
+        SecureReady.self, from: try ipadSession.open(try SecureEnvelope(decoding: frame)))
+    #expect(ready.stableSessionId == "stable-preset")
+    #expect(trust.record(forPubB64: h.ipadPubB64)?.stableSessionId == "stable-preset")
+}
+
+/// ③ 同运行内重握手：首配采用注入值落盘后，同一 context 第二轮握手（此时已受信任）
+/// 复用记录值 == 注入值，不再新生成。
+@Test func sameRunRehandshakeReusesRecordedBootRoom() throws {
+    let h = try DialoutTrustHarness()
+    let trust = try TrustStore(dir: h.trustDir)
+    let context = DialoutContext(keyStore: h.devKeyStore, devDeviceId: h.devDeviceId,
+                                 sessionId: "boot-room-3", pairingCode: h.pairingCode,
+                                 expiresAt: h.expiresAt, trust: trust)
+    // 第一轮：首配（带 proof）。
+    let hello1 = buildHello(sessionId: "boot-room-3", ipadIdentity: h.ipadIdentity,
+                            ipadEphemeral: h.ipadEphemeral, pairingCode: h.pairingCode, emptyProof: false)
+    let (frame1, session1) = try driveHandshake(
+        context: context, hello: hello1, ipadIdentity: h.ipadIdentity,
+        ipadEphemeral: h.ipadEphemeral, devIdentityPubRaw: h.devKeyStore.identityPublicKeyRaw)
+    let ready1 = try JSONDecoder().decode(
+        SecureReady.self, from: try session1.open(try SecureEnvelope(decoding: frame1)))
+    #expect(ready1.stableSessionId == "boot-room-3")
+    // 第二轮：同一 context 受信任重握手（空 proof + 新临时交换密钥，模拟弱网重连）。
+    let eph2 = Curve25519.KeyAgreement.PrivateKey()
+    let hello2 = buildHello(sessionId: "boot-room-3", ipadIdentity: h.ipadIdentity,
+                            ipadEphemeral: eph2, pairingCode: "unused", emptyProof: true)
+    let (frame2, session2) = try driveHandshake(
+        context: context, hello: hello2, ipadIdentity: h.ipadIdentity,
+        ipadEphemeral: eph2, devIdentityPubRaw: h.devKeyStore.identityPublicKeyRaw)
+    let ready2 = try JSONDecoder().decode(
+        SecureReady.self, from: try session2.open(try SecureEnvelope(decoding: frame2)))
+    #expect(ready2.stableSessionId == "boot-room-3")
+    #expect(trust.all().count == 1)   // 幂等，不新增信任记录
+}
+
+/// ④ 轮换出口：两次独立首配（清信任重来，模拟 --forget-all 后重启生成新随机房间）
+/// 产生不同的稳定 sessionId——各自等于各自的启动房间号。
+@Test func independentFirstPairingsYieldDistinctStableSessionIds() throws {
+    let h = try DialoutTrustHarness()
+    let boot1 = "boot-" + UUID().uuidString
+    let boot2 = "boot-" + UUID().uuidString
+    let trust1 = try TrustStore(dir: h.trustDir)
+    _ = try h.runHandshake(trust: trust1, sessionId: boot1)
+    let first = trust1.record(forPubB64: h.ipadPubB64)?.stableSessionId
+    // 清信任重来 = 全新信任目录（等价 --forget-all 后重启）。
+    let trust2 = try TrustStore(
+        dir: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+    _ = try h.runHandshake(trust: trust2, sessionId: boot2)
+    let second = trust2.record(forPubB64: h.ipadPubB64)?.stableSessionId
+    #expect(first == boot1)
+    #expect(second == boot2)
+    #expect(first != second)
 }

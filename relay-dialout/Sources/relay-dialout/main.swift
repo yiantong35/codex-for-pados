@@ -95,6 +95,8 @@ if let rec = trustedRecord {
     sessionId = rec.stableSessionId
     reconnectMode = true
 } else {
+    // 首配：该随机 token 同时充当首配房间号与未来稳定 sessionId——TOFU 成功落盘的就是它，
+    // 房间从未变过（稳定房间前置）。轮换出口 = --forget-all 清信任后下次启动生成新随机房间。
     sessionId = randomToken(byteCount: 12)
     reconnectMode = false
 }
@@ -125,7 +127,8 @@ if reconnectMode {
 //
 // 帧类型判定：握手期收 ClientHello / ClientAuth（明文 JSON）；建通道后收 SecureEnvelope。
 // 注入 TrustStore：首次配对自动记信任 + 每台 iPad 稳定 sessionId + 加密回传 SecureReady。
-let context = DialoutContext(keyStore: keyStore, devDeviceId: devDeviceId,
+// 注入 sessionId：本次运行占用的房间号，首配 TOFU 落盘采用它（稳定房间前置）。
+let context = DialoutContext(keyStore: keyStore, devDeviceId: devDeviceId, sessionId: sessionId,
                              pairingCode: pairingCode, expiresAt: expiresAt, trust: trustStore)
 
 // MARK: 2/3. NIO ws 客户端拨出 relay + 帧分发（wss 前置 TLS，ws 明文保留本地测试）

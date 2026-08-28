@@ -28,7 +28,7 @@ struct DialoutContextRehandshakeDispatchTests {
             try trust.trust(ipadPubB64: ipadIdentity.publicKey.rawRepresentation.base64EncodedString(),
                             stableSessionId: "stable-fixed", label: nil)
             self.context = DialoutContext(keyStore: devKeyStore, devDeviceId: "dev-1",
-                                          pairingCode: "PAIR-OK",
+                                          sessionId: "stable-fixed", pairingCode: "PAIR-OK",
                                           expiresAt: Int64(Date().timeIntervalSince1970) + 600, trust: trust)
         }
 
