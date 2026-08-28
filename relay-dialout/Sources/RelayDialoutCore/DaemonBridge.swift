@@ -19,6 +19,9 @@ public enum DaemonBridgeError: Error, Equatable {
 ///
 /// ⚠️ 进程安全：只记住并管理**自己 spawn 的这个子进程 PID**，`terminate()` 仅停它，
 /// 绝不使用 pkill/wide-match kill（会误杀 desktop GUI 私有的 app-server）。
+///
+/// 生命周期契约：本类型是**一次性对象**（start→terminate 各至多一次，经 BridgeLifecycle 保证）；
+/// terminate() 后不支持再次 start()——expectedTermination 置位后不复位，重启须新建实例。
 public final class DaemonBridge: @unchecked Sendable {
     private let codexPath: String
     private let overrideArguments: [String]?
@@ -31,6 +34,16 @@ public final class DaemonBridge: @unchecked Sendable {
     private let processQueue = DispatchQueue(label: "com.codexremote.relay-dialout.daemon-process")
     private let writerQueue = DispatchQueue(label: "com.codexremote.relay-dialout.daemon-stdin")
     private let writerLock = NSLock()
+    /// daemon 非预期死亡回调(三信号幂等汇合的出口);nil = 不关心(既有测试构造点零改动)。
+    private let onAbnormalExit: (@Sendable () -> Void)?
+    /// 专用锁,保护 expectedTermination / abnormalReported 两标志。
+    /// 三个触碰线程:terminationHandler 在 Foundation 后台线程、drainWrites 在 writerQueue、
+    /// terminate() 在调用线程;不复用 processQueue(terminate() 的宽限期等待会长时间占住它,
+    /// sync 上锁会把 handler 拖到回收完成后)、不复用 writerLock(职责分离,且避免与写队列互扰)。
+    /// 锁序:stateLock 从不与 writerLock/processQueue 嵌套持有,无死锁面。
+    private let stateLock = NSLock()
+    private var expectedTermination = false
+    private var abnormalReported = false
     private let maximumPendingWriteBytes: Int
     private var pendingWrites: [Data] = []
     private var pendingWriteBytes = 0
@@ -41,18 +54,22 @@ public final class DaemonBridge: @unchecked Sendable {
     ///   - codexPath: 可执行路径，允许注入便于测试用无害 stub（默认 "codex"）。
     ///   - arguments: 子进程参数，默认 nil→生产固定为 `["app-server","--listen","stdio://"]`；
     ///     仅测试可注入长驻无害 stub 参数（如 `/bin/sleep 300`）验证 terminate 回收，**不改生产调用路径**。
+    ///   - onAbnormalExit: 子进程非预期死亡时回调恰好一次(主动 terminate() 不触发);
+    ///     在 Foundation 后台线程或 writerQueue 上调用,回调方自行保证线程安全。
     public init(codexPath: String = "codex",
                 arguments: [String]? = nil,
                 environment: [String: String] = ProcessInfo.processInfo.environment,
                 workingDirectory: URL? = nil,
                 maximumPendingWriteBytes: Int = 4 * 1024 * 1024,
-                terminationGracePeriod: Duration = .seconds(2)) {
+                terminationGracePeriod: Duration = .seconds(2),
+                onAbnormalExit: (@Sendable () -> Void)? = nil) {
         self.codexPath = codexPath
         self.overrideArguments = arguments
         self.environment = environment
         self.overrideWorkingDirectory = workingDirectory
         self.maximumPendingWriteBytes = max(1, maximumPendingWriteBytes)
         self.terminationGracePeriod = terminationGracePeriod
+        self.onAbnormalExit = onAbnormalExit
     }
 
     /// 我方 spawn 的子进程 PID（仅在 start 后有效），用于确认只管自己这一个。
@@ -82,6 +99,16 @@ public final class DaemonBridge: @unchecked Sendable {
         }
     }
 
+    /// 三信号幂等汇合的防抖闸门:主动 terminate() 已置 expectedTermination → 静默;
+    /// 否则恰好回调一次 onAbnormalExit(terminationHandler 与 drainWrites 双源都走这里)。
+    private func reportAbnormalExitIfUnexpected() {
+        stateLock.lock()
+        let shouldReport = !expectedTermination && !abnormalReported
+        if shouldReport { abnormalReported = true }
+        stateLock.unlock()
+        if shouldReport { onAbnormalExit?() }
+    }
+
     public func start() throws {
         try processQueue.sync {
             process.executableURL = try Self.resolveExecutable(codexPath, environment: environment)
@@ -90,6 +117,12 @@ public final class DaemonBridge: @unchecked Sendable {
             process.currentDirectoryURL = resolvedWorkingDirectory   // D3:显式设中性 cwd,子进程不再继承拨出程序启动目录
             process.standardInput = stdinPipe
             process.standardOutput = stdoutPipe
+            // 权威死亡信号:内核 reap 驱动,EOF 缺席(孙进程持有 stdout)时仍可靠。只观察不杀。
+            // 先设后跑,杜绝「设 handler 前进程已死→handler 不触发」窗口。[weak self] 必须:
+            // bridge 持 process、process 持 handler,强捕获成环。
+            process.terminationHandler = { [weak self] _ in
+                self?.reportAbnormalExitIfUnexpected()
+            }
             try process.run()
             didStart = true
         }
@@ -156,6 +189,8 @@ public final class DaemonBridge: @unchecked Sendable {
                 pendingWriteBytes = 0
                 writerScheduled = false
                 writerLock.unlock()
+                // 路径③(孙进程持有 stdout)下 EOF 兜底失灵;写失败是最早的确定性死亡证据 → 防抖回调。
+                reportAbnormalExitIfUnexpected()
                 return
             }
         }
@@ -200,6 +235,9 @@ public final class DaemonBridge: @unchecked Sendable {
     /// 非阻塞地发起精确回收：先向自己 spawn 的 PID 发 SIGTERM，宽限期后仍存活才发 SIGKILL。
     /// 实际等待与 reap 全在私有串行队列，调用本方法的 NIO EventLoop 不会被阻塞。
     public func terminate() {
+        stateLock.lock()
+        expectedTermination = true   // 先置位后杀:terminationHandler 读到位即静默,不误报
+        stateLock.unlock()
         processQueue.async { [self] in
             guard didStart, process.isRunning else { return }
             process.terminate()

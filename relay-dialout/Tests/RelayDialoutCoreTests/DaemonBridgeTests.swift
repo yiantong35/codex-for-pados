@@ -124,3 +124,98 @@ import Foundation
     let bridge = DaemonBridge(codexPath: "codex", workingDirectory: temp)
     #expect(bridge.resolvedWorkingDirectory == temp)
 }
+
+// MARK: - daemon-crash-detection：三信号幂等汇合（terminationHandler + SIGPIPE 免疫 + 写失败防抖）
+
+/// 线程安全回调计数器（terminationHandler 在 Foundation 后台线程、drainWrites 在 writerQueue 回调）。
+private final class CallbackCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+    func increment() { lock.lock(); value += 1; lock.unlock() }
+    var count: Int { lock.lock(); defer { lock.unlock() }; return value }
+}
+
+/// 有界等待条件成立（仅测试侧短轮询，生产零轮询）；超时即断言失败。
+private func waitUntil(timeout: Duration = .seconds(5),
+                       _ condition: @escaping @Sendable () -> Bool) async throws {
+    let clock = ContinuousClock()
+    let deadline = clock.now.advanced(by: timeout)
+    while clock.now < deadline {
+        if condition() { return }
+        try await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(condition(), "等待条件超时(\(timeout))")
+}
+
+/// ① daemon 被外部 kill -9：onAbnormalExit 恰好回调一次；测试内忽略 SIGPIPE 后
+/// 向死进程 stdin 写不崩（EPIPE 走 throwing catch 可捕获）、防抖不二次回调。
+@Test func externalKillReportsAbnormalExitExactlyOnce() async throws {
+    signal(SIGPIPE, SIG_IGN)   // 与生产 main.swift 同款进程级免疫；其余测试不依赖默认 SIGPIPE 处置
+    let callbacks = CallbackCounter()
+    let bridge = DaemonBridge(codexPath: "/bin/sleep", arguments: ["300"],
+                              onAbnormalExit: { callbacks.increment() })
+    try bridge.start()
+    let pid = bridge.pid
+    #expect(pid > 0)
+    kill(pid, SIGKILL)                                  // 外部杀死,模拟 daemon 崩溃
+    try await waitUntil { callbacks.count == 1 }        // terminationHandler 异步触发
+    // 死进程 stdin 写入:不得崩溃(SIGPIPE 已忽略→EPIPE→drainWrites catch),防抖不二次回调
+    _ = bridge.write("hello-after-death")
+    try await Task.sleep(for: .milliseconds(200))
+    #expect(callbacks.count == 1)
+    bridge.terminate()          // 已死进程 guard isRunning no-op,幂等
+    bridge.waitForTermination()
+}
+
+/// ② 孙进程继承 stdout 写端且父先退出：EOF 缺席（路径③），terminationHandler 仍是权威死亡信号。
+/// 孙进程为无害 /bin/sleep 30,测试不杀它(进程安全铁律:零宽匹配 kill),自会退出。
+@Test func grandchildHoldingStdoutStillReportsExit() async throws {
+    let callbacks = CallbackCounter()
+    let bridge = DaemonBridge(codexPath: "/bin/sh",
+                              arguments: ["-c", "(sleep 30 &); sleep 0.2"],
+                              onAbnormalExit: { callbacks.increment() })
+    try bridge.start()
+    // 父 sh 约 0.2s 后自然退出;孙 sleep 30 仍持有 stdout 写端 → EOF 不来,只有 terminationHandler
+    try await waitUntil { callbacks.count == 1 }
+    #expect(callbacks.count == 1)
+    bridge.terminate()
+    bridge.waitForTermination()
+}
+
+/// ③ 主动 terminate()：expectedTermination 先置位后杀，terminationHandler 静默，零误报。
+/// （回收行为本体已由既有 terminateReapsSpawnedChildNoZombie 覆盖,此处只盯零回调。）
+@Test func deliberateTerminateDoesNotReportAbnormalExit() async throws {
+    let callbacks = CallbackCounter()
+    let bridge = DaemonBridge(codexPath: "/bin/sleep", arguments: ["300"],
+                              onAbnormalExit: { callbacks.increment() })
+    try bridge.start()
+    #expect(bridge.isRunning)
+    bridge.terminate()
+    bridge.waitForTermination()
+    #expect(!bridge.isRunning)
+    try await Task.sleep(for: .milliseconds(300))   // terminationHandler 异步;留窗确认其间无误报
+    #expect(callbacks.count == 0)
+}
+
+/// ④ 双源防抖恰好一次（terminationHandler + 写失败 catch）+ EOF 既有链路回归（incoming 流仍正常 finish）。
+@Test func debounceAcrossSourcesAndEOFStillFinishes() async throws {
+    signal(SIGPIPE, SIG_IGN)
+    let callbacks = CallbackCounter()
+    let bridge = DaemonBridge(codexPath: "/bin/sleep", arguments: ["300"],
+                              onAbnormalExit: { callbacks.increment() })
+    try bridge.start()
+    let stream = bridge.incoming
+    let finished = Task { for await _ in stream {}; return true }   // EOF → finish 才返回
+    kill(bridge.pid, SIGKILL)
+    try await waitUntil { callbacks.count >= 1 }
+    // 第二源:向死 stdin 写触发 drainWrites catch → 过同一防抖标志,不得二次回调。
+    // 验证边界(评审确认可接受):handler 必然先赢,本断言只锁"catch 不产生第二次回调",
+    // 无法区分"catch 报了被防抖抑制"与"catch 未达闸门";确定性构造 catch 先行需伪造写句柄,成本大于收益。
+    _ = bridge.write("late")
+    try await Task.sleep(for: .milliseconds(200))
+    #expect(callbacks.count == 1)
+    // EOF 回归:sleep 死后 stdout 写端关闭 → 既有 readabilityHandler 空 chunk → 流正常结束
+    #expect(await finished.value)
+    bridge.terminate()
+    bridge.waitForTermination()
+}

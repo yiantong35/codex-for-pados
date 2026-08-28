@@ -340,8 +340,6 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
 
 // MARK: ws 拨出
 let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-let bridge = DaemonBridge(codexPath: codexPath)
-let bridgeLifecycle = BridgeLifecycle(bridge: bridge)
 
 final class DialoutStopRelay: @unchecked Sendable {
     private let lock = NSLock()
@@ -370,6 +368,11 @@ final class DialoutStopRelay: @unchecked Sendable {
 }
 
 let stopRelay = DialoutStopRelay()
+// daemon 异常死亡(terminationHandler 权威信号/写失败 catch)与既有 EOF 路径汇合到同一 reason;
+// DialoutStopRelay 只取首个 reason + supervisor.stop 幂等 = 三源收敛。
+let bridge = DaemonBridge(codexPath: codexPath,
+                          onAbnormalExit: { stopRelay.request(.bridgeExited) })
+let bridgeLifecycle = BridgeLifecycle(bridge: bridge)
 let outputRouter = BridgeOutputRouter(
     stream: { bridge.incoming },
     onBridgeExit: { stopRelay.request(.bridgeExited) }
@@ -481,6 +484,10 @@ func makeSignalSource(_ signalNumber: Int32) -> DispatchSourceSignal {
     return source
 }
 
+// daemon 死后写侧撞破管道:进程级忽略 SIGPIPE,write 返回 EPIPE → throwing API 抛错 →
+// drainWrites catch 可达(否则内核信号先杀进程 exit 141,catch 不可达)。
+// NIO socket 自带 SO_NOSIGPIPE,此处无副作用。位置在 supervisor.run() 之前,先于一切 daemon 写入。
+signal(SIGPIPE, SIG_IGN)
 let signalSources = [makeSignalSource(SIGINT), makeSignalSource(SIGTERM)]
 let stopReason = await supervisor.run()
 signalSources.forEach { $0.cancel() }
