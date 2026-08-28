@@ -19,6 +19,9 @@ public enum DaemonBridgeError: Error, Equatable {
 ///
 /// ⚠️ 进程安全：只记住并管理**自己 spawn 的这个子进程 PID**，`terminate()` 仅停它，
 /// 绝不使用 pkill/wide-match kill（会误杀 desktop GUI 私有的 app-server）。
+///
+/// 生命周期契约：本类型是**一次性对象**（start→terminate 各至多一次，经 BridgeLifecycle 保证）；
+/// terminate() 后不支持再次 start()——expectedTermination 置位后不复位，重启须新建实例。
 public final class DaemonBridge: @unchecked Sendable {
     private let codexPath: String
     private let overrideArguments: [String]?

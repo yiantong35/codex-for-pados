@@ -150,7 +150,7 @@ private func waitUntil(timeout: Duration = .seconds(5),
 /// ① daemon 被外部 kill -9：onAbnormalExit 恰好回调一次；测试内忽略 SIGPIPE 后
 /// 向死进程 stdin 写不崩（EPIPE 走 throwing catch 可捕获）、防抖不二次回调。
 @Test func externalKillReportsAbnormalExitExactlyOnce() async throws {
-    signal(SIGPIPE, SIG_IGN)   // 与生产 main.swift 同款进程级免疫；对其余测试无副作用
+    signal(SIGPIPE, SIG_IGN)   // 与生产 main.swift 同款进程级免疫；其余测试不依赖默认 SIGPIPE 处置
     let callbacks = CallbackCounter()
     let bridge = DaemonBridge(codexPath: "/bin/sleep", arguments: ["300"],
                               onAbnormalExit: { callbacks.increment() })
@@ -208,7 +208,9 @@ private func waitUntil(timeout: Duration = .seconds(5),
     let finished = Task { for await _ in stream {}; return true }   // EOF → finish 才返回
     kill(bridge.pid, SIGKILL)
     try await waitUntil { callbacks.count >= 1 }
-    // 第二源:向死 stdin 写触发 drainWrites catch → 过同一防抖标志,不得二次回调
+    // 第二源:向死 stdin 写触发 drainWrites catch → 过同一防抖标志,不得二次回调。
+    // 验证边界(评审确认可接受):handler 必然先赢,本断言只锁"catch 不产生第二次回调",
+    // 无法区分"catch 报了被防抖抑制"与"catch 未达闸门";确定性构造 catch 先行需伪造写句柄,成本大于收益。
     _ = bridge.write("late")
     try await Task.sleep(for: .milliseconds(200))
     #expect(callbacks.count == 1)
