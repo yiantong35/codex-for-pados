@@ -10,23 +10,15 @@ import RelayProtocol
 /// 握手编排失败原因（dev 侧一次性口令相关）。
 public enum DialoutHandshakeError: Error, Equatable { case pairingExpired, pairingAlreadyUsed }
 
-/// 生成 URL-safe 的随机 token（stableSessionId / 一次性口令风格，与 main.swift randomToken 一致）。
-func randomStableToken(byteCount: Int = 18) -> String {
-    var bytes = [UInt8](repeating: 0, count: byteCount)
-    for i in 0..<byteCount { bytes[i] = UInt8.random(in: 0...255) }
-    return Data(bytes).base64EncodedString()
-        .replacingOccurrences(of: "+", with: "-")
-        .replacingOccurrences(of: "/", with: "_")
-        .replacingOccurrences(of: "=", with: "")
-}
-
 /// 承载握手所需 dev 侧材料与一次性口令，并维护握手状态。整体 Sendable。
 ///
-/// 注入 `TrustStore`：首次配对握手成功后自动记信任（幂等），并为每台 iPad 生成/复用一个稳定
-/// sessionId，随加密 SecureReady 回传（走已建通道，不明文过 relay）。
+/// 注入 `TrustStore`：首次配对握手成功后自动记信任（幂等），并为每台 iPad 记录/复用稳定
+/// sessionId（首配采用启动房间号），随加密 SecureReady 回传（走已建通道，不明文过 relay）。
 public final class DialoutContext: @unchecked Sendable {
     public let keyStore: DevKeyStore
     public let devDeviceId: String
+    /// 本次运行占用的房间号。首配模式 = 启动随机生成（兼未来稳定 sessionId）；复连模式 = 信任记录里的稳定值。
+    public let sessionId: String
     public let pairingCode: String
     public let expiresAt: Int64
     private let trust: TrustStore
@@ -43,9 +35,9 @@ public final class DialoutContext: @unchecked Sendable {
     // 施加一次性口令重放守卫）。首配=false（受 pairingConsumed 约束）；受信任复连=true（可重握手）。
     private var _currentHandshakeTrusted = false
 
-    public init(keyStore: DevKeyStore, devDeviceId: String, pairingCode: String,
-                expiresAt: Int64, trust: TrustStore) {
-        self.keyStore = keyStore; self.devDeviceId = devDeviceId
+    public init(keyStore: DevKeyStore, devDeviceId: String, sessionId: String,
+                pairingCode: String, expiresAt: Int64, trust: TrustStore) {
+        self.keyStore = keyStore; self.devDeviceId = devDeviceId; self.sessionId = sessionId
         self.pairingCode = pairingCode; self.expiresAt = expiresAt; self.trust = trust
     }
 
@@ -198,9 +190,10 @@ public final class DialoutContext: @unchecked Sendable {
             lock.lock(); _eph = nil; lock.unlock()
             throw error
         }
-        // 稳定 sessionId：已受信任的 iPad 复用其记录值；首次配对新生成。每台 iPad 各一个。
+        // 稳定 sessionId：已受信任的 iPad 复用其记录值；首次配对采用本次运行的启动房间号
+        // （稳定房间前置：TOFU 落盘的就是首配房间号，房间从未变过，复连不再需要迁移）。
         let ipadPub = hello.ipadIdentityPub.base64EncodedString()
-        let stable = trust.record(forPubB64: ipadPub)?.stableSessionId ?? randomStableToken()
+        let stable = trust.record(forPubB64: ipadPub)?.stableSessionId ?? sessionId
 
         // #2 事务性：先把信任落盘成功，之后才在锁内原子发布 _session + 消费一次性口令。
         // 落盘失败（IO/权限）→ 清握手态（_eph 释放，_session 保持 nil）、向上抛，
