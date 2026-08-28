@@ -192,6 +192,8 @@ public final class DialoutContext: @unchecked Sendable {
         }
         // 稳定 sessionId：已受信任的 iPad 复用其记录值；首次配对采用本次运行的启动房间号
         // （稳定房间前置：TOFU 落盘的就是首配房间号，房间从未变过，复连不再需要迁移）。
+        // 注意（多 iPad 前提下需回头改）：当前"一 iPad 单房间"范围内此 fallback 安全；
+        // 若未来放开多 iPad，复连模式下第二台 iPad 首配会 fallback 到同一注入值造成房间碰撞。
         let ipadPub = hello.ipadIdentityPub.base64EncodedString()
         let stable = trust.record(forPubB64: ipadPub)?.stableSessionId ?? sessionId
 

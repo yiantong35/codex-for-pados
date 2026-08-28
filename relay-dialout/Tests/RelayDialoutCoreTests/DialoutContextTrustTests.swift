@@ -412,6 +412,26 @@ private func driveHandshake(context: DialoutContext, hello: ClientHello,
     #expect(ready.stableSessionId == "boot-room-1")
 }
 
+/// ①b dev 权威性（防未来重构）：首配路径落盘值取 init 注入值，绝不取 hello.sessionId——
+/// 恶意客户端/中转谎报 hello 房间号也无法污染持久化的稳定 sessionId（若改回 ?? hello.sessionId 此测试变红）。
+@Test func firstPairingIgnoresHelloSessionIdUsesInjectedValue() throws {
+    let h = try DialoutTrustHarness()
+    let trust = try TrustStore(dir: h.trustDir)
+    let context = DialoutContext(keyStore: h.devKeyStore, devDeviceId: h.devDeviceId,
+                                 sessionId: "boot-authority", pairingCode: h.pairingCode,
+                                 expiresAt: h.expiresAt, trust: trust)
+    // hello 谎报房间号 "liar-room"（proof 按同一 pairingCode 正常生成，握手可过）。
+    let hello = buildHello(sessionId: "liar-room", ipadIdentity: h.ipadIdentity,
+                           ipadEphemeral: h.ipadEphemeral, pairingCode: h.pairingCode, emptyProof: false)
+    let (frame, ipadSession) = try driveHandshake(
+        context: context, hello: hello, ipadIdentity: h.ipadIdentity,
+        ipadEphemeral: h.ipadEphemeral, devIdentityPubRaw: h.devKeyStore.identityPublicKeyRaw)
+    let ready = try JSONDecoder().decode(
+        SecureReady.self, from: try ipadSession.open(try SecureEnvelope(decoding: frame)))
+    #expect(trust.record(forPubB64: h.ipadPubB64)?.stableSessionId == "boot-authority")
+    #expect(ready.stableSessionId == "boot-authority")
+}
+
 /// ② 复连模式不退化：预置信任记录时，即便注入值与记录值不同（结构上 main 不会发生，
 /// 防未来重构破坏不变量），落盘/回传仍为记录值——注入值不覆盖。
 @Test func reconnectModeRecordValueWinsOverInjectedSessionId() throws {
