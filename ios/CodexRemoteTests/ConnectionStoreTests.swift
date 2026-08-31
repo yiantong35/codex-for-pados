@@ -688,6 +688,62 @@ final class ConnectionStoreTests: XCTestCase {
         XCTAssertEqual(count, 1, "无流量兜底：连续两次 miss 仍判死（探针机制不弱化）")
     }
 
+    // MARK: - 心跳探针三分判活（正常应答=活 / error 回响=活 / 仅超时或传输失败=miss）
+
+    /// ① 正常应答=活。
+    func test_probe_normalResponse_isAlive() async throws {
+        let mock = MockTransport()
+        await mock.setAutoRespond(true)   // initialize/getAuthStatus 均回 {"id":…,"result":{}}
+        let store = await ConnectionStore(transportFactory: { _ in mock })
+        await store.connect(config: .stub)
+        try await waitUntil { if case .ready = await store.phase { return true }; return false }
+        let alive = await store.sendHeartbeatProbeForTesting()
+        XCTAssertTrue(alive, "正常应答应计为存活")
+    }
+
+    /// ② error 回响=活（RED：现实现 try? 把 proxyFailed 吞成 miss）。
+    func test_probe_errorEcho_isAlive() async throws {
+        let mock = MockTransport()
+        await mock.setAutoRespond(true)
+        let store = await ConnectionStore(transportFactory: { _ in mock })
+        await store.connect(config: .stub)
+        try await waitUntil { if case .ready = await store.phase { return true }; return false }
+        await mock.setAutoRespond(false)          // 改为手动响应，好回 error 体
+        let probe = Task { await store.sendHeartbeatProbeForTesting() }
+        try await waitUntil { await mock.sent.contains { $0.contains(RPCMethod.getAuthStatus) } }
+        let frame = await mock.sent.last { $0.contains(RPCMethod.getAuthStatus) }!
+        let obj = try JSONSerialization.jsonObject(with: Data(frame.utf8)) as! [String: Any]
+        let id = obj["id"] as! String
+        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","error":{"code":-32603,"message":"internal"}}"#)
+        let alive = await probe.value
+        XCTAssertTrue(alive, "error 回响=有回响=活（判活只看有无回响不看内容）")
+    }
+
+    /// ③ 仅超时=miss（注入短探针超时，不真等 10s）。
+    func test_probe_timeout_isMiss() async throws {
+        let mock = MockTransport()
+        await mock.setAutoRespond(true)
+        let store = await ConnectionStore(transportFactory: { _ in mock },
+                                          heartbeatProbeTimeoutNanos: 150_000_000)
+        await store.connect(config: .stub)
+        try await waitUntil { if case .ready = await store.phase { return true }; return false }
+        await mock.setAutoRespond(false)          // getAuthStatus 永不应答 → 超时
+        let alive = await store.sendHeartbeatProbeForTesting()
+        XCTAssertFalse(alive, "仅超时应计为 miss")
+    }
+
+    /// ④ 传输层失败=miss。
+    func test_probe_transportFailure_isMiss() async throws {
+        let mock = MockTransport()
+        await mock.setAutoRespond(true)
+        let store = await ConnectionStore(transportFactory: { _ in mock })
+        await store.connect(config: .stub)
+        try await waitUntil { if case .ready = await store.phase { return true }; return false }
+        await mock.failNextSend(with: .channelClosed(reason: "test"))
+        let alive = await store.sendHeartbeatProbeForTesting()
+        XCTAssertFalse(alive, "传输层失败应计为 miss")
+    }
+
     /// 后台回一条 initialize 响应，使握手到达 .ready（复用于多测试）。
     private func feedInitializeResponse(_ ctrl: ControlEmittingTransport) async {
         Task {

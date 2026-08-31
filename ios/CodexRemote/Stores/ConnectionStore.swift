@@ -84,6 +84,8 @@ final class ConnectionStore {
     private let transportFactory: @Sendable (ConnectionConfig) async throws -> MessageTransport
     /// 建连/握手硬超时（纳秒）。默认 20s；测试可注入更短值以快速复现超时失效路径。
     private let connectTimeoutNanos: UInt64
+    /// 心跳探针单次超时（纳秒）。默认 10s；测试可注入更短值以复现超时 miss 路径。
+    private let heartbeatProbeTimeoutNanos: UInt64
     private var config: ConnectionConfig?
     /// 最近一次 connect 的配置：心跳判死后经 reconnect() 复用它重连（保留机器配置）。
     private var lastConfig: ConnectionConfig?
@@ -126,9 +128,11 @@ final class ConnectionStore {
 
     init(transportFactory: @escaping @Sendable (ConnectionConfig) async throws -> MessageTransport,
          connectTimeoutNanos: UInt64 = 20_000_000_000,
+         heartbeatProbeTimeoutNanos: UInt64 = 10_000_000_000,
          heartbeatFactory: (@MainActor (HeartbeatUnhealthy) -> HeartbeatMonitor)? = nil) {
         self.transportFactory = transportFactory
         self.connectTimeoutNanos = connectTimeoutNanos
+        self.heartbeatProbeTimeoutNanos = heartbeatProbeTimeoutNanos
         self.injectedHeartbeatFactory = heartbeatFactory
     }
 
@@ -437,14 +441,23 @@ final class ConnectionStore {
         if let c = lastConfig { connect(config: c) }
     }
 
-    /// 心跳探针本体：一次 getAuthStatus 往返 vs 10s 超时竞速。只看「有无回响」不看内容——
-    /// 天然跨登录方式（账号/API 都回响应即视为活）。超时或抛错即视为 miss。
+    /// 心跳探针本体：一次 getAuthStatus 往返 vs 超时竞速。三分判活——只看「有无回响」不看
+    /// 内容（天然跨登录方式）：正常应答=活；远端 error 回响（JSONRPCClient 对 .error 抛
+    /// TransportError.proxyFailed）=有回响=活；仅超时或传输层失败（channelClosed/取消等）=miss。
     private func sendHeartbeatProbe() async -> Bool {
         guard let rpc else { return false }
         guard let empty = try? JSONDecoder().decode(AnyCodable.self, from: Data("{}".utf8)) else { return false }
+        let timeoutNanos = heartbeatProbeTimeoutNanos
         return await withTaskGroup(of: Bool.self) { group in
-            group.addTask { (try? await rpc.send(method: RPCMethod.getAuthStatus, params: empty)) != nil }
-            group.addTask { try? await Task.sleep(nanoseconds: 10_000_000_000); return false }
+            group.addTask {
+                do { _ = try await rpc.send(method: RPCMethod.getAuthStatus, params: empty); return true }
+                catch let error as TransportError {
+                    if case .proxyFailed = error { return true }   // 远端 error 回响=活
+                    return false                                    // 传输层失败=miss
+                }
+                catch { return false }                              // 取消/其他=miss
+            }
+            group.addTask { try? await Task.sleep(nanoseconds: timeoutNanos); return false }
             let first = await group.next() ?? false
             group.cancelAll()
             return first
@@ -629,6 +642,8 @@ extension ConnectionStore {
 #if DEBUG
 extension ConnectionStore {
     func _test_setPhase(_ p: ConnectionPhase) { phase = p }
+    /// 测试专用：直接驱动一次心跳探针（三分判活行为测试）。
+    func sendHeartbeatProbeForTesting() async -> Bool { await sendHeartbeatProbe() }
     func _test_setTrustRevoked() { phase = .failed("trust"); needsRePairing = true }
     func _test_setRePairingRequired(reason: String) {
         phase = .failed(reason)
