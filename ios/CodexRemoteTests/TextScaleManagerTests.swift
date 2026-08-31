@@ -35,7 +35,7 @@ final class TextScaleManagerTests: XCTestCase {
         XCTAssertEqual(AppTextScale.medium.overrideSize, .medium)
         XCTAssertEqual(AppTextScale.large.overrideSize, .large)   // 标准 = 系统默认
         XCTAssertEqual(AppTextScale.xLarge.overrideSize, .xLarge) // 略大
-        XCTAssertEqual(AppTextScale.allCases.count, 5)
+        XCTAssertEqual(AppTextScale.allCases.count, 6)   // +xxLarge(text-scale-extra-large)
     }
 
     // 覆盖档持久化跨重启。
@@ -47,7 +47,8 @@ final class TextScaleManagerTests: XCTestCase {
     // 放大沿阶梯并钳制上界（xLarge）。
     func testSteppedClampsUpper() {
         XCTAssertEqual(AppTextScale.stepped(from: .large, by: 1), .xLarge)
-        XCTAssertEqual(AppTextScale.stepped(from: .xLarge, by: 1), .xLarge)
+        XCTAssertEqual(AppTextScale.stepped(from: .xLarge, by: 1), .xxLarge)
+        XCTAssertEqual(AppTextScale.stepped(from: .xxLarge, by: 1), .xxLarge)   // 新上界钳制
     }
 
     // 缩小沿阶梯并钳制下界（small）。
@@ -69,8 +70,8 @@ final class TextScaleManagerTests: XCTestCase {
         XCTAssertEqual(AppTextScale.nearestOverride(for: .medium), .medium)
         // 比下限还小 → 钳到 .small。
         XCTAssertEqual(AppTextScale.nearestOverride(for: .xSmall), .small)
-        // 超上限 → 钳到 .xLarge。
-        XCTAssertEqual(AppTextScale.nearestOverride(for: .accessibility5), .xLarge)
+        // 超上限 → 钳到 .xxLarge（text-scale-extra-large 后的新上界）。
+        XCTAssertEqual(AppTextScale.nearestOverride(for: .accessibility5), .xxLarge)
         // .large 档原生即 .large：有效 .large 应映射到 .large。
         XCTAssertEqual(AppTextScale.nearestOverride(for: .large), .large)
     }
@@ -90,5 +91,15 @@ final class TextScaleManagerTests: XCTestCase {
         XCTAssertEqual(m.scale, .large)
         m.decrease(baseline: m.scale)
         XCTAssertEqual(m.scale, .medium)
+    }
+
+    // text-scale-extra-large：新增「更大」档。
+    func testXXLargeMappingAndLadder() {
+        XCTAssertEqual(AppTextScale.xxLarge.overrideSize, .xxLarge)
+        XCTAssertEqual(AppTextScale.selectableCases.first, .xxLarge, "选择器自上而下渐小,首位=更大")
+        XCTAssertEqual(AppTextScale.overrideLadder.last, .xxLarge, "阶梯上界=更大")
+        XCTAssertEqual(AppTextScale.stepped(from: .xLarge, by: 1), .xxLarge)
+        XCTAssertEqual(AppTextScale.stepped(from: .xxLarge, by: 1), .xxLarge, "上界钳制")
+        XCTAssertEqual(AppTextScale.nearestOverride(for: .accessibility3), .xxLarge, "超上限取更大")
     }
 }

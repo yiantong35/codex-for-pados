@@ -1,934 +1,34 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
-    "common.done": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Done" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "完成" } }
-      }
-    },
-    "common.next": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Next" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "下一页" } }
-      }
-    },
-    "common.previous": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Previous" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "上一页" } }
-      }
-    },
-    "common.viewFullContent": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "View full content" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "查看完整内容" } }
-      }
-    },
-    "conv.output.fullTitle": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Full command output" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "完整命令输出" } }
-      }
-    },
-    "conv.agent.fullTitle": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Full response" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "完整回复" } }
-      }
-    },
-    "conv.agent.truncated %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Showing the first %1$lld lines" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "当前显示前 %1$lld 行" } }
-      }
-    },
-    "review.fullContentTitle": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Full diff" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "完整差异" } }
-      }
-    },
-    "fileBrowser.fullContentTitle": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Full file" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "完整文件" } }
-      }
-    },
-    "common.clear": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Clear" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "清除" } }
-      }
-    },
-    "common.loading": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Loading…" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在加载…" } }
-      }
-    },
-    "common.save": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Save" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "保存" } }
-      }
-    },
-    "composer.model.followDefault": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Default model" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "默认模型" } }
-      }
-    },
-    "composer.model.reset": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Restore defaults" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "恢复默认" } }
-      }
-    },
-    "workspace.panel.shown": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Shown" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已显示" } }
-      }
-    },
-    "workspace.panel.hidden": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Hidden" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已隐藏" } }
-      }
-    },
-    "sidebar.search.placeholder": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Search conversations" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "搜索对话" } }
-      }
-    },
-    "sidebar.rename": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Rename" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重命名" } }
-      }
-    },
-    "sidebar.actions %@": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Actions for %@" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "%@的操作" } }
-      }
-    },
-    "sidebar.rename.placeholder": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Conversation name" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "对话名称" } }
-      }
-    },
-    "sidebar.archive": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Archive" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "归档" } }
-      }
-    },
-    "sidebar.delete": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Delete" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "删除" } }
-      }
-    },
-    "sidebar.delete.confirm.title": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Delete this conversation?" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "删除这个对话？" } }
-      }
-    },
-    "sidebar.delete.confirm.named %@": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Delete “%@”?" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "删除“%@”？" } }
-      }
-    },
-    "sidebar.delete.confirm.message": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "This action cannot be undone." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "此操作无法撤销。" } }
-      }
-    },
-    "sidebar.rollback": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Roll back" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "回滚" } }
-      }
-    },
-    "sidebar.rollback.turns %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Last %lld turns" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最近 %lld 轮" } }
-      }
-    },
-    "sidebar.rollback.confirm.title": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Roll back this conversation?" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "回滚这个对话？" } }
-      }
-    },
-    "sidebar.rollback.confirm.named %@": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Roll back “%@”?" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "回滚“%@”？" } }
-      }
-    },
-    "sidebar.rollback.confirm %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Roll back %lld turns" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "回滚 %lld 轮" } }
-      }
-    },
-    "sidebar.rollback.confirm.message %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "The last %lld turns and their output will be removed." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最近 %lld 轮及其输出将被移除。" } }
-      }
-    },
-    "sidebar.compact": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Compact context" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "压缩上下文" } }
-      }
-    },
-    "sidebar.goal": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Manage goal" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "管理目标" } }
-      }
-    },
-    "sidebar.goal.objective": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Objective" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "目标" } }
-      }
-    },
-    "sidebar.goal.status": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Status" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "状态" } }
-      }
-    },
-    "sidebar.goal.clear": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Clear goal" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "清除目标" } }
-      }
-    },
-    "sidebar.goal.clear.confirm.message": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "This removes the goal from the conversation." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "这会从当前对话中移除目标。" } }
-      }
-    },
-    "sidebar.goal.clear.confirm.title": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Clear this goal?" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "清除这个目标？" } }
-      }
-    },
-    "sidebar.goal.status.active": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Active" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "进行中" } } } },
-    "sidebar.goal.status.paused": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Paused" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "已暂停" } } } },
-    "sidebar.goal.status.blocked": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Blocked" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "受阻" } } } },
-    "sidebar.goal.status.usageLimited": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Usage limited" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "用量受限" } } } },
-    "sidebar.goal.status.budgetLimited": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Budget limited" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "预算受限" } } } },
-    "sidebar.goal.status.complete": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Complete" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "已完成" } } } },
     "accessibility.notSelected": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Not selected" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "未选中" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not selected"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未选中"
+          }
+        }
       }
     },
     "accessibility.selected": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Selected" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已选中" } }
-      }
-    },
-    "common.discard": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Discard" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "丢弃" } }
-      }
-    },
-    "common.edit": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Edit" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "编辑" } }
-      }
-    },
-    "conv.loadFailed": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Conversation could not be loaded" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法加载对话" } }
-      }
-    },
-    "conv.loading": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Loading conversation…" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在加载对话…" } }
-      }
-    },
-    "sideChat.closeRunning.confirm": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Interrupt and close" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "中断并关闭" } }
-      }
-    },
-    "sideChat.closeRunning.message": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "This side conversation is still running. Closing it will interrupt the active turn and discard its pending state." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "该侧聊仍在运行。关闭会中断当前回合并丢弃其待处理状态。" } }
-      }
-    },
-    "sideChat.closeRunning.title": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Close running side conversation?" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "关闭正在运行的侧聊？" } }
-      }
-    },
-    "sideChat.closeFailed": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Could not interrupt. The side chat remains open." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "未能中断，侧聊已保留。" } }
-      }
-    },
-    "sideChat.defaultTitle %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Side chat %lld" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "侧聊 %lld" } }
-      }
-    },
-    "sideChat.rename": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Rename side chat" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重命名侧聊" } }
-      }
-    },
-    "sideChat.rename.placeholder": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Side chat name" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "侧聊名称" } }
-      }
-    },
-    "conv.output.lines %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "%lld output lines" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "%lld 行输出" } }
-      }
-    },
-    "conv.output.truncated %lld %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Showing %1$lld of %2$lld lines" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "显示 %1$lld / %2$lld 行" } }
-      }
-    },
-    "review.diffTruncated %lld %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Showing %1$lld of %2$lld diff lines" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "显示 %1$lld / %2$lld 行差异" } }
-      }
-    },
-    "review.diffTruncatedUnknown %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Showing the first %lld diff lines" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "显示前 %lld 行差异" } }
-      }
-    },
-    "composer.effort.none": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "None" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无" } }
-      }
-    },
-    "composer.effort.minimal": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Minimal" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最低" } }
-      }
-    },
-    "composer.effort.low": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Low" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "低" } }
-      }
-    },
-    "composer.effort.medium": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Medium" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "中" } }
-      }
-    },
-    "composer.effort.high": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "High" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "高" } }
-      }
-    },
-    "composer.effort.xhigh": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Extra high" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最高" } }
-      }
-    },
-    "conv.image.unavailable": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Image unavailable" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "图片无法显示" } }
-      }
-    },
-    "conv.status.running": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Running" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "进行中" } }
-      }
-    },
-    "conv.status.completed": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Completed" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已完成" } }
-      }
-    },
-    "conv.status.failed": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Failed" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "失败" } }
-      }
-    },
-    "conv.status.pending": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Pending" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "等待中" } }
-      }
-    },
-    "conv.status.cancelled": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Cancelled" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已取消" } }
-      }
-    },
-    "conv.status.declined": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Declined" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已拒绝" } }
-      }
-    },
-    "conv.status.unknown": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Status unavailable" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "状态未知" } }
-      }
-    },
-    "settings.skills.updateFailed": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Could not update this skill. Try again." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法更新此 Skill，请重试。" } }
-      }
-    },
-    "userInput.autoResume": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Resume countdown" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "继续倒计时" } }
-      }
-    },
-    "operation.failed.title": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Operation Failed" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "操作失败" } }
-      }
-    },
-    "workspace.column.width %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "%lld points wide" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "宽度 %lld 点" } }
-      }
-    },
-    "operation.failed.description": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "The request could not be completed. Try again." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请求未能完成，请重试。" } }
-      }
-    },
-    "operation.unavailable.offline": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "This action is unavailable while disconnected." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接断开时无法执行此操作。" } }
-      }
-    },
-    "review.start": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Start review" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "开始审查" } }
-      }
-    },
-    "rightPanel.fullscreen.enter": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Enter full screen" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "进入全屏" } }
-      }
-    },
-    "rightPanel.fullscreen.exit": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Exit full screen" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "退出全屏" } }
-      }
-    },
-    "settings.extensions.loadFailed": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Could not load extensions" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "扩展加载失败" } }
-      }
-    },
-    "settings.plugins.skill.failed": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Could not load skill content" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "Skill 内容加载失败" } }
-      }
-    },
-    "approval.showAll": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Show all" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "展开全部" } }
-      }
-    },
-    "approval.showLess": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Show less" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "收起" } }
-      }
-    },
-    "fileBrowser.binary": {
-      "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Binary file, preview unavailable"
+            "value": "Selected"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "二进制文件，不支持预览"
-          }
-        }
-      }
-    },
-    "conv.item.inspectFile": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Inspect" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "查看" } }
-      }
-    },
-    "fileBrowser.binaryBytes %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "%lld bytes; text diff unavailable" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "%lld 字节；无法生成文本差异" } }
-      }
-    },
-    "fileBrowser.empty": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No conversation selected — nothing to browse"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无选中会话，暂无可浏览目录"
-          }
-        }
-      }
-    },
-    "fileBrowser.imagePreview": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Image preview" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "图片预览" } }
-      }
-    },
-    "fileBrowser.loadDirFailed": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Failed to load directory" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "目录加载失败" } }
-      }
-    },
-    "fileBrowser.loadFileFailed": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Failed to load file" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "文件读取失败" } }
-      }
-    },
-    "fileBrowser.loading": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Loading preview" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在加载预览" } }
-      }
-    },
-    "fileBrowser.refresh": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Refresh"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "刷新"
-          }
-        }
-      }
-    },
-    "fileBrowser.previewTruncated": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Preview limited to the first 2,000 lines"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "预览仅显示前 2,000 行"
-          }
-        }
-      }
-    },
-    "fileBrowser.retry": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Retry" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重试" } }
-      }
-    },
-    "fileBrowser.selectFile": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Select a file to view"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "选择文件查看"
-          }
-        }
-      }
-    },
-    "fileBrowser.title": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Files"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "文件"
-          }
-        }
-      }
-    },
-    "fileBrowser.tooLarge": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "File too large to preview"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "文件过大，不支持预览"
-          }
-        }
-      }
-    },
-    "progress.collapse": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Collapse progress"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "收起进度"
-          }
-        }
-      }
-    },
-    "progress.expand": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Expand progress"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "展开进度"
-          }
-        }
-      }
-    },
-    "progress.filesChanged %lld": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld files changed"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 个文件已更改"
-          }
-        }
-      }
-    },
-    "progress.step %lld/%lld": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Step %1$lld/%2$lld"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "第 %1$lld/%2$lld 步"
-          }
-        }
-      }
-    },
-    "review.mode.full": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Full"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "全量"
-          }
-        }
-      }
-    },
-    "review.binaryChange": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Binary file changed" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "二进制文件已更改" } }
-      }
-    },
-    "review.mode.turn": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This turn"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "本轮"
-          }
-        }
-      }
-    },
-    "review.turnInstructions": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Review the following changes:\n%@" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请审查以下改动：\n%@" } }
-      }
-    },
-    "transport.handshakeTimeout %1$@ %2$@": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Timed out waiting for %1$@ after %2$@s" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "等待 %1$@ 超时（%2$@ 秒未收到）" } }
-      }
-    },
-    "transport.handshakeRaceFailed %@": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Handshake wait ended without a result for %@" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "等待 %@ 的握手竞速未返回结果" } }
-      }
-    },
-    "transport.invalidDeveloperKey": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "The paired developer public key is invalid" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "配对载荷中的开发机公钥无效" } }
-      }
-    },
-    "transport.channelClosedBeforeHandshake": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "The channel closed before the handshake completed" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "通道在握手完成前关闭" } }
-      }
-    },
-    "transport.connectionClosed": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "The connection was closed" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接已关闭" } }
-      }
-    },
-    "transport.handshakeClosed %@": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "The connection closed while waiting for %@" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "握手期间连接关闭（等待 %@）" } }
-      }
-    },
-    "transport.reconnectExhausted": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Reconnect attempts were exhausted" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已达到重连重试上限" } }
-      }
-    },
-    "transport.trustRevokedReason": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Trust was revoked by the paired machine" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "配对机器已撤销信任" } }
-      }
-    },
-    "transport.unexpectedSecureReady %@": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Expected SecureReady during handshake, received %@" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "握手期间应收到 SecureReady，实际收到 %@" } }
-      }
-    },
-    "review.source": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Source"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "数据源"
-          }
-        }
-      }
-    },
-    "review.refresh": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Refresh full diff" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "刷新全量差异" } }
-      }
-    },
-    "review.started": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Review started"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "审查已发起"
-          }
-        }
-      }
-    },
-    "review.startFailed": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Could not start review"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法发起审查"
-          }
-        }
-      }
-    },
-    "sideChat.close": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Close side chat"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "关闭侧聊"
-          }
-        }
-      }
-    },
-    "sideChat.noMainThread": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No main conversation selected — pick one in the middle column first"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无选中主对话，先在中栏选一个对话再开始侧聊"
-          }
-        }
-      }
-    },
-    "sideChat.pickToStart": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tap \"Start side chat\" to fork from the current main conversation"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "点「开始侧聊」从当前主对话派生一个侧聊"
-          }
-        }
-      }
-    },
-    "sideChat.start": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Start side chat"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "开始侧聊"
+            "value": "已选中"
           }
         }
       }
@@ -997,6 +97,22 @@
         }
       }
     },
+    "approval.fileContextMissing": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File details are unavailable. Refresh or reject this request."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件改动详情不可用，请刷新或拒绝此请求。"
+          }
+        }
+      }
+    },
     "approval.fileTitle": {
       "localizations": {
         "en": {
@@ -1013,12 +129,6 @@
         }
       }
     },
-    "approval.fileContextMissing": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "File details are unavailable. Refresh or reject this request." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "文件改动详情不可用，请刷新或拒绝此请求。" } }
-      }
-    },
     "approval.no": {
       "localizations": {
         "en": {
@@ -1031,6 +141,102 @@
           "stringUnit": {
             "state": "translated",
             "value": "否"
+          }
+        }
+      }
+    },
+    "approval.perm.globDepth": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Glob scan depth"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Glob 扫描深度"
+          }
+        }
+      }
+    },
+    "approval.perm.network.off": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Network access: disabled"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网络访问：禁用"
+          }
+        }
+      }
+    },
+    "approval.perm.network.on": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Network access: enabled"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网络访问：启用"
+          }
+        }
+      }
+    },
+    "approval.permissionTitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permission request"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "权限请求"
+          }
+        }
+      }
+    },
+    "approval.showAll": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show all"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "展开全部"
+          }
+        }
+      }
+    },
+    "approval.showLess": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show less"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收起"
           }
         }
       }
@@ -1067,6 +273,22 @@
         }
       }
     },
+    "approval.yesPrefixLabel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow for session:"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本会话放行前缀："
+          }
+        }
+      }
+    },
     "common.cancel": {
       "localizations": {
         "en": {
@@ -1083,6 +305,102 @@
         }
       }
     },
+    "common.clear": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除"
+          }
+        }
+      }
+    },
+    "common.discard": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discard"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "丢弃"
+          }
+        }
+      }
+    },
+    "common.done": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
+          }
+        }
+      }
+    },
+    "common.edit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑"
+          }
+        }
+      }
+    },
+    "common.loading": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加载…"
+          }
+        }
+      }
+    },
+    "common.next": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下一页"
+          }
+        }
+      }
+    },
     "common.ok": {
       "localizations": {
         "en": {
@@ -1095,6 +413,150 @@
           "stringUnit": {
             "state": "translated",
             "value": "好"
+          }
+        }
+      }
+    },
+    "common.previous": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上一页"
+          }
+        }
+      }
+    },
+    "common.retry": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试"
+          }
+        }
+      }
+    },
+    "common.save": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存"
+          }
+        }
+      }
+    },
+    "common.viewFullContent": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View full content"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看完整内容"
+          }
+        }
+      }
+    },
+    "composer.a11y.model": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model and reasoning"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型与推理强度"
+          }
+        }
+      }
+    },
+    "composer.a11y.more": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More send options"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多发送选项"
+          }
+        }
+      }
+    },
+    "composer.a11y.pickImage": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add image"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加图片"
+          }
+        }
+      }
+    },
+    "composer.a11y.send": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送"
+          }
+        }
+      }
+    },
+    "composer.a11y.stop": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止"
           }
         }
       }
@@ -1131,6 +593,102 @@
         }
       }
     },
+    "composer.effort.high": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "High"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高"
+          }
+        }
+      }
+    },
+    "composer.effort.low": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Low"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "低"
+          }
+        }
+      }
+    },
+    "composer.effort.medium": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medium"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中"
+          }
+        }
+      }
+    },
+    "composer.effort.minimal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Minimal"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最低"
+          }
+        }
+      }
+    },
+    "composer.effort.none": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无"
+          }
+        }
+      }
+    },
+    "composer.effort.xhigh": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extra high"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最高"
+          }
+        }
+      }
+    },
     "composer.enqueue": {
       "localizations": {
         "en": {
@@ -1143,54 +701,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "排队，回合结束后发送"
-          }
-        }
-      }
-    },
-    "decision.failed": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Could not send the response. Try again."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "响应发送失败，请重试"
-          }
-        }
-      }
-    },
-    "decision.submitting": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sending response…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在发送响应…"
-          }
-        }
-      }
-    },
-    "common.retry": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Retry"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重试"
           }
         }
       }
@@ -1227,22 +737,6 @@
         }
       }
     },
-    "composer.imageAttached": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Image attached"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已附加图片"
-          }
-        }
-      }
-    },
     "composer.image.tooLarge": {
       "localizations": {
         "en": {
@@ -1255,6 +749,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "图片 %@ 超过 %@ 上限，无法发送"
+          }
+        }
+      }
+    },
+    "composer.imageAttached": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image attached"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已附加图片"
           }
         }
       }
@@ -1287,6 +797,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "账号默认 (%@)"
+          }
+        }
+      }
+    },
+    "composer.model.followDefault": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default model"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认模型"
+          }
+        }
+      }
+    },
+    "composer.model.reset": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore defaults"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复默认"
           }
         }
       }
@@ -1339,6 +881,70 @@
         }
       }
     },
+    "composer.sendError.connection": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Message not sent. Check the connection, then retry or edit it."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "消息未发送。请检查连接后重试或编辑。"
+          }
+        }
+      }
+    },
+    "composer.sendError.messageTooLarge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This message is too large. Shorten it or remove the image."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "消息过大，请缩短内容或移除图片。"
+          }
+        }
+      }
+    },
+    "composer.sendError.sessionQueueFull": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This session’s offline queue is full. Reconnect or clear another conversation."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此会话的离线队列已满，请重连或清理其他对话。"
+          }
+        }
+      }
+    },
+    "composer.sendError.threadQueueFull": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This conversation’s offline queue is full. Reconnect or discard a queued message."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此对话的离线队列已满，请重连或丢弃一条排队消息。"
+          }
+        }
+      }
+    },
     "composer.sendFailed %@": {
       "localizations": {
         "en": {
@@ -1353,30 +959,6 @@
             "value": "发送失败：%@ · 点按重试"
           }
         }
-      }
-    },
-    "composer.sendError.connection": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Message not sent. Check the connection, then retry or edit it." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "消息未发送。请检查连接后重试或编辑。" } }
-      }
-    },
-    "composer.sendError.messageTooLarge": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "This message is too large. Shorten it or remove the image." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "消息过大，请缩短内容或移除图片。" } }
-      }
-    },
-    "composer.sendError.threadQueueFull": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "This conversation’s offline queue is full. Reconnect or discard a queued message." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "此对话的离线队列已满，请重连或丢弃一条排队消息。" } }
-      }
-    },
-    "composer.sendError.sessionQueueFull": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "This session’s offline queue is full. Reconnect or clear another conversation." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "此会话的离线队列已满，请重连或清理其他对话。" } }
       }
     },
     "composer.steer": {
@@ -1491,6 +1073,54 @@
         }
       }
     },
+    "conn.error.channelClosed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection channel closed: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接通道关闭：%@"
+          }
+        }
+      }
+    },
+    "conn.error.channelClosedUnknown": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown reason"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知原因"
+          }
+        }
+      }
+    },
+    "conn.error.connectionFailed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection failed, please retry later"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接失败，请稍后重试"
+          }
+        }
+      }
+    },
     "conn.error.generic %@": {
       "localizations": {
         "en": {
@@ -1503,6 +1133,182 @@
           "stringUnit": {
             "state": "translated",
             "value": "连接失败：%@"
+          }
+        }
+      }
+    },
+    "conn.error.handshakeFailed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WebSocket handshake failed: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WebSocket 握手失败：%@"
+          }
+        }
+      }
+    },
+    "conn.error.messageTooLarge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Message is too large (%lld bytes; maximum %lld)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "消息过大（%lld 字节，上限 %lld）"
+          }
+        }
+      }
+    },
+    "conn.error.notConnected": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not connected"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未连接"
+          }
+        }
+      }
+    },
+    "conn.error.pairingInvalid": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The pairing code is invalid, expired, or already used; scan a new code"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配对码无效、已过期或已使用，请重新扫描"
+          }
+        }
+      }
+    },
+    "conn.error.pairingMissing": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relay pairing info missing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "relay 配对信息缺失"
+          }
+        }
+      }
+    },
+    "conn.error.proxyFailed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Channel setup failed: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通道建立失败：%@"
+          }
+        }
+      }
+    },
+    "conn.error.timeout": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection timed out"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接超时"
+          }
+        }
+      }
+    },
+    "conn.error.timeoutDetail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection timed out (connect/handshake did not finish within 20s)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接超时（连接或握手在 20 秒内未完成）"
+          }
+        }
+      }
+    },
+    "conn.error.trustRevoked": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trust removed by host machine; please re-pair"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已被开发机移除信任，请重新配对"
+          }
+        }
+      }
+    },
+    "conn.error.untrusted": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This device is not trusted by the host; please re-pair"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开发机尚未信任此设备，请重新配对"
+          }
+        }
+      }
+    },
+    "conn.error.versionMismatch": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relay protocol versions are incompatible; update the app and host"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中继协议版本不兼容，请升级 App 和开发机组件"
           }
         }
       }
@@ -1619,6 +1425,54 @@
         }
       }
     },
+    "connection.banner.disconnected": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnected"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已断开"
+          }
+        }
+      }
+    },
+    "connection.details": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection details"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接详情"
+          }
+        }
+      }
+    },
+    "connection.details.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection details"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接详情"
+          }
+        }
+      }
+    },
     "connection.disconnected": {
       "localizations": {
         "en": {
@@ -1633,30 +1487,6 @@
             "value": "连接已断开"
           }
         }
-      }
-    },
-    "connection.banner.disconnected": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Disconnected" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已断开" } }
-      }
-    },
-    "connection.details": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Connection details" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接详情" } }
-      }
-    },
-    "connection.details.title": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Connection details" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接详情" } }
-      }
-    },
-  "conv.agent.streamingTruncated": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Showing the latest part while the response is streaming" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "回复生成中，仅显示最新部分" } }
       }
     },
     "connection.rePair": {
@@ -1703,6 +1533,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "信任已失效"
+          }
+        }
+      }
+    },
+    "conv.agent.fullTitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full response"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完整回复"
+          }
+        }
+      }
+    },
+    "conv.agent.streamingTruncated": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Showing the latest part while the response is streaming"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回复生成中，仅显示最新部分"
+          }
+        }
+      }
+    },
+    "conv.agent.truncated %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Showing the first %1$lld lines"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前显示前 %1$lld 行"
           }
         }
       }
@@ -1851,6 +1729,22 @@
         }
       }
     },
+    "conv.image.unavailable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image unavailable"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图片无法显示"
+          }
+        }
+      }
+    },
     "conv.item.compaction": {
       "localizations": {
         "en": {
@@ -1931,6 +1825,22 @@
         }
       }
     },
+    "conv.item.inspectFile": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inspect"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看"
+          }
+        }
+      }
+    },
     "conv.item.mcp": {
       "localizations": {
         "en": {
@@ -1995,90 +1905,6 @@
         }
       }
     },
-    "conn.error.channelClosed": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Connection channel closed: %@" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接通道关闭：%@" } }
-      }
-    },
-    "conn.error.channelClosedUnknown": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Unknown reason" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "未知原因" } }
-      }
-    },
-    "conn.error.connectionFailed": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Connection failed, please retry later" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接失败，请稍后重试" } }
-      }
-    },
-    "conn.error.handshakeFailed": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "WebSocket handshake failed: %@" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "WebSocket 握手失败：%@" } }
-      }
-    },
-    "conn.error.notConnected": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Not connected" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "未连接" } }
-      }
-    },
-    "conn.error.messageTooLarge": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Message is too large (%lld bytes; maximum %lld)" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "消息过大（%lld 字节，上限 %lld）" } }
-      }
-    },
-    "conn.error.pairingMissing": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Relay pairing info missing" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "relay 配对信息缺失" } }
-      }
-    },
-    "conn.error.proxyFailed": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Channel setup failed: %@" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "通道建立失败：%@" } }
-      }
-    },
-    "conn.error.timeout": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Connection timed out" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接超时" } }
-      }
-    },
-    "conn.error.timeoutDetail": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Connection timed out (connect/handshake did not finish within 20s)" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接超时（连接或握手在 20 秒内未完成）" } }
-      }
-    },
-    "conn.error.trustRevoked": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Trust removed by host machine; please re-pair" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已被开发机移除信任，请重新配对" } }
-      }
-    },
-    "conn.error.untrusted": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "This device is not trusted by the host; please re-pair" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "开发机尚未信任此设备，请重新配对" } }
-      }
-    },
-    "conn.error.pairingInvalid": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "The pairing code is invalid, expired, or already used; scan a new code" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "配对码无效、已过期或已使用，请重新扫描" } }
-      }
-    },
-    "conn.error.versionMismatch": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Relay protocol versions are incompatible; update the app and host" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "中继协议版本不兼容，请升级 App 和开发机组件" } }
-      }
-    },
     "conv.item.unknown": {
       "localizations": {
         "en": {
@@ -2111,6 +1937,38 @@
         }
       }
     },
+    "conv.loadFailed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conversation could not be loaded"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载对话"
+          }
+        }
+      }
+    },
+    "conv.loading": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading conversation…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加载对话…"
+          }
+        }
+      }
+    },
     "conv.newMessages": {
       "localizations": {
         "en": {
@@ -2123,6 +1981,70 @@
           "stringUnit": {
             "state": "translated",
             "value": "新消息"
+          }
+        }
+      }
+    },
+    "conv.output.fullTitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full command output"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完整命令输出"
+          }
+        }
+      }
+    },
+    "conv.output.lines %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld output lines"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 行输出"
+          }
+        }
+      }
+    },
+    "conv.output.truncated %lld %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Showing %1$lld of %2$lld lines"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示 %1$lld / %2$lld 行"
+          }
+        }
+      }
+    },
+    "conv.reasoning.fullTitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reasoning"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "推理过程"
           }
         }
       }
@@ -2143,6 +2065,22 @@
         }
       }
     },
+    "conv.reasoning.truncated": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Earlier reasoning hidden"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已隐藏较早的推理内容"
+          }
+        }
+      }
+    },
     "conv.running": {
       "localizations": {
         "en": {
@@ -2159,6 +2097,118 @@
         }
       }
     },
+    "conv.status.cancelled": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelled"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已取消"
+          }
+        }
+      }
+    },
+    "conv.status.completed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成"
+          }
+        }
+      }
+    },
+    "conv.status.declined": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Declined"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拒绝"
+          }
+        }
+      }
+    },
+    "conv.status.failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失败"
+          }
+        }
+      }
+    },
+    "conv.status.pending": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pending"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待中"
+          }
+        }
+      }
+    },
+    "conv.status.running": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "进行中"
+          }
+        }
+      }
+    },
+    "conv.status.unknown": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status unavailable"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "状态未知"
+          }
+        }
+      }
+    },
     "conv.title": {
       "localizations": {
         "en": {
@@ -2171,6 +2221,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "对话"
+          }
+        }
+      }
+    },
+    "decision.failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not send the response. Try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "响应发送失败，请重试"
+          }
+        }
+      }
+    },
+    "decision.submitting": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sending response…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在发送响应…"
           }
         }
       }
@@ -2431,6 +2513,230 @@
         }
       }
     },
+    "fileBrowser.binary": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Binary file, preview unavailable"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "二进制文件，不支持预览"
+          }
+        }
+      }
+    },
+    "fileBrowser.binaryBytes %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld bytes; text diff unavailable"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 字节；无法生成文本差异"
+          }
+        }
+      }
+    },
+    "fileBrowser.empty": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No conversation selected — nothing to browse"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无选中会话，暂无可浏览目录"
+          }
+        }
+      }
+    },
+    "fileBrowser.fullContentTitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full file"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完整文件"
+          }
+        }
+      }
+    },
+    "fileBrowser.imagePreview": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image preview"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "图片预览"
+          }
+        }
+      }
+    },
+    "fileBrowser.loadDirFailed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load directory"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目录加载失败"
+          }
+        }
+      }
+    },
+    "fileBrowser.loadFileFailed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load file"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件读取失败"
+          }
+        }
+      }
+    },
+    "fileBrowser.loading": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading preview"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加载预览"
+          }
+        }
+      }
+    },
+    "fileBrowser.previewTruncated": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview limited to the first 2,000 lines"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预览仅显示前 2,000 行"
+          }
+        }
+      }
+    },
+    "fileBrowser.refresh": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新"
+          }
+        }
+      }
+    },
+    "fileBrowser.retry": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试"
+          }
+        }
+      }
+    },
+    "fileBrowser.selectFile": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select a file to view"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择文件查看"
+          }
+        }
+      }
+    },
+    "fileBrowser.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Files"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件"
+          }
+        }
+      }
+    },
+    "fileBrowser.tooLarge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File too large to preview"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件过大，不支持预览"
+          }
+        }
+      }
+    },
     "inspector.branch": {
       "localizations": {
         "en": {
@@ -2655,6 +2961,470 @@
         }
       }
     },
+    "mcpElicitation.accept": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Complete"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
+          }
+        }
+      }
+    },
+    "mcpElicitation.awaitingRecovery": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for the connection to recover"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待连接恢复"
+          }
+        }
+      }
+    },
+    "mcpElicitation.cancel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        }
+      }
+    },
+    "mcpElicitation.choose": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请选择"
+          }
+        }
+      }
+    },
+    "mcpElicitation.constraint.date": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use a valid date"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入有效日期"
+          }
+        }
+      }
+    },
+    "mcpElicitation.constraint.dateTime": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use a valid date and time"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入有效日期和时间"
+          }
+        }
+      }
+    },
+    "mcpElicitation.constraint.email": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use a valid email address"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入有效邮箱地址"
+          }
+        }
+      }
+    },
+    "mcpElicitation.constraint.integer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Whole numbers only"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅支持整数"
+          }
+        }
+      }
+    },
+    "mcpElicitation.constraint.lengthRange %lld %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld–%2$lld characters"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld–%2$lld 个字符"
+          }
+        }
+      }
+    },
+    "mcpElicitation.constraint.maxLength %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "At most %lld characters"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最多 %lld 个字符"
+          }
+        }
+      }
+    },
+    "mcpElicitation.constraint.maxSelections %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose at most %lld options"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最多选择 %lld 项"
+          }
+        }
+      }
+    },
+    "mcpElicitation.constraint.maximum %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximum value %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最大值 %@"
+          }
+        }
+      }
+    },
+    "mcpElicitation.constraint.minLength %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "At least %lld characters"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "至少 %lld 个字符"
+          }
+        }
+      }
+    },
+    "mcpElicitation.constraint.minSelections %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose at least %lld options"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "至少选择 %lld 项"
+          }
+        }
+      }
+    },
+    "mcpElicitation.constraint.minimum %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Minimum value %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最小值 %@"
+          }
+        }
+      }
+    },
+    "mcpElicitation.constraint.numberRange %@ %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Value from %1$@ to %2$@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数值范围 %1$@–%2$@"
+          }
+        }
+      }
+    },
+    "mcpElicitation.constraint.selectionRange %lld %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose %1$lld–%2$lld options"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请选择 %1$lld–%2$lld 项"
+          }
+        }
+      }
+    },
+    "mcpElicitation.constraint.url": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use a complete URL"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入完整 URL"
+          }
+        }
+      }
+    },
+    "mcpElicitation.decline": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Decline"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拒绝"
+          }
+        }
+      }
+    },
+    "mcpElicitation.enabled": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enabled"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用"
+          }
+        }
+      }
+    },
+    "mcpElicitation.error.invalid": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This value does not meet the requirement"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该值不符合要求"
+          }
+        }
+      }
+    },
+    "mcpElicitation.error.required": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This field is required"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此字段为必填项"
+          }
+        }
+      }
+    },
+    "mcpElicitation.openURL": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open secure link"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开安全链接"
+          }
+        }
+      }
+    },
+    "mcpElicitation.required": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Required"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "必填"
+          }
+        }
+      }
+    },
+    "mcpElicitation.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server input requested"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器请求输入"
+          }
+        }
+      }
+    },
+    "mcpElicitation.urlRisk.http": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blocked: this link uses unencrypted HTTP"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已阻止：此链接使用未加密的 HTTP"
+          }
+        }
+      }
+    },
+    "mcpElicitation.urlRisk.punycode": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blocked: this domain uses Punycode and may impersonate another site"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已阻止：此域名使用 Punycode，可能冒充其他网站"
+          }
+        }
+      }
+    },
+    "mcpElicitation.urlRisk.unsupported": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blocked: only HTTPS links are allowed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已阻止：仅允许 HTTPS 链接"
+          }
+        }
+      }
+    },
+    "mcpElicitation.value": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Value"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入"
+          }
+        }
+      }
+    },
     "onboarding.addFirst": {
       "localizations": {
         "en": {
@@ -2699,6 +3469,118 @@
           "stringUnit": {
             "state": "translated",
             "value": "还没有机器"
+          }
+        }
+      }
+    },
+    "operation.failed.description": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The request could not be completed. Try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请求未能完成，请重试。"
+          }
+        }
+      }
+    },
+    "operation.failed.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Operation Failed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "操作失败"
+          }
+        }
+      }
+    },
+    "operation.unavailable.offline": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This action is unavailable while disconnected."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接断开时无法执行此操作。"
+          }
+        }
+      }
+    },
+    "progress.collapse": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collapse progress"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收起进度"
+          }
+        }
+      }
+    },
+    "progress.expand": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expand progress"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "展开进度"
+          }
+        }
+      }
+    },
+    "progress.filesChanged %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld files changed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个文件已更改"
+          }
+        }
+      }
+    },
+    "progress.step %lld/%lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step %1$lld/%2$lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %1$lld/%2$lld 步"
           }
         }
       }
@@ -2801,8 +3683,18 @@
     },
     "relayImport.error.saveFailed": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Could not save pairing. Try again." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法保存配对，请重试。" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not save pairing. Try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法保存配对，请重试。"
+          }
+        }
       }
     },
     "relayImport.hint": {
@@ -2929,6 +3821,278 @@
           "stringUnit": {
             "state": "translated",
             "value": "Relay 配对导入"
+          }
+        }
+      }
+    },
+    "request.recoveryExpired": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This request was not restored after reconnecting. Start it again from the conversation."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重连后未能恢复此请求，请从对话中重新发起。"
+          }
+        }
+      }
+    },
+    "review.binaryChange": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Binary file changed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "二进制文件已更改"
+          }
+        }
+      }
+    },
+    "review.diffTruncated %lld %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Showing %1$lld of %2$lld diff lines"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示 %1$lld / %2$lld 行差异"
+          }
+        }
+      }
+    },
+    "review.diffTruncatedUnknown %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Showing the first %lld diff lines"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示前 %lld 行差异"
+          }
+        }
+      }
+    },
+    "review.fullContentTitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full diff"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完整差异"
+          }
+        }
+      }
+    },
+    "review.fullDiffFailed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not load the full diff"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载完整差异"
+          }
+        }
+      }
+    },
+    "review.fullDiffFailed.detail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check the connection and try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请检查连接后重试。"
+          }
+        }
+      }
+    },
+    "review.mode.full": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全量"
+          }
+        }
+      }
+    },
+    "review.mode.turn": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This turn"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本轮"
+          }
+        }
+      }
+    },
+    "review.refresh": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh full diff"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新全量差异"
+          }
+        }
+      }
+    },
+    "review.source": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数据源"
+          }
+        }
+      }
+    },
+    "review.start": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start review"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始审查"
+          }
+        }
+      }
+    },
+    "review.startFailed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not start review"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法发起审查"
+          }
+        }
+      }
+    },
+    "review.started": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review started"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "审查已发起"
+          }
+        }
+      }
+    },
+    "review.turnInstructions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review the following changes:\n%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请审查以下改动：\n%@"
+          }
+        }
+      }
+    },
+    "rightPanel.fullscreen.enter": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter full screen"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "进入全屏"
+          }
+        }
+      }
+    },
+    "rightPanel.fullscreen.exit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exit full screen"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出全屏"
           }
         }
       }
@@ -3265,6 +4429,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Skills"
+          }
+        }
+      }
+    },
+    "settings.extensions.loadFailed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not load extensions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "扩展加载失败"
           }
         }
       }
@@ -4261,6 +5441,22 @@
         }
       }
     },
+    "settings.plugins.skill.failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not load skill content"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skill 内容加载失败"
+          }
+        }
+      }
+    },
     "settings.plugins.skills": {
       "localizations": {
         "en": {
@@ -4293,22 +5489,6 @@
         }
       }
     },
-    "settings.shortcuts": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shortcuts"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "快捷键"
-          }
-        }
-      }
-    },
     "settings.privacy": {
       "localizations": {
         "en": {
@@ -4321,22 +5501,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "隐私"
-          }
-        }
-      }
-    },
-    "settings.privacy.clipboard": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Clipboard"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "剪贴板"
           }
         }
       }
@@ -4369,6 +5533,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "关闭时，远端终端无法覆盖 iPad 系统剪贴板（防命令/凭据粘贴劫持）。开启后单次写入上限 64KB。"
+          }
+        }
+      }
+    },
+    "settings.privacy.clipboard": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clipboard"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剪贴板"
+          }
+        }
+      }
+    },
+    "settings.shortcuts": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shortcuts"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快捷键"
           }
         }
       }
@@ -4501,6 +5697,22 @@
         }
       }
     },
+    "settings.skills.updateFailed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not update this skill. Try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法更新此 Skill，请重试。"
+          }
+        }
+      }
+    },
     "settings.textSize": {
       "localizations": {
         "en": {
@@ -4597,6 +5809,22 @@
         }
       }
     },
+    "settings.textSize.system": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow system"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随系统"
+          }
+        }
+      }
+    },
     "settings.textSize.xLarge": {
       "localizations": {
         "en": {
@@ -4613,18 +5841,18 @@
         }
       }
     },
-    "settings.textSize.system": {
+    "settings.textSize.xxLarge": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Follow system"
+            "value": "Extra Large"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "跟随系统"
+            "value": "更大"
           }
         }
       }
@@ -4661,42 +5889,6 @@
         }
       }
     },
-    "shortcut.action.sendMessage": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Send Message" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "发送消息" } }
-      }
-    },
-    "shortcut.action.stopTurn": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Stop Current Turn" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "停止当前任务" } }
-      }
-    },
-    "shortcut.action.focusComposer": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Focus Message Field" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "聚焦消息输入框" } }
-      }
-    },
-    "shortcut.action.increaseTextSize": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Increase text size" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "放大文字" } }
-      }
-    },
-    "shortcut.action.decreaseTextSize": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Decrease text size" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "缩小文字" } }
-      }
-    },
-    "shortcut.action.resetTextSize": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Reset text size" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "复位文字大小" } }
-      }
-    },
     "shortcut.action.cancelForm": {
       "localizations": {
         "en": {
@@ -4709,6 +5901,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "取消 / 关闭表单"
+          }
+        }
+      }
+    },
+    "shortcut.action.decreaseTextSize": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Decrease text size"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缩小文字"
+          }
+        }
+      }
+    },
+    "shortcut.action.focusComposer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Focus Message Field"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聚焦消息输入框"
+          }
+        }
+      }
+    },
+    "shortcut.action.increaseTextSize": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Increase text size"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "放大文字"
           }
         }
       }
@@ -4757,6 +5997,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "上一个 tab"
+          }
+        }
+      }
+    },
+    "shortcut.action.resetTextSize": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset text size"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复位文字大小"
           }
         }
       }
@@ -4821,6 +6077,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "跳转侧聊 tab"
+          }
+        }
+      }
+    },
+    "shortcut.action.sendMessage": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send Message"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送消息"
+          }
+        }
+      }
+    },
+    "shortcut.action.stopTurn": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop Current Turn"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止当前任务"
           }
         }
       }
@@ -5209,6 +6497,246 @@
         }
       }
     },
+    "sideChat.cleanupFailed %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not stop side chat: %@. The machine and local state were kept. Retry when the connection is available."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法停止侧聊：%@。机器和本地状态已保留，请在连接恢复后重试。"
+          }
+        }
+      }
+    },
+    "sideChat.close": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close side chat"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭侧聊"
+          }
+        }
+      }
+    },
+    "sideChat.closeFailed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not interrupt. The side chat remains open."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未能中断，侧聊已保留。"
+          }
+        }
+      }
+    },
+    "sideChat.closeRunning.confirm": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interrupt and close"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中断并关闭"
+          }
+        }
+      }
+    },
+    "sideChat.closeRunning.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This side conversation is still running. Closing it will interrupt the active turn and discard its pending state."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该侧聊仍在运行。关闭会中断当前回合并丢弃其待处理状态。"
+          }
+        }
+      }
+    },
+    "sideChat.closeRunning.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close running side conversation?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭正在运行的侧聊？"
+          }
+        }
+      }
+    },
+    "sideChat.defaultTitle %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Side chat %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "侧聊 %lld"
+          }
+        }
+      }
+    },
+    "sideChat.noMainThread": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No main conversation selected — pick one in the middle column first"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无选中主对话，先在中栏选一个对话再开始侧聊"
+          }
+        }
+      }
+    },
+    "sideChat.pickToStart": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap \"Start side chat\" to fork from the current main conversation"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点「开始侧聊」从当前主对话派生一个侧聊"
+          }
+        }
+      }
+    },
+    "sideChat.rename": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename side chat"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重命名侧聊"
+          }
+        }
+      }
+    },
+    "sideChat.rename.placeholder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Side chat name"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "侧聊名称"
+          }
+        }
+      }
+    },
+    "sideChat.start": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start side chat"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始侧聊"
+          }
+        }
+      }
+    },
+    "sidebar.actions %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actions for %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@的操作"
+          }
+        }
+      }
+    },
+    "sidebar.archive": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archive"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "归档"
+          }
+        }
+      }
+    },
+    "sidebar.compact": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compact context"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "压缩上下文"
+          }
+        }
+      }
+    },
     "sidebar.conversations": {
       "localizations": {
         "en": {
@@ -5225,10 +6753,84 @@
         }
       }
     },
+    "sidebar.delete": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除"
+          }
+        }
+      }
+    },
+    "sidebar.delete.confirm.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This action cannot be undone."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此操作无法撤销。"
+          }
+        }
+      }
+    },
+    "sidebar.delete.confirm.named %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete “%@”?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除“%@”？"
+          }
+        }
+      }
+    },
+    "sidebar.delete.confirm.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete this conversation?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除这个对话？"
+          }
+        }
+      }
+    },
     "sidebar.disconnected.desc": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "The connection was lost. Reconnect to continue." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接已断开，请重新连接" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The connection was lost. Reconnect to continue."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接已断开，请重新连接"
+          }
+        }
       }
     },
     "sidebar.empty.desc": {
@@ -5263,36 +6865,6 @@
         }
       }
     },
-    "sidebar.loadFailed.desc": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Check the connection and try again." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请检查连接后重试。" } }
-      }
-    },
-    "sidebar.loadFailed.title": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Could not load conversations" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法加载会话" } }
-      }
-    },
-    "sidebar.loading": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Loading conversations…" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在加载会话…" } }
-      }
-    },
-    "sideChat.cleanupFailed %@": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Could not stop side chat: %@. The machine and local state were kept. Retry when the connection is available." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法停止侧聊：%@。机器和本地状态已保留，请在连接恢复后重试。" } }
-      }
-    },
-    "sidebar.retry": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Retry" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重试" } }
-      }
-    },
     "sidebar.fork": {
       "localizations": {
         "en": {
@@ -5305,6 +6877,246 @@
           "stringUnit": {
             "state": "translated",
             "value": "派生"
+          }
+        }
+      }
+    },
+    "sidebar.goal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manage goal"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理目标"
+          }
+        }
+      }
+    },
+    "sidebar.goal.clear": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear goal"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除目标"
+          }
+        }
+      }
+    },
+    "sidebar.goal.clear.confirm.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This removes the goal from the conversation."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这会从当前对话中移除目标。"
+          }
+        }
+      }
+    },
+    "sidebar.goal.clear.confirm.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear this goal?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除这个目标？"
+          }
+        }
+      }
+    },
+    "sidebar.goal.objective": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Objective"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目标"
+          }
+        }
+      }
+    },
+    "sidebar.goal.status": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "状态"
+          }
+        }
+      }
+    },
+    "sidebar.goal.status.active": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Active"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "进行中"
+          }
+        }
+      }
+    },
+    "sidebar.goal.status.blocked": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blocked"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "受阻"
+          }
+        }
+      }
+    },
+    "sidebar.goal.status.budgetLimited": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Budget limited"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预算受限"
+          }
+        }
+      }
+    },
+    "sidebar.goal.status.complete": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Complete"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成"
+          }
+        }
+      }
+    },
+    "sidebar.goal.status.paused": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paused"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已暂停"
+          }
+        }
+      }
+    },
+    "sidebar.goal.status.usageLimited": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usage limited"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用量受限"
+          }
+        }
+      }
+    },
+    "sidebar.loadFailed.desc": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check the connection and try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请检查连接后重试。"
+          }
+        }
+      }
+    },
+    "sidebar.loadFailed.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not load conversations"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载会话"
+          }
+        }
+      }
+    },
+    "sidebar.loading": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading conversations…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加载会话…"
           }
         }
       }
@@ -5337,6 +7149,166 @@
           "stringUnit": {
             "state": "translated",
             "value": "等待批准"
+          }
+        }
+      }
+    },
+    "sidebar.rename": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重命名"
+          }
+        }
+      }
+    },
+    "sidebar.rename.placeholder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conversation name"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对话名称"
+          }
+        }
+      }
+    },
+    "sidebar.retry": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试"
+          }
+        }
+      }
+    },
+    "sidebar.rollback": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Roll back"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回滚"
+          }
+        }
+      }
+    },
+    "sidebar.rollback.confirm %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Roll back %lld turns"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回滚 %lld 轮"
+          }
+        }
+      }
+    },
+    "sidebar.rollback.confirm.message %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The last %lld turns and their output will be removed."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近 %lld 轮及其输出将被移除。"
+          }
+        }
+      }
+    },
+    "sidebar.rollback.confirm.named %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Roll back “%@”?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回滚“%@”？"
+          }
+        }
+      }
+    },
+    "sidebar.rollback.confirm.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Roll back this conversation?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回滚这个对话？"
+          }
+        }
+      }
+    },
+    "sidebar.rollback.turns %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last %lld turns"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近 %lld 轮"
+          }
+        }
+      }
+    },
+    "sidebar.search.placeholder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search conversations"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索对话"
           }
         }
       }
@@ -5469,64 +7441,20 @@
         }
       }
     },
-    "tab.machine.section": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Machines" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "机器" } }
-      }
-    },
-    "tab.machine.none": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "No Machine" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "未选择机器" } }
-      }
-    },
-    "tab.machine.switcher": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Switch Machine" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "切换机器" } }
-      }
-    },
     "tab.add": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Add Machine" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "添加机器" } }
-      }
-    },
-    "tab.status.none": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "No activity" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无活动" } }
-      }
-    },
-    "tab.status.unread": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Unread activity" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "有未读活动" } }
-      }
-    },
-    "tab.status.running": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Running" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在运行" } }
-      }
-    },
-    "tab.status.attention": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Needs attention" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "需要处理" } }
-      }
-    },
-    "tab.status.error": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Error" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "发生错误" } }
-      }
-    },
-    "tab.status.disconnected": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Disconnected" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接已断开" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Machine"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加机器"
+          }
+        }
       }
     },
     "tab.capReached": {
@@ -5573,6 +7501,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "断开"
+          }
+        }
+      }
+    },
+    "tab.machine.none": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Machine"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未选择机器"
+          }
+        }
+      }
+    },
+    "tab.machine.section": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Machines"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "机器"
+          }
+        }
+      }
+    },
+    "tab.machine.switcher": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch Machine"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换机器"
           }
         }
       }
@@ -5705,46 +7681,100 @@
         }
       }
     },
-    "terminal.outputTruncated": {
+    "tab.status.attention": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Output truncated because it exceeded the limit" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "输出已截断（超出上限）" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs attention"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要处理"
+          }
+        }
       }
     },
-    "terminal.processExited": {
+    "tab.status.disconnected": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Process exited" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "进程已退出" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnected"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接已断开"
+          }
+        }
       }
     },
-    "terminal.processExited.status": {
+    "tab.status.error": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Process exited with status %lld" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "进程已退出（状态 %lld）" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发生错误"
+          }
+        }
       }
     },
-    "terminal.processFailed": {
+    "tab.status.none": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Process ended unexpectedly" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "进程异常结束" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No activity"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无活动"
+          }
+        }
       }
     },
-    "transport.invalidRelayURL": {
+    "tab.status.running": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Invalid relay URL: %@" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "Relay URL 无效：%@" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在运行"
+          }
+        }
       }
     },
-    "transport.insecureRelayURL": {
+    "tab.status.unread": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "The relay uses unencrypted ws. Use wss in production: %@" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "Relay 地址使用明文 ws，生产环境请使用加密的 wss：%@" } }
-      }
-    },
-    "transport.missingRelayConfig": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Relay configuration is missing. Only relay connections are supported." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "缺少 Relay 配置：仅支持 Relay 连接" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unread activity"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有未读活动"
+          }
+        }
       }
     },
     "terminal.input.placeholder": {
@@ -5765,20 +7795,530 @@
     },
     "terminal.offline.description": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Reconnect to start or continue a terminal session." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重新连接后即可启动或继续终端会话。" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnect to start or continue a terminal session."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新连接后即可启动或继续终端会话。"
+          }
+        }
+      }
+    },
+    "terminal.outputTruncated": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Output truncated because it exceeded the limit"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输出已截断（超出上限）"
+          }
+        }
+      }
+    },
+    "terminal.processExited": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Process exited"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "进程已退出"
+          }
+        }
+      }
+    },
+    "terminal.processExited.status": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Process exited with status %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "进程已退出（状态 %lld）"
+          }
+        }
+      }
+    },
+    "terminal.processFailed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Process ended unexpectedly"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "进程异常结束"
+          }
+        }
       }
     },
     "terminal.reconnected": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Reconnected" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已重新连接" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnected"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已重新连接"
+          }
+        }
       }
     },
     "terminal.reconnecting": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Connection interrupted, reconnecting" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "连接中断，正在重连" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection interrupted, reconnecting"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接中断，正在重连"
+          }
+        }
+      }
+    },
+    "thread.create.wait": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A conversation was just created. Wait a moment and try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刚刚已新建会话，请稍候再试。"
+          }
+        }
+      }
+    },
+    "transport.channelClosedBeforeHandshake": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The channel closed before the handshake completed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通道在握手完成前关闭"
+          }
+        }
+      }
+    },
+    "transport.connectionClosed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The connection was closed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接已关闭"
+          }
+        }
+      }
+    },
+    "transport.handshakeClosed %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The connection closed while waiting for %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "握手期间连接关闭（等待 %@）"
+          }
+        }
+      }
+    },
+    "transport.handshakeRaceFailed %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Handshake wait ended without a result for %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待 %@ 的握手竞速未返回结果"
+          }
+        }
+      }
+    },
+    "transport.handshakeTimeout %1$@ %2$@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Timed out waiting for %1$@ after %2$@s"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待 %1$@ 超时（%2$@ 秒未收到）"
+          }
+        }
+      }
+    },
+    "transport.insecureRelayURL": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The relay uses unencrypted ws. Use wss in production: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relay 地址使用明文 ws，生产环境请使用加密的 wss：%@"
+          }
+        }
+      }
+    },
+    "transport.invalidDeveloperKey": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The paired developer public key is invalid"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配对载荷中的开发机公钥无效"
+          }
+        }
+      }
+    },
+    "transport.invalidRelayURL": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid relay URL: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relay URL 无效：%@"
+          }
+        }
+      }
+    },
+    "transport.missingRelayConfig": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relay configuration is missing. Only relay connections are supported."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缺少 Relay 配置：仅支持 Relay 连接"
+          }
+        }
+      }
+    },
+    "transport.reconnectExhausted": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnect attempts were exhausted"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已达到重连重试上限"
+          }
+        }
+      }
+    },
+    "transport.trustRevokedReason": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trust was revoked by the paired machine"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配对机器已撤销信任"
+          }
+        }
+      }
+    },
+    "transport.unexpectedSecureReady %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expected SecureReady during handshake, received %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "握手期间应收到 SecureReady，实际收到 %@"
+          }
+        }
+      }
+    },
+    "userInput.answerPlaceholder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Answer"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回答"
+          }
+        }
+      }
+    },
+    "userInput.answerRequired": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Answer this question before submitting."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先回答此问题再提交。"
+          }
+        }
+      }
+    },
+    "userInput.answerTooLarge %lld %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld of %lld bytes. Shorten the answer before submitting."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前 %lld 字节，上限 %lld 字节。请缩短内容后再提交。"
+          }
+        }
+      }
+    },
+    "userInput.autoCountdown %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatically skip in %lld seconds"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 秒后自动跳过"
+          }
+        }
+      }
+    },
+    "userInput.autoPaused": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatic skip paused"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已暂停自动跳过"
+          }
+        }
+      }
+    },
+    "userInput.autoResume": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume countdown"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续倒计时"
+          }
+        }
+      }
+    },
+    "userInput.awaitingRecovery": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for the connection to recover"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待连接恢复"
+          }
+        }
+      }
+    },
+    "userInput.cancel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        }
+      }
+    },
+    "userInput.otherPlaceholder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "其他"
+          }
+        }
+      }
+    },
+    "userInput.submit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Submit"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提交"
+          }
+        }
+      }
+    },
+    "userInput.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Input requested"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要你的输入"
+          }
+        }
+      }
+    },
+    "workspace.bottomPanel.height %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld points high"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高度 %lld 点"
+          }
+        }
+      }
+    },
+    "workspace.bottomPanel.resize": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resize terminal panel"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "调整终端面板高度"
+          }
+        }
       }
     },
     "workspace.bottomPanel.toggle": {
@@ -5825,6 +8365,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "调整右栏宽度"
+          }
+        }
+      }
+    },
+    "workspace.column.width %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld points wide"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "宽度 %lld 点"
           }
         }
       }
@@ -6103,8 +8659,18 @@
     },
     "workspace.overlay.close": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Close panel" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "关闭面板" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close panel"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭面板"
+          }
+        }
       }
     },
     "workspace.panel.empty.desc": {
@@ -6135,6 +8701,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "暂无可审查的更改"
+          }
+        }
+      }
+    },
+    "workspace.panel.hidden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hidden"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已隐藏"
+          }
+        }
+      }
+    },
+    "workspace.panel.shown": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shown"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已显示"
           }
         }
       }
@@ -6265,458 +8863,6 @@
             "value": "摘要"
           }
         }
-      }
-    },
-    "approval.permissionTitle": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Permission request"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "权限请求"
-          }
-        }
-      }
-    },
-    "approval.perm.globDepth": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Glob scan depth" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "Glob 扫描深度" } }
-      }
-    },
-    "approval.perm.network.on": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Network access: enabled"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "网络访问：启用"
-          }
-        }
-      }
-    },
-    "approval.perm.network.off": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Network access: disabled"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "网络访问：禁用"
-          }
-        }
-      }
-    },
-    "approval.yesPrefixLabel": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Allow for session:"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "本会话放行前缀："
-          }
-        }
-      }
-    },
-    "composer.a11y.pickImage": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add image"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "添加图片"
-          }
-        }
-      }
-    },
-    "composer.a11y.model": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Model and reasoning"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "模型与推理强度"
-          }
-        }
-      }
-    },
-    "composer.a11y.stop": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Stop"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "停止"
-          }
-        }
-      }
-    },
-    "composer.a11y.send": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Send"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "发送"
-          }
-        }
-      }
-    },
-    "composer.a11y.more": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "More send options"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更多发送选项"
-          }
-        }
-      }
-    },
-    "userInput.title": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Input requested" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "需要你的输入" } }
-      }
-    },
-    "userInput.awaitingRecovery": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Waiting for the connection to recover" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "等待连接恢复" } }
-      }
-    },
-    "userInput.autoCountdown %lld": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Automatically skip in %lld seconds"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 秒后自动跳过"
-          }
-        }
-      }
-    },
-    "userInput.autoPaused": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Automatic skip paused"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已暂停自动跳过"
-          }
-        }
-      }
-    },
-    "userInput.answerPlaceholder": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Answer" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "回答" } }
-      }
-    },
-    "userInput.answerTooLarge %lld %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "%lld of %lld bytes. Shorten the answer before submitting." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "当前 %lld 字节，上限 %lld 字节。请缩短内容后再提交。" } }
-      }
-    },
-    "userInput.answerRequired": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Answer this question before submitting." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请先回答此问题再提交。" } }
-      }
-    },
-    "request.recoveryExpired": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "This request was not restored after reconnecting. Start it again from the conversation." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重连后未能恢复此请求，请从对话中重新发起。" } }
-      }
-    },
-    "userInput.otherPlaceholder": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Other" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "其他" } }
-      }
-    },
-    "userInput.cancel": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Cancel" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "取消" } }
-      }
-    },
-    "workspace.bottomPanel.resize": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Resize terminal panel" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "调整终端面板高度" } }
-      }
-    },
-    "workspace.bottomPanel.height %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "%lld points high" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "高度 %lld 点" } }
-      }
-    },
-    "review.fullDiffFailed": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Could not load the full diff" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法加载完整差异" } }
-      }
-    },
-    "review.fullDiffFailed.detail": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Check the connection and try again." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请检查连接后重试。" } }
-      }
-    },
-    "mcpElicitation.accept": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Complete" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "完成" } }
-      }
-    },
-    "mcpElicitation.awaitingRecovery": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Waiting for the connection to recover" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "等待连接恢复" } }
-      }
-    },
-    "mcpElicitation.cancel": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Cancel" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "取消" } }
-      }
-    },
-    "mcpElicitation.choose": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Choose" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请选择" } }
-      }
-    },
-    "mcpElicitation.decline": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Decline" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "拒绝" } }
-      }
-    },
-    "mcpElicitation.enabled": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Enabled" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "启用" } }
-      }
-    },
-    "mcpElicitation.openURL": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Open secure link" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "打开安全链接" } }
-      }
-    },
-    "mcpElicitation.required": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Required" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "必填" } }
-      }
-    },
-    "mcpElicitation.constraint.date": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Use a valid date" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请输入有效日期" } }
-      }
-    },
-    "mcpElicitation.constraint.dateTime": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Use a valid date and time" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请输入有效日期和时间" } }
-      }
-    },
-    "mcpElicitation.constraint.email": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Use a valid email address" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请输入有效邮箱地址" } }
-      }
-    },
-    "mcpElicitation.constraint.integer": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Whole numbers only" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "仅支持整数" } }
-      }
-    },
-    "mcpElicitation.constraint.lengthRange %lld %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "%1$lld–%2$lld characters" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "%1$lld–%2$lld 个字符" } }
-      }
-    },
-    "mcpElicitation.constraint.minLength %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "At least %lld characters" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "至少 %lld 个字符" } }
-      }
-    },
-    "mcpElicitation.constraint.maxLength %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "At most %lld characters" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最多 %lld 个字符" } }
-      }
-    },
-    "mcpElicitation.constraint.numberRange %@ %@": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Value from %1$@ to %2$@" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "数值范围 %1$@–%2$@" } }
-      }
-    },
-    "mcpElicitation.constraint.minimum %@": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Minimum value %@" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最小值 %@" } }
-      }
-    },
-    "mcpElicitation.constraint.maximum %@": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Maximum value %@" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最大值 %@" } }
-      }
-    },
-    "mcpElicitation.constraint.selectionRange %lld %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Choose %1$lld–%2$lld options" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请选择 %1$lld–%2$lld 项" } }
-      }
-    },
-    "mcpElicitation.constraint.minSelections %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Choose at least %lld options" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "至少选择 %lld 项" } }
-      }
-    },
-    "mcpElicitation.constraint.maxSelections %lld": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Choose at most %lld options" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最多选择 %lld 项" } }
-      }
-    },
-    "mcpElicitation.constraint.url": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Use a complete URL" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请输入完整 URL" } }
-      }
-    },
-    "mcpElicitation.error.invalid": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "This value does not meet the requirement" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "该值不符合要求" } }
-      }
-    },
-    "mcpElicitation.error.required": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "This field is required" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "此字段为必填项" } }
-      }
-    },
-    "mcpElicitation.title": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Server input requested" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "服务器请求输入" } }
-      }
-    },
-    "mcpElicitation.urlRisk.http": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Blocked: this link uses unencrypted HTTP" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已阻止：此链接使用未加密的 HTTP" } }
-      }
-    },
-    "mcpElicitation.urlRisk.punycode": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Blocked: this domain uses Punycode and may impersonate another site" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已阻止：此域名使用 Punycode，可能冒充其他网站" } }
-      }
-    },
-    "mcpElicitation.urlRisk.unsupported": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Blocked: only HTTPS links are allowed" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已阻止：仅允许 HTTPS 链接" } }
-      }
-    },
-    "mcpElicitation.value": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Value" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请输入" } }
-      }
-    },
-    "userInput.submit": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Submit" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "提交" } }
-      }
-    },
-    "conv.reasoning.truncated": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Earlier reasoning hidden" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已隐藏较早的推理内容" } }
-      }
-    },
-    "conv.reasoning.fullTitle": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Reasoning" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "推理过程" } }
-      }
-    },
-    "thread.create.wait": {
-      "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "A conversation was just created. Wait a moment and try again." } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "刚刚已新建会话，请稍候再试。" } }
       }
     }
   },
