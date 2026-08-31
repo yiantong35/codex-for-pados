@@ -100,15 +100,6 @@ struct RootSplitView: View {
         NavigationStack {
             GeometryReader { geometry in
                 VStack(spacing: 0) {
-                    if let state = effectiveBannerState {
-                        ConnectionBanner(
-                            state: state,
-                            onReconnect: beginManualReconnect,
-                            onShowDetails: { connectionFailureDetails = $0 },
-                            onRePair: { showRePairing = true }
-                        )
-                    }
-
                     resizableColumns
                     // 摘要：常驻悬浮浮层（design D2 改）。用 overlay 而非 .popover，故点击别处不收回，
                     // 仅由系统工具栏摘要按钮显隐；浮层位于工具栏下方的工作区内容层。
@@ -151,6 +142,21 @@ struct RootSplitView: View {
                 .onChange(of: geometry.size.width) { _, width in
                     layout.updateContainerWidth(width)
                 }
+                // 连接横幅（connection-banner-toast）：顶部浮层化——原为 VStack 条件分支,
+                // 显隐会把三栏内容整体推移(周期性重连时布局跳动)。overlay 布局零位移,
+                // 三态语义/按钮/判定逻辑零改动;胶囊外观+过渡动画在 ConnectionBanner 内。
+                .overlay(alignment: .top) {
+                    if let state = effectiveBannerState {
+                        ConnectionBanner(
+                            state: state,
+                            onReconnect: beginManualReconnect,
+                            onShowDetails: { connectionFailureDetails = $0 },
+                            onRePair: { showRePairing = true }
+                        )
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                }
+                .animation(.snappy(duration: 0.25), value: effectiveBannerState == nil)
             }
             .toolbar {
                 WorkspaceToolbar(
@@ -493,14 +499,20 @@ struct ConnectionBanner: View {
     let onShowDetails: (String) -> Void
     let onRePair: () -> Void
 
+    // connection-banner-toast：整宽横条 → 胶囊浮层（挂载方已 overlay 化,此处只管外观）。
+    // 三态内容/按钮零改动;maxWidth 限宽避免占满整行,材质+描边+阴影浮于内容之上。
     var body: some View {
         bannerContent
         .font(.subheadline)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 2)
-        .frame(maxWidth: .infinity, minHeight: 44)
-        .background(.thinMaterial)
-        .overlay(alignment: .bottom) { Divider() }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .frame(minHeight: 44)
+        .frame(maxWidth: 520)
+        .background(.regularMaterial, in: Capsule())
+        .overlay(Capsule().strokeBorder(.separator))
+        .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
+        .padding(.top, 8)
+        .padding(.horizontal, 16)
         .accessibilityElement(children: .contain)
     }
 
