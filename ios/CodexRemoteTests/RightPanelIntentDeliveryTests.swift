@@ -68,7 +68,8 @@ final class RightPanelIntentDeliveryTests: XCTestCase {
     func test_remountDeliversPendingIntent() {
         let layout = WorkspaceLayoutStore()
         let (_, w1) = mount(makeView(layout: layout))
-        w1.isHidden = true                       // 卸载（窄档收起 overlay / 形态切换）
+        w1.rootViewController = nil              // 真卸载 SwiftUI 子树（review M4：isHidden 不卸载,旧树仍可能消费）
+        w1.isHidden = true
         layout.requestRightPanel(.files)         // 卸载期间入口/快捷键发 intent
         XCTAssertNotNil(layout.pendingRightPanelIntent)
         let (_, w2) = mount(makeView(layout: layout))

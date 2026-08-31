@@ -51,6 +51,8 @@ final class ReturnInterceptingTextView: UITextView {
 
     // MARK: 自适应高度（1–5 行；超出转内部滚动）
 
+    private var lastMeasuredWidth: CGFloat = 0
+
     override var intrinsicContentSize: CGSize {
         let width = bounds.width > 0 ? bounds.width : UIView.noIntrinsicMetric
         guard width != UIView.noIntrinsicMetric else { return super.intrinsicContentSize }
@@ -64,7 +66,12 @@ final class ReturnInterceptingTextView: UITextView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        invalidateIntrinsicContentSize()
+        // 仅宽度变化时失效重算（review M1：避免每轮布局空转 invalidate,能耗原则）；
+        // 文本变化路径由 textViewDidChange 显式 invalidate。
+        if bounds.width != lastMeasuredWidth {
+            lastMeasuredWidth = bounds.width
+            invalidateIntrinsicContentSize()
+        }
     }
 }
 
@@ -103,6 +110,15 @@ struct ComposerTextEditor: UIViewRepresentable {
     }
 
     func updateUIView(_ tv: ReturnInterceptingTextView, context: Context) {
+        // 陈旧捕获修复（review C2）：Coordinator 只在首挂载构造,必须每轮刷新 parent,
+        // 否则 onSubmitSend 闭包永远持首次 body 求值的 ComposerView 拷贝（isEnabled 翻转失效,
+        // 真实挂载路径 loading→loaded 下 Enter 被吞死）。UIViewRepresentable 标准范式。
+        context.coordinator.parent = self
+        // .disabled 传播（review I2）：SwiftUI .disabled 不自动作用于桥接的 UIKit 视图。
+        tv.isEditable = context.environment.isEnabled
+        // VoiceOver 语义（review I1）：placeholder overlay 已 accessibilityHidden,
+        // 文本框本体补用途标签（跟随运行时 locale）。
+        tv.accessibilityLabel = L10n.string("composer.placeholder", locale: context.environment.locale)
         if tv.text != text { tv.text = text; tv.invalidateIntrinsicContentSize() }
         // 焦点桥接：focusComposer 快捷键置 isFocused=true → becomeFirstResponder；反向经 delegate 回写。
         if isFocused, !tv.isFirstResponder, tv.window != nil {

@@ -214,6 +214,8 @@ struct ComposerView: View {
                         .padding(.leading, 9)
                         .padding(.top, 7)
                         .allowsHitTesting(false)
+                        // review I1：placeholder 视觉提示不入无障碍树（文本框本体已带用途 label）。
+                        .accessibilityHidden(true)
                 }
             }
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(.systemGray4), lineWidth: 0.5))
@@ -329,8 +331,16 @@ struct ComposerView: View {
         }
     }
 
+    // 连按/自动重复防重（review I3）：shouldChangeTextIn 同步 consume 而 canSend guard 在 Task 内,
+    // 按住 Enter 自动重复会在 draft 清空前 spawn 多个 Task → 双发窗口。in-flight 标志同步闸门,
+    // Task 完成即复位;⌘Enter 别名路径同受益。
+    @State private var sendShortcutInFlight = false
+
     private func performSendShortcut() {
+        guard !sendShortcutInFlight else { return }
+        sendShortcutInFlight = true
         Task {
+            defer { sendShortcutInFlight = false }
             await Self.executeSendShortcut(
                 isEnabled: isEnabled,
                 canSend: canSend,

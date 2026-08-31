@@ -139,6 +139,37 @@ final class WorkspaceUIRegressionTests: XCTestCase {
         XCTAssertFalse(draft.text.hasSuffix("\n"), "发送路径不得残留触发换行")
     }
 
+    /// review C2 回归锁：Coordinator 每轮 updateUIView 刷新 parent——isEnabled 由 false 翻 true 后
+    /// （真实挂载路径 loading→loaded），裸 Return 仍能发送（陈旧捕获会令闭包永持 isEnabled=false,
+    /// Return 被吞死且永不发送）。
+    func test_composerReturnSendsAfterEnabledFlip() async throws {
+        let transport = MockTransport()
+        let rpc = JSONRPCClient(transport: transport)
+        await transport.setAutoRespond(true)
+        await rpc.start()
+        let draft = ComposerDraft()
+        draft.text = "after-flip"
+        let store = ConversationStore(rpc: rpc, threadId: "enabled-flip-test")
+        await store.startObserving()
+        let holder = ComposerEnabledFlipHolder()
+        let window = mount(ComposerEnabledFlipHost(holder: holder, store: store, draft: draft),
+                           size: CGSize(width: 600, height: 180))
+        defer { unmount(window) }
+
+        holder.enabled = true            // loading → loaded
+        drainRunLoop()
+        guard let tv = descendants(of: window).compactMap({ $0 as? UITextView }).first else {
+            return XCTFail("Composer must render the UITextView-backed editor")
+        }
+        _ = tv.becomeFirstResponder()
+        drainRunLoop()
+        XCTAssertTrue(tv.isEditable, "isEnabled 翻 true 后应可编辑（.disabled 桥接传播）")
+        let allowed = tv.delegate?.textView?(
+            tv, shouldChangeTextIn: NSRange(location: tv.text.count, length: 0), replacementText: "\n")
+        XCTAssertEqual(allowed, false)
+        try await waitUntil { await transport.sent.contains { $0.contains("turn/start") } }
+    }
+
     /// 多行粘贴（replacement ≠ "\n"）不拦截不误发；IME 组合态语义由
     /// ComposerSendInteractionTests.test_interceptDecision_markedText_passesThroughForIME 纯函数锁定。
     func test_composerMultilinePasteDoesNotSend() async throws {
@@ -320,5 +351,19 @@ private struct FrameReporter: View {
         GeometryReader { proxy in
             Color.clear.onAppear { report(proxy.frame(in: .global)) }
         }
+    }
+}
+
+// review C2 回归锁的宿主（@Observable 不能声明在函数内,故置文件级）。
+@Observable private final class ComposerEnabledFlipHolder { var enabled = false }
+
+private struct ComposerEnabledFlipHost: View {
+    let holder: ComposerEnabledFlipHolder
+    let store: ConversationStore
+    let draft: ComposerDraft
+    var body: some View {
+        ComposerView(store: store, draft: draft, isEnabled: holder.enabled)
+            .environment(EnvironmentStore())
+            .environment(ShortcutStore())
     }
 }
