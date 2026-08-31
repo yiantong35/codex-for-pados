@@ -130,6 +130,25 @@ struct ComposerTextEditor: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
+    /// 权威尺寸（composer-height-regression hotfix）：UITextView 垂直 hugging 默认 250,
+    /// SwiftUI 在 VStack 有富余空间时会把 representable 拉伸吃满（真机对话页 468pt 实证;
+    /// 旧 TextField hugging 高无此问题）。实现 sizeThatFits 返回精确 clamp 高度,
+    /// 结构性关闭拉伸路径;intrinsicContentSize 保留为无 proposal 场景兜底。
+    func sizeThatFits(_ proposal: ProposedViewSize,
+                      uiView: ReturnInterceptingTextView,
+                      context: Context) -> CGSize? {
+        guard let width = proposal.width ?? (uiView.bounds.width > 0 ? uiView.bounds.width : nil),
+              width > 0, width.isFinite else { return nil }
+        let fitting = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+        let font = uiView.font ?? .preferredFont(forTextStyle: .body)
+        let insets = uiView.textContainerInset.top + uiView.textContainerInset.bottom
+        let maxHeight = font.lineHeight * 5 + insets
+        let minHeight = font.lineHeight + insets
+        uiView.isScrollEnabled = fitting.height > maxHeight
+        let clamped = min(max(fitting.height, minHeight), maxHeight)
+        return CGSize(width: width, height: ceil(clamped))
+    }
+
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: ComposerTextEditor
         init(_ parent: ComposerTextEditor) { self.parent = parent }
