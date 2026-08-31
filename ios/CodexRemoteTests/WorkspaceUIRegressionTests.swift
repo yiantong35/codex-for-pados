@@ -105,36 +105,97 @@ final class WorkspaceUIRegressionTests: XCTestCase {
         }
     }
 
-    func test_composerPlainReturnInsertsNewlineWithoutSending() async throws {
+    /// Enter 发送（narrow-right-panel-and-enter-send）：用户按键路径（UIKit 经 shouldChangeTextIn
+    /// 委托询问）的裸 Return 触发发送且不插换行。取代旧「裸 Return=换行不发送」行为锁——
+    /// 注：程序化 `insertText` 绕过 shouldChangeTextIn（UIKit 语义），故本测试直接驱动委托方法，
+    /// 与 UIKit 对用户 Return（软键盘点击/硬件无修饰按键）的真实询问路径一致。
+    func test_composerPlainReturnSendsWithoutInsertingNewline() async throws {
         let transport = MockTransport()
         let rpc = JSONRPCClient(transport: transport)
         await transport.setAutoRespond(true)
         await rpc.start()
         let draft = ComposerDraft()
-        let store = ConversationStore(rpc: rpc, threadId: "return-test")
+        draft.text = "first"
+        let store = ConversationStore(rpc: rpc, threadId: "return-send-test")
+        await store.startObserving()
         let view = ComposerView(store: store, draft: draft)
             .environment(EnvironmentStore())
             .environment(ShortcutStore())
         let window = mount(view, size: CGSize(width: 600, height: 180))
         defer { unmount(window) }
 
-        guard let input = descendants(of: window).first(where: { $0 is UITextField || $0 is UITextView }) as? UITextInput else {
-            return XCTFail("Composer must render a native text input")
+        guard let tv = descendants(of: window).compactMap({ $0 as? UITextView }).first else {
+            return XCTFail("Composer must render the UITextView-backed editor")
         }
-        guard let responder = input as? UIResponder else { return XCTFail("Text input must be a responder") }
-        _ = responder.becomeFirstResponder()
+        _ = tv.becomeFirstResponder()
         drainRunLoop()
-        XCTAssertNil(plainReturn(in: responderChain(from: responder)),
-                     "Composer must not register plain Return as a send key command")
-        input.insertText("first")
-        input.insertText("\n")
-        input.insertText("second")
+        XCTAssertEqual(tv.text, "first", "binding 应已同步进 UITextView")
+
+        // 用户按裸 Return：UIKit 先问 shouldChangeTextIn(替换文本 "\n")——必须被消费（不插换行）并触发发送。
+        let allowed = tv.delegate?.textView?(
+            tv, shouldChangeTextIn: NSRange(location: tv.text.count, length: 0), replacementText: "\n")
+        XCTAssertEqual(allowed, false, "裸 Return 必须被消费,不得插入换行")
+        try await waitUntil { await transport.sent.contains { $0.contains("turn/start") } }
+        XCTAssertFalse(draft.text.hasSuffix("\n"), "发送路径不得残留触发换行")
+    }
+
+    /// review C2 回归锁：Coordinator 每轮 updateUIView 刷新 parent——isEnabled 由 false 翻 true 后
+    /// （真实挂载路径 loading→loaded），裸 Return 仍能发送（陈旧捕获会令闭包永持 isEnabled=false,
+    /// Return 被吞死且永不发送）。
+    func test_composerReturnSendsAfterEnabledFlip() async throws {
+        let transport = MockTransport()
+        let rpc = JSONRPCClient(transport: transport)
+        await transport.setAutoRespond(true)
+        await rpc.start()
+        let draft = ComposerDraft()
+        draft.text = "after-flip"
+        let store = ConversationStore(rpc: rpc, threadId: "enabled-flip-test")
+        await store.startObserving()
+        let holder = ComposerEnabledFlipHolder()
+        let window = mount(ComposerEnabledFlipHost(holder: holder, store: store, draft: draft),
+                           size: CGSize(width: 600, height: 180))
+        defer { unmount(window) }
+
+        holder.enabled = true            // loading → loaded
         drainRunLoop()
-        XCTAssertEqual(draft.text, "first\nsecond")
-        try await Task.sleep(for: .milliseconds(100))
+        guard let tv = descendants(of: window).compactMap({ $0 as? UITextView }).first else {
+            return XCTFail("Composer must render the UITextView-backed editor")
+        }
+        _ = tv.becomeFirstResponder()
+        drainRunLoop()
+        XCTAssertTrue(tv.isEditable, "isEnabled 翻 true 后应可编辑（.disabled 桥接传播）")
+        let allowed = tv.delegate?.textView?(
+            tv, shouldChangeTextIn: NSRange(location: tv.text.count, length: 0), replacementText: "\n")
+        XCTAssertEqual(allowed, false)
+        try await waitUntil { await transport.sent.contains { $0.contains("turn/start") } }
+    }
+
+    /// 多行粘贴（replacement ≠ "\n"）不拦截不误发；IME 组合态语义由
+    /// ComposerSendInteractionTests.test_interceptDecision_markedText_passesThroughForIME 纯函数锁定。
+    func test_composerMultilinePasteDoesNotSend() async throws {
+        let transport = MockTransport()
+        let rpc = JSONRPCClient(transport: transport)
+        await transport.setAutoRespond(true)
+        await rpc.start()
+        let draft = ComposerDraft()
+        let store = ConversationStore(rpc: rpc, threadId: "paste-test")
+        let view = ComposerView(store: store, draft: draft)
+            .environment(EnvironmentStore())
+            .environment(ShortcutStore())
+        let window = mount(view, size: CGSize(width: 600, height: 180))
+        defer { unmount(window) }
+
+        guard let tv = descendants(of: window).compactMap({ $0 as? UITextView }).first else {
+            return XCTFail("Composer must render the UITextView-backed editor")
+        }
+        _ = tv.becomeFirstResponder()
+        drainRunLoop()
+        let allowed = tv.delegate?.textView?(
+            tv, shouldChangeTextIn: NSRange(location: 0, length: 0), replacementText: "line1\nline2")
+        XCTAssertEqual(allowed, true, "多行粘贴必须放行插入")
+        try await Task.sleep(for: .milliseconds(120))
         let sent = await transport.sent
-        XCTAssertFalse(sent.contains { $0.contains("turn/start") },
-                       "Plain Return must remain an editing action, not a send action")
+        XCTAssertFalse(sent.contains { $0.contains("turn/start") }, "多行粘贴不得触发发送")
     }
 
     func test_composerCommandReturnSends() async throws {
@@ -265,16 +326,8 @@ final class WorkspaceUIRegressionTests: XCTestCase {
         return nil
     }
 
-    private func plainReturn(in responders: [UIResponder]) -> UIKeyCommand? {
-        for responder in responders {
-            guard let commands = responder.keyCommands else { continue }
-            for command in commands {
-                let isReturn = command.input == "\r" || command.input == "\n"
-                if isReturn && command.modifierFlags.isEmpty { return command }
-            }
-        }
-        return nil
-    }
+    // （plainReturn helper 已随旧「裸 Return=换行」行为锁删除——新行为经 shouldChangeTextIn 拦截，
+    //   不注册 UIKeyCommand，该探测已无意义。）
 
     private func renderedImage(_ view: some View, size: CGSize) -> UIImage {
         let renderer = ImageRenderer(content: view
@@ -298,5 +351,19 @@ private struct FrameReporter: View {
         GeometryReader { proxy in
             Color.clear.onAppear { report(proxy.frame(in: .global)) }
         }
+    }
+}
+
+// review C2 回归锁的宿主（@Observable 不能声明在函数内,故置文件级）。
+@Observable private final class ComposerEnabledFlipHolder { var enabled = false }
+
+private struct ComposerEnabledFlipHost: View {
+    let holder: ComposerEnabledFlipHolder
+    let store: ConversationStore
+    let draft: ComposerDraft
+    var body: some View {
+        ComposerView(store: store, draft: draft, isEnabled: holder.enabled)
+            .environment(EnvironmentStore())
+            .environment(ShortcutStore())
     }
 }
