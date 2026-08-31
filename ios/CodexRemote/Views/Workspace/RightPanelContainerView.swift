@@ -78,10 +78,12 @@ struct RightPanelContainerView: View {
                             .accessibilityHidden(true)
                     }
             }
-            .onChange(of: layout.pendingRightPanelIntent) { _, _ in
+            // intent 消费（narrow-right-panel-and-enter-send 2.1）：单一 onChange(initial:true)=
+            // 挂载即触发+值变化触发，与视图 identity 无关——取代旧 onChange+onAppear 双挂
+            // （窄档 overlay 新挂载只靠 onAppear、overlay↔列内形态切换 identity 保留时可能丢的时序缝）。
+            .onChange(of: layout.pendingRightPanelIntent, initial: true) { _, _ in
                 consumeRightPanelIntent(layout.pendingRightPanelIntent)
             }
-            .onAppear { consumeRightPanelIntent(layout.pendingRightPanelIntent) }
     }
 
     /// 消费一次性右栏意图（设计 D6）：tab 跳转 → 选中该 tab；全屏 → 切 isFullscreen；消费即复位。
