@@ -32,7 +32,9 @@ struct ComposerView: View {
 
     @State private var draft: ComposerDraft
     @State private var showModelPopover = false
-    @FocusState private var inputFocused: Bool
+    // Enter 发送（fallback b）：@FocusState → @State——UIViewRepresentable 不接 SwiftUI 焦点系统，
+    // 改由 ComposerTextEditor 双向桥接 UIKit first responder（focusComposer 快捷键置 true 仍生效）。
+    @State private var inputFocused: Bool = false
 
     init(store: ConversationStore, draft: ComposerDraft? = nil, isEnabled: Bool = true,
          handlesWorkspaceShortcuts: Bool = true,
@@ -198,12 +200,23 @@ struct ComposerView: View {
         }
     }
 
+    /// Enter 发送（fallback b）：TextField(axis:.vertical) → ComposerTextEditor（UITextView 桥接）。
+    /// 裸 Return/软键盘 Return=发送、⇧Return=换行、⌘Return=既有别名、IME 组合态放行——拦截逻辑
+    /// 见 ComposerTextEditor.returnInterceptDecision；两套布局与侧聊共用本函数，自然同行为。
     private func composerTextField(text: Binding<String>) -> some View {
-        TextField("composer.placeholder", text: text, axis: .vertical)
-            .textFieldStyle(.roundedBorder)
-            .lineLimit(1...5)
-            .submitLabel(.return)
-            .focused($inputFocused)
+        ComposerTextEditor(text: text, isFocused: $inputFocused,
+                           onSubmitSend: { performSendShortcut() })
+            .frame(minHeight: 36)
+            .overlay(alignment: .topLeading) {
+                if text.wrappedValue.isEmpty {
+                    Text("composer.placeholder")
+                        .foregroundStyle(.tertiary)
+                        .padding(.leading, 9)
+                        .padding(.top, 7)
+                        .allowsHitTesting(false)
+                }
+            }
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(.systemGray4), lineWidth: 0.5))
     }
 
     @ViewBuilder
@@ -338,6 +351,30 @@ struct ComposerView: View {
         guard isEnabled, canSend else { return }
         if isTurnRunning { await enqueue() }
         else { await send() }
+    }
+
+    // MARK: - Enter 发送纯函数（narrow-right-panel-and-enter-send，design §2）
+
+    /// 硬件 Return 判定（design §2a）：无组合修饰=发送；⇧/⌘/⌃/⌥ 任一=放行
+    /// （⇧→系统插换行；⌘→隐形 Button keyboardShortcut 别名先吞，防御性放行）。
+    /// 锁定键（alphaShift 大写锁定）非组合修饰意图，不挡发送。
+    enum HardwareReturnAction: Equatable { case send, passthrough }
+
+    static func hardwareReturnAction(modifiers: UIKeyModifierFlags) -> HardwareReturnAction {
+        modifiers.intersection([.shift, .command, .control, .alternate]).isEmpty ? .send : .passthrough
+    }
+
+    /// 软键盘 Return 检测规格（design §2b）：末尾单 `\n` 追加=发送触发（剥后文本）；
+    /// 粘贴多行/中间编辑/删除/IME 候选确认均为 normal。fallback b 下由
+    /// `ComposerTextEditor.returnInterceptDecision`（shouldChangeTextIn）等价实现，本函数保留为行为规格。
+    enum ComposerTextChange: Equatable {
+        case normal
+        case sendTriggered(strippedText: String)
+    }
+
+    static func classify(old: String, new: String) -> ComposerTextChange {
+        guard new == old + "\n" else { return .normal }
+        return .sendTriggered(strippedText: old)
     }
 }
 
