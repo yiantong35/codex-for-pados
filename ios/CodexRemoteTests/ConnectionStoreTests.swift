@@ -283,12 +283,19 @@ final class ConnectionStoreTests: XCTestCase {
         XCTAssertEqual(earlyFinal, earlyAfterFirst, "既有订阅者不应因新订阅者加入而重复触发")
     }
 
-    func test_readyEpochListsRunningThreadsOnceAndSkipsVisibleThreadsInGlobalResume() async throws {
+    /// rejoin 收敛（spec：重连不触发多会话全量 resume 风暴）：仅侧聊活跃会话真 resume；
+    /// 可见会话（main/side）由各自 resumeHandler 恢复不重复 resume；其余 loaded thread
+    /// （hidden）零 thread/resume RPC，延迟到用户切换时经 ConversationView 既有路径恢复。
+    /// （原 test_readyEpochListsRunningThreadsOnceAndSkipsVisibleThreadsInGlobalResume 的
+    /// 「hidden 也被 resume」断言与新 spec 直接冲突，按 spec MODIFIED 重写；responder 骨架保留。）
+    func test_readyEpochResumesOnlySideChatThreads_skipsOtherLoadedThreads() async throws {
         let mock = ControlEmittingTransport()
         let store = await ConnectionStore(transportFactory: { _ in mock })
         let main = FireBox(); let side = FireBox()
         _ = await store.addResumeHandler(threadId: "main") { await main.bump() }
         _ = await store.addResumeHandler(threadId: "side") { await side.bump() }
+        // 侧聊活跃集合：side 可见+侧聊（走 handler 不重复）、sidechat2 非可见侧聊（走 rejoin）。
+        await MainActor.run { store.additionalRejoinThreadIds = { ["side", "sidechat2"] } }
 
         let responder = Task {
             var answered = Set<String>()
@@ -304,7 +311,7 @@ final class ConnectionStoreTests: XCTestCase {
                     case RPCMethod.initialize:
                         await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
                     case RPCMethod.threadLoadedList:
-                        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"data":["main","side","hidden"],"nextCursor":null}}"#)
+                        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"data":["main","side","sidechat2","hidden"],"nextCursor":null}}"#)
                     case RPCMethod.threadResume:
                         let threadId = (object["params"] as? [String: Any])?["threadId"] as? String ?? ""
                         await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"thread":{"id":"\#(threadId)","turns":[]}}}"#)
@@ -322,15 +329,81 @@ final class ConnectionStoreTests: XCTestCase {
             let mainCount = await main.count
             let sideCount = await side.count
             return mainCount == 1 && sideCount == 1
-                && sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"hidden""#) }
+                && sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"sidechat2""#) }
         }
         responder.cancel()
 
         let sent = await mock.sent
         XCTAssertEqual(sent.filter { $0.contains(RPCMethod.threadLoadedList) }.count, 1)
         XCTAssertFalse(sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"main""#) })
-        XCTAssertFalse(sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"side""#) })
-        XCTAssertEqual(sent.filter { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"hidden""#) }.count, 1)
+        XCTAssertFalse(sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"side""#) },
+                       "可见侧聊由自身 handler 恢复，rejoin 不得重复 resume")
+        XCTAssertEqual(sent.filter { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"sidechat2""#) }.count, 1)
+        XCTAssertFalse(sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"hidden""#) },
+                       "非可见非侧聊 loaded thread 不得 resume（RED：旧全量 rejoin 会 resume hidden）")
+    }
+
+    /// -32600 容错不回归：某侧聊 resume 回 no-rollout error（ephemeral fork 在全新 daemon
+    /// 无落盘），跳过而不中断其余侧聊恢复。
+    func test_rejoinSideChat_noRolloutError_skipsAndContinues() async throws {
+        let mock = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in mock })
+        await MainActor.run { store.additionalRejoinThreadIds = { ["sc1", "sc2"] } }
+
+        let responder = Task {
+            var answered = Set<String>()
+            for _ in 0..<500 {
+                if Task.isCancelled { return }
+                for frame in await mock.sent {
+                    guard let object = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any],
+                          let id = object["id"] as? String,
+                          let method = object["method"] as? String,
+                          !answered.contains(id) else { continue }
+                    answered.insert(id)
+                    switch method {
+                    case RPCMethod.initialize:
+                        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
+                    case RPCMethod.threadLoadedList:
+                        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"data":["sc1","sc2"],"nextCursor":null}}"#)
+                    case RPCMethod.threadResume:
+                        let threadId = (object["params"] as? [String: Any])?["threadId"] as? String ?? ""
+                        if threadId == "sc1" {
+                            await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","error":{"code":-32600,"message":"no rollout found"}}"#)
+                        } else {
+                            await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"thread":{"id":"\#(threadId)","turns":[]}}}"#)
+                        }
+                    default:
+                        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{}}"#)
+                    }
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000)
+            }
+        }
+
+        await store.connect(config: .stub)
+        try await waitUntil {
+            let sent = await mock.sent
+            return sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"sc1""#) }
+                && sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"sc2""#) }
+        }
+        responder.cancel()
+        // sc1 失败被吞、sc2 照常各恢复一次即通过（无中断）。
+        let sent = await mock.sent
+        XCTAssertEqual(sent.filter { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"sc2""#) }.count, 1)
+    }
+
+    /// Session 装配：侧聊活跃会话集合（权威来源 SideChatStore.sessions）接入
+    /// connection.additionalRejoinThreadIds，作 rejoin 收敛数据源。
+    @MainActor
+    func test_sessionWiresSideChatThreadIdsIntoConnection() async throws {
+        let machine = MachineConfig(displayName: "m", relayURL: "wss://x",
+                                    sessionId: "s", devIdentityPubB64: "pk")
+        let session = Session(machine: machine, transportFactory: { _ in MockTransport() })
+        session.sideChat.setSessionsForTesting(
+            [SideChatSession(id: "sc1", forkedFromId: "main", title: "t1"),
+             SideChatSession(id: "sc2", forkedFromId: "main", title: "t2")],
+            selectedId: nil)
+        XCTAssertEqual(session.connection.additionalRejoinThreadIds(), ["sc1", "sc2"])
     }
 
     /// D2 helper：经 ControlEmittingTransport 握手驱动 store 到 .ready（复用 feedInitializeResponse 模式，

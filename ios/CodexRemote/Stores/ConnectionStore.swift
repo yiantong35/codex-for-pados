@@ -104,6 +104,11 @@ final class ConnectionStore {
 
     /// 可见会话只负责恢复自己的 thread；全量 running-thread rejoin 由连接级恢复任务统一执行。
     private var resumeHandlers: [ResumeToken: ResumeRegistration] = [:]
+
+    /// rejoin 收敛数据源：重连恢复时，除可见会话（resumeHandlers 自带）外额外允许真 resume
+    /// 的 thread 集合提供者。生产装配 = Session 注入侧聊活跃会话（SideChatStore.sessions）；
+    /// 默认空集 → 只恢复可见会话。
+    var additionalRejoinThreadIds: @MainActor () -> Set<String> = { [] }
     /// 已首连补触发过的订阅者集合（订阅者维度化的 didInitialRejoin）：新订阅者不漏、老订阅者不重。
     /// 每次新 connect()/disconnect() 清空。物理重连走 observeControl 的 .ready，与此独立。
     private var rejoinedTokens: Set<ResumeToken> = []
@@ -195,14 +200,22 @@ final class ConnectionStore {
         }
     }
 
+    /// rejoin 收敛（spec：重连不触发多会话全量 resume 风暴）：仅侧聊活跃会话真 resume
+    /// （可见会话已由各自 resumeHandler 恢复）；其余 loaded thread 一律跳过，延迟到用户
+    /// 切换时经 ConversationView 既有路径（requireAuthoritativeRecovery + recoverCurrentThread）
+    /// 恢复。无侧聊时连 thread/loaded/list 都不发（净减 RPC）。
     private func rejoinLoadedThreads(excluding visibleThreadIds: Set<String>, epoch: UInt64) async {
         guard !Task.isCancelled, epoch == recoveryEpoch, let rpc else { return }
+        let sideChatIds = additionalRejoinThreadIds().subtracting(visibleThreadIds)
+        guard !sideChatIds.isEmpty else { return }
         guard let listResult = try? await rpc.send(
             method: RPCMethod.threadLoadedList,
             params: try? Self.encode(EmptyParams())
         ), let list = try? Self.decode(LoadedThreadList.self, from: listResult) else { return }
 
-        for threadId in list.data where !visibleThreadIds.contains(threadId) {
+        // 只 resume「侧聊活跃 ∩ loaded」：全新 daemon 时 ephemeral fork 不在 loaded 列表
+        // （也无从恢复），天然跳过；-32600 no-rollout 容错不回归——单个失败（try?）不中断其余。
+        for threadId in list.data where sideChatIds.contains(threadId) {
             guard !Task.isCancelled, epoch == recoveryEpoch else { return }
             let params = try? Self.encode(ThreadResumeParams(threadId: threadId, model: nil, cwd: nil))
             _ = try? await rpc.send(method: RPCMethod.threadResume, params: params)

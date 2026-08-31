@@ -44,11 +44,12 @@ final class Session: Identifiable {
         self.hooks = HooksStore()
         self.terminal = TerminalSession()
         self.fileBrowser = FileBrowserStore()
-        self.sideChat = SideChatStore(
+        let sideChat = SideChatStore(
             draftStore: composerDrafts,
             conversationOutboxes: conversationOutboxes,
             threadStatus: { [weak projects] threadId in projects?.status(of: threadId) }
         )
+        self.sideChat = sideChat
         self.envInspector = EnvironmentInspectorModel()
         self.approvals = ApprovalStore()
         self.userInputs = UserInputStore()
@@ -58,6 +59,11 @@ final class Session: Identifiable {
         projects.onThreadDeleted = { threadId in
             workspaceState.conversationOutboxes.remove(threadId: threadId)
             composerDrafts.removeDraft(for: threadId)
+        }
+        // rejoin 收敛数据源：侧聊活跃会话集合注入连接级恢复（权威来源 SideChatStore.sessions，
+        // 与 SessionsManager 徽标同源）；重连后除可见会话外仅这些 thread 真 resume。
+        connection.additionalRejoinThreadIds = { [weak sideChat] in
+            Set(sideChat?.sessions.map(\.id) ?? [])
         }
     }
 
