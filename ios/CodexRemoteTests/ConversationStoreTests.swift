@@ -149,6 +149,36 @@ final class ConversationStoreTests: XCTestCase {
         XCTAssertEqual(store.loadState, .failed)
     }
 
+    /// resume 有界超时：远端永不应答 → 注入短超时后 loadState=.failed（可重试态），
+    /// resume() 本身返回、pending 经取消释放，不永久挂起（RED：现实现无超时，waitUntil 打断）。
+    func testResumeTimesOutToFailedState() async throws {
+        let mock = MockTransport()                 // autoRespond 关：thread/resume 永不应答
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "t1",
+                                      resumeTimeout: .milliseconds(120))
+        let resume = Task { await store.resume() }
+        try await waitUntil { store.loadState == .failed }
+        resume.cancel()   // GREEN 阶段 resume 早已完成，cancel 无害；RED 阶段兜底解挂防悬挂
+        XCTAssertEqual(store.loadState, .failed)
+    }
+
+    /// 超时落 .failed 后可重试：远端恢复应答，再次 resume 成功加载（generation 机制不阻断）。
+    func testResumeRetryAfterTimeoutSucceeds() async throws {
+        let mock = MockTransport()
+        let rpc = JSONRPCClient(transport: mock)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "t1",
+                                      resumeTimeout: .milliseconds(120))
+        let first = Task { await store.resume() }              // 第一次：超时 → .failed
+        try await waitUntil { store.loadState == .failed }
+        first.cancel()
+        await mock.setAutoRespond(true)
+        await mock.setThreadResumeResponse(#"{"thread":{"id":"t1","turns":[]}}"#)
+        await store.resume()                                   // 第二次：成功
+        XCTAssertEqual(store.loadState, .loaded)
+    }
+
     // MARK: - §5 可见会话恢复：仅恢复当前 thread
 
     func testCurrentThreadRecoveryDoesNotListOrResumeOtherThreads() async throws {
