@@ -19,6 +19,39 @@ final class JSONRPCClientHeartbeatCorrelationTests: XCTestCase {
         _ = try await probe.value   // 不抛 = 按 id 成功关联回响
     }
 
+    // MARK: - 流量即活（heartbeat-liveness-and-resume-guards）
+
+    /// 流量即活挂钩点 = 唯一入站分发入口：成功解码的消息（notification / 孤儿 response 均可）触发回调。
+    func test_inboundActivity_firesForDecodedMessages() async throws {
+        let mock = MockTransport()
+        let client = JSONRPCClient(transport: mock)
+        let hits = Counter()   // Counter actor 定义于 HeartbeatMonitorTests.swift，同 target 复用
+        await client.setInboundActivityHandler { Task { await hits.increment() } }
+        await client.start()
+        await mock.feed(#"{"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"t1"}}"#)
+        try await waitUntil { await hits.value == 1 }
+        await mock.feed(#"{"jsonrpc":"2.0","id":"orphan","result":{}}"#)  // 无 pending 的孤儿响应也是流量
+        try await waitUntil { await hits.value == 2 }
+    }
+
+    /// 防降级（伪造流量不能维持假活）：解码失败的入站行不触发回调。
+    /// 论证链：未通过 E2E 验证的帧根本到不了本 client——RelayTransport 仅 emit
+    /// SecureSession.open（AEAD+计数单调）验证成功的明文（本 change 对其零改动，既有
+    /// AEAD fail-closed 测试锁定）；本测试锁最后一层「client 入站入口对垃圾行不计活」。
+    func test_inboundActivity_doesNotFireForUndecodableLines() async throws {
+        let mock = MockTransport()
+        let client = JSONRPCClient(transport: mock)
+        let hits = Counter()
+        await client.setInboundActivityHandler { Task { await hits.increment() } }
+        await client.start()
+        await mock.feed("💥 not-json-at-all")
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        let afterGarbage = await hits.value
+        XCTAssertEqual(afterGarbage, 0, "解码失败的行不得计为存活流量")
+        await mock.feed(#"{"jsonrpc":"2.0","method":"turn/started","params":{}}"#)
+        try await waitUntil { await hits.value == 1 }   // 回调路径本身是活的，垃圾行确实没计数
+    }
+
     private static func extractId(from json: String) throws -> String {
         let obj = try JSONSerialization.jsonObject(with: Data(json.utf8)) as! [String: Any]
         if let n = obj["id"] as? NSNumber { return n.stringValue }

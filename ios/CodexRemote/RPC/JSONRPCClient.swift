@@ -69,6 +69,15 @@ actor JSONRPCClient {
     private var streamOverflowRecoveryActive = false
     private var pump: Task<Void, Never>?
 
+    /// 入站活跃回调（流量即活）：handle 成功解码任一入站消息后触发（涵盖 response/error/
+    /// notification/server request——全部是经 transport 已验信道到达的明文）。解码失败的行
+    /// 不触发。唯一生产挂钩点 = ConnectionStore.doEstablish（转心跳重置 miss 计数）。
+    private var onInboundActivity: (@Sendable () -> Void)?
+
+    func setInboundActivityHandler(_ handler: @escaping @Sendable () -> Void) {
+        onInboundActivity = handler
+    }
+
     private let encoder: JSONEncoder = {
         let e = JSONEncoder()
         e.outputFormatting = [.withoutEscapingSlashes]
@@ -263,6 +272,7 @@ actor JSONRPCClient {
     private func handle(_ line: String) async {
         guard let data = line.data(using: .utf8),
               let msg = try? JSONDecoder().decode(JSONRPCMessage.self, from: data) else { return }
+        onInboundActivity?()   // 流量即活：任何成功解码的入站消息都是存活证据
         switch msg {
         // response/error 按 id 精确匹配 pending 表唤醒发起者；查无此 id 则 removeValue 返回 nil、静默丢弃。
         // 保留依据（spike 2026-06-24 实测坐实，§6.2）：官方 ws response 点对点按 id 回发起连接，

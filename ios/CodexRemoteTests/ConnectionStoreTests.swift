@@ -652,6 +652,42 @@ final class ConnectionStoreTests: XCTestCase {
         if case .ready = await store.phase {} else { XCTFail("应保持 .ready，实际 \(await store.phase)") }
     }
 
+    /// 流量即活端到端接线：探针 miss → 入站流量 → 探针 miss 不判死；无流量兜底连续两 miss 仍判死。
+    func test_inboundTraffic_resetsHeartbeatMisses_endToEnd() async throws {
+        let mock = ControlEmittingTransport()
+        let results = ResultScript([true, false, false, false])  // ready 首探 hit，其后恒 miss
+        let store = await ConnectionStore(
+            transportFactory: { _ in mock },
+            heartbeatFactory: { cb in
+                HeartbeatMonitor(config: .init(interval: .seconds(10), missThreshold: 2,
+                                               minimumAcceleratedProbeInterval: .zero),
+                                 probe: { await results.next() }, onUnhealthy: cb.run,
+                                 sleep: { _ in try? await Task.sleep(for: .seconds(3600)) }) })
+        await store.setTabActive(true)
+        await feedInitializeResponse(mock)
+        await store.connect(config: .stub)
+        try await waitUntil { if case .ready = await store.phase { return true }; return false }
+        try await waitUntil { await results.consumed == 1 }      // 首探 hit，cm=0
+
+        await mock.emitControl(.peerLeft)                        // 探测 #2：miss → cm=1
+        try await waitUntil { await results.consumed == 2 }
+
+        // 入站流量（模拟大响应期间持续到达的通知帧）→ 经 client 回调重置 cm=0
+        await mock.feed(#"{"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"t1"}}"#)
+        try? await Task.sleep(nanoseconds: 100_000_000)          // 等回调跨 actor 落地 MainActor
+
+        await mock.emitControl(.peerLeft)                        // 探测 #3：miss → cm=1（重置后）
+        try await waitUntil { await results.consumed == 3 }
+        let reconnectsAfterReset = await mock.triggerReconnectCount
+        XCTAssertEqual(reconnectsAfterReset, 0,
+                       "流量重置后的第一次 miss 不得判死（未接线时此处 cm=2 已判死，RED）")
+
+        await mock.emitControl(.peerLeft)                        // 探测 #4：连续第二次 miss → 判死
+        try await waitUntil { await mock.triggerReconnectCount >= 1 }
+        let count = await mock.triggerReconnectCount
+        XCTAssertEqual(count, 1, "无流量兜底：连续两次 miss 仍判死（探针机制不弱化）")
+    }
+
     /// 后台回一条 initialize 响应，使握手到达 .ready（复用于多测试）。
     private func feedInitializeResponse(_ ctrl: ControlEmittingTransport) async {
         Task {

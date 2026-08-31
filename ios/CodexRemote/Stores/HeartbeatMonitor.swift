@@ -2,7 +2,7 @@ import Foundation
 
 /// app 级端到端心跳调度器（design D1/D5）。
 /// 纯调度 + 连续错过计数 + 前后台门控；探针本体（getAuthStatus 往返 + 单次超时）由外部注入。
-/// 判活只看「有无回响」，天然跨登录方式。
+/// 判活只看「有无回响」，天然跨登录方式；入站已验流量亦计为存活证据（noteInboundActivity）。
 @MainActor
 final class HeartbeatMonitor {
     struct Config: Sendable {
@@ -108,6 +108,14 @@ final class HeartbeatMonitor {
         acceleratedProbePending = true
         waitTask?.cancel()
         restartLoopIfNeeded()
+    }
+
+    /// 流量即活（heartbeat-liveness）：经 E2E 验证的入站流量视同一次存活证据，**仅重置**
+    /// 连续 miss 计数——不发探针、不改前后台/tab 门控、不重启循环（回调式，零新增轮询/定时器）。
+    /// 远端忙于大响应传输、探针排队超时时，持续到达的已验流量使计数不断归零，不误判死。
+    /// 判死权不变：流量停了之后仍需连续 missThreshold 次探针 miss 才判死。
+    func noteInboundActivity() {
+        consecutiveMisses = 0
     }
 
     private func restartLoopIfNeeded() {

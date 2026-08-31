@@ -244,6 +244,64 @@ final class HeartbeatMonitorTests: XCTestCase {
                        "回前台单次 miss 不得判死（loop 未达阈值）；游离 probeOnce 绕过阈值即 +1（RED）")
     }
 
+    // MARK: - 流量即活（heartbeat-liveness-and-resume-guards）
+
+    /// 入站流量重置连续 miss：miss→流量→miss 不判死（无重置则第二次 miss 即达阈值判死）。
+    func test_noteInboundActivity_resetsConsecutiveMisses() async throws {
+        let probes = Counter(); let deaths = Counter()
+        let m = HeartbeatMonitor(
+            config: .init(interval: .seconds(10), missThreshold: 2,
+                          minimumAcceleratedProbeInterval: .zero),
+            probe: { await probes.increment(); return false },   // 恒 miss
+            onUnhealthy: { await deaths.increment() },
+            sleep: { _ in try? await Task.sleep(for: .seconds(3600)) })  // 首轮后 park
+        m.start()                                    // 首轮立即探测：miss → cm=1
+        try await waitUntil { await probes.value == 1 }
+        m.noteInboundActivity()                      // 流量即活：cm 归零
+        m.requestAcceleratedProbe()                  // 探测 #2：miss → cm=1 < 2
+        try await waitUntil { await probes.value == 2 }
+        try? await Task.sleep(for: .milliseconds(30))
+        m.stop()
+        let d = await deaths.value
+        XCTAssertEqual(d, 0, "miss→流量→miss 不得判死（流量应已重置连续 miss 计数）")
+    }
+
+    /// 流量即活只重置计数，不得触发探针（回调式，零新增探测/轮询）。
+    func test_noteInboundActivity_doesNotTriggerProbe() async throws {
+        let probes = Counter()
+        let m = HeartbeatMonitor(
+            config: .init(interval: .seconds(10), missThreshold: 2),
+            probe: { await probes.increment(); return true },
+            onUnhealthy: {},
+            sleep: { _ in try? await Task.sleep(for: .seconds(3600)) })
+        m.start()
+        try await waitUntil { await probes.value == 1 }
+        for _ in 0..<100 { m.noteInboundActivity() }
+        try? await Task.sleep(for: .milliseconds(50))
+        m.stop()
+        let count = await probes.value
+        XCTAssertEqual(count, 1, "noteInboundActivity 不得追加任何探针")
+    }
+
+    /// 后台门控不受影响：后台时流量到达不得唤醒探针循环（门控优先于流量即活）。
+    func test_noteInboundActivity_inBackground_doesNotRestartLoop() async throws {
+        let probes = Counter()
+        let m = HeartbeatMonitor(
+            config: .init(interval: .seconds(10), missThreshold: 2),
+            probe: { await probes.increment(); return true },
+            onUnhealthy: {},
+            sleep: { _ in await Task.yield() })
+        m.start()
+        try await waitUntil { await probes.value >= 1 }
+        m.setForeground(false)
+        let snapshot = await probes.value
+        for _ in 0..<100 { m.noteInboundActivity() }
+        try? await Task.sleep(for: .milliseconds(50))
+        m.stop()
+        let after = await probes.value
+        XCTAssertEqual(after, snapshot, "后台收到流量不得唤醒探针循环")
+    }
+
     private func waitUntil(timeout: TimeInterval = 3, _ condition: () async -> Bool) async throws {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

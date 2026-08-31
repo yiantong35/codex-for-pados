@@ -380,6 +380,11 @@ final class ConnectionStore {
         inFlightTransport = transport
         connLog.notice("doEstablish: transport 就绪, 启动 JSONRPCClient")
         let client = JSONRPCClient(transport: transport)
+        // 流量即活挂钩（heartbeat-liveness）：client 每成功解码一条入站消息（已验明文）
+        // 即回调重置心跳连续 miss 计数。挂在 doEstablish = 所有落地连接（首连/手动重连）统一生效。
+        await client.setInboundActivityHandler { [weak self] in
+            Task { @MainActor in self?.noteInboundActivity() }
+        }
         await client.start()
 
         do {
@@ -471,6 +476,11 @@ final class ConnectionStore {
     private func stopHeartbeat() {
         heartbeat?.stop()
         heartbeat = nil
+    }
+
+    /// 流量即活：转发给当前心跳（仅重置连续 miss 计数；无心跳期间为 no-op）。
+    func noteInboundActivity() {
+        heartbeat?.noteInboundActivity()
     }
 
     // MARK: - 控制信号观察
