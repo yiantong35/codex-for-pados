@@ -120,28 +120,30 @@ enum AppTextScale: String, CaseIterable, Identifiable {
     case medium   // 小（比系统默认小 1 档）
     case large    // 标准（= 系统默认档 .large）
     case xLarge   // 大（比系统默认大 1 档）
+    case xxLarge  // 更大（比系统默认大 2 档；text-scale-extra-large，持久化 append-only 兼容）
 
     var id: String { rawValue }
 
     /// 映射到原生 DynamicTypeSize；`.system` → nil（不注入 = 放行系统 Dynamic Type）。
-    /// 锚在系统默认 `.large`：`large` 即系统默认，`medium`/`small` 明确更小，`xLarge` 略大。
+    /// 锚在系统默认 `.large`：`large` 即系统默认，`medium`/`small` 明确更小，`xLarge`/`xxLarge` 递进更大。
     var overrideSize: DynamicTypeSize? {
         switch self {
-        case .system: return nil
-        case .small:  return .small
-        case .medium: return .medium
-        case .large:  return .large
-        case .xLarge: return .xLarge
+        case .system:  return nil
+        case .small:   return .small
+        case .medium:  return .medium
+        case .large:   return .large
+        case .xLarge:  return .xLarge
+        case .xxLarge: return .xxLarge
         }
     }
 
-    /// 设置选择器展示的档位（不含 `.system`）。顺序：大 → 标准 → 小 → 更小（自上而下渐小）。
-    static let selectableCases: [AppTextScale] = [.xLarge, .large, .medium, .small]
+    /// 设置选择器展示的档位（不含 `.system`）。顺序：更大 → 大 → 标准 → 小 → 更小（自上而下渐小）。
+    static let selectableCases: [AppTextScale] = [.xxLarge, .xLarge, .large, .medium, .small]
 
     /// 覆盖档有序阶梯（不含 `.system`，升序）：放大/缩小沿此移动一档并钳制两端。
-    static let overrideLadder: [AppTextScale] = [.small, .medium, .large, .xLarge]
+    static let overrideLadder: [AppTextScale] = [.small, .medium, .large, .xLarge, .xxLarge]
 
-    /// 从 base 沿阶梯移动 delta 档并钳制（下界 `.small`、上界 `.xLarge`）。
+    /// 从 base 沿阶梯移动 delta 档并钳制（下界 `.small`、上界 `.xxLarge`）。
     /// base 若非阶梯档（如 `.system`）兜底取下限索引 0——视图层保证只传阶梯档，此为防御。
     static func stepped(from base: AppTextScale, by delta: Int) -> AppTextScale {
         let idx = overrideLadder.firstIndex(of: base) ?? 0
@@ -150,7 +152,7 @@ enum AppTextScale: String, CaseIterable, Identifiable {
     }
 
     /// U1：把当前有效 DynamicTypeSize 映射到最近覆盖档（用作「跟随系统」下放大/缩小的基线）。
-    /// 取阶梯中原生值 `<= size` 的最大档；比下限还小取 `.small`、超上限取 `.xLarge`。
+    /// 取阶梯中原生值 `<= size` 的最大档；比下限还小取 `.small`、超上限取 `.xxLarge`。
     /// DynamicTypeSize 符合 Comparable，可直接比较。
     static func nearestOverride(for size: DynamicTypeSize) -> AppTextScale {
         var result: AppTextScale = .small

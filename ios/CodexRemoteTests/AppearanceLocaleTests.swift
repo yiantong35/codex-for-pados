@@ -159,12 +159,12 @@ final class AppearanceLocaleTests: XCTestCase {
 
     // MARK: - 用户诉求回归：四档偏小阶梯 + 选择器不含跟随系统 + 移除辅助功能/特大
 
-    /// 选择器只展示四个具体档位，且**不含** `.system`（默认未选择即跟随系统，无此选项）。
-    /// 顺序固定：大 → 标准 → 小 → 更小。
+    /// 选择器只展示具体档位，且**不含** `.system`（默认未选择即跟随系统，无此选项）。
+    /// 顺序固定：更大 → 大 → 标准 → 小 → 更小（text-scale-extra-large 五档化）。
     func test_selectableCases_excludesSystemAndIsFourTiers() {
-        XCTAssertEqual(AppTextScale.selectableCases, [.xLarge, .large, .medium, .small])
+        XCTAssertEqual(AppTextScale.selectableCases, [.xxLarge, .xLarge, .large, .medium, .small])
         XCTAssertFalse(AppTextScale.selectableCases.contains(.system), "选择器不得含跟随系统")
-        XCTAssertEqual(AppTextScale.selectableCases.count, 4)
+        XCTAssertEqual(AppTextScale.selectableCases.count, 5)
     }
 
     /// 档位以系统默认 `.large` 为锚：large=系统默认、medium/small 严格更小、xLarge 略大。
@@ -180,11 +180,11 @@ final class AppearanceLocaleTests: XCTestCase {
         XCTAssertLessThan(AppTextScale.small.overrideSize!, AppTextScale.medium.overrideSize!)
     }
 
-    /// overrideLadder 升序、且为四个具体档（快捷键放大/缩小沿此移动）。
+    /// overrideLadder 升序、且为五个具体档（快捷键放大/缩小沿此移动；text-scale-extra-large 五档化）。
     func test_overrideLadderIsAscendingConcrete() {
-        XCTAssertEqual(AppTextScale.overrideLadder, [.small, .medium, .large, .xLarge])
+        XCTAssertEqual(AppTextScale.overrideLadder, [.small, .medium, .large, .xLarge, .xxLarge])
         let sizes = AppTextScale.overrideLadder.compactMap { $0.overrideSize }
-        XCTAssertEqual(sizes.count, 4)
+        XCTAssertEqual(sizes.count, 5)
         XCTAssertEqual(sizes, sizes.sorted(), "阶梯应按原生字号升序")
     }
 
