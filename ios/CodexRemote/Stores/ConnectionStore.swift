@@ -84,6 +84,8 @@ final class ConnectionStore {
     private let transportFactory: @Sendable (ConnectionConfig) async throws -> MessageTransport
     /// 建连/握手硬超时（纳秒）。默认 20s；测试可注入更短值以快速复现超时失效路径。
     private let connectTimeoutNanos: UInt64
+    /// 心跳探针单次超时（纳秒）。默认 10s；测试可注入更短值以复现超时 miss 路径。
+    private let heartbeatProbeTimeoutNanos: UInt64
     private var config: ConnectionConfig?
     /// 最近一次 connect 的配置：心跳判死后经 reconnect() 复用它重连（保留机器配置）。
     private var lastConfig: ConnectionConfig?
@@ -102,6 +104,11 @@ final class ConnectionStore {
 
     /// 可见会话只负责恢复自己的 thread；全量 running-thread rejoin 由连接级恢复任务统一执行。
     private var resumeHandlers: [ResumeToken: ResumeRegistration] = [:]
+
+    /// rejoin 收敛数据源：重连恢复时，除可见会话（resumeHandlers 自带）外额外允许真 resume
+    /// 的 thread 集合提供者。生产装配 = Session 注入侧聊活跃会话（SideChatStore.sessions）；
+    /// 默认空集 → 只恢复可见会话。
+    var additionalRejoinThreadIds: @MainActor () -> Set<String> = { [] }
     /// 已首连补触发过的订阅者集合（订阅者维度化的 didInitialRejoin）：新订阅者不漏、老订阅者不重。
     /// 每次新 connect()/disconnect() 清空。物理重连走 observeControl 的 .ready，与此独立。
     private var rejoinedTokens: Set<ResumeToken> = []
@@ -126,9 +133,11 @@ final class ConnectionStore {
 
     init(transportFactory: @escaping @Sendable (ConnectionConfig) async throws -> MessageTransport,
          connectTimeoutNanos: UInt64 = 20_000_000_000,
+         heartbeatProbeTimeoutNanos: UInt64 = 10_000_000_000,
          heartbeatFactory: (@MainActor (HeartbeatUnhealthy) -> HeartbeatMonitor)? = nil) {
         self.transportFactory = transportFactory
         self.connectTimeoutNanos = connectTimeoutNanos
+        self.heartbeatProbeTimeoutNanos = heartbeatProbeTimeoutNanos
         self.injectedHeartbeatFactory = heartbeatFactory
     }
 
@@ -191,14 +200,22 @@ final class ConnectionStore {
         }
     }
 
+    /// rejoin 收敛（spec：重连不触发多会话全量 resume 风暴）：仅侧聊活跃会话真 resume
+    /// （可见会话已由各自 resumeHandler 恢复）；其余 loaded thread 一律跳过，延迟到用户
+    /// 切换时经 ConversationView 既有路径（requireAuthoritativeRecovery + recoverCurrentThread）
+    /// 恢复。无侧聊时连 thread/loaded/list 都不发（净减 RPC）。
     private func rejoinLoadedThreads(excluding visibleThreadIds: Set<String>, epoch: UInt64) async {
         guard !Task.isCancelled, epoch == recoveryEpoch, let rpc else { return }
+        let sideChatIds = additionalRejoinThreadIds().subtracting(visibleThreadIds)
+        guard !sideChatIds.isEmpty else { return }
         guard let listResult = try? await rpc.send(
             method: RPCMethod.threadLoadedList,
             params: try? Self.encode(EmptyParams())
         ), let list = try? Self.decode(LoadedThreadList.self, from: listResult) else { return }
 
-        for threadId in list.data where !visibleThreadIds.contains(threadId) {
+        // 只 resume「侧聊活跃 ∩ loaded」：全新 daemon 时 ephemeral fork 不在 loaded 列表
+        // （也无从恢复），天然跳过；-32600 no-rollout 容错不回归——单个失败（try?）不中断其余。
+        for threadId in list.data where sideChatIds.contains(threadId) {
             guard !Task.isCancelled, epoch == recoveryEpoch else { return }
             let params = try? Self.encode(ThreadResumeParams(threadId: threadId, model: nil, cwd: nil))
             _ = try? await rpc.send(method: RPCMethod.threadResume, params: params)
@@ -380,6 +397,11 @@ final class ConnectionStore {
         inFlightTransport = transport
         connLog.notice("doEstablish: transport 就绪, 启动 JSONRPCClient")
         let client = JSONRPCClient(transport: transport)
+        // 流量即活挂钩（heartbeat-liveness）：client 每成功解码一条入站消息（已验明文）
+        // 即回调重置心跳连续 miss 计数。挂在 doEstablish = 所有落地连接（首连/手动重连）统一生效。
+        await client.setInboundActivityHandler { [weak self] in
+            Task { @MainActor in self?.noteInboundActivity() }
+        }
         await client.start()
 
         do {
@@ -432,14 +454,23 @@ final class ConnectionStore {
         if let c = lastConfig { connect(config: c) }
     }
 
-    /// 心跳探针本体：一次 getAuthStatus 往返 vs 10s 超时竞速。只看「有无回响」不看内容——
-    /// 天然跨登录方式（账号/API 都回响应即视为活）。超时或抛错即视为 miss。
+    /// 心跳探针本体：一次 getAuthStatus 往返 vs 超时竞速。三分判活——只看「有无回响」不看
+    /// 内容（天然跨登录方式）：正常应答=活；远端 error 回响（JSONRPCClient 对 .error 抛
+    /// TransportError.proxyFailed）=有回响=活；仅超时或传输层失败（channelClosed/取消等）=miss。
     private func sendHeartbeatProbe() async -> Bool {
         guard let rpc else { return false }
         guard let empty = try? JSONDecoder().decode(AnyCodable.self, from: Data("{}".utf8)) else { return false }
+        let timeoutNanos = heartbeatProbeTimeoutNanos
         return await withTaskGroup(of: Bool.self) { group in
-            group.addTask { (try? await rpc.send(method: RPCMethod.getAuthStatus, params: empty)) != nil }
-            group.addTask { try? await Task.sleep(nanoseconds: 10_000_000_000); return false }
+            group.addTask {
+                do { _ = try await rpc.send(method: RPCMethod.getAuthStatus, params: empty); return true }
+                catch let error as TransportError {
+                    if case .proxyFailed = error { return true }   // 远端 error 回响=活
+                    return false                                    // 传输层失败=miss
+                }
+                catch { return false }                              // 取消/其他=miss
+            }
+            group.addTask { try? await Task.sleep(nanoseconds: timeoutNanos); return false }
             let first = await group.next() ?? false
             group.cancelAll()
             return first
@@ -471,6 +502,11 @@ final class ConnectionStore {
     private func stopHeartbeat() {
         heartbeat?.stop()
         heartbeat = nil
+    }
+
+    /// 流量即活：转发给当前心跳（仅重置连续 miss 计数；无心跳期间为 no-op）。
+    func noteInboundActivity() {
+        heartbeat?.noteInboundActivity()
     }
 
     // MARK: - 控制信号观察
@@ -619,6 +655,8 @@ extension ConnectionStore {
 #if DEBUG
 extension ConnectionStore {
     func _test_setPhase(_ p: ConnectionPhase) { phase = p }
+    /// 测试专用：直接驱动一次心跳探针（三分判活行为测试）。
+    func sendHeartbeatProbeForTesting() async -> Bool { await sendHeartbeatProbe() }
     func _test_setTrustRevoked() { phase = .failed("trust"); needsRePairing = true }
     func _test_setRePairingRequired(reason: String) {
         phase = .failed(reason)

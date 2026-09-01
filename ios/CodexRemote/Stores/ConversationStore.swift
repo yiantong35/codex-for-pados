@@ -16,6 +16,10 @@ enum ConversationLoadState: Equatable {
 @MainActor
 final class ConversationStore {
     private static let turnStartTimeout: Duration = .seconds(15)
+    /// resume 有界超时（默认 60s）：合法 resume 远快于此——大会话现状要么正常返回要么
+    /// 秒回 -32600，不经超时；超时只兜「响应被丢弃/远端拥塞」的 .dropped 路径，消灭
+    /// pending 永久挂起（后台无限期）。A2 分片落地后由 A2 重估时长。测试注入短值。
+    private let resumeTimeout: Duration
     private(set) var state: ConversationState
     /// 流式内容每次合并落地递增一次。items 数量不变时，视图仍能感知正文增长。
     private(set) var contentRevision = 0
@@ -47,9 +51,11 @@ final class ConversationStore {
     /// 默认 { true }：保持既有单测「无注入即视为在线直发」语义不变。
     var isReady: @MainActor () -> Bool = { true }
 
-    init(rpc: JSONRPCClient, threadId: String, outbox: ConversationOutbox = ConversationOutbox()) {
+    init(rpc: JSONRPCClient, threadId: String, outbox: ConversationOutbox = ConversationOutbox(),
+         resumeTimeout: Duration = .seconds(60)) {
         self.rpc = rpc
         self.outbound = outbox
+        self.resumeTimeout = resumeTimeout
         self.state = ConversationState(threadId: threadId)
         outbox.attach(to: rpc)
         for entry in outbox.entries {
@@ -156,7 +162,12 @@ final class ConversationStore {
         }
         let params = ThreadResumeParams(threadId: state.threadId, model: model, cwd: cwd)
         do {
-            let result = try await call(RPCMethod.threadResume, params)
+            // resume 有界超时：超时抛 TimeoutError → 落入下方泛型 catch 的 .failed（可重试）；
+            // withTimeout cancelAll 令 rpc.send 经取消解挂释放 pending（#10 机制），不永久挂起。
+            let timeout = resumeTimeout
+            let result = try await Self.withTimeout(timeout) {
+                try await self.call(RPCMethod.threadResume, params)
+            }
             guard generation == recoveryGeneration else { return }
             guard let dict = result.value as? [String: Any] else {
                 loadState = .failed

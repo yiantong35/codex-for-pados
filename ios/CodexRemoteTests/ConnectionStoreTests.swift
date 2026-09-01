@@ -283,12 +283,19 @@ final class ConnectionStoreTests: XCTestCase {
         XCTAssertEqual(earlyFinal, earlyAfterFirst, "既有订阅者不应因新订阅者加入而重复触发")
     }
 
-    func test_readyEpochListsRunningThreadsOnceAndSkipsVisibleThreadsInGlobalResume() async throws {
+    /// rejoin 收敛（spec：重连不触发多会话全量 resume 风暴）：仅侧聊活跃会话真 resume；
+    /// 可见会话（main/side）由各自 resumeHandler 恢复不重复 resume；其余 loaded thread
+    /// （hidden）零 thread/resume RPC，延迟到用户切换时经 ConversationView 既有路径恢复。
+    /// （原 test_readyEpochListsRunningThreadsOnceAndSkipsVisibleThreadsInGlobalResume 的
+    /// 「hidden 也被 resume」断言与新 spec 直接冲突，按 spec MODIFIED 重写；responder 骨架保留。）
+    func test_readyEpochResumesOnlySideChatThreads_skipsOtherLoadedThreads() async throws {
         let mock = ControlEmittingTransport()
         let store = await ConnectionStore(transportFactory: { _ in mock })
         let main = FireBox(); let side = FireBox()
         _ = await store.addResumeHandler(threadId: "main") { await main.bump() }
         _ = await store.addResumeHandler(threadId: "side") { await side.bump() }
+        // 侧聊活跃集合：side 可见+侧聊（走 handler 不重复）、sidechat2 非可见侧聊（走 rejoin）。
+        await MainActor.run { store.additionalRejoinThreadIds = { ["side", "sidechat2"] } }
 
         let responder = Task {
             var answered = Set<String>()
@@ -304,7 +311,7 @@ final class ConnectionStoreTests: XCTestCase {
                     case RPCMethod.initialize:
                         await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
                     case RPCMethod.threadLoadedList:
-                        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"data":["main","side","hidden"],"nextCursor":null}}"#)
+                        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"data":["main","side","sidechat2","hidden"],"nextCursor":null}}"#)
                     case RPCMethod.threadResume:
                         let threadId = (object["params"] as? [String: Any])?["threadId"] as? String ?? ""
                         await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"thread":{"id":"\#(threadId)","turns":[]}}}"#)
@@ -322,15 +329,81 @@ final class ConnectionStoreTests: XCTestCase {
             let mainCount = await main.count
             let sideCount = await side.count
             return mainCount == 1 && sideCount == 1
-                && sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"hidden""#) }
+                && sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"sidechat2""#) }
         }
         responder.cancel()
 
         let sent = await mock.sent
         XCTAssertEqual(sent.filter { $0.contains(RPCMethod.threadLoadedList) }.count, 1)
         XCTAssertFalse(sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"main""#) })
-        XCTAssertFalse(sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"side""#) })
-        XCTAssertEqual(sent.filter { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"hidden""#) }.count, 1)
+        XCTAssertFalse(sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"side""#) },
+                       "可见侧聊由自身 handler 恢复，rejoin 不得重复 resume")
+        XCTAssertEqual(sent.filter { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"sidechat2""#) }.count, 1)
+        XCTAssertFalse(sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"hidden""#) },
+                       "非可见非侧聊 loaded thread 不得 resume（RED：旧全量 rejoin 会 resume hidden）")
+    }
+
+    /// -32600 容错不回归：某侧聊 resume 回 no-rollout error（ephemeral fork 在全新 daemon
+    /// 无落盘），跳过而不中断其余侧聊恢复。
+    func test_rejoinSideChat_noRolloutError_skipsAndContinues() async throws {
+        let mock = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in mock })
+        await MainActor.run { store.additionalRejoinThreadIds = { ["sc1", "sc2"] } }
+
+        let responder = Task {
+            var answered = Set<String>()
+            for _ in 0..<500 {
+                if Task.isCancelled { return }
+                for frame in await mock.sent {
+                    guard let object = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any],
+                          let id = object["id"] as? String,
+                          let method = object["method"] as? String,
+                          !answered.contains(id) else { continue }
+                    answered.insert(id)
+                    switch method {
+                    case RPCMethod.initialize:
+                        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
+                    case RPCMethod.threadLoadedList:
+                        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"data":["sc1","sc2"],"nextCursor":null}}"#)
+                    case RPCMethod.threadResume:
+                        let threadId = (object["params"] as? [String: Any])?["threadId"] as? String ?? ""
+                        if threadId == "sc1" {
+                            await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","error":{"code":-32600,"message":"no rollout found"}}"#)
+                        } else {
+                            await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"thread":{"id":"\#(threadId)","turns":[]}}}"#)
+                        }
+                    default:
+                        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{}}"#)
+                    }
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000)
+            }
+        }
+
+        await store.connect(config: .stub)
+        try await waitUntil {
+            let sent = await mock.sent
+            return sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"sc1""#) }
+                && sent.contains { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"sc2""#) }
+        }
+        responder.cancel()
+        // sc1 失败被吞、sc2 照常各恢复一次即通过（无中断）。
+        let sent = await mock.sent
+        XCTAssertEqual(sent.filter { $0.contains(RPCMethod.threadResume) && $0.contains(#""threadId":"sc2""#) }.count, 1)
+    }
+
+    /// Session 装配：侧聊活跃会话集合（权威来源 SideChatStore.sessions）接入
+    /// connection.additionalRejoinThreadIds，作 rejoin 收敛数据源。
+    @MainActor
+    func test_sessionWiresSideChatThreadIdsIntoConnection() async throws {
+        let machine = MachineConfig(displayName: "m", relayURL: "wss://x",
+                                    sessionId: "s", devIdentityPubB64: "pk")
+        let session = Session(machine: machine, transportFactory: { _ in MockTransport() })
+        session.sideChat.setSessionsForTesting(
+            [SideChatSession(id: "sc1", forkedFromId: "main", title: "t1"),
+             SideChatSession(id: "sc2", forkedFromId: "main", title: "t2")],
+            selectedId: nil)
+        XCTAssertEqual(session.connection.additionalRejoinThreadIds(), ["sc1", "sc2"])
     }
 
     /// D2 helper：经 ControlEmittingTransport 握手驱动 store 到 .ready（复用 feedInitializeResponse 模式，
@@ -650,6 +723,98 @@ final class ConnectionStoreTests: XCTestCase {
         let count = await mock.triggerReconnectCount
         XCTAssertEqual(count, 0, "健康时收到伪造 peer-left 不得判死")
         if case .ready = await store.phase {} else { XCTFail("应保持 .ready，实际 \(await store.phase)") }
+    }
+
+    /// 流量即活端到端接线：探针 miss → 入站流量 → 探针 miss 不判死；无流量兜底连续两 miss 仍判死。
+    func test_inboundTraffic_resetsHeartbeatMisses_endToEnd() async throws {
+        let mock = ControlEmittingTransport()
+        let results = ResultScript([true, false, false, false])  // ready 首探 hit，其后恒 miss
+        let store = await ConnectionStore(
+            transportFactory: { _ in mock },
+            heartbeatFactory: { cb in
+                HeartbeatMonitor(config: .init(interval: .seconds(10), missThreshold: 2,
+                                               minimumAcceleratedProbeInterval: .zero),
+                                 probe: { await results.next() }, onUnhealthy: cb.run,
+                                 sleep: { _ in try? await Task.sleep(for: .seconds(3600)) }) })
+        await store.setTabActive(true)
+        await feedInitializeResponse(mock)
+        await store.connect(config: .stub)
+        try await waitUntil { if case .ready = await store.phase { return true }; return false }
+        try await waitUntil { await results.consumed == 1 }      // 首探 hit，cm=0
+
+        await mock.emitControl(.peerLeft)                        // 探测 #2：miss → cm=1
+        try await waitUntil { await results.consumed == 2 }
+
+        // 入站流量（模拟大响应期间持续到达的通知帧）→ 经 client 回调重置 cm=0
+        await mock.feed(#"{"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"t1"}}"#)
+        try? await Task.sleep(nanoseconds: 100_000_000)          // 等回调跨 actor 落地 MainActor
+
+        await mock.emitControl(.peerLeft)                        // 探测 #3：miss → cm=1（重置后）
+        try await waitUntil { await results.consumed == 3 }
+        let reconnectsAfterReset = await mock.triggerReconnectCount
+        XCTAssertEqual(reconnectsAfterReset, 0,
+                       "流量重置后的第一次 miss 不得判死（未接线时此处 cm=2 已判死，RED）")
+
+        await mock.emitControl(.peerLeft)                        // 探测 #4：连续第二次 miss → 判死
+        try await waitUntil { await mock.triggerReconnectCount >= 1 }
+        let count = await mock.triggerReconnectCount
+        XCTAssertEqual(count, 1, "无流量兜底：连续两次 miss 仍判死（探针机制不弱化）")
+    }
+
+    // MARK: - 心跳探针三分判活（正常应答=活 / error 回响=活 / 仅超时或传输失败=miss）
+
+    /// ① 正常应答=活。
+    func test_probe_normalResponse_isAlive() async throws {
+        let mock = MockTransport()
+        await mock.setAutoRespond(true)   // initialize/getAuthStatus 均回 {"id":…,"result":{}}
+        let store = await ConnectionStore(transportFactory: { _ in mock })
+        await store.connect(config: .stub)
+        try await waitUntil { if case .ready = await store.phase { return true }; return false }
+        let alive = await store.sendHeartbeatProbeForTesting()
+        XCTAssertTrue(alive, "正常应答应计为存活")
+    }
+
+    /// ② error 回响=活（RED：现实现 try? 把 proxyFailed 吞成 miss）。
+    func test_probe_errorEcho_isAlive() async throws {
+        let mock = MockTransport()
+        await mock.setAutoRespond(true)
+        let store = await ConnectionStore(transportFactory: { _ in mock })
+        await store.connect(config: .stub)
+        try await waitUntil { if case .ready = await store.phase { return true }; return false }
+        await mock.setAutoRespond(false)          // 改为手动响应，好回 error 体
+        let probe = Task { await store.sendHeartbeatProbeForTesting() }
+        try await waitUntil { await mock.sent.contains { $0.contains(RPCMethod.getAuthStatus) } }
+        let frame = await mock.sent.last { $0.contains(RPCMethod.getAuthStatus) }!
+        let obj = try JSONSerialization.jsonObject(with: Data(frame.utf8)) as! [String: Any]
+        let id = obj["id"] as! String
+        await mock.feed(#"{"jsonrpc":"2.0","id":"\#(id)","error":{"code":-32603,"message":"internal"}}"#)
+        let alive = await probe.value
+        XCTAssertTrue(alive, "error 回响=有回响=活（判活只看有无回响不看内容）")
+    }
+
+    /// ③ 仅超时=miss（注入短探针超时，不真等 10s）。
+    func test_probe_timeout_isMiss() async throws {
+        let mock = MockTransport()
+        await mock.setAutoRespond(true)
+        let store = await ConnectionStore(transportFactory: { _ in mock },
+                                          heartbeatProbeTimeoutNanos: 150_000_000)
+        await store.connect(config: .stub)
+        try await waitUntil { if case .ready = await store.phase { return true }; return false }
+        await mock.setAutoRespond(false)          // getAuthStatus 永不应答 → 超时
+        let alive = await store.sendHeartbeatProbeForTesting()
+        XCTAssertFalse(alive, "仅超时应计为 miss")
+    }
+
+    /// ④ 传输层失败=miss。
+    func test_probe_transportFailure_isMiss() async throws {
+        let mock = MockTransport()
+        await mock.setAutoRespond(true)
+        let store = await ConnectionStore(transportFactory: { _ in mock })
+        await store.connect(config: .stub)
+        try await waitUntil { if case .ready = await store.phase { return true }; return false }
+        await mock.failNextSend(with: .channelClosed(reason: "test"))
+        let alive = await store.sendHeartbeatProbeForTesting()
+        XCTAssertFalse(alive, "传输层失败应计为 miss")
     }
 
     /// 后台回一条 initialize 响应，使握手到达 .ready（复用于多测试）。
