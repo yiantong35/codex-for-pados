@@ -2081,6 +2081,22 @@
         }
       }
     },
+    "conv.refresh": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh conversation"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新对话"
+          }
+        }
+      }
+    },
     "conv.running": {
       "localizations": {
         "en": {

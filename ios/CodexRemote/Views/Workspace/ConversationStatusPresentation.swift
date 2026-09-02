@@ -26,6 +26,11 @@ enum ConversationStatusPresentation {
                 : Descriptor(key: "conv.idle", symbol: "checkmark.circle", tint: .secondary)
         }
     }
+
+    /// 加载进行中禁用刷新（防抖，spec：加载进行中 SHALL 禁用）；nil 时整块隐藏，取值不影响。
+    static func shouldDisableRefresh(loadState: ConversationLoadState?) -> Bool {
+        loadState == .loading
+    }
 }
 
 extension ConversationStatusPresentation.Tint {

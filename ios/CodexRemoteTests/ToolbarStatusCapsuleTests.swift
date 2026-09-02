@@ -91,6 +91,93 @@ final class ToolbarStatusCapsuleTests: XCTestCase {
                        "ConversationView 不得再自挂状态 ToolbarItem（改由 WorkspaceToolbar 承载）")
     }
 
+    // MARK: 刷新按钮（Task 2）：loading 禁用防抖 + refresh 注入即 resume
+
+    func test_shouldDisableRefresh_onlyWhileLoading() {
+        XCTAssertTrue(ConversationStatusPresentation.shouldDisableRefresh(loadState: .loading))
+        XCTAssertFalse(ConversationStatusPresentation.shouldDisableRefresh(loadState: .failed))
+        XCTAssertFalse(ConversationStatusPresentation.shouldDisableRefresh(loadState: .loaded))
+        XCTAssertFalse(ConversationStatusPresentation.shouldDisableRefresh(loadState: .idle))
+        XCTAssertFalse(ConversationStatusPresentation.shouldDisableRefresh(loadState: nil))
+    }
+
+    /// 主对话挂载后 holder.refresh 非空，调用即发 thread/resume（spec：正常态手动刷新）。
+    func test_mainConversation_injectsRefresh_thatResumes() async throws {
+        let transport = MockTransport()
+        await transport.setAutoRespond(true)
+        await transport.setThreadResumeResponse(#"{"thread":{"id":"refresh-test","turns":[]}}"#)
+        let rpc = JSONRPCClient(transport: transport)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "refresh-test")
+        let holder = ActiveConversationHolder()
+        let view = ConversationView(threadId: "refresh-test", providedStore: store)
+            .environment(holder)
+            .environment(ApprovalStore())
+            .environment(UserInputStore())
+            .environment(McpElicitationStore())
+            .environment(EnvironmentStore())
+            .environment(ShortcutStore())
+            .environment(ConnectionStore(transportFactory: { _ in MockTransport() }))
+        let window = mount(view, size: CGSize(width: 800, height: 600))
+        defer { unmount(window) }
+        try await waitUntil { holder.refresh != nil }   // .task 注入完成
+        XCTAssertEqual(holder.loadState, store.loadState, "loadState 应桥接进 holder")
+        let sentBefore = await transport.sent.count
+        await holder.refresh?()
+        let resumeSent = await transport.sent.dropFirst(sentBefore)
+            .contains { $0.contains(RPCMethod.threadResume) }
+        XCTAssertTrue(resumeSent, "refresh 即对当前会话重新发起 resume")
+    }
+
+    /// resume 失败保持 failed 可再重试，重试成功转正常态（spec：加载失败态就近重试）。
+    /// store 层锁定语义——刷新按钮唯一动作就是 store.resume()。
+    func test_refreshAfterFailure_retriesAndRecovers() async throws {
+        let transport = MockTransport()
+        await transport.setAutoRespond(true)
+        await transport.setThreadResumeResponse(#"{"thread":{"id":"retry-test","turns":[]}}"#)
+        let rpc = JSONRPCClient(transport: transport)
+        await rpc.start()
+        let store = ConversationStore(rpc: rpc, threadId: "retry-test")
+        await transport.failNextSend(with: .channelClosed(reason: "scripted"))
+        await store.resume()
+        XCTAssertEqual(store.loadState, .failed, "resume 失败保持 failed（可再次重试）")
+        await store.resume()
+        XCTAssertEqual(store.loadState, .loaded, "重试成功转正常态")
+    }
+
+    // MARK: 挂载 helper（范式对齐 WorkspaceUIRegressionTests.swift）
+
+    private func mount(_ view: some View, size: CGSize) -> UIWindow {
+        let hc = UIHostingController(rootView: AnyView(view))
+        hc.view.frame = CGRect(origin: .zero, size: size)
+        let window = UIWindow(frame: hc.view.frame)
+        window.rootViewController = hc
+        window.makeKeyAndVisible()
+        hc.view.setNeedsLayout(); hc.view.layoutIfNeeded()
+        drainRunLoop()
+        return window
+    }
+
+    private func unmount(_ window: UIWindow) {
+        window.isHidden = true
+        window.rootViewController = nil
+    }
+
+    private func drainRunLoop() {
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+    }
+
+    private func waitUntil(timeout: TimeInterval = 2,
+                           _ condition: @MainActor () async -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await condition() { return }
+            drainRunLoop()
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTFail("waitUntil 超时：条件未满足")
+    }
+
     private func sourceOf(_ relPath: String) throws -> String {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // CodexRemoteTests

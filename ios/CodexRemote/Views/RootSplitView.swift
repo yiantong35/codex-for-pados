@@ -447,7 +447,10 @@ struct WorkspaceToolbar: ToolbarContent {
         if let status = ConversationStatusPresentation.descriptor(
             loadState: conversation.loadState, isTurnRunning: conversation.isTurnRunning) {
             ToolbarItem(placement: .topBarTrailing) {
-                statusCapsule(status)
+                HStack(spacing: 4) {
+                    statusCapsule(status)
+                    refreshButton
+                }
             }
         }
 
@@ -481,6 +484,17 @@ struct WorkspaceToolbar: ToolbarContent {
                 toolbarLabel(symbol: "gearshape", label: "settings.accessibility")
             }
         }
+    }
+
+    /// 刷新按钮：resume 复用（holder.refresh 注入），loading 禁用防抖。
+    private var refreshButton: some View {
+        Button {
+            Task { await conversation.refresh?() }
+        } label: {
+            toolbarLabel(symbol: "arrow.clockwise", label: "conv.refresh")
+        }
+        .disabled(ConversationStatusPresentation.shouldDisableRefresh(loadState: conversation.loadState))
+        .accessibilityLabel(Text("conv.refresh"))
     }
 
     /// 状态胶囊：限幅+单行截断（最大字号档不溢出、不挤压相邻工具栏项）。
