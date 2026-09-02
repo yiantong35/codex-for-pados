@@ -95,6 +95,7 @@
 		5935EBE4C2023BE8C491C6CB /* TextScaleManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49854F6C23731EE3C2A98B1D /* TextScaleManagerTests.swift */; };
 		5B5FFF4958C99A8E41E1078E /* ReviewTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67F2FA50F4C7BE3D89B0C538 /* ReviewTabView.swift */; };
 		5C5995554F25E2EA5E6AA361 /* MachineFormViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7257E52BDEA31445E6BBCAC2 /* MachineFormViewTests.swift */; };
+		5D1D8CCBF0AE99C8A810616D /* ConversationFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EFD8B4BA9AD35D9AE08AD5B /* ConversationFlowUITests.swift */; };
 		5E93E0F7D340F4F305F918D3 /* EnvironmentTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10687C2DD85C10B97C266DFD /* EnvironmentTypes.swift */; };
 		5E98EA83344E9775CD6E274F /* SideChatStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 687CC26F5A8127A90E3F39F7 /* SideChatStore.swift */; };
 		5F1338A71D737A4854811B24 /* McpTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE21884B4E8B57212467CE89 /* McpTypes.swift */; };
@@ -267,6 +268,13 @@
 			remoteGlobalIDString = 5C6152924FE6EC6FE4049E1E;
 			remoteInfo = CodexRemote;
 		};
+		C35E389FEB4C9CDDD1C8CAB5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 123073DF2A1E467EE83C90DF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5C6152924FE6EC6FE4049E1E;
+			remoteInfo = CodexRemote;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
@@ -314,6 +322,7 @@
 		2ADFE7F96610963FB1D358CA /* ServerRequestRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerRequestRouterTests.swift; sourceTree = "<group>"; };
 		2B08DA2C012E624D2FE28E3D /* UnifiedDiffParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedDiffParser.swift; sourceTree = "<group>"; };
 		2B8A2809870EB2C408134910 /* JSONRPCEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONRPCEnvelope.swift; sourceTree = "<group>"; };
+		2E10D732D74615AE0D8E4EC7 /* CodexRemoteUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CodexRemoteUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2E2FC2BAB94125D5C1A15DCC /* SidebarCollapseStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarCollapseStore.swift; sourceTree = "<group>"; };
 		2F3DFDE3E35F47099089A687 /* ProjectsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectsStore.swift; sourceTree = "<group>"; };
 		2F7E260FE1079678A05AA275 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
@@ -396,6 +405,7 @@
 		8C30F4E2DC9A8957D15E03DA /* ApprovalStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalStoreTests.swift; sourceTree = "<group>"; };
 		8C43CB0F9FD1E4F30DC3EA26 /* URLSessionRelayWSChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLSessionRelayWSChannel.swift; sourceTree = "<group>"; };
 		8EB7B9AC104F15296013EB10 /* BottomPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomPanelView.swift; sourceTree = "<group>"; };
+		8EFD8B4BA9AD35D9AE08AD5B /* ConversationFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationFlowUITests.swift; sourceTree = "<group>"; };
 		8F685AC990DC66E88E516025 /* ReviewPanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPanelTests.swift; sourceTree = "<group>"; };
 		90C6217E6E4EEA17D9FE65E0 /* permissionsApprovalCurrent.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = permissionsApprovalCurrent.json; sourceTree = "<group>"; };
 		90D030E0B4B70E904DBE0252 /* RelayTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayTransportTests.swift; sourceTree = "<group>"; };
@@ -586,6 +596,14 @@
 			path = Security;
 			sourceTree = "<group>";
 		};
+		48BBFF9AE46B901BF05C6FAA /* CodexRemoteUITests */ = {
+			isa = PBXGroup;
+			children = (
+				8EFD8B4BA9AD35D9AE08AD5B /* ConversationFlowUITests.swift */,
+			);
+			path = CodexRemoteUITests;
+			sourceTree = "<group>";
+		};
 		4DC2508353D071036D1C5EE4 /* Stores */ = {
 			isa = PBXGroup;
 			children = (
@@ -694,6 +712,7 @@
 			children = (
 				87E3E9BC06AA82C3710B1920 /* CodexRemote */,
 				FD5327EB046E26D0A91F32DE /* CodexRemoteTests */,
+				48BBFF9AE46B901BF05C6FAA /* CodexRemoteUITests */,
 				E515B714094B29C5538573B8 /* Packages */,
 				CA7B3B413DBEC4A5D2B2B3C3 /* Products */,
 			);
@@ -812,6 +831,7 @@
 			children = (
 				FA7C5D102DC860D73AE1ADE9 /* CodexRemote.app */,
 				FFBA120F4EEB38BFB307D900 /* CodexRemoteTests.xctest */,
+				2E10D732D74615AE0D8E4EC7 /* CodexRemoteUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -946,6 +966,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		05762DE921A26FC38B8DC01A /* CodexRemoteUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CB3CE4DDF37403094D7CF304 /* Build configuration list for PBXNativeTarget "CodexRemoteUITests" */;
+			buildPhases = (
+				E919BEE5465CE551E6AB24A7 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CEECED6CA2BEEDFCF55DF873 /* PBXTargetDependency */,
+			);
+			name = CodexRemoteUITests;
+			packageProductDependencies = (
+			);
+			productName = CodexRemoteUITests;
+			productReference = 2E10D732D74615AE0D8E4EC7 /* CodexRemoteUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		5C6152924FE6EC6FE4049E1E /* CodexRemote */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 26B26785CCD5B8A7BAD25DC3 /* Build configuration list for PBXNativeTarget "CodexRemote" */;
@@ -995,6 +1033,11 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					05762DE921A26FC38B8DC01A = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Manual;
+						TestTargetID = 5C6152924FE6EC6FE4049E1E;
+					};
 					5C6152924FE6EC6FE4049E1E = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Manual;
@@ -1026,6 +1069,7 @@
 			targets = (
 				5C6152924FE6EC6FE4049E1E /* CodexRemote */,
 				C375F6E12FD30E2C2C0FD74F /* CodexRemoteTests */,
+				05762DE921A26FC38B8DC01A /* CodexRemoteUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -1310,6 +1354,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E919BEE5465CE551E6AB24A7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5D1D8CCBF0AE99C8A810616D /* ConversationFlowUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -1317,6 +1369,11 @@
 			isa = PBXTargetDependency;
 			target = 5C6152924FE6EC6FE4049E1E /* CodexRemote */;
 			targetProxy = 30E393F962EA28B6C364AD0A /* PBXContainerItemProxy */;
+		};
+		CEECED6CA2BEEDFCF55DF873 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5C6152924FE6EC6FE4049E1E /* CodexRemote */;
+			targetProxy = C35E389FEB4C9CDDD1C8CAB5 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1337,6 +1394,25 @@
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CodexRemote.app/CodexRemote";
+			};
+			name = Debug;
+		};
+		2821B223088EE0553192FDEF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.CodexRemoteUITests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = CodexRemote;
 			};
 			name = Debug;
 		};
@@ -1528,6 +1604,25 @@
 			};
 			name = Debug;
 		};
+		EB35F6E1084F02FF4CFCC174 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.CodexRemoteUITests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = CodexRemote;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1554,6 +1649,15 @@
 			buildConfigurations = (
 				0FC5D0A908D4A99DF3E3E6C6 /* Debug */,
 				4BA705865E241AE80CAC977F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		CB3CE4DDF37403094D7CF304 /* Build configuration list for PBXNativeTarget "CodexRemoteUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2821B223088EE0553192FDEF /* Debug */,
+				EB35F6E1084F02FF4CFCC174 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

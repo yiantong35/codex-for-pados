@@ -71,9 +71,13 @@ struct ConversationView: View {
     @State private var showNewBelow = false
     @State private var scrollMetrics = ConversationScrollMetrics()
     /// 进会话初始回底进行中（§2b「初始定位到最新」）：LazyVStack 高度为估算值,单次 scrollTo
-    /// 落点不准（模拟器实证停在中段）——armed 期间每次几何回流都重锚,直到真正贴底移交给
-    /// 既有近底自动跟随。事件驱动零轮询。
+    /// 落点不准（模拟器实证停在中段）,scrollTo 还会瞬时物化底部哨兵产生假 onAppear——
+    /// 故改为有界错峰重锚（4 次,token 防串台）,期间压制浮钮防闪现。零轮询、有界。
     @State private var initialSnapArmed = false
+    @State private var initialSnapToken = 0
+    /// 实时近底（底部哨兵可见性,浮钮显隐专用）：滚动时 preference 不回流,isNearBottom
+    /// 只在内容变化时刻新鲜——浮钮需要实时性,故独立事件源。
+    @State private var sentinelNearBottom = true
 
     static func allowsWorkspaceReviewNavigation(bindsWorkspaceState: Bool,
                                                 hasAction: Bool) -> Bool {
@@ -150,7 +154,15 @@ struct ConversationView: View {
                         turnRunningIndicator.id(Self.turnIndicatorID)
                     }
                     // 稳定回底锚点；内容高度与底部距离由整个栈的几何快照统一上报。
+                    // 哨兵可见性=实时「近底」事件源（浮钮显隐用）：纯滚动不触发 preference
+                    // 回流（模拟器插桩实证 d 冻结），LazyVStack 的 onAppear/onDisappear 是
+                    // 滚动时唯一可靠的事件（含预取余量≈一屏,浮钮滚超一屏才现,贴底即隐）。
                     Color.clear.frame(height: 1).id(Self.bottomSentinelID)
+                        .onAppear {
+                            sentinelNearBottom = true
+                            showNewBelow = false        // 实时复位（旧靠下次增长回流,顺带补上）
+                        }
+                        .onDisappear { sentinelNearBottom = false }
                 }
                 .padding()
                 .background(GeometryReader { geometry in
@@ -175,10 +187,6 @@ struct ConversationView: View {
                 isNearBottom = ScrollAnchorPolicy.isNearBottom(
                     distanceToBottom: Swift.max(0, metrics.distanceToBottom), threshold: 120
                 )
-                if initialSnapArmed {
-                    // 初始回底收敛：贴底即解除（移交近底自动跟随）,否则继续重锚。
-                    if isNearBottom { initialSnapArmed = false } else { scrollToBottom(proxy) }
-                }
                 if grew {
                     if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: wasNearBottom) {
                         scrollToBottom(proxy)
@@ -195,7 +203,12 @@ struct ConversationView: View {
             .overlay(alignment: .bottom) {
                 // 浮钮两态（§2b）：合成决策走纯函数；两态点击均回底并复位。
                 // 贴底自动隐藏由既有 preference 回流更新 isNearBottom 驱动，零新增状态源（能耗）。
-                switch ScrollAnchorPolicy.jumpAffordance(showNewBelow: showNewBelow, isNearBottom: isNearBottom) {
+                // 浮钮显隐用实时哨兵可见性（sentinelNearBottom）,非增长时刻快照 isNearBottom；
+                // 初始回底进行中压制（防重锚途中闪现）。
+                let affordance: ScrollAnchorPolicy.JumpAffordance = initialSnapArmed
+                    ? .hidden
+                    : ScrollAnchorPolicy.jumpAffordance(showNewBelow: showNewBelow, isNearBottom: sentinelNearBottom)
+                switch affordance {
                 case .newMessages:
                     Button {
                         scrollToBottom(proxy, userInitiated: true)
@@ -224,11 +237,20 @@ struct ConversationView: View {
                 }
             }
             .onChange(of: store?.loadState, initial: true) { _, newValue in
-                // 进会话初始定位到最新（spec 场景）：历史加载完成即回底并 arm 重锚收敛；
-                // initial:true 兜住 providedStore 重挂时已是 .loaded 的路径。
+                // 进会话初始定位到最新（spec 场景）：历史加载完成后有界错峰重锚
+                // （LazyVStack 估算高度,单次不准；token 防线程切换串台）。
                 if ScrollAnchorPolicy.shouldSnapToLatest(loadState: newValue) {
+                    initialSnapToken &+= 1
+                    let token = initialSnapToken
                     initialSnapArmed = true
-                    scrollToBottom(proxy)
+                    Task { @MainActor in
+                        for ms: UInt64 in [0, 150, 400, 800] {
+                            if ms > 0 { try? await Task.sleep(nanoseconds: ms * 1_000_000) }
+                            guard token == initialSnapToken else { return }
+                            scrollToBottom(proxy)
+                        }
+                        if token == initialSnapToken { initialSnapArmed = false }
+                    }
                 }
             }
         }
