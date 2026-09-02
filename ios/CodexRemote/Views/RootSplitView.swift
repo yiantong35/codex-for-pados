@@ -441,16 +441,15 @@ struct WorkspaceToolbar: ToolbarContent {
             TabBarView()
         }
 
-        // 状态胶囊（toolbar-status-and-jump-to-latest §2a）：独立 ToolbarItem 声明在
-        // 4 图标组之前 → 同 ToolbarContent 内顺序确定（替代跨来源合并的无契约顺序）。
-        // 无会话（descriptor=nil）整块隐藏；刷新按钮 Task 2 加入本 item。
+        // 状态胶囊（toolbar-status-and-jump-to-latest §2a）：独立声明在 4 图标组之前 →
+        // 同 ToolbarContent 内顺序确定（替代跨来源合并的无契约顺序）。
+        // 无会话（descriptor=nil）整块隐藏。用 ToolbarItemGroup 两个独立子项
+        // （单 ToolbarItem 塞 HStack 会被导航栏吞掉按钮，模拟器实证）。
         if let status = ConversationStatusPresentation.descriptor(
             loadState: conversation.loadState, isTurnRunning: conversation.isTurnRunning) {
-            ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: 4) {
-                    statusCapsule(status)
-                    refreshButton
-                }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                statusCapsule(status)
+                refreshButton
             }
         }
 
@@ -498,17 +497,21 @@ struct WorkspaceToolbar: ToolbarContent {
     }
 
     /// 状态胶囊：限幅+单行截断（最大字号档不溢出、不挤压相邻工具栏项）。
+    /// 不用 Label——导航栏环境会强制 Label 走 iconOnly（文字被吞，模拟器实证），
+    /// HStack{Image+Text} 绕开该环境注入。
     private func statusCapsule(_ status: ConversationStatusPresentation.Descriptor) -> some View {
-        Label(LocalizedStringKey(status.key), systemImage: status.symbol)
-            .labelStyle(.titleAndIcon)
-            .font(.caption)
-            .foregroundStyle(status.tint.color)
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .frame(maxWidth: 180)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(.regularMaterial, in: Capsule())
+        HStack(spacing: 4) {
+            Image(systemName: status.symbol)
+            Text(LocalizedStringKey(status.key))
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .font(.caption)
+        .foregroundStyle(status.tint.color)
+        .frame(maxWidth: 180)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(.regularMaterial, in: Capsule())
     }
 
     private func toolbarLabel(

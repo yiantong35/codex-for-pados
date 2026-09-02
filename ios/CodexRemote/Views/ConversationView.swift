@@ -70,6 +70,10 @@ struct ConversationView: View {
     @State private var isNearBottom = true
     @State private var showNewBelow = false
     @State private var scrollMetrics = ConversationScrollMetrics()
+    /// 进会话初始回底进行中（§2b「初始定位到最新」）：LazyVStack 高度为估算值,单次 scrollTo
+    /// 落点不准（模拟器实证停在中段）——armed 期间每次几何回流都重锚,直到真正贴底移交给
+    /// 既有近底自动跟随。事件驱动零轮询。
+    @State private var initialSnapArmed = false
 
     static func allowsWorkspaceReviewNavigation(bindsWorkspaceState: Bool,
                                                 hasAction: Bool) -> Bool {
@@ -171,6 +175,10 @@ struct ConversationView: View {
                 isNearBottom = ScrollAnchorPolicy.isNearBottom(
                     distanceToBottom: Swift.max(0, metrics.distanceToBottom), threshold: 120
                 )
+                if initialSnapArmed {
+                    // 初始回底收敛：贴底即解除（移交近底自动跟随）,否则继续重锚。
+                    if isNearBottom { initialSnapArmed = false } else { scrollToBottom(proxy) }
+                }
                 if grew {
                     if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: wasNearBottom) {
                         scrollToBottom(proxy)
@@ -217,9 +225,10 @@ struct ConversationView: View {
                 }
             }
             .onChange(of: store?.loadState, initial: true) { _, newValue in
-                // 进会话初始定位到最新（spec 场景）：历史加载完成即一次性回底（非动画）；
+                // 进会话初始定位到最新（spec 场景）：历史加载完成即回底并 arm 重锚收敛；
                 // initial:true 兜住 providedStore 重挂时已是 .loaded 的路径。
                 if ScrollAnchorPolicy.shouldSnapToLatest(loadState: newValue) {
+                    initialSnapArmed = true
                     scrollToBottom(proxy)
                 }
             }
