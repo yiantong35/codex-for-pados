@@ -18,6 +18,25 @@ final class ActiveConversationHolder {
     var startReview: ((_ mode: ReviewSourceMode) async -> Bool)?
     /// Apply an authoritative thread snapshot such as the result of thread/rollback.
     var applyThreadSnapshot: ((_ threadId: String, _ result: [String: Any]) -> Void)?
+    /// 当前会话加载状态（nil=无会话选中 → 工具栏状态胶囊整块隐藏）。ConversationView 回写。
+    var loadState: ConversationLoadState?
+    /// 当前会话是否有 turn 进行中（Snapshot 刻意不含此字段以免 30Hz 失效面扩大，独立回写）。
+    var isTurnRunning = false
+    /// 刷新当前会话（resume 复用）的回调；loading 期间由视图层禁用防抖（Task 2 接线）。
+    var refresh: (() async -> Void)?
+
+    /// 会话绑定统一清理（换绑 onDisappear / 取消选中 reconcile 共用，防新字段漏清）。
+    func clearConversationBinding() {
+        state = nil
+        loadState = nil
+        isTurnRunning = false
+        refresh = nil
+        fetchFullDiff = nil
+        startReview = nil
+        applyThreadSnapshot = nil
+        fetchGeneration &+= 1
+        contextIdentity = nil
+    }
 }
 
 /// 每台机器独立的工作区 UI 上下文。实例由 `Session` 持有，因此切走机器导致
@@ -161,7 +180,8 @@ struct RootSplitView: View {
             .toolbar {
                 WorkspaceToolbar(
                     layout: layout,
-                    reduceMotion: reduceMotion
+                    reduceMotion: reduceMotion,
+                    conversation: activeConversation
                 )
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -383,12 +403,7 @@ struct RootSplitView: View {
                 sessions.activeSession?.mcpElicitations.removeAll(threadId: id)
             }
             workspaceState.selectedThreadId = resolved
-            activeConversation.state = nil
-            activeConversation.contextIdentity = nil
-            activeConversation.fetchFullDiff = nil
-            activeConversation.startReview = nil
-            activeConversation.applyThreadSnapshot = nil
-            activeConversation.fetchGeneration &+= 1
+            activeConversation.clearConversationBinding()
             fileOpenTask?.cancel()
             await fileBrowser.setRoot(nil)
         }
@@ -418,10 +433,22 @@ struct RootSplitView: View {
 struct WorkspaceToolbar: ToolbarContent {
     let layout: WorkspaceLayoutStore
     let reduceMotion: Bool
+    /// 状态胶囊数据源（design §2a）：读 loadState/isTurnRunning 渲染，nil 整块隐藏。
+    let conversation: ActiveConversationHolder
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
             TabBarView()
+        }
+
+        // 状态胶囊（toolbar-status-and-jump-to-latest §2a）：独立 ToolbarItem 声明在
+        // 4 图标组之前 → 同 ToolbarContent 内顺序确定（替代跨来源合并的无契约顺序）。
+        // 无会话（descriptor=nil）整块隐藏；刷新按钮 Task 2 加入本 item。
+        if let status = ConversationStatusPresentation.descriptor(
+            loadState: conversation.loadState, isTurnRunning: conversation.isTurnRunning) {
+            ToolbarItem(placement: .topBarTrailing) {
+                statusCapsule(status)
+            }
         }
 
         ToolbarItemGroup(placement: .topBarTrailing) {
@@ -454,6 +481,20 @@ struct WorkspaceToolbar: ToolbarContent {
                 toolbarLabel(symbol: "gearshape", label: "settings.accessibility")
             }
         }
+    }
+
+    /// 状态胶囊：限幅+单行截断（最大字号档不溢出、不挤压相邻工具栏项）。
+    private func statusCapsule(_ status: ConversationStatusPresentation.Descriptor) -> some View {
+        Label(LocalizedStringKey(status.key), systemImage: status.symbol)
+            .labelStyle(.titleAndIcon)
+            .font(.caption)
+            .foregroundStyle(status.tint.color)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: 180)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(.regularMaterial, in: Capsule())
     }
 
     private func toolbarLabel(

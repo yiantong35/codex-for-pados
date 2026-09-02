@@ -164,7 +164,8 @@ struct ConversationView: View {
                     showNewBelow = false
                 }
             }
-            .onChange(of: store?.state.isTurnRunning) { _, _ in
+            .onChange(of: store?.state.isTurnRunning) { _, newValue in
+                if bindsWorkspaceState { activeConversation.isTurnRunning = newValue == true }
                 if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: isNearBottom) { scrollToBottom(proxy) }
             }
             .overlay(alignment: .bottom) {
@@ -192,6 +193,9 @@ struct ConversationView: View {
         .onChange(of: store.map { WorkspaceSummary.Snapshot(state: $0.state) }, initial: true) { _, newValue in
             if bindsWorkspaceState { activeConversation.state = newValue }
         }
+        .onChange(of: store?.loadState) { _, newValue in
+            if bindsWorkspaceState { activeConversation.loadState = newValue }
+        }
         .onChange(of: connection.phase) { _, newPhase in
             // A reconnect must close the send window before .ready. The registered resume handler
             // reopens it only after authoritative thread state has been restored.
@@ -200,10 +204,7 @@ struct ConversationView: View {
         .onDisappear {
             if providedStore == nil { store?.stopObserving() }
             if bindsWorkspaceState, activeConversation.contextIdentity == convBindingKey {
-                activeConversation.state = nil; activeConversation.fetchFullDiff = nil; activeConversation.startReview = nil
-                activeConversation.applyThreadSnapshot = nil
-                activeConversation.fetchGeneration &+= 1
-                activeConversation.contextIdentity = nil
+                activeConversation.clearConversationBinding()
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -221,31 +222,6 @@ struct ConversationView: View {
         }
         .navigationTitle("conv.title")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                if store?.loadState == .loading {
-                    Label("conv.loading", systemImage: "arrow.clockwise")
-                        .labelStyle(.titleAndIcon)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if store?.loadState == .failed {
-                    Label("conv.loadFailed", systemImage: "exclamationmark.triangle.fill")
-                        .labelStyle(.titleAndIcon)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                } else if store?.state.isTurnRunning == true {
-                    Label("conv.running", systemImage: "circle.fill")
-                        .labelStyle(.titleAndIcon)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                } else if store != nil {
-                    Label("conv.idle", systemImage: "checkmark.circle")
-                        .labelStyle(.titleAndIcon)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
         .task(id: convBindingKey) {
             let s: ConversationStore
             if let providedStore {
@@ -269,6 +245,9 @@ struct ConversationView: View {
             defer { connection.removeResumeHandler(resumeToken) }
             if bindsWorkspaceState {
                 activeConversation.contextIdentity = convBindingKey
+                // 状态胶囊初值回写（store 装配先于 onChange 首触，防首帧空窗）。
+                activeConversation.loadState = s.loadState
+                activeConversation.isTurnRunning = s.state.isTurnRunning
                 // 审查面板「全量」数据源：注入拉取回调（gitDiffToRemote），供右栏按 cwd 拉全量 diff。
                 activeConversation.fetchFullDiff = { [weak s] cwd in await s?.fetchFullDiff(cwd: cwd) }
                 activeConversation.fetchGeneration &+= 1
