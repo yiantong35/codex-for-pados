@@ -13,6 +13,23 @@ enum ScrollAnchorPolicy {
     static func contentDidGrow(previousHeight: CGFloat, currentHeight: CGFloat) -> Bool {
         previousHeight > 0 && currentHeight > previousHeight + 0.5
     }
+
+    /// 回到最新浮钮（toolbar-status-and-jump-to-latest §2b）：离底即显纯 ↓ 图标态（显式命名可测）。
+    static func shouldShowJumpToLatest(isNearBottom: Bool) -> Bool { !isNearBottom }
+
+    /// 浮钮两态合成：新消息文案态（既有显示条件原样，零回归）> 纯 ↓ 图标态 > 隐藏。
+    enum JumpAffordance: Equatable { case newMessages, jumpToLatest, hidden }
+    static func jumpAffordance(showNewBelow: Bool, isNearBottom: Bool) -> JumpAffordance {
+        if showNewBelow { return .newMessages }
+        if shouldShowJumpToLatest(isNearBottom: isNearBottom) { return .jumpToLatest }
+        return .hidden
+    }
+
+    /// 进会话初始定位到最新（spec 场景）：历史加载完成（.loaded）时一次性回底,
+    /// 其余状态不动（loading 中内容未全、failed 留在错误现场）。
+    static func shouldSnapToLatest(loadState: ConversationLoadState?) -> Bool {
+        loadState == .loaded
+    }
 }
 
 private struct ConversationScrollMetrics: Equatable {
@@ -53,6 +70,14 @@ struct ConversationView: View {
     @State private var isNearBottom = true
     @State private var showNewBelow = false
     @State private var scrollMetrics = ConversationScrollMetrics()
+    /// 进会话初始回底进行中（§2b「初始定位到最新」）：LazyVStack 高度为估算值,单次 scrollTo
+    /// 落点不准（模拟器实证停在中段）,scrollTo 还会瞬时物化底部哨兵产生假 onAppear——
+    /// 故改为有界错峰重锚（4 次,token 防串台）,期间压制浮钮防闪现。零轮询、有界。
+    @State private var initialSnapArmed = false
+    @State private var initialSnapToken = 0
+    /// 实时近底（底部哨兵可见性,浮钮显隐专用）：滚动时 preference 不回流,isNearBottom
+    /// 只在内容变化时刻新鲜——浮钮需要实时性,故独立事件源。
+    @State private var sentinelNearBottom = true
 
     static func allowsWorkspaceReviewNavigation(bindsWorkspaceState: Bool,
                                                 hasAction: Bool) -> Bool {
@@ -129,7 +154,15 @@ struct ConversationView: View {
                         turnRunningIndicator.id(Self.turnIndicatorID)
                     }
                     // 稳定回底锚点；内容高度与底部距离由整个栈的几何快照统一上报。
+                    // 哨兵可见性=实时「近底」事件源（浮钮显隐用）：纯滚动不触发 preference
+                    // 回流（模拟器插桩实证 d 冻结），LazyVStack 的 onAppear/onDisappear 是
+                    // 滚动时唯一可靠的事件（含预取余量≈一屏,浮钮滚超一屏才现,贴底即隐）。
                     Color.clear.frame(height: 1).id(Self.bottomSentinelID)
+                        .onAppear {
+                            sentinelNearBottom = true
+                            showNewBelow = false        // 实时复位（旧靠下次增长回流,顺带补上）
+                        }
+                        .onDisappear { sentinelNearBottom = false }
                 }
                 .padding()
                 .background(GeometryReader { geometry in
@@ -168,7 +201,15 @@ struct ConversationView: View {
                 if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: isNearBottom) { scrollToBottom(proxy) }
             }
             .overlay(alignment: .bottom) {
-                if showNewBelow {
+                // 浮钮两态（§2b）：合成决策走纯函数；两态点击均回底并复位。
+                // 贴底自动隐藏由既有 preference 回流更新 isNearBottom 驱动，零新增状态源（能耗）。
+                // 浮钮显隐用实时哨兵可见性（sentinelNearBottom）,非增长时刻快照 isNearBottom；
+                // 初始回底进行中压制（防重锚途中闪现）。
+                let affordance: ScrollAnchorPolicy.JumpAffordance = initialSnapArmed
+                    ? .hidden
+                    : ScrollAnchorPolicy.jumpAffordance(showNewBelow: showNewBelow, isNearBottom: sentinelNearBottom)
+                switch affordance {
+                case .newMessages:
                     Button {
                         scrollToBottom(proxy, userInitiated: true)
                         showNewBelow = false
@@ -179,6 +220,37 @@ struct ConversationView: View {
                     }
                     .padding(.bottom, 8)
                     .accessibilityLabel(Text("conv.newMessages"))
+                case .jumpToLatest:
+                    Button {
+                        scrollToBottom(proxy, userInitiated: true)
+                        showNewBelow = false
+                    } label: {
+                        Image(systemName: "arrow.down")
+                            .font(.system(size: 15, weight: .semibold))
+                            .padding(10)
+                            .background(.regularMaterial, in: Capsule())
+                    }
+                    .padding(.bottom, 8)
+                    .accessibilityLabel(Text("conv.jumpToLatest"))
+                case .hidden:
+                    EmptyView()
+                }
+            }
+            .onChange(of: store?.loadState, initial: true) { _, newValue in
+                // 进会话初始定位到最新（spec 场景）：历史加载完成后有界错峰重锚
+                // （LazyVStack 估算高度,单次不准；token 防线程切换串台）。
+                if ScrollAnchorPolicy.shouldSnapToLatest(loadState: newValue) {
+                    initialSnapToken &+= 1
+                    let token = initialSnapToken
+                    initialSnapArmed = true
+                    Task { @MainActor in
+                        for ms: UInt64 in [0, 150, 400, 800] {
+                            if ms > 0 { try? await Task.sleep(nanoseconds: ms * 1_000_000) }
+                            guard token == initialSnapToken else { return }
+                            scrollToBottom(proxy)
+                        }
+                        if token == initialSnapToken { initialSnapArmed = false }
+                    }
                 }
             }
         }
@@ -192,6 +264,9 @@ struct ConversationView: View {
         .onChange(of: store.map { WorkspaceSummary.Snapshot(state: $0.state) }, initial: true) { _, newValue in
             if bindsWorkspaceState { activeConversation.state = newValue }
         }
+        .onChange(of: store?.loadState) { _, newValue in
+            if bindsWorkspaceState { activeConversation.loadState = newValue }
+        }
         .onChange(of: connection.phase) { _, newPhase in
             // A reconnect must close the send window before .ready. The registered resume handler
             // reopens it only after authoritative thread state has been restored.
@@ -200,10 +275,7 @@ struct ConversationView: View {
         .onDisappear {
             if providedStore == nil { store?.stopObserving() }
             if bindsWorkspaceState, activeConversation.contextIdentity == convBindingKey {
-                activeConversation.state = nil; activeConversation.fetchFullDiff = nil; activeConversation.startReview = nil
-                activeConversation.applyThreadSnapshot = nil
-                activeConversation.fetchGeneration &+= 1
-                activeConversation.contextIdentity = nil
+                activeConversation.clearConversationBinding()
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -221,31 +293,6 @@ struct ConversationView: View {
         }
         .navigationTitle("conv.title")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                if store?.loadState == .loading {
-                    Label("conv.loading", systemImage: "arrow.clockwise")
-                        .labelStyle(.titleAndIcon)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if store?.loadState == .failed {
-                    Label("conv.loadFailed", systemImage: "exclamationmark.triangle.fill")
-                        .labelStyle(.titleAndIcon)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                } else if store?.state.isTurnRunning == true {
-                    Label("conv.running", systemImage: "circle.fill")
-                        .labelStyle(.titleAndIcon)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                } else if store != nil {
-                    Label("conv.idle", systemImage: "checkmark.circle")
-                        .labelStyle(.titleAndIcon)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
         .task(id: convBindingKey) {
             let s: ConversationStore
             if let providedStore {
@@ -269,6 +316,10 @@ struct ConversationView: View {
             defer { connection.removeResumeHandler(resumeToken) }
             if bindsWorkspaceState {
                 activeConversation.contextIdentity = convBindingKey
+                // 状态区初值回写（store 装配先于 onChange 首触，防首帧空窗）。
+                activeConversation.loadState = s.loadState
+                // 刷新=resume 复用（design §2a）：用户显式动作，60s 有界超时（能耗约束内）。
+                activeConversation.refresh = { [weak s] in await s?.resume() }
                 // 审查面板「全量」数据源：注入拉取回调（gitDiffToRemote），供右栏按 cwd 拉全量 diff。
                 activeConversation.fetchFullDiff = { [weak s] cwd in await s?.fetchFullDiff(cwd: cwd) }
                 activeConversation.fetchGeneration &+= 1

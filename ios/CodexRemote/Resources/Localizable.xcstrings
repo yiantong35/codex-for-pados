@@ -1937,6 +1937,22 @@
         }
       }
     },
+    "conv.jumpToLatest": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jump to latest"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回到最新"
+          }
+        }
+      }
+    },
     "conv.loadFailed": {
       "localizations": {
         "en": {
@@ -2077,6 +2093,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已隐藏较早的推理内容"
+          }
+        }
+      }
+    },
+    "conv.refresh": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh conversation"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新对话"
           }
         }
       }

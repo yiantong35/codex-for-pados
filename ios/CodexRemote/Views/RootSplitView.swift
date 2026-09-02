@@ -18,6 +18,22 @@ final class ActiveConversationHolder {
     var startReview: ((_ mode: ReviewSourceMode) async -> Bool)?
     /// Apply an authoritative thread snapshot such as the result of thread/rollback.
     var applyThreadSnapshot: ((_ threadId: String, _ result: [String: Any]) -> Void)?
+    /// 当前会话加载状态（nil=无会话选中 → 工具栏状态区整块隐藏）。ConversationView 回写。
+    var loadState: ConversationLoadState?
+    /// 刷新当前会话（resume 复用）的回调；loading 期间由视图层禁用防抖。
+    var refresh: (() async -> Void)?
+
+    /// 会话绑定统一清理（换绑 onDisappear / 取消选中 reconcile 共用，防新字段漏清）。
+    func clearConversationBinding() {
+        state = nil
+        loadState = nil
+        refresh = nil
+        fetchFullDiff = nil
+        startReview = nil
+        applyThreadSnapshot = nil
+        fetchGeneration &+= 1
+        contextIdentity = nil
+    }
 }
 
 /// 每台机器独立的工作区 UI 上下文。实例由 `Session` 持有，因此切走机器导致
@@ -161,7 +177,8 @@ struct RootSplitView: View {
             .toolbar {
                 WorkspaceToolbar(
                     layout: layout,
-                    reduceMotion: reduceMotion
+                    reduceMotion: reduceMotion,
+                    conversation: activeConversation
                 )
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -383,12 +400,7 @@ struct RootSplitView: View {
                 sessions.activeSession?.mcpElicitations.removeAll(threadId: id)
             }
             workspaceState.selectedThreadId = resolved
-            activeConversation.state = nil
-            activeConversation.contextIdentity = nil
-            activeConversation.fetchFullDiff = nil
-            activeConversation.startReview = nil
-            activeConversation.applyThreadSnapshot = nil
-            activeConversation.fetchGeneration &+= 1
+            activeConversation.clearConversationBinding()
             fileOpenTask?.cancel()
             await fileBrowser.setRoot(nil)
         }
@@ -418,10 +430,25 @@ struct RootSplitView: View {
 struct WorkspaceToolbar: ToolbarContent {
     let layout: WorkspaceLayoutStore
     let reduceMotion: Bool
+    /// 状态胶囊数据源（design §2a）：读 loadState/isTurnRunning 渲染，nil 整块隐藏。
+    let conversation: ActiveConversationHolder
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
             TabBarView()
+        }
+
+        // 状态胶囊+刷新（toolbar-status-and-jump-to-latest §2a）：声明在 4 图标组之前 →
+        // 同 ToolbarContent 内顺序确定。刷新钮=选中会话即常驻；胶囊=仅加载中/失败两态
+        // （运行/空闲不显示,侧栏徽标已覆盖——用户 2026-09-02 定案）。
+        // ToolbarItemGroup 独立子项（单 ToolbarItem 塞 HStack 会被导航栏吞掉按钮,模拟器实证）。
+        if conversation.loadState != nil {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                if let status = ConversationStatusPresentation.descriptor(loadState: conversation.loadState) {
+                    statusCapsule(status)
+                }
+                refreshButton
+            }
         }
 
         ToolbarItemGroup(placement: .topBarTrailing) {
@@ -454,6 +481,35 @@ struct WorkspaceToolbar: ToolbarContent {
                 toolbarLabel(symbol: "gearshape", label: "settings.accessibility")
             }
         }
+    }
+
+    /// 刷新按钮：resume 复用（holder.refresh 注入），loading 禁用防抖。
+    private var refreshButton: some View {
+        Button {
+            Task { await conversation.refresh?() }
+        } label: {
+            toolbarLabel(symbol: "arrow.clockwise", label: "conv.refresh")
+        }
+        .disabled(ConversationStatusPresentation.shouldDisableRefresh(loadState: conversation.loadState))
+        .accessibilityLabel(Text("conv.refresh"))
+    }
+
+    /// 状态胶囊：限幅+单行截断（最大字号档不溢出、不挤压相邻工具栏项）。
+    /// 不用 Label——导航栏环境会强制 Label 走 iconOnly（文字被吞，模拟器实证），
+    /// HStack{Image+Text} 绕开该环境注入。
+    private func statusCapsule(_ status: ConversationStatusPresentation.Descriptor) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: status.symbol)
+            Text(LocalizedStringKey(status.key))
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .font(.caption)
+        .foregroundStyle(status.tint.color)
+        .frame(maxWidth: 180)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(.regularMaterial, in: Capsule())
     }
 
     private func toolbarLabel(
