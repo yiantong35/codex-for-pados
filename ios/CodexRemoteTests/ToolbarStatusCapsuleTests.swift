@@ -8,38 +8,25 @@ import SwiftUI
 @MainActor
 final class ToolbarStatusCapsuleTests: XCTestCase {
 
-    // MARK: 四态映射（沿用旧自挂 ToolbarItem 语义：优先级 loading > failed > running > idle）
+    // MARK: 两态映射（用户 2026-09-02 定案：仅加载中/失败显示胶囊,运行/空闲由侧栏徽标覆盖）
 
     func test_descriptor_loading() {
         XCTAssertEqual(
-            ConversationStatusPresentation.descriptor(loadState: .loading, isTurnRunning: false),
+            ConversationStatusPresentation.descriptor(loadState: .loading),
             .init(key: "conv.loading", symbol: "arrow.clockwise", tint: .secondary))
     }
-    func test_descriptor_failed_beatsRunning() {
+    func test_descriptor_failed() {
         XCTAssertEqual(
-            ConversationStatusPresentation.descriptor(loadState: .failed, isTurnRunning: true),
+            ConversationStatusPresentation.descriptor(loadState: .failed),
             .init(key: "conv.loadFailed", symbol: "exclamationmark.triangle.fill", tint: .red))
     }
-    func test_descriptor_loading_beatsRunning() {
-        XCTAssertEqual(
-            ConversationStatusPresentation.descriptor(loadState: .loading, isTurnRunning: true)?.key,
-            "conv.loading")
-    }
-    func test_descriptor_runningAndIdle() {
-        XCTAssertEqual(
-            ConversationStatusPresentation.descriptor(loadState: .loaded, isTurnRunning: true),
-            .init(key: "conv.running", symbol: "circle.fill", tint: .orange))
-        XCTAssertEqual(
-            ConversationStatusPresentation.descriptor(loadState: .loaded, isTurnRunning: false),
-            .init(key: "conv.idle", symbol: "checkmark.circle", tint: .secondary))
-        XCTAssertEqual(
-            ConversationStatusPresentation.descriptor(loadState: .idle, isTurnRunning: false)?.key,
-            "conv.idle")
+    func test_descriptor_normalStates_hideCapsule() {
+        XCTAssertNil(ConversationStatusPresentation.descriptor(loadState: .loaded),
+                     "已加载正常态不显示胶囊（运行/空闲由侧栏徽标覆盖）")
+        XCTAssertNil(ConversationStatusPresentation.descriptor(loadState: .idle))
     }
     func test_descriptor_nilLoadState_hidesWholeBlock() {
-        XCTAssertNil(ConversationStatusPresentation.descriptor(loadState: nil, isTurnRunning: false))
-        XCTAssertNil(ConversationStatusPresentation.descriptor(loadState: nil, isTurnRunning: true),
-                     "无会话时即使残留 running 也整块隐藏（spec：无会话选中时隐藏）")
+        XCTAssertNil(ConversationStatusPresentation.descriptor(loadState: nil))
     }
 
     // MARK: holder 新字段默认值与统一清理
@@ -47,7 +34,6 @@ final class ToolbarStatusCapsuleTests: XCTestCase {
     func test_holder_newFieldsDefaultEmpty() {
         let holder = ActiveConversationHolder()
         XCTAssertNil(holder.loadState)
-        XCTAssertFalse(holder.isTurnRunning)
         XCTAssertNil(holder.refresh)
     }
 
@@ -56,7 +42,6 @@ final class ToolbarStatusCapsuleTests: XCTestCase {
         holder.state = WorkspaceSummary.Snapshot(state: ConversationState(threadId: "t"))
         holder.contextIdentity = "t|rpc"
         holder.loadState = .loaded
-        holder.isTurnRunning = true
         holder.refresh = { }
         holder.fetchFullDiff = { _ in nil }
         holder.startReview = { _ in true }
@@ -66,7 +51,6 @@ final class ToolbarStatusCapsuleTests: XCTestCase {
         XCTAssertNil(holder.state)
         XCTAssertNil(holder.contextIdentity)
         XCTAssertNil(holder.loadState)
-        XCTAssertFalse(holder.isTurnRunning)
         XCTAssertNil(holder.refresh)
         XCTAssertNil(holder.fetchFullDiff)
         XCTAssertNil(holder.startReview)

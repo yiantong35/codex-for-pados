@@ -18,18 +18,15 @@ final class ActiveConversationHolder {
     var startReview: ((_ mode: ReviewSourceMode) async -> Bool)?
     /// Apply an authoritative thread snapshot such as the result of thread/rollback.
     var applyThreadSnapshot: ((_ threadId: String, _ result: [String: Any]) -> Void)?
-    /// 当前会话加载状态（nil=无会话选中 → 工具栏状态胶囊整块隐藏）。ConversationView 回写。
+    /// 当前会话加载状态（nil=无会话选中 → 工具栏状态区整块隐藏）。ConversationView 回写。
     var loadState: ConversationLoadState?
-    /// 当前会话是否有 turn 进行中（Snapshot 刻意不含此字段以免 30Hz 失效面扩大，独立回写）。
-    var isTurnRunning = false
-    /// 刷新当前会话（resume 复用）的回调；loading 期间由视图层禁用防抖（Task 2 接线）。
+    /// 刷新当前会话（resume 复用）的回调；loading 期间由视图层禁用防抖。
     var refresh: (() async -> Void)?
 
     /// 会话绑定统一清理（换绑 onDisappear / 取消选中 reconcile 共用，防新字段漏清）。
     func clearConversationBinding() {
         state = nil
         loadState = nil
-        isTurnRunning = false
         refresh = nil
         fetchFullDiff = nil
         startReview = nil
@@ -441,14 +438,15 @@ struct WorkspaceToolbar: ToolbarContent {
             TabBarView()
         }
 
-        // 状态胶囊（toolbar-status-and-jump-to-latest §2a）：独立声明在 4 图标组之前 →
-        // 同 ToolbarContent 内顺序确定（替代跨来源合并的无契约顺序）。
-        // 无会话（descriptor=nil）整块隐藏。用 ToolbarItemGroup 两个独立子项
-        // （单 ToolbarItem 塞 HStack 会被导航栏吞掉按钮，模拟器实证）。
-        if let status = ConversationStatusPresentation.descriptor(
-            loadState: conversation.loadState, isTurnRunning: conversation.isTurnRunning) {
+        // 状态胶囊+刷新（toolbar-status-and-jump-to-latest §2a）：声明在 4 图标组之前 →
+        // 同 ToolbarContent 内顺序确定。刷新钮=选中会话即常驻；胶囊=仅加载中/失败两态
+        // （运行/空闲不显示,侧栏徽标已覆盖——用户 2026-09-02 定案）。
+        // ToolbarItemGroup 独立子项（单 ToolbarItem 塞 HStack 会被导航栏吞掉按钮,模拟器实证）。
+        if conversation.loadState != nil {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                statusCapsule(status)
+                if let status = ConversationStatusPresentation.descriptor(loadState: conversation.loadState) {
+                    statusCapsule(status)
+                }
                 refreshButton
             }
         }

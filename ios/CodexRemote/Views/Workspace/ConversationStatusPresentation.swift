@@ -12,18 +12,16 @@ enum ConversationStatusPresentation {
     /// 语义色（Color 映射放视图层扩展，保持本类型可在无 SwiftUI 语境断言）。
     enum Tint { case secondary, red, orange }
 
-    /// loadState=nil（无会话选中）→ nil：胶囊+刷新按钮整块隐藏（spec：无会话选中时隐藏）。
-    static func descriptor(loadState: ConversationLoadState?, isTurnRunning: Bool) -> Descriptor? {
-        guard let loadState else { return nil }
+    /// 只在「加载中/加载失败」两态显示胶囊（用户 2026-09-02 定案：运行/空闲不显示——
+    /// 侧栏 session 徽标已覆盖运行状态）；nil/正常态 → nil 隐藏胶囊（刷新按钮独立常驻）。
+    static func descriptor(loadState: ConversationLoadState?) -> Descriptor? {
         switch loadState {
         case .loading:
             return Descriptor(key: "conv.loading", symbol: "arrow.clockwise", tint: .secondary)
         case .failed:
             return Descriptor(key: "conv.loadFailed", symbol: "exclamationmark.triangle.fill", tint: .red)
-        case .idle, .loaded:
-            return isTurnRunning
-                ? Descriptor(key: "conv.running", symbol: "circle.fill", tint: .orange)
-                : Descriptor(key: "conv.idle", symbol: "checkmark.circle", tint: .secondary)
+        case .idle, .loaded, nil:
+            return nil
         }
     }
 

@@ -189,8 +189,7 @@ struct ConversationView: View {
                     showNewBelow = false
                 }
             }
-            .onChange(of: store?.state.isTurnRunning) { _, newValue in
-                if bindsWorkspaceState { activeConversation.isTurnRunning = newValue == true }
+            .onChange(of: store?.state.isTurnRunning) { _, _ in
                 if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: isNearBottom) { scrollToBottom(proxy) }
             }
             .overlay(alignment: .bottom) {
@@ -295,9 +294,8 @@ struct ConversationView: View {
             defer { connection.removeResumeHandler(resumeToken) }
             if bindsWorkspaceState {
                 activeConversation.contextIdentity = convBindingKey
-                // 状态胶囊初值回写（store 装配先于 onChange 首触，防首帧空窗）。
+                // 状态区初值回写（store 装配先于 onChange 首触，防首帧空窗）。
                 activeConversation.loadState = s.loadState
-                activeConversation.isTurnRunning = s.state.isTurnRunning
                 // 刷新=resume 复用（design §2a）：用户显式动作，60s 有界超时（能耗约束内）。
                 activeConversation.refresh = { [weak s] in await s?.resume() }
                 // 审查面板「全量」数据源：注入拉取回调（gitDiffToRemote），供右栏按 cwd 拉全量 diff。

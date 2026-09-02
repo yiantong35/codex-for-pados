@@ -30,7 +30,6 @@ final class SideChatIsolationTests: XCTestCase {
         holder.fetchFullDiff = { _ in "main-diff" }
         holder.startReview = { _ in true }
         holder.loadState = .loaded
-        holder.isTurnRunning = true
         holder.refresh = { }
 
         // 侧聊挂载：bindsWorkspaceState=false 的 ConversationView。挂载并布局一轮。
@@ -49,7 +48,6 @@ final class SideChatIsolationTests: XCTestCase {
         XCTAssertNotNil(holder.fetchFullDiff, "侧聊不应清空主对话 fetchFullDiff")
         XCTAssertNotNil(holder.startReview, "侧聊不应清空主对话 startReview")
         XCTAssertEqual(holder.loadState, .loaded, "侧聊不应覆盖主对话 loadState")
-        XCTAssertTrue(holder.isTurnRunning, "侧聊不应覆盖主对话 isTurnRunning")
         XCTAssertNotNil(holder.refresh, "侧聊不应清空主对话 refresh")
     }
 
