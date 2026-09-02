@@ -13,6 +13,23 @@ enum ScrollAnchorPolicy {
     static func contentDidGrow(previousHeight: CGFloat, currentHeight: CGFloat) -> Bool {
         previousHeight > 0 && currentHeight > previousHeight + 0.5
     }
+
+    /// 回到最新浮钮（toolbar-status-and-jump-to-latest §2b）：离底即显纯 ↓ 图标态（显式命名可测）。
+    static func shouldShowJumpToLatest(isNearBottom: Bool) -> Bool { !isNearBottom }
+
+    /// 浮钮两态合成：新消息文案态（既有显示条件原样，零回归）> 纯 ↓ 图标态 > 隐藏。
+    enum JumpAffordance: Equatable { case newMessages, jumpToLatest, hidden }
+    static func jumpAffordance(showNewBelow: Bool, isNearBottom: Bool) -> JumpAffordance {
+        if showNewBelow { return .newMessages }
+        if shouldShowJumpToLatest(isNearBottom: isNearBottom) { return .jumpToLatest }
+        return .hidden
+    }
+
+    /// 进会话初始定位到最新（spec 场景）：历史加载完成（.loaded）时一次性回底,
+    /// 其余状态不动（loading 中内容未全、failed 留在错误现场）。
+    static func shouldSnapToLatest(loadState: ConversationLoadState?) -> Bool {
+        loadState == .loaded
+    }
 }
 
 private struct ConversationScrollMetrics: Equatable {
@@ -169,7 +186,10 @@ struct ConversationView: View {
                 if ScrollAnchorPolicy.shouldAutoScroll(isNearBottom: isNearBottom) { scrollToBottom(proxy) }
             }
             .overlay(alignment: .bottom) {
-                if showNewBelow {
+                // 浮钮两态（§2b）：合成决策走纯函数；两态点击均回底并复位。
+                // 贴底自动隐藏由既有 preference 回流更新 isNearBottom 驱动，零新增状态源（能耗）。
+                switch ScrollAnchorPolicy.jumpAffordance(showNewBelow: showNewBelow, isNearBottom: isNearBottom) {
+                case .newMessages:
                     Button {
                         scrollToBottom(proxy, userInitiated: true)
                         showNewBelow = false
@@ -180,6 +200,27 @@ struct ConversationView: View {
                     }
                     .padding(.bottom, 8)
                     .accessibilityLabel(Text("conv.newMessages"))
+                case .jumpToLatest:
+                    Button {
+                        scrollToBottom(proxy, userInitiated: true)
+                        showNewBelow = false
+                    } label: {
+                        Image(systemName: "arrow.down")
+                            .font(.system(size: 15, weight: .semibold))
+                            .padding(10)
+                            .background(.regularMaterial, in: Capsule())
+                    }
+                    .padding(.bottom, 8)
+                    .accessibilityLabel(Text("conv.jumpToLatest"))
+                case .hidden:
+                    EmptyView()
+                }
+            }
+            .onChange(of: store?.loadState, initial: true) { _, newValue in
+                // 进会话初始定位到最新（spec 场景）：历史加载完成即一次性回底（非动画）；
+                // initial:true 兜住 providedStore 重挂时已是 .loaded 的路径。
+                if ScrollAnchorPolicy.shouldSnapToLatest(loadState: newValue) {
+                    scrollToBottom(proxy)
                 }
             }
         }

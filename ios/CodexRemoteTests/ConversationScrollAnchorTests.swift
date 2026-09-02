@@ -29,4 +29,34 @@ final class ConversationScrollAnchorTests: XCTestCase {
         XCTAssertTrue(ScrollAnchorPolicy.shouldAnimateScroll(userInitiated: true))
         XCTAssertFalse(ScrollAnchorPolicy.shouldAnimateScroll(userInitiated: false))
     }
+
+    // MARK: 回到最新浮钮（toolbar-status-and-jump-to-latest §2b）
+
+    func test_jumpToLatest_showsOnlyWhenAwayFromBottom() {
+        XCTAssertTrue(ScrollAnchorPolicy.shouldShowJumpToLatest(isNearBottom: false))
+        XCTAssertFalse(ScrollAnchorPolicy.shouldShowJumpToLatest(isNearBottom: true))
+    }
+
+    /// 合成优先级：新消息文案态 > 纯 ↓ 图标态 > 隐藏（design §2b 定案）。
+    func test_jumpAffordance_priorityAndHiding() {
+        XCTAssertEqual(ScrollAnchorPolicy.jumpAffordance(showNewBelow: true, isNearBottom: false),
+                       .newMessages, "离底+新消息 → 文案态优先")
+        XCTAssertEqual(ScrollAnchorPolicy.jumpAffordance(showNewBelow: false, isNearBottom: false),
+                       .jumpToLatest, "仅离底无新消息 → 纯 ↓ 图标态")
+        XCTAssertEqual(ScrollAnchorPolicy.jumpAffordance(showNewBelow: false, isNearBottom: true),
+                       .hidden, "贴底 → 隐藏")
+        // showNewBelow=true 的显示条件保持既有语义（贴底瞬间由 preference 回流复位 showNewBelow，
+        // 合成函数不额外压制）——showNewBelow 行为零回归锁。
+        XCTAssertEqual(ScrollAnchorPolicy.jumpAffordance(showNewBelow: true, isNearBottom: true),
+                       .newMessages)
+    }
+
+    /// 进会话初始定位到最新（spec 场景）：仅 loaded 触发一次性回底；loading/failed/idle 不触发。
+    func test_snapToLatestOnLoad_onlyWhenLoaded() {
+        XCTAssertTrue(ScrollAnchorPolicy.shouldSnapToLatest(loadState: .loaded))
+        XCTAssertFalse(ScrollAnchorPolicy.shouldSnapToLatest(loadState: .loading))
+        XCTAssertFalse(ScrollAnchorPolicy.shouldSnapToLatest(loadState: .failed))
+        XCTAssertFalse(ScrollAnchorPolicy.shouldSnapToLatest(loadState: .idle))
+        XCTAssertFalse(ScrollAnchorPolicy.shouldSnapToLatest(loadState: nil))
+    }
 }

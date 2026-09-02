@@ -1937,6 +1937,22 @@
         }
       }
     },
+    "conv.jumpToLatest": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jump to latest"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回到最新"
+          }
+        }
+      }
+    },
     "conv.loadFailed": {
       "localizations": {
         "en": {
