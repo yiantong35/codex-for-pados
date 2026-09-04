@@ -5,13 +5,12 @@ import UIKit
 /// 每卡独立 `@State expanded`（默认收起）；`ForEach` 以 `.id(item.id)` 标识每卡，
 /// 流式增量/重新渲染下状态稳定（与 commandExecution 的 isCommandExpanded 同样思路）。
 struct CollapsibleItemCard<Label: View, Content: View>: View {
-    @State private var expanded = false
-    let label: Label
-    let content: Content
-
-    /// 「默认收起」的唯一事实源，供单元测试断言。
+    /// 「默认收起」的唯一事实源：既被 `@State` 初值使用（真默认收起），也供单元测试断言。
     /// 注：泛型类型（`<Label, Content>`）不支持存储型 `static` 成员，故用计算属性（恒为 false）。
     static var defaultExpanded: Bool { false }
+    @State private var expanded = Self.defaultExpanded
+    let label: Label
+    let content: Content
 
     init(@ViewBuilder label: () -> Label, @ViewBuilder content: () -> Content) {
         self.label = label()
@@ -428,10 +427,11 @@ struct ItemCard: View {
         return query
     }
 
-    /// MCP 结果字节预算截断（与 reasoning 共用同一预算）。空字符串返回 ("" , false)。
+    /// MCP 结果字节预算截断（与命令输出一致「保留头部」——开头通常是工具结果最富信息量部分；
+    /// 末尾对已完成结果通常非关键）。空字符串返回 ("" , false)。超大结果保留「全文」入口兜底。
     static func mcpResultPresentation(_ result: String) -> (text: String, truncated: Bool) {
         guard !result.isEmpty else { return ("", false) }
-        return TextRenderBudget.boundedUTF8Suffix(
+        return TextRenderBudget.boundedUTF8Prefix(
             result, maximumBytes: TextRenderBudget.maximumStreamingBytes
         )
     }

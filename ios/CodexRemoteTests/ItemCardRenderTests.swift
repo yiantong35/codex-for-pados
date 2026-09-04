@@ -128,6 +128,18 @@ final class ItemCardRenderTests: XCTestCase {
         XCTAssertFalse(small.truncated)
     }
 
+    /// MCP 结果截断应「保留头部、丢弃尾部」（命令输出惯例），而非保留尾部。
+    func testMcpResultPresentationKeepsHeadNotTail() {
+        let head = "HEAD-MARKER"
+        let filler = String(repeating: "x", count: TextRenderBudget.maximumStreamingBytes)
+        let tail = "-TAIL-MARKER"
+        let result = head + filler + tail
+        let presentation = ItemCard.mcpResultPresentation(result)
+        XCTAssertTrue(presentation.truncated)
+        XCTAssertTrue(presentation.text.hasPrefix("HEAD-MARKER"), "超大结果应保留头部而非仅尾部")
+        XCTAssertFalse(presentation.text.contains("-TAIL-MARKER"), "超大结果应丢弃尾部")
+    }
+
     func testEventCardsBodyDoNotCrash() {
         _ = ItemCard(item: .contextCompaction(id: "1")).body
         _ = ItemCard(item: .enteredReviewMode(id: "2")).body
