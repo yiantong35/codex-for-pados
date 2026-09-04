@@ -34,6 +34,8 @@ public final class DialoutContext: @unchecked Sendable {
     // 当前在飞握手是否走受信任复连分支（在 handleClientHello 判定，供 handleClientAuth 决定是否
     // 施加一次性口令重放守卫）。首配=false（受 pairingConsumed 约束）；受信任复连=true（可重握手）。
     private var _currentHandshakeTrusted = false
+    // iPad 是否声明 chunk-rx-v1（决定 dev 是否对超限响应发 .chunk 分片；未声明则回退 -32010）。
+    private var _peerSupportsChunk = false
 
     public init(keyStore: DevKeyStore, devDeviceId: String, sessionId: String,
                 pairingCode: String, expiresAt: Int64, trust: TrustStore) {
@@ -43,6 +45,8 @@ public final class DialoutContext: @unchecked Sendable {
 
     /// pairingCode 是否已被消费（握手成功后置 true，再来的握手拒绝）。
     public var pairingConsumed: Bool { lock.lock(); defer { lock.unlock() }; return _pairingConsumed }
+    /// 对端（iPad）是否声明 chunk-rx-v1；未声明时 dev 不得发任何 .chunk / 压缩帧（回退 -32010）。
+    public var peerSupportsChunk: Bool { lock.lock(); defer { lock.unlock() }; return _peerSupportsChunk }
     public var session: SecureSession? { lock.lock(); defer { lock.unlock() }; return _session }
     public var hellos: (ClientHello, ServerHello)? {
         lock.lock(); defer { lock.unlock() }
@@ -148,6 +152,7 @@ public final class DialoutContext: @unchecked Sendable {
         lock.lock()
         _clientHello = hello; _serverHello = serverHello; _eph = eph
         _currentHandshakeTrusted = isTrusted
+        _peerSupportsChunk = hello.capabilities?.contains("chunk-rx-v1") == true
         if isTrusted { _session = nil }
         lock.unlock()
         return try JSONEncoder().encode(serverHello)
