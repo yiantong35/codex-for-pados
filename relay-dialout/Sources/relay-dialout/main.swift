@@ -139,7 +139,8 @@ let context = DialoutContext(keyStore: keyStore, devDeviceId: devDeviceId, sessi
 //   - upgradePipelineHandler 里装 DialoutWSHandler，按帧分发到上面的 handshake 函数；
 //     建通道后收 SecureEnvelope → session.open → bridge.write，
 //     bridge.incoming 明文 → session.seal → env.encoded() → 写 ws text frame。
-//   - relay 瞬断由 supervisor 重拨；bridge 只在信任/进程/用户终态时精确回收。
+//   - relay 瞬断由 supervisor 重拨；bridge 由 sessionBridge 管理——每次握手 = 一个全新 app-server daemon，
+//     重握手成功时精确回收旧 daemon，杜绝 iPad 重连后重新 initialize 命中同一已初始化 daemon（-32600）。
 
 final class PendingDialoutChannel: @unchecked Sendable {
     private let lock = NSLock()
@@ -168,24 +169,18 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
     typealias InboundIn = WebSocketFrame
     typealias OutboundOut = WebSocketFrame
 
-    private let bridge: DaemonBridge
+    private let sessionBridge: DialoutSessionBridge
     private let context: DialoutContext
-    private let lifecycle: BridgeLifecycle
-    private let outputRouter: BridgeOutputRouter
     private let attempt: DialoutAttemptTracker
     private var outputAttachment: BridgeOutputRouter.Attachment?
 
     init(
-        bridge: DaemonBridge,
+        sessionBridge: DialoutSessionBridge,
         context: DialoutContext,
-        lifecycle: BridgeLifecycle,
-        outputRouter: BridgeOutputRouter,
         attempt: DialoutAttemptTracker
     ) {
-        self.bridge = bridge
+        self.sessionBridge = sessionBridge
         self.context = context
-        self.lifecycle = lifecycle
-        self.outputRouter = outputRouter
         self.attempt = attempt
     }
 
@@ -203,9 +198,9 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
         }
     }
 
-    /// 瞬时 relay 断开只摘除当前输出 sink；bridge 由 supervisor 保留到终态。
+    /// 瞬时 relay 断开只摘除当前输出 sink；bridge 由 sessionBridge 保留到终态/下一会话。
     func channelInactive(context ctx: ChannelHandlerContext) {
-        if let outputAttachment { outputRouter.detach(outputAttachment) }
+        if let outputAttachment { sessionBridge.router?.detach(outputAttachment) }
         outputAttachment = nil
         ctx.fireChannelInactive()
     }
@@ -217,9 +212,9 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             // dev 侧只期望 iPad 发来的应用数据帧；非预期 kind（如 secureReady）fail-closed 丢弃，不静默放行。
             guard env.kind == .appData else { return }
             guard let plaintext = try? session.open(env) else { return }
-            guard ensureBridgeStarted(ctx: ctx) else { return }   // 启桥失败已关连接，不再写
+            guard ensureCurrentSessionStarted(ctx: ctx) else { return }   // 启桥失败已关连接，不再写
             if let s = String(data: plaintext, encoding: .utf8) {
-                if !bridge.write(s) { ctx.close(promise: nil) }
+                if let bridge = sessionBridge.bridge, !bridge.write(s) { ctx.close(promise: nil) }
             }
             return
         }
@@ -244,7 +239,9 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             }
             // 握手完成：先加密回传 SecureReady（稳定 sessionId），再启桥并把 proxy 输出加密回发。
             sendFrame(readyFrame, ctx: ctx)   // 只发一次
-            guard ensureBridgeStarted(ctx: ctx) else { return }   // #8a 启桥失败 fail-closed 关连接
+            // 每次握手 = 一个全新 iPad 会话 = 一个全新 app-server daemon（回收旧 daemon，杜绝重连后 iPad
+            // 重新 initialize 命中同一 daemon 拿 -32600 Already initialized）。失败 fail-closed 关连接。
+            guard beginFreshSession(ctx: ctx) else { return }
             attachBridgeOutbound(ctx: ctx)
             attempt.markHealthy()
             return
@@ -283,12 +280,14 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
         }
     }
 
-    /// #8a：幂等启桥；启桥失败**不吞**——回收残留并关连接（fail-closed），让 iPad 明确感知断连
-    /// （而非收 SecureReady 后干等 initialize 超时）。返回 false = 已启桥失败并关连接，调用方须即停后续桥接。
+    /// 每次握手完成调用：重建一个全新 app-server daemon 会话（回收旧 daemon，杜绝重连后 iPad 重新
+    /// initialize 命中同一已初始化 daemon 拿 -32600 Already initialized）。启动失败**不吞**——回收旧会话
+    /// 并关连接（fail-closed，让 iPad 明确感知断连而非收 SecureReady 后干等 initialize 超时）。
+    /// 返回 false = 已失败并关连接，调用方须即停后续桥接。
     @discardableResult
-    private func ensureBridgeStarted(ctx: ChannelHandlerContext) -> Bool {
+    private func beginFreshSession(ctx: ChannelHandlerContext) -> Bool {
         do {
-            try lifecycle.ensureStarted()
+            try sessionBridge.beginSession()
             return true
         } catch {
             attempt.markTerminal(.bridgeFailed)
@@ -297,13 +296,28 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
         }
     }
 
+    /// 防御性复核当前会话 daemon 已就绪（appData 分支）。逻辑上 beginSession() 已在握手完成时启动，
+    /// 此处仅兜底；失败关连接（fail-closed）。
+    @discardableResult
+    private func ensureCurrentSessionStarted(ctx: ChannelHandlerContext) -> Bool {
+        do {
+            try sessionBridge.ensureCurrentStarted()
+            return true
+        } catch {
+            attempt.markTerminal(.bridgeFailed)
+            ctx.close(promise: nil)
+            return false
+        }
+    }
+
     /// 全局 router 持续 drain proxy stdout；这里只替换当前物理连接 sink，不缓存断线数据。
     private func attachBridgeOutbound(ctx: ChannelHandlerContext) {
-        if let outputAttachment { outputRouter.detach(outputAttachment) }
+        guard let router = sessionBridge.router, let bridge = sessionBridge.bridge else { return }
+        if let outputAttachment { router.detach(outputAttachment) }
         let channel = ctx.channel
         let ctxRef = context
         let bridgeRef = bridge
-        outputAttachment = outputRouter.attach { line in
+        outputAttachment = router.attach { line in
             guard let session = ctxRef.session else { return }
             let result: DialoutOutboundFrameBuildResult
             do { result = try DialoutOutboundFrameBuilder.build(line: line, session: session) }
@@ -327,7 +341,7 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
                 channel.writeAndFlush(frame, promise: nil)
             }
         }
-        outputRouter.start()
+        router.start()
     }
 
     private func sendFrame(_ data: Data, ctx: ChannelHandlerContext) {
@@ -368,13 +382,12 @@ final class DialoutStopRelay: @unchecked Sendable {
 }
 
 let stopRelay = DialoutStopRelay()
-// daemon 异常死亡(terminationHandler 权威信号/写失败 catch)与既有 EOF 路径汇合到同一 reason;
-// DialoutStopRelay 只取首个 reason + supervisor.stop 幂等 = 三源收敛。
-let bridge = DaemonBridge(codexPath: codexPath,
-                          onAbnormalExit: { stopRelay.request(.bridgeExited) })
-let bridgeLifecycle = BridgeLifecycle(bridge: bridge)
-let outputRouter = BridgeOutputRouter(
-    stream: { bridge.incoming },
+// 每个握手会话对应一个全新 app-server daemon；重握手（iPad app 强杀重连等）成功时回收旧 daemon 并重生成，
+// 杜绝 iPad 重连后重新 initialize 命中同一已初始化 daemon 拿 -32600 Already initialized。
+let sessionBridge = DialoutSessionBridge(
+    daemonFactory: { onAbnormalExit in
+        DaemonBridge(codexPath: codexPath, onAbnormalExit: onAbnormalExit)
+    },
     onBridgeExit: { stopRelay.request(.bridgeExited) }
 )
 
@@ -431,10 +444,8 @@ let supervisor = DialoutSupervisor(
                     let upgrader = DialoutWebSocket.makeClientUpgrader(
                         upgradePipelineHandler: { channel, _ in
                             channel.pipeline.addHandler(DialoutWSHandler(
-                                bridge: bridge,
+                                sessionBridge: sessionBridge,
                                 context: context,
-                                lifecycle: bridgeLifecycle,
-                                outputRouter: outputRouter,
                                 attempt: attempt
                             ))
                         }
@@ -464,11 +475,11 @@ let supervisor = DialoutSupervisor(
         return attempt.outcome
     },
     onShutdown: {
-        outputRouter.stop()
-        bridgeLifecycle.shutdown()
+        // 先停 router（取消 stream，防向已停事件循环提交）+ 精确 terminate daemon（非阻塞），
+        // 再停事件循环，最后等待精确 PID 完成 TERM/KILL 与 reap。
+        sessionBridge.shutdownAll()
         shutdownEventLoopGroup(group)
-        // EventLoop 已停止；此处可安全等待精确 PID 完成 TERM/KILL 与 reap。
-        bridge.waitForTermination()
+        sessionBridge.awaitTermination()
     }
 )
 
