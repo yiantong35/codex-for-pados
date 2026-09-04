@@ -57,6 +57,42 @@ final class ItemCardRenderTests: XCTestCase {
         )).body
     }
 
+    /// mcp/dynamicTool 折叠卡在「常规 / 大结果截断 / 空结果」下 body 均可构建（稳定性回归守卫）。
+    func testToolCardsCollapseBodiesBuild() {
+        _ = ItemCard(item: .mcpToolCall(id: "1", server: "fs", tool: "read", status: "completed",
+                                        result: "ok", durationMs: 8)).body
+        // 大结果：正文走截断 + 全文按钮路径，不崩溃
+        _ = ItemCard(item: .mcpToolCall(id: "2", server: "fs", tool: "read", status: "completed",
+                                        result: String(repeating: "x", count: 100_000), durationMs: 8)).body
+        // 空结果：仅头部可折叠，空正文不产生占位
+        _ = ItemCard(item: .mcpToolCall(id: "3", server: "fs", tool: "read", status: "completed",
+                                        result: "", durationMs: 8)).body
+        _ = ItemCard(item: .dynamicToolCall(id: "4", namespace: "shell", tool: "exec",
+                                            status: "completed", success: true)).body
+        _ = ItemCard(item: .dynamicToolCall(id: "5", namespace: "shell", tool: "exec",
+                                            status: "", success: nil)).body
+    }
+
+    /// MCP 结果标题经 Catalog 解析（缺失键会回退为含 "conv." 的键名）。
+    func testMcpResultFullTitleResolvesThroughCatalog() {
+        let title: LocalizedStringResource = "conv.item.mcpFullTitle"
+        XCTAssertFalse(String(localized: title).contains("conv."))
+    }
+
+    /// MCP 结果正文按字节预算截断；短结果不截断。
+    func testMcpResultPresentationTruncatesLargeResult() {
+        let large = String(
+            repeating: "x",
+            count: TextRenderBudget.maximumStreamingBytes + 100
+        )
+        let presentation = ItemCard.mcpResultPresentation(large)
+        XCTAssertTrue(presentation.truncated)
+        XCTAssertLessThanOrEqual(presentation.text.utf8.count, TextRenderBudget.maximumStreamingBytes)
+        // 短结果不截断
+        let small = ItemCard.mcpResultPresentation("ok")
+        XCTAssertFalse(small.truncated)
+    }
+
     func testEventCardsBodyDoNotCrash() {
         _ = ItemCard(item: .contextCompaction(id: "1")).body
         _ = ItemCard(item: .enteredReviewMode(id: "2")).body

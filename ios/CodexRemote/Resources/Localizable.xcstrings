@@ -1857,6 +1857,22 @@
         }
       }
     },
+    "conv.item.mcpFullTitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP tool result"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP 工具结果"
+          }
+        }
+      }
+    },
     "conv.item.plan": {
       "localizations": {
         "en": {
@@ -1869,6 +1885,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "计划"
+          }
+        }
+      }
+    },
+    "conv.item.resultTruncated": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Result truncated"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结果已截断"
           }
         }
       }
