@@ -2,6 +2,14 @@ import Testing
 import Foundation
 @testable import RelayDialoutCore
 
+/// 线程安全计数器，用于断言「主动回收不触发 onBridgeExit / onAbnormalExit」。
+private final class CallbackCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+    func increment() { lock.lock(); value += 1; lock.unlock() }
+    var count: Int { lock.lock(); defer { lock.unlock() }; return value }
+}
+
 /// 「Already initialized」重连缺陷（app 被强杀后无法重连、需重启 relay-dialout）根治所需的可单测单元。
 ///
 /// 根因：旧实现把 `DaemonBridge` 在 `main.swift` 顶层只建一次、`BridgeLifecycle.ensureStarted()` 幂等持有，
@@ -77,5 +85,44 @@ struct DialoutSessionBridgeTests {
     @Test func ensureCurrentStartedThrowsWithoutSession() throws {
         let sessionBridge = DialoutSessionBridge(daemonFactory: makeSleepFactory(BridgeCollector()), onBridgeExit: {})
         #expect(throws: DialoutSessionBridgeError.noSession) { try sessionBridge.ensureCurrentStarted() }
+    }
+
+    /// 对端离开（relay `peer-left`）主动回收：`recycleCurrent()` 必须回收当前 daemon、清空 `current`，
+    /// 且**不**误报 dialout 停机（onBridgeExit）与 daemon 异常死亡（onAbnormalExit）。
+    @Test func recycleCurrentRecyclesDaemonClearsCurrentAndDoesNotReportExits() async throws {
+        let abnormal = CallbackCounter()
+        let bridgeExit = CallbackCounter()
+        let collector = BridgeCollector()
+        let sessionBridge = DialoutSessionBridge(
+            daemonFactory: { onAbnormalExit in
+                let b = DaemonBridge(codexPath: "/bin/sleep", arguments: ["300"],
+                                     onAbnormalExit: { abnormal.increment() })
+                collector.append(b)
+                return b
+            },
+            onBridgeExit: { bridgeExit.increment() })
+
+        try sessionBridge.beginSession()
+        let first = collector.bridges[0]
+        #expect(first.isRunning)
+        #expect(sessionBridge.bridge != nil)
+        #expect(sessionBridge.router != nil)
+
+        sessionBridge.recycleCurrent()
+
+        // current 清空：bridge / router 均回 nil（下次 beginSession 直接重 spawn）。
+        #expect(sessionBridge.bridge == nil)
+        #expect(sessionBridge.router == nil)
+        first.waitForTermination()
+        #expect(!first.isRunning)              // 精确回收当前 daemon（经 DaemonBridge.terminate()）。
+
+        // terminationHandler / router EOF 均为异步；留窗确认其间无误报。
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(abnormal.count == 0)           // 主动回收不误报异常死亡。
+        #expect(bridgeExit.count == 0)         // dialout 不因回收触发停机。
+
+        // 终态收口无副作用（current 已清空）。
+        sessionBridge.shutdownAll()
+        sessionBridge.awaitTermination()
     }
 }
