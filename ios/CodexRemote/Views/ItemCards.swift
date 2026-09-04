@@ -69,16 +69,12 @@ struct ItemCard: View {
                 .equatable()
 
         case .reasoning(_, let text):
-            // 「正在思考」样式：灰色斜体；有内容显内容，无内容显占位文案。
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Image(systemName: "brain")
-                    .foregroundStyle(.secondary)
-                    .font(.footnote)
-                if text.isEmpty {
-                    Text("conv.reasoning.thinking")
-                        .font(.callout.italic())
-                        .foregroundStyle(.secondary)
-                } else {
+            // 头部常显（流式「思考中」/ 完成「思考 · N 字」），正文默认收起；
+            // 空文本不再渲染旧「正在思考」占位正文（该语义已上移至头部）。
+            CollapsibleItemCard {
+                reasoningHeaderLabel(text: text)
+            } content: {
+                if !text.isEmpty {
                     let presentation = TextRenderBudget.boundedUTF8Suffix(
                         text, maximumBytes: TextRenderBudget.maximumStreamingBytes
                     )
@@ -98,7 +94,6 @@ struct ItemCard: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
         case .commandExecution(_, let command, let output, let outputLineCount,
                                let status, let exitCode, let durationMs):
@@ -324,6 +319,20 @@ struct ItemCard: View {
 
     // MARK: - 通用卡片帮助函数
 
+    /// reasoning 头部行（DisclosureGroup label）：装饰 💭 图标 + 语义标题（流式/完成）。
+    @ViewBuilder
+    private func reasoningHeaderLabel(text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text("💭")
+                .font(.footnote)
+                .accessibilityHidden(true)      // 装饰性图标，VoiceOver 只读语义标题
+            Text(Self.reasoningHeaderTitle(isStreaming: isStreaming, count: text.count))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     /// 工具类卡片：[icon] 前缀 · 标题 · 状态 · 结果摘要 · 耗时。
     @ViewBuilder
     private func toolCard(icon: String, prefixKey: LocalizedStringKey, title: String,
@@ -366,6 +375,12 @@ struct ItemCard: View {
         case "declined", "rejected": return "conv.status.declined"
         default: return "conv.status.unknown"
         }
+    }
+
+    /// reasoning 头部标题：流式中显示「思考中」，完成后显示「思考 · N 字」（N = 字符数）。
+    static func reasoningHeaderTitle(isStreaming: Bool, count: Int) -> LocalizedStringResource {
+        if isStreaming { return "conv.reasoning.thinking" }
+        return "conv.reasoning.charCount \(count)"
     }
 
     /// 事件类单行提示条：[icon] 文案 · 可选详情，次要色。

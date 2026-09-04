@@ -30,6 +30,23 @@ final class ItemCardRenderTests: XCTestCase {
         _ = ProbeCard().body
     }
 
+    /// reasoning 头部标题：流式「思考中」/ 完成后「思考 · N 字」，均须经 Catalog 解析。
+    func testReasoningHeaderTitleResolvesThroughCatalog() {
+        let streaming: LocalizedStringResource = ItemCard.reasoningHeaderTitle(isStreaming: true, count: 0)
+        let complete: LocalizedStringResource = ItemCard.reasoningHeaderTitle(isStreaming: false, count: 42)
+        // 缺失键会回退为含 "conv." 的键名 → 据此确保文案已入 Catalog
+        XCTAssertFalse(String(localized: streaming).contains("conv."))
+        XCTAssertFalse(String(localized: complete).contains("conv."))
+        // 完成后应出现字符数（数字在任何 locale 都可见）
+        XCTAssertTrue(String(localized: complete).contains("42"))
+    }
+
+    /// reasoning 折叠卡在「空文本 / 超长文本」下 body 均可构建（稳定性回归守卫）。
+    func testReasoningCardBodyBuildsForEmptyAndLargeText() {
+        _ = ItemCard(item: .reasoning(id: "r1", text: "")).body
+        _ = ItemCard(item: .reasoning(id: "r2", text: String(repeating: "字", count: 50_000))).body
+    }
+
     func testToolCardsBodyDoNotCrash() {
         _ = ItemCard(item: .mcpToolCall(id: "1", server: "fs", tool: "read",
                                         status: "completed", result: "ok", durationMs: 8)).body

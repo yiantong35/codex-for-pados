@@ -2049,6 +2049,22 @@
         }
       }
     },
+    "conv.reasoning.charCount %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thought · %lld chars"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "思考 · %lld 字"
+          }
+        }
+      }
+    },
     "conv.reasoning.fullTitle": {
       "localizations": {
         "en": {
