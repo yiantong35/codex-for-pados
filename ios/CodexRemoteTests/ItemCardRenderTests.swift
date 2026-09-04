@@ -30,6 +30,12 @@ final class ItemCardRenderTests: XCTestCase {
         _ = ProbeCard().body
     }
 
+    /// 折叠卡的可访问性提示须经 String Catalog 解析；缺失键会回退为含 'common.' 的键名。
+    func testCollapsibleAccessibilityHintResolvesThroughCatalog() {
+        let hint: LocalizedStringResource = "common.collapsible.accessibilityHint"
+        XCTAssertFalse(String(localized: hint).contains("common."))
+    }
+
     /// reasoning 头部标题：流式「思考中」/ 完成后「思考 · N 字」，均须经 Catalog 解析。
     func testReasoningHeaderTitleResolvesThroughCatalog() {
         let streaming: LocalizedStringResource = ItemCard.reasoningHeaderTitle(isStreaming: true, count: 0)

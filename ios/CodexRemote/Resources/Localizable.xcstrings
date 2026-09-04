@@ -481,6 +481,22 @@
         }
       }
     },
+    "common.collapsible.accessibilityHint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap to expand or collapse"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轻点展开或收起"
+          }
+        }
+      }
+    },
     "composer.a11y.model": {
       "localizations": {
         "en": {
