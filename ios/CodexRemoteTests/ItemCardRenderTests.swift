@@ -73,6 +73,35 @@ final class ItemCardRenderTests: XCTestCase {
                                             status: "", success: nil)).body
     }
 
+    /// webSearch 展开正文优先 detail；nil/空 detail 回退 query；两者皆空返回空串。
+    func testWebSearchBodyTextPrefersDetailAndFallsBackToQuery() {
+        // 有 action 且 detail 非空 → 显示 detail
+        XCTAssertEqual(
+            ItemCard.webSearchBodyText(query: "swift", action: .openPage(url: "https://swift.org")),
+            "https://swift.org"
+        )
+        // action 为 nil → 回退 query
+        XCTAssertEqual(ItemCard.webSearchBodyText(query: "swift", action: nil), "swift")
+        // action 存在但 detail 为空（openPage url nil）→ 回退 query
+        XCTAssertEqual(ItemCard.webSearchBodyText(query: "swift", action: .openPage(url: nil)), "swift")
+        // 两者皆空 → 空串（仅头部可折叠，避免空展开区）
+        XCTAssertEqual(ItemCard.webSearchBodyText(query: "", action: nil), "")
+    }
+
+    /// webSearch 折叠卡在「nil action / 空 detail / 空 query」下 body 均可构建（稳定性回归守卫）。
+    func testWebSearchCollapseHandlesNilAndEmptyDetail() {
+        // 有 action 且 detail 非空
+        _ = ItemCard(item: .webSearch(id: "w1", query: "swift",
+                                      action: .openPage(url: "https://swift.org"))).body
+        // action 为 nil
+        _ = ItemCard(item: .webSearch(id: "w2", query: "swift", action: nil)).body
+        // action 存在但 detail 为空（openPage url nil）
+        _ = ItemCard(item: .webSearch(id: "w3", query: "swift",
+                                      action: .openPage(url: nil))).body
+        // 空 query 亦不崩溃
+        _ = ItemCard(item: .webSearch(id: "w4", query: "", action: nil)).body
+    }
+
     /// MCP 结果标题经 Catalog 解析（缺失键会回退为含 "conv." 的键名）。
     func testMcpResultFullTitleResolvesThroughCatalog() {
         let title: LocalizedStringResource = "conv.item.mcpFullTitle"

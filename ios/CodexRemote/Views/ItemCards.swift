@@ -183,16 +183,18 @@ struct ItemCard: View {
             }
 
         case .webSearch(_, let query, let action):
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                Text("conv.item.webSearch").font(.caption).foregroundStyle(.secondary)
-                Text(query).font(.callout).lineLimit(2)
-                if let action, !action.detail.isEmpty {
-                    Text("· \(action.detail)").font(.caption).foregroundStyle(.secondary)
+            CollapsibleItemCard {
+                webSearchLabel(query: query, detail: action?.detail ?? "")
+            } content: {
+                let text = Self.webSearchBodyText(query: query, action: action)
+                if !text.isEmpty {
+                    Text(text)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
         case .contextCompaction:
             eventBar(icon: "arrow.down.right.and.arrow.up.left", textKey: "conv.item.compaction")
@@ -359,6 +361,21 @@ struct ItemCard: View {
         }
     }
 
+    /// webSearch 头部行（DisclosureGroup label）：[🔍] 前缀 · query · 可选 detail。
+    @ViewBuilder
+    private func webSearchLabel(query: String, detail: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            Text("conv.item.webSearch").font(.caption).foregroundStyle(.secondary)
+            Text(query).font(.callout).lineLimit(2)
+            if !detail.isEmpty {
+                Text("· \(detail)").font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     /// MCP 工具结果正文：字节预算截断 + 全文按钮（大结果）。空结果不产生占位正文。
     @ViewBuilder
     private func mcpResultBody(_ result: String) -> some View {
@@ -401,6 +418,14 @@ struct ItemCard: View {
     static func reasoningHeaderTitle(isStreaming: Bool, count: Int) -> LocalizedStringResource {
         if isStreaming { return "conv.reasoning.thinking" }
         return "conv.reasoning.charCount \(count)"
+    }
+
+    /// webSearch 展开正文文案：优先 `action.detail`；为「nil action / 空 detail」回退到 `query`；
+    /// 两者皆空返回 ""（避免空展开区）。
+    static func webSearchBodyText(query: String, action: WebSearchAction?) -> String {
+        let detail = action?.detail ?? ""
+        if !detail.isEmpty { return detail }
+        return query
     }
 
     /// MCP 结果字节预算截断（与 reasoning 共用同一预算）。空字符串返回 ("" , false)。
