@@ -506,7 +506,7 @@ final class ProjectsStore {
         }
     }
 
-    /// 启发式分类（D8）：有 gitInfo → 项目（按 originUrl ?? cwd 归组）；否则 → 对话(loose)。
+    /// 启发式分类（D8 / #6）：有非空 cwd 或 gitInfo → 项目（按 originUrl ?? cwd 归组）；两者皆空 → 对话(loose)。
     /// 项目间按组内最近 updatedAt 倒序；项目内 / loose 按 updatedAt 倒序。
     func ingest(_ threads: [ThreadSummary]) {
         var threadsByID: [String: ThreadSummary] = [:]
@@ -515,8 +515,8 @@ final class ProjectsStore {
             threadsByID[thread.id] = thread
         }
         let uniqueThreads = Array(threadsByID.values)
-        let projectThreads = uniqueThreads.filter { $0.gitInfo != nil }
-        let loose = uniqueThreads.filter { $0.gitInfo == nil }
+        let projectThreads = uniqueThreads.filter { !$0.cwd.isEmpty || $0.gitInfo != nil }
+        let loose = uniqueThreads.filter { $0.cwd.isEmpty && $0.gitInfo == nil }
         let grouped = Dictionary(grouping: projectThreads) { t in
             (t.gitInfo?.originUrl?.isEmpty == false) ? t.gitInfo!.originUrl! : t.cwd
         }

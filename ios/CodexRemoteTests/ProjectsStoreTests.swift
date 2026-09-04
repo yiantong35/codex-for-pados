@@ -36,34 +36,48 @@ final class ProjectsStoreTests: XCTestCase {
         XCTAssertGreaterThan(after, before)
     }
 
+    // #6 分类纳入 cwd —— delta 三场景（ipad-session-creation）：
+    // 有非空 cwd 或 gitInfo → 项目（originUrl ?? cwd 归组）；两者皆空 → 游离。
+
+    // delta 场景 1：cwd 在 git 仓库内、gitInfo 非空 → 归入 originUrl 项目组
+    func test_ingest_gitInfoNonEmpty_groupedByOriginUrl() {
+        let s = ProjectsStore()
+        s.ingest([ thread("p", cwd: "/repo/web-dev", updatedAt: 10, origin: "o/web", git: true) ])
+        XCTAssertEqual(s.projects.map(\.id), ["o/web"])
+        XCTAssertEqual(s.projects.first?.threads.map(\.id), ["p"])
+        XCTAssertTrue(s.looseConversations.isEmpty)
+    }
+
+    // delta 场景 2：cwd 非空但 gitInfo 为空 → 仍归项目（以 cwd 为组键），不落游离
+    func test_ingest_nonEmptyCwdNilGitInfo_isProject() {
+        let s = ProjectsStore()
+        s.ingest([ thread("cwd-only", cwd: "/Users/me/proj", updatedAt: 20) ])   // git=false
+        XCTAssertEqual(s.projects.map(\.id), ["/Users/me/proj"], "仅 cwd 非空也应归项目（组键=cwd）")
+        XCTAssertTrue(s.looseConversations.isEmpty)
+    }
+
+    // delta 场景 3：cwd 与 gitInfo 均空 → 游离对话
+    func test_ingest_emptyCwdAndNilGitInfo_isLoose() {
+        let s = ProjectsStore()
+        s.ingest([ thread("loose", cwd: "", updatedAt: 30) ])   // cwd 空 + gitInfo nil
+        XCTAssertTrue(s.projects.isEmpty)
+        XCTAssertEqual(s.looseConversations.map(\.id), ["loose"])
+    }
+
+    // 组合：git / cwd-only / loose 混排（delta 三场景 + 同 origin 归组）
     func test_ingest_classifies_project_vs_loose() {
         let s = ProjectsStore()
         s.ingest([
             thread("a", cwd: "/repo/web-dev", updatedAt: 10, origin: "o/web", git: true),
-            thread("b", cwd: "/repo/web-dev-wt", updatedAt: 20, origin: "o/web", git: true), // 同 origin → 同项目
-            thread("c", cwd: "/repo/api", updatedAt: 30, origin: "o/api", git: true),
-            thread("d", cwd: "/Volumes/mount", updatedAt: 40), // 无 git → loose
+            thread("b", cwd: "/repo/web-dev-wt", updatedAt: 20, origin: "o/web", git: true),   // 同 origin → 同项目
+            thread("cwd-only", cwd: "/Users/me/proj", updatedAt: 30),                          // 仅 cwd → 项目（组键=cwd）
+            thread("loose", cwd: "", updatedAt: 40),                                           // 皆空 → 游离
         ])
-        XCTAssertEqual(s.projects.count, 2)                 // web + api
-        XCTAssertEqual(s.looseConversations.map(\.id), ["d"])
-        XCTAssertTrue(s.isGrouped)                          // ≥2 项目
-        // 项目间按组内最近 updatedAt 倒序：api(30) 在 web(20) 前
-        XCTAssertEqual(s.projects.first?.threads.map(\.id), ["c"])
-        // 项目内按 updatedAt 倒序：web 组 b(20) 在 a(10) 前
+        XCTAssertEqual(s.projects.map(\.id), ["/Users/me/proj", "o/web"])
+        XCTAssertEqual(s.projects.first?.threads.map(\.id), ["cwd-only"])
         XCTAssertEqual(s.projects.last?.threads.map(\.id), ["b", "a"])
-    }
-
-    // D4:分类不改算法——gitInfo≠nil(cwd 在 git 仓库内)→ 归对应项目组;gitInfo=nil → 游离对话。
-    // cwd 正确后(Task 1/2/4)归组自然与 desktop 一致;分类正确性是 cwd 正确性的结果。
-    func test_ingest_gitInfo_drives_project_vs_loose() {
-        let s = ProjectsStore()
-        s.ingest([
-            thread("p", cwd: "/repo/web-dev", updatedAt: 10, origin: "o/web", git: true), // gitInfo≠nil → 项目
-            thread("l", cwd: "/Users/me", updatedAt: 20),                                  // gitInfo=nil → 游离
-        ])
-        XCTAssertEqual(s.projects.map(\.id), ["o/web"], "有 gitInfo 应归入以 originUrl 为键的项目组")
-        XCTAssertEqual(s.projects.first?.threads.map(\.id), ["p"])
-        XCTAssertEqual(s.looseConversations.map(\.id), ["l"], "无 gitInfo 应留在游离对话")
+        XCTAssertEqual(s.looseConversations.map(\.id), ["loose"])
+        XCTAssertTrue(s.isGrouped)
     }
 
     func test_ingest_deduplicates_overlapping_pages_by_thread_id() {
@@ -84,7 +98,7 @@ final class ProjectsStoreTests: XCTestCase {
         let mock = MockTransport()
         // 首页（cursor "" ）返回 a + nextCursor "p2"；第二页（cursor "p2"）返回 b + nextCursor null。
         let page1 = #"{"data":[{"id":"a","sessionId":"a","preview":"","modelProvider":"openai","createdAt":0,"updatedAt":10,"cwd":"/repo/x","cliVersion":"0.133.0","name":null,"gitInfo":{"sha":null,"branch":"main","originUrl":"o/x"}}],"nextCursor":"p2","backwardsCursor":null}"#
-        let page2 = #"{"data":[{"id":"b","sessionId":"b","preview":"","modelProvider":"openai","createdAt":0,"updatedAt":20,"cwd":"/Volumes/mount","cliVersion":"0.133.0","name":null,"gitInfo":null}],"nextCursor":null,"backwardsCursor":null}"#
+        let page2 = #"{"data":[{"id":"b","sessionId":"b","preview":"","modelProvider":"openai","createdAt":0,"updatedAt":20,"cwd":"","cliVersion":"0.133.0","name":null,"gitInfo":null}],"nextCursor":null,"backwardsCursor":null}"#
         await mock.setThreadListPages(["": page1, "p2": page2])
         await mock.setAutoRespond(true)
         let rpc = JSONRPCClient(transport: mock)
@@ -233,7 +247,7 @@ final class ProjectsStoreTests: XCTestCase {
     func test_isGrouped_false_when_single_project() {
         let s = ProjectsStore()
         s.ingest([ thread("a", cwd: "/repo/x", updatedAt: 1, origin: "o/x", git: true),
-                   thread("d", cwd: "/Volumes/mount", updatedAt: 2) ])
+                   thread("d", cwd: "", updatedAt: 2) ])      // cwd 空 → 游离，保持仅 1 项目
         XCTAssertFalse(s.isGrouped)                         // 仅 1 项目 → 平铺
         XCTAssertEqual(s.allThreadsSorted.map(\.id), ["d", "a"])  // 全列表按 updatedAt 倒序
     }
