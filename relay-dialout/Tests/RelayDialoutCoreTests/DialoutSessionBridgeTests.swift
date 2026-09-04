@@ -125,4 +125,52 @@ struct DialoutSessionBridgeTests {
         sessionBridge.shutdownAll()
         sessionBridge.awaitTermination()
     }
+
+    /// `recycleCurrent()` 幂等：从未建会话 / 已回收 均无副作用、不崩。
+    @Test func recycleCurrentIsIdempotent() throws {
+        let collector = BridgeCollector()
+        let sessionBridge = DialoutSessionBridge(daemonFactory: makeSleepFactory(collector), onBridgeExit: {})
+
+        sessionBridge.recycleCurrent()          // 从未建会话：无副作用。
+        #expect(sessionBridge.bridge == nil)
+        #expect(sessionBridge.router == nil)
+
+        try sessionBridge.beginSession()
+        let first = collector.bridges[0]
+        sessionBridge.recycleCurrent()          // 回收当前会话。
+        first.waitForTermination()
+        #expect(!first.isRunning)
+
+        sessionBridge.recycleCurrent()          // 已回收：再调无副作用。
+        #expect(sessionBridge.bridge == nil)
+        #expect(sessionBridge.router == nil)
+
+        sessionBridge.shutdownAll()
+        sessionBridge.awaitTermination()
+    }
+
+    /// 回收后 `beginSession()` 重生成全新 daemon：不同实例、不同进程（新 PID），旧 daemon 已被精确回收。
+    @Test func recycleAllowsBeginSessionToRespawnFreshDaemon() throws {
+        let collector = BridgeCollector()
+        let sessionBridge = DialoutSessionBridge(daemonFactory: makeSleepFactory(collector), onBridgeExit: {})
+
+        try sessionBridge.beginSession()
+        let first = collector.bridges[0]
+        #expect(first.isRunning)
+
+        sessionBridge.recycleCurrent()
+        first.waitForTermination()
+        #expect(!first.isRunning)               // 旧 daemon 已回收。
+
+        try sessionBridge.beginSession()
+        #expect(collector.bridges.count == 2)
+        let second = collector.bridges[1]
+        #expect(first !== second)               // 不同 DaemonBridge 实例（一次性对象）。
+        #expect(second.pid != first.pid)        // 全新进程（全新 daemon）。
+        #expect(second.isRunning)
+
+        sessionBridge.shutdownAll()
+        sessionBridge.awaitTermination()
+        #expect(!second.isRunning)
+    }
 }
