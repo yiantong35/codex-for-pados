@@ -61,9 +61,12 @@ public enum DialoutOutboundFrameBuilder {
     /// 逐片 seal(kind=.chunk) 编码；任一帧超 maxBytes 防御性 fail-closed（预算内理论不触发）。
     private static func chunkedFrames(line: String, session: SecureSession, maxBytes: Int) throws
         -> DialoutOutboundFrameBuildResult {
-        let plaintext = Data(line.utf8)
-        let compressed = false   // Task 4 引入压缩决策；此 task 恒不压缩
-        let payloads = chunkPayloads(plaintext: plaintext, compressed: compressed)
+        let raw = Data(line.utf8)
+        // 明文层整行压缩一次再切片（保留跨段上下文，压缩比最佳）；仅当压缩确实减小字节才用压缩字节。
+        let packed = RelayDialoutCompression.compress(raw)
+        let useCompressed = packed.map { $0.count < raw.count } ?? false
+        let plaintext = useCompressed ? packed! : raw
+        let payloads = chunkPayloads(plaintext: plaintext, compressed: useCompressed)
         var frames: [Data] = []
         frames.reserveCapacity(payloads.count)
         for payload in payloads {

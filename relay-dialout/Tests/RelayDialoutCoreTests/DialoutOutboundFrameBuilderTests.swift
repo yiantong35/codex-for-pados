@@ -139,3 +139,26 @@ private func makeSessionPair() throws -> (ipad: SecureSession, dev: SecureSessio
     let result = try DialoutOutboundFrameBuilder.build(line: line, session: sessions.dev, peerSupportsChunk: true)
     guard case .frame = result else { Issue.record("small payload should stay .frame"); return }
 }
+
+// MARK: - Task 4: dev 侧压缩决策（压缩后确实变小才置 compressed=true）
+
+/// 压缩决策：高度可压缩明文 → 各片 compressed=true，重组解压后交付行与原行一致（回归护栏）。
+@Test func chunkedFramesMarkCompressedOnlyWhenBeneficial() throws {
+    let sessions = try makeSessionPair()
+    let compressible = String(repeating: "A", count: 900 * 1024) +
+        #"{"jsonrpc":"2.0","id":"req","result":{"data":"\#(String(repeating: "B", count: 100 * 1024))"}}"#
+    let res = try DialoutOutboundFrameBuilder.build(
+        line: compressible, session: sessions.dev, peerSupportsChunk: true)
+    guard case .frames(let frames) = res else { Issue.record("expected frames"); return }
+    var anyCompressed = false
+    var joined = Data()
+    for f in frames {
+        let env = try SecureEnvelope(decoding: f)
+        let payload = try JSONDecoder().decode(ChunkPayload.self, from: sessions.ipad.open(env))
+        if payload.compressed { anyCompressed = true }
+        joined.append(payload.data)
+    }
+    #expect(anyCompressed)
+    let back = try RelayDialoutCompression.decompress(joined, maxBytes: 4 * 1024 * 1024)
+    #expect(String(decoding: back, as: UTF8.self) == compressible)
+}
