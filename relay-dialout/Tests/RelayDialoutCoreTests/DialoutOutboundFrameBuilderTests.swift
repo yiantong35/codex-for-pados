@@ -98,6 +98,7 @@ private func makeSessionPair() throws -> (ipad: SecureSession, dev: SecureSessio
     }
     #expect(!frames.isEmpty)
     var joined = Data()
+    var anyCompressed = false
     var expectedSeq: UInt32 = 0
     var total: UInt32 = 0
     for f in frames {
@@ -109,9 +110,14 @@ private func makeSessionPair() throws -> (ipad: SecureSession, dev: SecureSessio
         #expect(payload.seq == expectedSeq)
         expectedSeq += 1
         total = payload.totalChunks
+        if payload.compressed { anyCompressed = true }
         joined.append(payload.data)
     }
     #expect(expectedSeq == total)
+    // Task 4 引入压缩后，payload.data 可能是压缩字节；重组后按 compressed 标志先解压再比对原行。
+    if anyCompressed {
+        joined = try RelayDialoutCompression.decompress(joined, maxBytes: 4 * 1024 * 1024)
+    }
     #expect(String(decoding: joined, as: UTF8.self) == line)
 }
 
