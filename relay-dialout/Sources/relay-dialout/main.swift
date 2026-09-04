@@ -319,13 +319,26 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
         let bridgeRef = bridge
         outputAttachment = router.attach { line in
             guard let session = ctxRef.session else { return }
+            // 每次握手后取当前对端协商结果；未协商 → 回退 -32010。
             let result: DialoutOutboundFrameBuildResult
-            do { result = try DialoutOutboundFrameBuilder.build(line: line, session: session) }
-            catch { return }
-            let encoded: Data
+            do {
+                result = try DialoutOutboundFrameBuilder.build(
+                    line: line, session: session,
+                    peerSupportsChunk: ctxRef.peerSupportsChunk)
+            } catch { return }
+            func sendEncoded(_ encoded: Data) {
+                channel.eventLoop.execute {
+                    var buf = channel.allocator.buffer(capacity: encoded.count)
+                    buf.writeBytes(encoded)
+                    let frame = WebSocketFrame(fin: true, opcode: .text, data: buf)
+                    channel.writeAndFlush(frame, promise: nil)
+                }
+            }
             switch result {
             case .frame(let frame):
-                encoded = frame
+                sendEncoded(frame)
+            case .frames(let frames):
+                for f in frames { sendEncoded(f) }   // 同一循环连续发出，无交织
             case .rejectUpstream(let response):
                 if !bridgeRef.write(response) {
                     channel.eventLoop.execute { channel.close(promise: nil) }
@@ -333,12 +346,6 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
                 return
             case .dropped:
                 return
-            }
-            channel.eventLoop.execute {
-                var buf = channel.allocator.buffer(capacity: encoded.count)
-                buf.writeBytes(encoded)
-                let frame = WebSocketFrame(fin: true, opcode: .text, data: buf)
-                channel.writeAndFlush(frame, promise: nil)
             }
         }
         router.start()

@@ -12,6 +12,7 @@ public enum RelayPeer: String, Codable, Sendable, Equatable {
 public enum RelayFrameKind: UInt8, Codable, Sendable, Equatable {
     case appData = 0        // 应用数据（JSON-RPC 明文帧）
     case secureReady = 1    // 安全控制信令（dev 握手后加密回传 stableSessionId 的 SecureReady）
+    case chunk = 2          // 承载被拆分的大明文的一个分片（分片元数据在密封明文内）
 }
 
 /// 加密帧信封。header 明文（路由/防重放/类型），ciphertext+tag 是 AES-GCM 密文体。

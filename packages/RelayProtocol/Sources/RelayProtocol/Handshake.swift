@@ -20,6 +20,8 @@ public struct ClientHello: Codable, Sendable, Equatable {
     public var ipadEphemeralPub: Data    // X25519 raw
     public var clientNonce: Data
     public var pairingCodeProof: Data    // HMAC-SHA256(key: pairingCode, msg: Transcript.encode(整条 ClientHello 除 proof 外全字段))
+    /// 可选加法字段（旧端 JSONDecoder 忽略未知键，不破兼容）。本 change 用单值 `"chunk-rx-v1"`。
+    public var capabilities: [String]?
 }
 
 /// 消息 2：dev → iPad。带 dev 身份公钥与对 transcript 的签名，回显 clientNonce。
@@ -189,7 +191,8 @@ public enum Handshake {
                                        ipadIdentityPub: Data,
                                        ipadEphemeralPub: Data,
                                        clientNonce: Data,
-                                       pairingCode: String) -> ClientHello {
+                                       pairingCode: String,
+                                       capabilities: [String]? = nil) -> ClientHello {
         ClientHello(
             protocolVersion: RelayProtocolVersion.tag,
             sessionId: sessionId,
@@ -205,8 +208,8 @@ public enum Handshake {
                     ipadDeviceId: ipadDeviceId,
                     ipadIdentityPub: ipadIdentityPub,
                     ipadEphemeralPub: ipadEphemeralPub,
-                    clientNonce: clientNonce))
-        )
+                    clientNonce: clientNonce)),
+            capabilities: capabilities)
     }
 
     // 步骤 2：dev 处理 ClientHello（先验协议版本与 pairingCodeProof）并签名构造 ServerHello。
