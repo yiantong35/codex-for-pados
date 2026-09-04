@@ -174,6 +174,18 @@ final class ItemCardRenderTests: XCTestCase {
         XCTAssertEqual(String(ItemCard.agentText("**bold**").characters), "bold")
     }
 
+    func test_userMessage_trimsTrailingWhitespaceAndNewlines() {
+        XCTAssertEqual(ItemCard.userMessageDisplayText("hello"), "hello")
+        XCTAssertEqual(ItemCard.userMessageDisplayText("hello\n"), "hello")
+        XCTAssertEqual(ItemCard.userMessageDisplayText("hello  \n\n"), "hello")
+        // 保留正常多行正文（仅去尾部空白/换行）
+        XCTAssertEqual(ItemCard.userMessageDisplayText("line1\nline2\n"), "line1\nline2")
+        // 前导空白保留（不做整体 trim）
+        XCTAssertEqual(ItemCard.userMessageDisplayText("  indented\n"), "  indented")
+        // 完全空白字符串安全
+        XCTAssertEqual(ItemCard.userMessageDisplayText("   \n\n"), "")
+    }
+
     func testInterpolatedCommandMetricsResolveThroughStringCatalog() {
         let exitCode: LocalizedStringResource = "conv.cmd.exitCode \(7)"
         let duration: LocalizedStringResource = "conv.cmd.duration \(42)"
