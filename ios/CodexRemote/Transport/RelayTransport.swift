@@ -6,6 +6,12 @@ import os
 /// RelayTransport 精简 instrument 日志（三点：send 加密 / incoming 解密 / 异常退出）。
 private let rtLog = Logger(subsystem: "com.tangyujie.codexremote", category: "relaytransport")
 
+/// 本 change 用单一能力值（与 dev 侧一致，delta spec 固定值）。declare 后对端才发 `.chunk` 帧。
+enum RelayChunkCapabilities {
+    /// 分片大会话传输 + 可选压缩（覆盖两者），字面量必须与 dev 侧 `chunk-rx-v1` 相等，不得漂移。
+    static let chunkRxV1 = "chunk-rx-v1"
+}
+
 /// 可注入的 ws 通道抽象。生产实现包 `URLSessionWebSocketTask`，测试注入内存 mock。
 ///
 /// 把「真网络 ws 收发」与「E2E 加解密数据流」解耦：RelayTransport 只面向本抽象，
@@ -113,6 +119,8 @@ actor RelayTransport: MessageTransport {
     private let expectedRelaySessionId: String?
     /// 主动 close 标志：read loop 见 ws 断时据此区分「主动关闭（终态）」与「瞬断（转重连）」。
     private var activeClose = false
+    /// 当前会话的分片重组器。每次建立/重握手（self.session 变更）时整组作废，不跨会话拼接。
+    private var chunkReassembler = ChunkReassembler()
 
     /// 前台/后台状态（能耗）：后台时重连循环挂起等待回前台，不持续造新连接烧电（4.5）。默认前台。
     private var isForeground = true
@@ -274,6 +282,37 @@ actor RelayTransport: MessageTransport {
                 case .secureReady:
                     // 业务 read loop 不期望再收 SecureReady（握手期已消费）；fail-closed 忽略，不误当应用数据 emit。
                     rtLog.error("read loop 收到意外 SecureReady 帧，忽略")
+                case .chunk:
+                    // 分片重组在 read loop 内完成，不进上层有界入站缓冲（避开 incomingBufferCount=256 溢出断连）。
+                    let payload = try JSONDecoder().decode(ChunkPayload.self, from: plaintext)
+                    var reassembler = chunkReassembler
+                    switch reassembler.append(payload) {
+                    case .incomplete:
+                        chunkReassembler = reassembler
+                    case .completed(let raw):
+                        let final: Data
+                        if reassembler.compressed {
+                            do {
+                                final = try RelayCompression.decompress(raw, maxBytes: chunkReassembler.maxDecompressedBytes)
+                            } catch {
+                                chunkReassembler = ChunkReassembler()
+                                throw TransportError.protocolViolation("chunk decompression failed: \(error)")
+                            }
+                        } else {
+                            final = raw
+                        }
+                        guard let line = String(data: final, encoding: .utf8) else {
+                            chunkReassembler = ChunkReassembler()
+                            throw TransportError.protocolViolation("chunk reassembly produced non-UTF8")
+                        }
+                        chunkReassembler = ChunkReassembler()   // 集齐后作废，下一组从零开始
+                        guard emit(line) else {
+                            throw TransportError.inboundBufferOverflow(limit: streamLimits.incomingBufferCount)
+                        }
+                    case .failed(let reason):
+                        chunkReassembler = ChunkReassembler()   // fail-closed：丢弃整个重组，按错误处理
+                        throw TransportError.protocolViolation("chunk reassembly failed: \(reason)")
+                    }
                 }
             }
         } catch {
@@ -392,6 +431,7 @@ actor RelayTransport: MessageTransport {
                 // 新通道并静默退出（incoming 已由 close() 收束，不再发 .ready）。
                 if activeClose || Task.isCancelled { await ch.close(); return }
                 self.ws = ch
+                chunkReassembler = ChunkReassembler()   // 新通道：作废未完成重组
                 restartReadLoop()
                 emitControl(.ready)
                 return
@@ -487,6 +527,7 @@ actor RelayTransport: MessageTransport {
                 return
             }
             self.ws = ch
+            chunkReassembler = ChunkReassembler()   // 新通道：作废未完成重组
             markHandshakeDone()
             startReadLoopIfNeeded()
         } catch let rej as RejectHelloError {
@@ -576,7 +617,8 @@ actor RelayTransport: MessageTransport {
             sessionId: p.sessionId, ipadDeviceId: ipadDeviceId,
             ipadIdentityPub: inputs.ipadIdentity.publicKey.rawRepresentation,
             ipadEphemeralPub: ephemeral.publicKey.rawRepresentation,
-            clientNonce: clientNonce, pairingCode: p.pairingCode)
+            clientNonce: clientNonce, pairingCode: p.pairingCode,
+            capabilities: [RelayChunkCapabilities.chunkRxV1])
         // 受信任复连：proof 留空免一次性 pairingCode（判定权在 dev 侧信任列表）；验签 + TOFU 任何模式不省。
         if inputs.isTrustedReconnect { clientHello.pairingCodeProof = Data() }
         try await ch.sendText(String(decoding: try JSONEncoder().encode(clientHello), as: UTF8.self))
@@ -628,6 +670,7 @@ actor RelayTransport: MessageTransport {
                                        stableSessionId: secureReady.stableSessionId)
 
         self.session = secure
+        chunkReassembler = ChunkReassembler()   // 会话重建：作废未完成重组
         // 握手成功（已收并解开 SecureReady）→ 此刻才消费一次性 pairingCode（幂等；失败/超时路径到不了这里，pc 保留）。
         // 首连与重连共用本编排；重连时 pc 早已消费，take 幂等返回 nil，重复调用无害。
         await inputs.consumePairingCode()

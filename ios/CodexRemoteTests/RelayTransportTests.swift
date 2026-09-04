@@ -87,6 +87,29 @@ final class RelayTransportTests: XCTestCase {
         XCTAssertEqual(line, "world")
     }
 
+    func testIncomingChunkFramesReassembleAndEmit() async throws {
+        let (ipad, dev) = try pairedSessions()
+        let ws = MockRelayWSChannel()
+        let transport = RelayTransport(session: ipad, ws: ws)
+
+        let line = String(repeating: "A", count: 2 * 1024 * 1024)
+        let plaintext = Data(line.utf8)
+        let per = 512 * 1024
+        let count = (plaintext.count + per - 1) / per
+        let total = UInt32(count)
+        var iter = transport.incoming().makeAsyncIterator()
+        for i in 0..<count {
+            let start = i * per
+            let end = min(start + per, plaintext.count)
+            let payload = ChunkPayload(seq: UInt32(i), totalChunks: total,
+                                       compressed: false, data: Data(plaintext[start..<end]))
+            let env = try dev.seal(try JSONEncoder().encode(payload), kind: .chunk)
+            await ws.injectIncoming(String(decoding: try env.encoded(), as: UTF8.self))
+        }
+        let emitted = try await iter.next()
+        XCTAssertEqual(emitted, line)
+    }
+
     func testIncomingBufferOverflowClosesChannelAndFailsStream() async throws {
         let (ipad, dev) = try pairedSessions()
         let ws = MockRelayWSChannel()
