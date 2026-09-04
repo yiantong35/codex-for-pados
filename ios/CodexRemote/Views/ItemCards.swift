@@ -1,6 +1,36 @@
 import SwiftUI
 import UIKit
 
+/// 可折叠会话项卡：头部常显，正文默认收起。包装原生 DisclosureGroup。
+/// 每卡独立 `@State expanded`（默认收起）；`ForEach` 以 `.id(item.id)` 标识每卡，
+/// 流式增量/重新渲染下状态稳定（与 commandExecution 的 isCommandExpanded 同样思路）。
+struct CollapsibleItemCard<Label: View, Content: View>: View {
+    @State private var expanded = false
+    let label: Label
+    let content: Content
+
+    /// 「默认收起」的唯一事实源，供单元测试断言。
+    /// 注：泛型类型（`<Label, Content>`）不支持存储型 `static` 成员，故用计算属性（恒为 false）。
+    static var defaultExpanded: Bool { false }
+
+    init(@ViewBuilder label: () -> Label, @ViewBuilder content: () -> Content) {
+        self.label = label()
+        self.content = content()
+    }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $expanded) {
+            content
+        } label: {
+            label
+                .frame(minHeight: 44)          // HIG 最小命中区（含 chevron 行）
+                .contentShape(Rectangle())
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityHint(Text("common.collapsible.accessibilityHint"))
+    }
+}
+
 /// 按 ConversationItem 类型分发渲染的卡片（设计 §3 中栏对话流）。
 /// 真实结构见 Domain/ConversationModels.swift：
 /// userMessage / agentMessage / commandExecution / fileChange。

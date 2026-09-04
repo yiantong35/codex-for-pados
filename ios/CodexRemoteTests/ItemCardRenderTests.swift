@@ -11,6 +11,25 @@ final class ItemCardRenderTests: XCTestCase {
         _ = ItemCard(item: .unknown(id: "x", type: "futureType")).body
     }
 
+    /// 折叠组件默认收起：`defaultExpanded` 是「默认收起」的唯一事实源。
+    func testCollapsibleItemCardDefaultsCollapsed() {
+        XCTAssertFalse(CollapsibleItemCard<EmptyView, EmptyView>.defaultExpanded)
+    }
+
+    /// 折叠组件在含 label/content 的常规构造下 body 可正常构建。
+    func testCollapsibleItemCardBodyBuilds() {
+        struct ProbeCard: View {
+            var body: some View {
+                CollapsibleItemCard {
+                    Text("label")
+                } content: {
+                    Text("content")
+                }
+            }
+        }
+        _ = ProbeCard().body
+    }
+
     func testToolCardsBodyDoNotCrash() {
         _ = ItemCard(item: .mcpToolCall(id: "1", server: "fs", tool: "read",
                                         status: "completed", result: "ok", durationMs: 8)).body
