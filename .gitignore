@@ -56,3 +56,6 @@ ios/build/
 
 # Superpowers SDD scratch state (worktree-local review packages/progress)
 .superpowers/
+
+# GitHub 目录（PR 模板/workflows，本地维护，不进仓库）
+.github/
