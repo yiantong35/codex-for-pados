@@ -95,6 +95,25 @@ public final class DialoutSessionBridge: @unchecked Sendable {
         lock.unlock()
     }
 
+    /// 对端离开（relay `peer-left`）时主动回收当前 daemon：释放 codex app-server 的 thread 会话锁，
+    /// 但**不**终止 dialout 进程——不置 `terminatingBridge`、不触发 `onBridgeExit`/`onAbnormalExit`。
+    /// - `router.stop()` 置 stopping → 其 `streamFinished()` 不报 `onBridgeExit`（防误报 dialout 停机）。
+    /// - `lifecycle.shutdown()` 经 `DaemonBridge.terminate()` 先置 `expectedTermination` 再精确 terminate
+    ///   自己 spawn 的 PID → terminationHandler 静默，**不**触发 `onAbnormalExit`。
+    /// - 清空 `current` → 下次 `beginSession()` 无旧会话可回收、直接重 spawn 全新 daemon。
+    /// - 幂等：无会话/已回收 → 无副作用。与 `beginSession()` 的重握手回收一致（旧 daemon 在 processQueue 上
+    ///   异步 reap，不阻塞 NIO event loop），可安全在 NIO `channelRead` 分发路径上调用。
+    public func recycleCurrent() {
+        let snapshot: (bridge: DaemonBridge, lifecycle: BridgeLifecycle, router: BridgeOutputRouter)?
+        lock.lock()
+        snapshot = current
+        current = nil
+        lock.unlock()
+        guard let snapshot else { return }
+        snapshot.router.stop()
+        snapshot.lifecycle.shutdown()
+    }
+
     /// supervisor 终态收口第二步（在事件循环停止后调用）：等待当前 daemon 完成精确 TERM/KILL 与 reap。
     public func awaitTermination() {
         let bridge: DaemonBridge?

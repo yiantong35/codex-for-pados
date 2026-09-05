@@ -218,8 +218,11 @@ final class DialoutWSHandler: ChannelInboundHandler, @unchecked Sendable {
             }
             return
         }
-        // 连接层信号(如 relay 的 peer-left):dev 侧不据此动作,静默忽略,避免误入握手解析。
+        // 对端 (iPad) 真离开（relay peer-left，含强杀）：主动回收当前 daemon 释放 thread 会话锁，
+        // 但 dialout 进程保持存活——下次重握手经 beginSession() 重 spawn 全新 daemon。
+        // 瞬时 relay 瞬断（channelInactive）不在此回收：该分支保留 daemon/bridge（#119/#127 语义）。
         if let sig = try? RelaySignal(decoding: data), sig.kind == RelaySignal.peerLeftKind {
+            sessionBridge.recycleCurrent()
             return
         }
         // 握手期分发（缺陷 #1 dev 侧）：dev 拨出常驻连接，iPad 弱网重连会在同一 ws 上再发新 ClientHello。
