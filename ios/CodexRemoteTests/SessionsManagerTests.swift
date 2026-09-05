@@ -509,7 +509,7 @@ final class SessionsManagerTests: XCTestCase {
         XCTAssertTrue(ready, "前置：握手应到达 .ready")
 
         // 注入一个活跃会话 + 待批准状态。
-        s.projects.ingest([threadSummary(id: "t1", cwd: "/repo", updatedAt: 100)])
+        s.projects.ingest([threadSummary(id: "t1", cwd: "", updatedAt: 100)])
         s.projects.handleStatusChanged(threadId: "t1", status: .active(activeFlags: [.waitingOnApproval]))
         XCTAssertEqual(m.indicator(for: mc.id), .attention,
                        "已连接 + 待批准活跃会话 → indicator 应聚合为 .attention")

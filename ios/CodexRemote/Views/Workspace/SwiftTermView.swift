@@ -24,7 +24,6 @@ final class TerminalBridge {
 struct SwiftTermView: UIViewRepresentable {
     let session: TerminalSession
     let clipboardPolicy: ClipboardPolicyStore
-    @Environment(\.colorScheme) private var colorScheme
 
     func makeCoordinator() -> Coordinator { Coordinator(session: session, clipboardPolicy: clipboardPolicy) }
 
@@ -51,7 +50,9 @@ struct SwiftTermView: UIViewRepresentable {
     func makeUIView(context: Context) -> TerminalView {
         let view = TerminalView(frame: .zero)
         view.terminalDelegate = context.coordinator
-        applyColors(to: view, scheme: colorScheme)
+        applyColors(to: view, scheme: context.environment.colorScheme)
+        context.coordinator.appliedScheme = context.environment.colorScheme
+        context.coordinator.lastLayoutSize = view.bounds.size
         // 订阅输出字节：在主线程 feed 给 SwiftTerm（onBytes 已在 @MainActor 上触发）。
         session.onBytes = { [weak view] bytes in
             view?.feed(byteArray: ArraySlice(bytes))
@@ -62,8 +63,28 @@ struct SwiftTermView: UIViewRepresentable {
 
     func updateUIView(_ uiView: TerminalView, context: Context) {
         // 尺寸/布局由父容器 frame 驱动；SwiftTerm 自身在 layoutSubviews 里重算 cols/rows。
-        // colorScheme 变化时（深浅切换）同步终端配色（设计文档 A）。
-        applyColors(to: uiView, scheme: context.environment.colorScheme)
+        // #9 拖动重影：父级在拖动期间每帧重渲染（如拖下把手改 height → BottomPanelView 重渲染）
+        // 会反复调用 updateUIView。若不校验而每次都执行 applyColors，会经 `nativeBackgroundColor`
+        // setter → `colorsChanged()` → `terminal.updateFullScreen()` + `queuePendingDisplay()`
+        // （SwiftTerm 用 `DispatchQueue.main.asyncAfter(16.67ms)` 延迟到下一帧的异步重绘）在每次
+        // 渲染都追加一次「滞后于当前帧」的二次重绘，旧网格帧与当前帧叠影即为重影。改为「配色实际
+        // 变化才重设」后，拖动期的 updateUIView 不再触发该异步重绘，终端只剩 layoutSubviews 的同步
+        // 重绘路径（单帧同步）。
+        let scheme = context.environment.colorScheme
+        if context.coordinator.appliedScheme != scheme {
+            applyColors(to: uiView, scheme: scheme)
+            context.coordinator.appliedScheme = scheme
+        }
+
+        // #9：尺寸发生变化（拖动 re-layout）时，强制同步 layout，令 layoutSubviews → processSizeChange
+        // 在当帧重算 cols/rows、更新光标、并 setNeedsDisplay(bounds)，使终端与 SwiftUI 分区同帧重绘、
+        // 不残留旧网格帧（layoutIfNeeded 在该视图布局已是最新时是幂等空操作，仅尺寸真正变化时触发）。
+        let size = uiView.bounds.size
+        if context.coordinator.lastLayoutSize != size {
+            context.coordinator.lastLayoutSize = size
+            uiView.setNeedsLayout()
+            uiView.layoutIfNeeded()
+        }
     }
 
     static func dismantleUIView(_ uiView: TerminalView, coordinator: Coordinator) {
@@ -77,6 +98,11 @@ struct SwiftTermView: UIViewRepresentable {
         let bridge: TerminalBridge
         let clipboardPolicy: ClipboardPolicyStore
         weak var terminalView: TerminalView?
+        /// #9 拖动重影：记录上一次实际应用过的配色与布局尺寸，用于在 `updateUIView`
+        /// 中被父级每帧重渲染反复调用时避免「重复应用颜色 + 重复触发 SwiftTerm 的异步重绘」、
+        /// 以及在尺寸变化时强制同步 layout（详见 `updateUIView` 注释）。
+        var appliedScheme: ColorScheme?
+        var lastLayoutSize: CGSize?
 
         init(session: TerminalSession, clipboardPolicy: ClipboardPolicyStore) {
             self.session = session

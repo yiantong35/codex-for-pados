@@ -140,6 +140,56 @@ final class ConnectionStoreTests: XCTestCase {
         XCTAssertEqual(count, 1, "首连成功后 resumeHandler 应被触发恰好一次，实际 \(count)")
     }
 
+    /// #2 门控：连接级 initialize 完成前注册的 resumeHandler 不得触发；initialize 完成后恰好一次。
+    /// 模拟 ConversationView 过早注册（在 initializing 阶段）：connect 后、喂 initialize 响应前注册。
+    func test_resume_held_until_initialize_completes() async throws {
+        let ctrl = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in ctrl })
+        let fired = FireBox()
+        await store.connect(config: .stub)
+        // 不必等 .ready：在连接阶段（initialize 未完成）就注册（模拟 ConversationView 过早注册）。
+        _ = await store.addResumeHandler(threadId: "main") { await fired.bump() }
+        try? await Task.sleep(for: .milliseconds(80))
+        let before = await fired.count
+        XCTAssertEqual(before, 0, "initialize 完成前 resumeHandler 不应被触发")
+        // 完成连接级 initialize → .ready → 恢复放行恰一次。
+        await feedInitializeResponse(ctrl)
+        try await waitUntil { await fired.count == 1 }
+        let after = await fired.count
+        XCTAssertEqual(after, 1, "initialize 完成后应触发恰好一次")
+    }
+
+    /// #2 fail-closed：物理重连 `.ready` 后，新通道的连接级 re-initialize 未完成前不得 resume；
+    /// 完成 re-initialize 后才触发第二次恢复。避免在新通道上过早 `thread/resume` 撞上 -32600。
+    func test_reconnectReady_holdsResumeUntilReinitializeCompletes() async throws {
+        let ctrl = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in ctrl })
+        await feedInitializeResponse(ctrl)          // 只答首次 initialize
+        await store.connect(config: .stub)
+        try await waitUntil { await store.phase == .ready }
+        let firstInitIds = await initializeIds(ctrl)   // 首次连接后的所有 initialize id
+
+        let fired = FireBox()
+        await store.setResumeHandler { await fired.bump() }
+        try await waitUntil { await fired.count >= 1 }   // 首连恢复一次
+
+        await ctrl.emitControl(.reconnecting)
+        try await waitUntil { await store.phase == .reconnecting }
+        await ctrl.emitControl(.ready)
+
+        // 等待 re-initialize 被发出（出现与首次不同的 initialize id），但不应答。
+        let reinitId = try await awaitNewInitializeId(ctrl, excluding: firstInitIds)
+        try await Task.sleep(for: .milliseconds(150))
+        let heldCount = await fired.count
+        XCTAssertEqual(heldCount, 1, "re-initialize 未完成前不得触发 resume（fail-closed）")
+
+        // 补答 re-initialize → 恢复放行（第二次）。
+        await ctrl.feed(#"{"jsonrpc":"2.0","id":"\#(reinitId)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
+        try await waitUntil { await fired.count == 2 }
+        let completedCount = await fired.count
+        XCTAssertEqual(completedCount, 2, "re-initialize 完成后应触发第二次恢复")
+    }
+
     // #1：远端接受 exec 但永不发 101、也不关流时，doEstablish 会永久挂在 awaitHandshake()。
     // 硬超时作废本 attempt 时，必须关闭在途 transport（否则 SSH 连接 + 挂起任务泄漏）。
     // 断言：失效后 transport.close() 被调用恰好一次，且 store 落 .failed。
@@ -406,10 +456,11 @@ final class ConnectionStoreTests: XCTestCase {
         XCTAssertEqual(session.connection.additionalRejoinThreadIds(), ["sc1", "sc2"])
     }
 
-    /// D2 helper：经 ControlEmittingTransport 握手驱动 store 到 .ready（复用 feedInitializeResponse 模式，
+    /// D2 helper：经 ControlEmittingTransport 握手驱动 store 到 .ready（复用 respondToInitializes 模式，
     /// 该 transport 支持 emitControl 以驱动物理重连事件——与 testReconnectReadyControlTriggersResync 同机制）。
+    /// 用连续 initialize 响应用器而非单次 feed：物理重连后 .ready 分支会补发第二次 initialize。
     private func driveToReady(store: ConnectionStore, mock: ControlEmittingTransport) async throws {
-        await feedInitializeResponse(mock)
+        await respondToInitializes(mock)
         await store.connect(config: .stub)
         try await waitUntil { await store.phase == .ready }
     }
@@ -485,19 +536,12 @@ final class ConnectionStoreTests: XCTestCase {
 
     /// 4.2 resync：物理重连成功（control 发 .ready）应经 resumeHandler 触发一次会话恢复（resync）。
     /// 首连已触发一次；模拟重连再发 .ready 后，handler 应被再触发一次（复用现有 resume 机制）。
+    /// #2：物理重连 .ready 先补发连接级 initialize（re-initialize）成功后才恢复——先断言第二次
+    /// initialize 被发出并被应答，仍能到达第二次 resync。
     func testReconnectReadyControlTriggersResync() async throws {
         let ctrl = ControlEmittingTransport()
         let store = await ConnectionStore(transportFactory: { _ in ctrl })
-        Task {
-            var initId: String?
-            for _ in 0..<200 {
-                try? await Task.sleep(nanoseconds: 5_000_000)
-                if let s = await ctrl.sent.first(where: { $0.contains(#""method":"initialize""#) }),
-                   let obj = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any],
-                   let id = obj["id"] as? String { initId = id; break }
-            }
-            await ctrl.feed(#"{"jsonrpc":"2.0","id":"\#(initId!)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
-        }
+        await respondToInitializes(ctrl)
         let fired = FireBox()
         await store.connect(config: .stub)
         try await waitUntil { await store.phase == .ready }
@@ -505,8 +549,14 @@ final class ConnectionStoreTests: XCTestCase {
         // 首连恢复触发一次。
         try await waitUntil { await fired.count >= 1 }
 
-        // 模拟物理重连成功：control 发 .ready → 再触发一次 resync。
+        // 模拟物理重连成功：control 发 .ready → 先补发并完成 re-initialize，再触发第二次 resync。
+        let initializeCountBefore = await ctrl.sent.filter { $0.contains(#""method":"initialize""#) }.count
         await ctrl.emitControl(.ready)
+        // 断言补发了第二次 initialize（新通道需重新初始化）。
+        try await waitUntil {
+            await ctrl.sent.filter { $0.contains(#""method":"initialize""#) }.count >= initializeCountBefore + 1
+        }
+        // re-initialize 完成后才触发第二次 resync。
         try await waitUntil { await fired.count >= 2 }
         let count = await fired.count
         XCTAssertGreaterThanOrEqual(count, 2, "物理重连 .ready 应再触发一次 resync，实际 \(count)")
@@ -515,7 +565,7 @@ final class ConnectionStoreTests: XCTestCase {
     func testResumeHandlerAddedWhileReconnectingWaitsForReady() async throws {
         let ctrl = ControlEmittingTransport()
         let store = await ConnectionStore(transportFactory: { _ in ctrl })
-        await feedInitializeResponse(ctrl)
+        await respondToInitializes(ctrl)
         await store.connect(config: .stub)
         try await waitUntil { await store.phase == .ready }
 
@@ -527,6 +577,8 @@ final class ConnectionStoreTests: XCTestCase {
         let countWhileReconnecting = await fired.count
         XCTAssertEqual(countWhileReconnecting, 0)
 
+        // #2：.ready 后须先完成连接级 re-initialize 才触发恢复（否则 fired.count==1 断言落在
+        // re-initialize 已完成之前会超时失败）。
         await ctrl.emitControl(.ready)
         try await waitUntil { await fired.count == 1 }
     }
@@ -829,6 +881,54 @@ final class ConnectionStoreTests: XCTestCase {
             }
             await ctrl.feed(#"{"jsonrpc":"2.0","id":"\#(initId!)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
         }
+    }
+
+    /// 后台响应这条 ControlEmittingTransport 上出现的**每一个** JSON-RPC initialize 请求
+    /// （含物理重连后 `.ready` 分支补发的第二次 initialize），按请求 id 去重各答一次。
+    /// 相对单次 `feedInitializeResponse`（只答「第一个」initialize），本 helper 才能满足
+    /// 重连补发场景——#2 让物理重连 `.ready` 先补发 re-initialize 再恢复。
+    private func respondToInitializes(_ ctrl: ControlEmittingTransport) async {
+        var answered = Set<String>()
+        Task {
+            for _ in 0..<2500 {
+                if Task.isCancelled { return }
+                for frame in await ctrl.sent {
+                    guard frame.contains(#""method":"initialize""#),
+                          let obj = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any],
+                          let id = obj["id"] as? String,
+                          !answered.contains(id) else { continue }
+                    answered.insert(id)
+                    await ctrl.feed(#"{"jsonrpc":"2.0","id":"\#(id)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000)
+            }
+        }
+    }
+
+    /// 收集这条 transport 已发出的所有 JSON-RPC `initialize` 请求 id。
+    private func initializeIds(_ ctrl: ControlEmittingTransport) async -> Set<String> {
+        var ids = Set<String>()
+        for frame in await ctrl.sent {
+            guard frame.contains(#""method":"initialize""#),
+                  let obj = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any],
+                  let id = obj["id"] as? String else { continue }
+            ids.insert(id)
+        }
+        return ids
+    }
+
+    /// 等待出现一个不在 `known` 中的新 `initialize` 请求（物理重连后的 re-initialize），返回其 id。
+    private func awaitNewInitializeId(_ ctrl: ControlEmittingTransport,
+                                      excluding known: Set<String>,
+                                      timeout: TimeInterval = 3) async throws -> String {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let ids = await initializeIds(ctrl)
+            if let id = ids.subtracting(known).first { return id }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("未等到新的 initialize 请求（re-initialize）")
+        throw CancellationError()
     }
 }
 

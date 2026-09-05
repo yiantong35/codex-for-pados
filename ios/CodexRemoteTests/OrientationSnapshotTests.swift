@@ -295,7 +295,7 @@ final class OrientationSnapshotTests: XCTestCase {
             gitThread("a", cwd: "/repo/web-dev", origin: "o/web", ago: 120, name: "重构登录页"),
             gitThread("b", cwd: "/repo/web-dev", origin: "o/web", ago: 600),
             gitThread("c", cwd: "/repo/api", origin: "o/api", ago: 30, name: "接入推送"),
-            looseThread("d", cwd: "/Volumes/mount", ago: 40, name: "随手对话"),
+            looseThread("d", cwd: "", ago: 40, name: "随手对话"),
         ])
         projects.handleStatusChanged(threadId: "a", status: .active(activeFlags: [.waitingOnApproval]))
         XCTAssertTrue(projects.isGrouped)
@@ -319,7 +319,7 @@ final class OrientationSnapshotTests: XCTestCase {
         projects.ingest([
             gitThread("a", cwd: "/repo/web-dev", origin: "o/web", ago: 120, name: "重构登录页"),
             gitThread("b", cwd: "/repo/web-dev", origin: "o/web", ago: 600),
-            looseThread("d", cwd: "/Volumes/mount", ago: 40, name: "随手对话"),
+            looseThread("d", cwd: "", ago: 40, name: "随手对话"),
         ])
         XCTAssertFalse(projects.isGrouped)
         let view = SidebarView(selectedThreadId: .constant(nil))

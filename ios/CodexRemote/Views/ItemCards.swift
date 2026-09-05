@@ -25,7 +25,8 @@ struct ItemCard: View {
                         .id("\(attachment.cacheKey):\(index)")
                     }
                     if !text.isEmpty {
-                        Text(text).textSelection(.enabled)
+                        let display = ItemCard.userMessageDisplayText(text)
+                        if !display.isEmpty { Text(display).textSelection(.enabled) }
                     }
                 }
                     .padding(10)
@@ -206,6 +207,12 @@ struct ItemCard: View {
         case .collabAgentToolCall, .subAgentActivity:
             EmptyView()
         }
+    }
+
+    /// 展示用用户消息文本：仅修剪尾部空白/换行（避免气泡底部空行），保留前导与多段结构。
+    /// 不做整体 trim —— 保留用户刻意的前导缩进/多段落；daemon 回显的 userMessage 可能带尾部 `\n`。
+    static func userMessageDisplayText(_ text: String) -> String {
+        String(text.reversed().drop(while: { $0.isWhitespace }).reversed())
     }
 
     static func agentText(_ text: String) -> AttributedString {

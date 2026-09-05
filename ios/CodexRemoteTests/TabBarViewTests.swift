@@ -49,6 +49,17 @@ final class TabBarViewTests: XCTestCase {
         }
     }
 
+    /// #7 颜色重映射：unread=绿、running=蓝（用户定案）；其余态颜色保持不变。
+    func test_dotView_colorMapping_unreadGreen_runningBlue() {
+        XCTAssertEqual(DotView.color(for: .unread), .green)
+        XCTAssertEqual(DotView.color(for: .running), .blue)
+        // 其余态颜色保持
+        XCTAssertEqual(DotView.color(for: .attention), .orange)
+        XCTAssertEqual(DotView.color(for: .error), .red)
+        XCTAssertEqual(DotView.color(for: .disconnected), .gray)
+        XCTAssertEqual(DotView.color(for: .none), .clear)
+    }
+
     /// 桩：indicator(for:) 默认 .none（T11 换真实聚合）。
     func test_indicatorStub_defaultsToNone() {
         let sessions = mgr(machines: 1)

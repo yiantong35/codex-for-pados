@@ -359,12 +359,7 @@ struct ConversationView: View {
                 .padding(16)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         case .failed:
-            ContentUnavailableView {
-                Label("conv.loadFailed", systemImage: "exclamationmark.triangle")
-            } actions: {
-                Button("common.retry") { Task { await store.resume() } }
-                    .buttonStyle(.borderedProminent)
-            }
+            EmptyView()             // 抑制居中 ContentUnavailableView 重复提示：保留 toolbar 状态胶囊+刷新按钮（#126）为唯一「无法加载对话」提示
         case .loaded:
             EmptyView()
         }

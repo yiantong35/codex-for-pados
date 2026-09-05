@@ -180,7 +180,7 @@ struct TabBarView: View {
 
 }
 
-/// tab 圆点：TabIndicator → 颜色映射（none→无/clear，unread→蓝，running→绿，attention→橙，error→红）；
+/// tab 圆点：TabIndicator → 颜色映射（none→无/clear，unread→绿，running→蓝，attention→橙，error→红）；
 /// attention/error（isBlinking）短暂脉冲后转常亮，避免等待态长期占用合成资源。
 struct DotView: View {
     let indicator: TabIndicator
@@ -219,11 +219,14 @@ struct DotView: View {
         .accessibilityHidden(true)
     }
 
-    private var color: Color {
+    private var color: Color { Self.color(for: indicator) }
+
+    /// 颜色映射（可单测）：unread=绿 / running=蓝（用户定案重映射）。symbol 不变。
+    static func color(for indicator: TabIndicator) -> Color {
         switch indicator {
         case .none: .clear
-        case .unread: .blue
-        case .running: .green
+        case .unread: .green
+        case .running: .blue
         case .attention: .orange
         case .error: .red
         case .disconnected: .gray
