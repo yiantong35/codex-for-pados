@@ -52,10 +52,25 @@ final class EnvironmentStore {
 
     private func refreshAll(using rpc: JSONRPCClient, generation: Int) async {
         await fetchAccount(using: rpc, generation: generation)
-        await fetchUsage(using: rpc, generation: generation)
-        await fetchRateLimits(using: rpc, generation: generation)
+        // 仅 ChatGPT 账号登录才有用量/限额；apikey / amazonBedrock 无（account/usage/read、
+        // account/rateLimits/read 会回 -32600 "chatgpt authentication required"，无意义）。
+        // 用 account 类型门控，避免对无用量账号发起这两次请求，也不误显示空用量卡片。
+        if Self.shouldReadUsage(account: account) {
+            await fetchUsage(using: rpc, generation: generation)
+            await fetchRateLimits(using: rpc, generation: generation)
+        } else {
+            usage = nil
+            rateLimits = nil
+        }
         await fetchConfig(using: rpc, generation: generation)
         await fetchModels(using: rpc, generation: generation)
+    }
+
+    /// 仅 ChatGPT 账号登录才有用量/限额（apikey / amazonBedrock 无 → 读会回 -32600
+    /// "chatgpt authentication required"，无意义）。抽成 nonisolated 纯函数便于单测。
+    static nonisolated func shouldReadUsage(account: Account?) -> Bool {
+        if case .chatgpt = account { return true }
+        return false
     }
 
     // MARK: 广播（internal 供单测）

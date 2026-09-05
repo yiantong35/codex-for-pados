@@ -70,4 +70,20 @@ struct EnvironmentInspectorTests {
         #expect(stats.removed == 1)
         #expect(stats.changedFiles == 1)
     }
+
+    // MARK: - #4: auth 门控（仅 ChatGPT 账号读用量/限额；apikey/bedrock 跳过，避免 -32600）
+
+    @Test func shouldReadUsageOnlyForChatgpt() {
+        #expect(EnvironmentStore.shouldReadUsage(account: .chatgpt(email: "a@b.c", planType: "plus")))
+        #expect(EnvironmentStore.shouldReadUsage(account: .apiKey) == false)
+        #expect(EnvironmentStore.shouldReadUsage(account: .amazonBedrock) == false)
+        #expect(EnvironmentStore.shouldReadUsage(account: nil) == false)
+    }
+
+    @Test func decodeAccountChatgptVsApiKeyGatesUsage() throws {
+        let chatgpt = try decode(Account.self, #"{"type":"chatgpt","email":"a@b.c","planType":"plus"}"#)
+        #expect(EnvironmentStore.shouldReadUsage(account: chatgpt))
+        let api = try decode(Account.self, #"{"type":"apiKey"}"#)
+        #expect(EnvironmentStore.shouldReadUsage(account: api) == false)
+    }
 }
