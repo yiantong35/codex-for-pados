@@ -11,6 +11,48 @@ final class ItemCardRenderTests: XCTestCase {
         _ = ItemCard(item: .unknown(id: "x", type: "futureType")).body
     }
 
+    /// 折叠组件默认收起：`defaultExpanded` 是「默认收起」的唯一事实源。
+    func testCollapsibleItemCardDefaultsCollapsed() {
+        XCTAssertFalse(CollapsibleItemCard<EmptyView, EmptyView>.defaultExpanded)
+    }
+
+    /// 折叠组件在含 label/content 的常规构造下 body 可正常构建。
+    func testCollapsibleItemCardBodyBuilds() {
+        struct ProbeCard: View {
+            var body: some View {
+                CollapsibleItemCard {
+                    Text("label")
+                } content: {
+                    Text("content")
+                }
+            }
+        }
+        _ = ProbeCard().body
+    }
+
+    /// 折叠卡的可访问性提示须经 String Catalog 解析；缺失键会回退为含 'common.' 的键名。
+    func testCollapsibleAccessibilityHintResolvesThroughCatalog() {
+        let hint: LocalizedStringResource = "common.collapsible.accessibilityHint"
+        XCTAssertFalse(String(localized: hint).contains("common."))
+    }
+
+    /// reasoning 头部标题：流式「思考中」/ 完成后「思考 · N 字」，均须经 Catalog 解析。
+    func testReasoningHeaderTitleResolvesThroughCatalog() {
+        let streaming: LocalizedStringResource = ItemCard.reasoningHeaderTitle(isStreaming: true, count: 0)
+        let complete: LocalizedStringResource = ItemCard.reasoningHeaderTitle(isStreaming: false, count: 42)
+        // 缺失键会回退为含 "conv." 的键名 → 据此确保文案已入 Catalog
+        XCTAssertFalse(String(localized: streaming).contains("conv."))
+        XCTAssertFalse(String(localized: complete).contains("conv."))
+        // 完成后应出现字符数（数字在任何 locale 都可见）
+        XCTAssertTrue(String(localized: complete).contains("42"))
+    }
+
+    /// reasoning 折叠卡在「空文本 / 超长文本」下 body 均可构建（稳定性回归守卫）。
+    func testReasoningCardBodyBuildsForEmptyAndLargeText() {
+        _ = ItemCard(item: .reasoning(id: "r1", text: "")).body
+        _ = ItemCard(item: .reasoning(id: "r2", text: String(repeating: "字", count: 50_000))).body
+    }
+
     func testToolCardsBodyDoNotCrash() {
         _ = ItemCard(item: .mcpToolCall(id: "1", server: "fs", tool: "read",
                                         status: "completed", result: "ok", durationMs: 8)).body
@@ -19,6 +61,83 @@ final class ItemCardRenderTests: XCTestCase {
         _ = ItemCard(item: .webSearch(
             id: "3", query: "swift", action: .openPage(url: "https://swift.org")
         )).body
+    }
+
+    /// mcp/dynamicTool 折叠卡在「常规 / 大结果截断 / 空结果」下 body 均可构建（稳定性回归守卫）。
+    func testToolCardsCollapseBodiesBuild() {
+        _ = ItemCard(item: .mcpToolCall(id: "1", server: "fs", tool: "read", status: "completed",
+                                        result: "ok", durationMs: 8)).body
+        // 大结果：正文走截断 + 全文按钮路径，不崩溃
+        _ = ItemCard(item: .mcpToolCall(id: "2", server: "fs", tool: "read", status: "completed",
+                                        result: String(repeating: "x", count: 100_000), durationMs: 8)).body
+        // 空结果：仅头部可折叠，空正文不产生占位
+        _ = ItemCard(item: .mcpToolCall(id: "3", server: "fs", tool: "read", status: "completed",
+                                        result: "", durationMs: 8)).body
+        _ = ItemCard(item: .dynamicToolCall(id: "4", namespace: "shell", tool: "exec",
+                                            status: "completed", success: true)).body
+        _ = ItemCard(item: .dynamicToolCall(id: "5", namespace: "shell", tool: "exec",
+                                            status: "", success: nil)).body
+    }
+
+    /// webSearch 展开正文优先 detail；nil/空 detail 回退 query；两者皆空返回空串。
+    func testWebSearchBodyTextPrefersDetailAndFallsBackToQuery() {
+        // 有 action 且 detail 非空 → 显示 detail
+        XCTAssertEqual(
+            ItemCard.webSearchBodyText(query: "swift", action: .openPage(url: "https://swift.org")),
+            "https://swift.org"
+        )
+        // action 为 nil → 回退 query
+        XCTAssertEqual(ItemCard.webSearchBodyText(query: "swift", action: nil), "swift")
+        // action 存在但 detail 为空（openPage url nil）→ 回退 query
+        XCTAssertEqual(ItemCard.webSearchBodyText(query: "swift", action: .openPage(url: nil)), "swift")
+        // 两者皆空 → 空串（仅头部可折叠，避免空展开区）
+        XCTAssertEqual(ItemCard.webSearchBodyText(query: "", action: nil), "")
+    }
+
+    /// webSearch 折叠卡在「nil action / 空 detail / 空 query」下 body 均可构建（稳定性回归守卫）。
+    func testWebSearchCollapseHandlesNilAndEmptyDetail() {
+        // 有 action 且 detail 非空
+        _ = ItemCard(item: .webSearch(id: "w1", query: "swift",
+                                      action: .openPage(url: "https://swift.org"))).body
+        // action 为 nil
+        _ = ItemCard(item: .webSearch(id: "w2", query: "swift", action: nil)).body
+        // action 存在但 detail 为空（openPage url nil）
+        _ = ItemCard(item: .webSearch(id: "w3", query: "swift",
+                                      action: .openPage(url: nil))).body
+        // 空 query 亦不崩溃
+        _ = ItemCard(item: .webSearch(id: "w4", query: "", action: nil)).body
+    }
+
+    /// MCP 结果标题经 Catalog 解析（缺失键会回退为含 "conv." 的键名）。
+    func testMcpResultFullTitleResolvesThroughCatalog() {
+        let title: LocalizedStringResource = "conv.item.mcpFullTitle"
+        XCTAssertFalse(String(localized: title).contains("conv."))
+    }
+
+    /// MCP 结果正文按字节预算截断；短结果不截断。
+    func testMcpResultPresentationTruncatesLargeResult() {
+        let large = String(
+            repeating: "x",
+            count: TextRenderBudget.maximumStreamingBytes + 100
+        )
+        let presentation = ItemCard.mcpResultPresentation(large)
+        XCTAssertTrue(presentation.truncated)
+        XCTAssertLessThanOrEqual(presentation.text.utf8.count, TextRenderBudget.maximumStreamingBytes)
+        // 短结果不截断
+        let small = ItemCard.mcpResultPresentation("ok")
+        XCTAssertFalse(small.truncated)
+    }
+
+    /// MCP 结果截断应「保留头部、丢弃尾部」（命令输出惯例），而非保留尾部。
+    func testMcpResultPresentationKeepsHeadNotTail() {
+        let head = "HEAD-MARKER"
+        let filler = String(repeating: "x", count: TextRenderBudget.maximumStreamingBytes)
+        let tail = "-TAIL-MARKER"
+        let result = head + filler + tail
+        let presentation = ItemCard.mcpResultPresentation(result)
+        XCTAssertTrue(presentation.truncated)
+        XCTAssertTrue(presentation.text.hasPrefix("HEAD-MARKER"), "超大结果应保留头部而非仅尾部")
+        XCTAssertFalse(presentation.text.contains("-TAIL-MARKER"), "超大结果应丢弃尾部")
     }
 
     func testEventCardsBodyDoNotCrash() {

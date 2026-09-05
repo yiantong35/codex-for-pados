@@ -481,6 +481,22 @@
         }
       }
     },
+    "common.collapsible.accessibilityHint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap to expand or collapse"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轻点展开或收起"
+          }
+        }
+      }
+    },
     "composer.a11y.model": {
       "localizations": {
         "en": {
@@ -1857,6 +1873,22 @@
         }
       }
     },
+    "conv.item.mcpFullTitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP tool result"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MCP 工具结果"
+          }
+        }
+      }
+    },
     "conv.item.plan": {
       "localizations": {
         "en": {
@@ -1869,6 +1901,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "计划"
+          }
+        }
+      }
+    },
+    "conv.item.resultTruncated": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Result truncated"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结果已截断"
           }
         }
       }
@@ -2045,6 +2093,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "显示 %1$lld / %2$lld 行"
+          }
+        }
+      }
+    },
+    "conv.reasoning.charCount %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thought · %lld chars"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "思考 · %lld 字"
           }
         }
       }

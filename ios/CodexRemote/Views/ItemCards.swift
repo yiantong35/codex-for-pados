@@ -1,6 +1,35 @@
 import SwiftUI
 import UIKit
 
+/// 可折叠会话项卡：头部常显，正文默认收起。包装原生 DisclosureGroup。
+/// 每卡独立 `@State expanded`（默认收起）；`ForEach` 以 `.id(item.id)` 标识每卡，
+/// 流式增量/重新渲染下状态稳定（与 commandExecution 的 isCommandExpanded 同样思路）。
+struct CollapsibleItemCard<Label: View, Content: View>: View {
+    /// 「默认收起」的唯一事实源：既被 `@State` 初值使用（真默认收起），也供单元测试断言。
+    /// 注：泛型类型（`<Label, Content>`）不支持存储型 `static` 成员，故用计算属性（恒为 false）。
+    static var defaultExpanded: Bool { false }
+    @State private var expanded = Self.defaultExpanded
+    let label: Label
+    let content: Content
+
+    init(@ViewBuilder label: () -> Label, @ViewBuilder content: () -> Content) {
+        self.label = label()
+        self.content = content()
+    }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $expanded) {
+            content
+        } label: {
+            label
+                .frame(minHeight: 44)          // HIG 最小命中区（含 chevron 行）
+                .contentShape(Rectangle())
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityHint(Text("common.collapsible.accessibilityHint"))
+    }
+}
+
 /// 按 ConversationItem 类型分发渲染的卡片（设计 §3 中栏对话流）。
 /// 真实结构见 Domain/ConversationModels.swift：
 /// userMessage / agentMessage / commandExecution / fileChange。
@@ -40,16 +69,12 @@ struct ItemCard: View {
                 .equatable()
 
         case .reasoning(_, let text):
-            // 「正在思考」样式：灰色斜体；有内容显内容，无内容显占位文案。
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Image(systemName: "brain")
-                    .foregroundStyle(.secondary)
-                    .font(.footnote)
-                if text.isEmpty {
-                    Text("conv.reasoning.thinking")
-                        .font(.callout.italic())
-                        .foregroundStyle(.secondary)
-                } else {
+            // 头部常显（流式「思考中」/ 完成「思考 · N 字」），正文默认收起；
+            // 空文本不再渲染旧「正在思考」占位正文（该语义已上移至头部）。
+            CollapsibleItemCard {
+                reasoningHeaderLabel(text: text)
+            } content: {
+                if !text.isEmpty {
                     let presentation = TextRenderBudget.boundedUTF8Suffix(
                         text, maximumBytes: TextRenderBudget.maximumStreamingBytes
                     )
@@ -69,7 +94,6 @@ struct ItemCard: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
         case .commandExecution(_, let command, let output, let outputLineCount,
                                let status, let exitCode, let durationMs):
@@ -138,31 +162,39 @@ struct ItemCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
         case .mcpToolCall(_, let server, let tool, let status, let result, let durationMs):
-            toolCard(icon: "wrench.and.screwdriver",
-                     prefixKey: "conv.item.mcp",
-                     title: server.isEmpty ? tool : "\(server) / \(tool)",
-                     status: status, detail: result, durationMs: durationMs)
+            CollapsibleItemCard {
+                toolCardLabel(icon: "wrench.and.screwdriver", prefixKey: "conv.item.mcp",
+                              title: server.isEmpty ? tool : "\(server) / \(tool)",
+                              status: status, durationMs: durationMs)
+            } content: {
+                mcpResultBody(result)
+            }
 
         case .dynamicToolCall(_, let namespace, let tool, let status, let success):
             let effStatus = status.isEmpty
                 ? (success == true ? "success" : (success == false ? "failed" : ""))
                 : status
-            toolCard(icon: "hammer",
-                     prefixKey: "conv.item.dynamicTool",
-                     title: namespace.isEmpty ? tool : "\(namespace):\(tool)",
-                     status: effStatus, detail: "", durationMs: nil)
+            CollapsibleItemCard {
+                toolCardLabel(icon: "hammer", prefixKey: "conv.item.dynamicTool",
+                              title: namespace.isEmpty ? tool : "\(namespace):\(tool)",
+                              status: effStatus, durationMs: nil)
+            } content: {
+                EmptyView()   // 模型无 detail 字段；仅头部可折叠
+            }
 
         case .webSearch(_, let query, let action):
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                Text("conv.item.webSearch").font(.caption).foregroundStyle(.secondary)
-                Text(query).font(.callout).lineLimit(2)
-                if let action, !action.detail.isEmpty {
-                    Text("· \(action.detail)").font(.caption).foregroundStyle(.secondary)
+            CollapsibleItemCard {
+                webSearchLabel(query: query, detail: action?.detail ?? "")
+            } content: {
+                let text = Self.webSearchBodyText(query: query, action: action)
+                if !text.isEmpty {
+                    Text(text)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
         case .contextCompaction:
             eventBar(icon: "arrow.down.right.and.arrow.up.left", textKey: "conv.item.compaction")
@@ -301,31 +333,74 @@ struct ItemCard: View {
 
     // MARK: - 通用卡片帮助函数
 
-    /// 工具类卡片：[icon] 前缀 · 标题 · 状态 · 结果摘要 · 耗时。
+    /// reasoning 头部行（DisclosureGroup label）：装饰 💭 图标 + 语义标题（流式/完成）。
     @ViewBuilder
-    private func toolCard(icon: String, prefixKey: LocalizedStringKey, title: String,
-                          status: String, detail: String, durationMs: Int?) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Image(systemName: icon).foregroundStyle(.secondary)
-                Text(prefixKey).font(.caption).foregroundStyle(.secondary)
-                Text(title).font(.callout.monospaced()).lineLimit(1).truncationMode(.middle)
-                Spacer(minLength: 8)
-                if !status.isEmpty {
-                    Text(verbatim: localizedProtocolStatus(status))
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                if let durationMs {
-                    Text("conv.cmd.duration \(durationMs)")
-                        .font(.caption.monospaced()).foregroundStyle(.secondary)
-                }
-            }
-            if !detail.isEmpty {
-                Text(detail).font(.footnote).foregroundStyle(.secondary).lineLimit(3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+    private func reasoningHeaderLabel(text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text("💭")
+                .font(.footnote)
+                .accessibilityHidden(true)      // 装饰性图标，VoiceOver 只读语义标题
+            Text(Self.reasoningHeaderTitle(isStreaming: isStreaming, count: text.count))
+                .font(.callout)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 工具类卡头部行（DisclosureGroup label）：[icon] 前缀 · 标题 · 状态 · 耗时。
+    @ViewBuilder
+    private func toolCardLabel(icon: String, prefixKey: LocalizedStringKey, title: String,
+                               status: String, durationMs: Int?) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon).foregroundStyle(.secondary)
+            Text(prefixKey).font(.caption).foregroundStyle(.secondary)
+            Text(title).font(.callout.monospaced()).lineLimit(1).truncationMode(.middle)
+            Spacer(minLength: 8)
+            if !status.isEmpty {
+                Text(verbatim: localizedProtocolStatus(status))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if let durationMs {
+                Text("conv.cmd.duration \(durationMs)")
+                    .font(.caption.monospaced()).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// webSearch 头部行（DisclosureGroup label）：[🔍] 前缀 · query · 可选 detail。
+    @ViewBuilder
+    private func webSearchLabel(query: String, detail: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            Text("conv.item.webSearch").font(.caption).foregroundStyle(.secondary)
+            Text(query).font(.callout).lineLimit(2)
+            if !detail.isEmpty {
+                Text("· \(detail)").font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// MCP 工具结果正文：字节预算截断 + 全文按钮（大结果）。空结果不产生占位正文。
+    @ViewBuilder
+    private func mcpResultBody(_ result: String) -> some View {
+        if !result.isEmpty {
+            let presentation = ItemCard.mcpResultPresentation(result)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(verbatim: presentation.text)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if presentation.truncated {
+                    Label("conv.item.resultTruncated", systemImage: "scissors")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    FullTextAccessButton(text: result, title: "conv.item.mcpFullTitle")
+                }
+            }
+        }
     }
 
     private func localizedProtocolStatus(_ raw: String) -> String {
@@ -343,6 +418,29 @@ struct ItemCard: View {
         case "declined", "rejected": return "conv.status.declined"
         default: return "conv.status.unknown"
         }
+    }
+
+    /// reasoning 头部标题：流式中显示「思考中」，完成后显示「思考 · N 字」（N = 字符数）。
+    static func reasoningHeaderTitle(isStreaming: Bool, count: Int) -> LocalizedStringResource {
+        if isStreaming { return "conv.reasoning.thinking" }
+        return "conv.reasoning.charCount \(count)"
+    }
+
+    /// webSearch 展开正文文案：优先 `action.detail`；为「nil action / 空 detail」回退到 `query`；
+    /// 两者皆空返回 ""（避免空展开区）。
+    static func webSearchBodyText(query: String, action: WebSearchAction?) -> String {
+        let detail = action?.detail ?? ""
+        if !detail.isEmpty { return detail }
+        return query
+    }
+
+    /// MCP 结果字节预算截断（与命令输出一致「保留头部」——开头通常是工具结果最富信息量部分；
+    /// 末尾对已完成结果通常非关键）。空字符串返回 ("" , false)。超大结果保留「全文」入口兜底。
+    static func mcpResultPresentation(_ result: String) -> (text: String, truncated: Bool) {
+        guard !result.isEmpty else { return ("", false) }
+        return TextRenderBudget.boundedUTF8Prefix(
+            result, maximumBytes: TextRenderBudget.maximumStreamingBytes
+        )
     }
 
     /// 事件类单行提示条：[icon] 文案 · 可选详情，次要色。
