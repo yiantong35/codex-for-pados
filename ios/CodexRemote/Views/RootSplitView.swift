@@ -434,7 +434,7 @@ struct WorkspaceToolbar: ToolbarContent {
     let conversation: ActiveConversationHolder
 
     /// 工具栏图标尺寸随 Dynamic Type 缩放（默认 21，更大档会自动放大），
-    /// 唯一尺寸来源：4 个布局按钮 + 齿轮 + 刷新共用，避免 ControlGroup 放大而 label 不缩放的断层。
+    /// 唯一尺寸来源：4 个布局按钮 + 齿轮 + 刷新共用，避免分段容器放大而图标不缩放的断层。
     @ScaledMetric(relativeTo: .body) private var toolbarIconSize: CGFloat = 21
 
     var body: some ToolbarContent {
