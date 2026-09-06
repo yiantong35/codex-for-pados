@@ -525,7 +525,12 @@ struct WorkspaceToolbar: ToolbarContent {
             .labelStyle(.iconOnly)
             .font(.system(size: toolbarIconSize, weight: selected ? .semibold : .regular))
             .foregroundStyle(selected ? Color.accentColor : Color.primary)
-            .frame(minWidth: 44, minHeight: 44)   // ≥44pt 点击区，随图标内容自适应放大
+            // #5：随外观缩放但所有按钮恒定同尺寸——不依赖图标固有宽（不同 SF Symbol 宽窄不一）与
+            // 选中字重（.semibold vs .regular）。旧 .frame(minWidth:minHeight:) 只保最小、按内容撑开，
+            // 导致四按钮时大时小。
+            // `max(toolbarIconSize * 2, 44)`：默认 .body 下 toolbarIconSize=21，*2=42 < 44pt，
+            // 故用 max 保底 ≥44pt 命中区（AGENTS.md）；更大文字档下 *2 超 44 则随外观缩放。
+            .frame(width: max(toolbarIconSize * 2, 44), height: max(toolbarIconSize * 2, 44))
             .contentShape(Rectangle())
     }
 
