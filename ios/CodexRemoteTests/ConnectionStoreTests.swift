@@ -190,6 +190,49 @@ final class ConnectionStoreTests: XCTestCase {
         XCTAssertEqual(completedCount, 2, "re-initialize 完成后应触发第二次恢复")
     }
 
+    /// #1 陈旧 init 门控（`isCurrentSessionInitialized` 代次强校验）：存在「同 ws 重握手/会话重建
+    /// **没有**触发 `.reconnecting`」的路径（dev #127 每次重握手都重置 daemon）。旧代码此时
+    /// `isConnectionInitialized` 只是**陈旧为 true**（未被 `.reconnecting` 清零），在 `.ready` 的
+    /// re-initialize 完成前，`addResumeHandler`/恢复门控会放行过早 `thread/resume` 撞上 `-32600`。
+    /// 新代码在 `.ready` re-init 时进入新会话代次并清零，未 re-initialize 完成前 resume 一律扣住；
+    /// 补答 re-initialize（当前代次已 init）后才放行。
+    func test_staleInitGate_readyWithoutReconnecting_holdsResumeUntilReinitialize() async throws {
+        let ctrl = ControlEmittingTransport()
+        let store = await ConnectionStore(transportFactory: { _ in ctrl })
+        // 只答「首次」initialize；重连补发的 re-initialize 由测试手动控制应答时机。
+        await feedInitializeResponse(ctrl)
+        await store.connect(config: .stub)
+        try await waitUntil { await store.phase == .ready }
+
+        // 首连恢复基线：已注册的现有订阅者恰触发一次。
+        let existing = FireBox()
+        _ = await store.addResumeHandler(threadId: "main") { await existing.bump() }
+        try await waitUntil { await existing.count >= 1 }
+        let firstInitIds = await initializeIds(ctrl)
+
+        // 模拟「同 ws 重握手没触发 .reconnecting」：直接发 `.ready` → 会话重建补发第二次 initialize。
+        await ctrl.emitControl(.ready)
+        let reinitId = try await awaitNewInitializeId(ctrl, excluding: firstInitIds)
+
+        // 在 re-init 未完成的窗口内注册新恢复订阅者：旧代码此处 isConnectionInitialized 陈旧为 true，
+        // addResumeHandler 会立即放行（过早 resume）。新代码以 isCurrentSessionInitialized 强门控扣住。
+        let late = FireBox()
+        _ = await store.addResumeHandler { await late.bump() }
+        try? await Task.sleep(for: .milliseconds(150))
+        let lateHeld = await late.count
+        XCTAssertEqual(lateHeld, 0, "会话重建 re-init 完成前不得 resume（陈旧 init 不放行）")
+
+        // 补答 re-initialize → 当前会话代次已 init → 放行恢复（既有订阅者重跑、新订阅者首触发）。
+        await ctrl.feed(#"{"jsonrpc":"2.0","id":"\#(reinitId)","result":{"userAgent":"codex","codexHome":"/x","platformFamily":"unix","platformOs":"macos"}}"#)
+        try await waitUntil {
+            let lateC = await late.count
+            let existingC = await existing.count
+            return lateC >= 1 && existingC >= 2
+        }
+        let lateAfter = await late.count
+        XCTAssertEqual(lateAfter, 1, "re-initialize 完成后应放行新订阅者会话恢复")
+    }
+
     // #1：远端接受 exec 但永不发 101、也不关流时，doEstablish 会永久挂在 awaitHandshake()。
     // 硬超时作废本 attempt 时，必须关闭在途 transport（否则 SSH 连接 + 挂起任务泄漏）。
     // 断言：失效后 transport.close() 被调用恰好一次，且 store 落 .failed。

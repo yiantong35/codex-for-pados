@@ -81,6 +81,15 @@ final class ConnectionStore {
     /// 新连接 `connect()` 起始复位为 false；`doEstablish` 握手成功后置位；
     /// 物理重连 `.ready` 走 `reinitializeCurrentChannel()` 重新置位；离开 `.ready` 各分支复位。
     private(set) var isConnectionInitialized = false
+    /// 当前会话/通道代次。每次会话重建（新连接 `connect()`、物理重连 `.reconnecting`、
+    /// re-handshake re-init）时经 `startSessionEpoch()` 递增并作废当前代次的 initialize 完成态；
+    /// 仅当该代次的连接级 JSON-RPC `initialize` 成功时把 `sessionInitializedEpoch` 拉齐到当前代次。
+    /// resume/recovery 须在「当前代次已 init」（`isCurrentSessionInitialized`）时才放行，杜绝
+    /// 陈旧 `isConnectionInitialized=true` 在 dev 侧 daemon 被重置（#127）后放行过早 `thread/resume`
+    /// 撞上 `-32600 "Not initialized"`。
+    private var sessionEpoch: UInt64 = 0
+    /// 已成功完成连接级 JSON-RPC `initialize` 的会话代次。与 `sessionEpoch` 相等才表示「当前会话的 daemon 已 init」。
+    private var sessionInitializedEpoch: UInt64 = 0
     /// 信任被开发机撤销（收到 RejectHello 终态）：UI 据此引导用户回配对入口（RelayPairingImportView）。
     /// 每次新 connect()/disconnect() 重置。仅 .trustRevoked 置位，普通连接失败不置位。
     private(set) var needsRePairing = false
@@ -146,6 +155,22 @@ final class ConnectionStore {
         self.injectedHeartbeatFactory = heartbeatFactory
     }
 
+    /// 进入新会话/通道代次并作废当前代次的 initialize 完成态：递增 `sessionEpoch` 并清零
+    /// `isConnectionInitialized`。在「会话重建」起点（新连接、物理重连 `.reconnecting`、
+    /// re-handshake re-init）调用，使 resume/recovery 门控在**本次会话的 daemon** 重新
+    /// `initialize` 完成前一律拒绝放行。
+    private func startSessionEpoch() {
+        sessionEpoch &+= 1
+        isConnectionInitialized = false
+    }
+
+    /// 当前会话的连接级 JSON-RPC `initialize` 是否已完成（强校验，非陈旧）。
+    /// 即使 `isConnectionInitialized` 陈旧为 true（某条重建路径未清零），只要代次不一致
+    /// （会话已重建但当前代次未 init）也拒绝放行，杜绝过早 `thread/resume` 撞 `-32600`。
+    private var isCurrentSessionInitialized: Bool {
+        isConnectionInitialized && sessionInitializedEpoch == sessionEpoch
+    }
+
     /// D2：登记一个「重连后恢复当前可见会话」回调，返回轻量唯一 token 供精确注销。
     /// 真实接线中 ConversationView 在 rpc 就绪后才注册，可能晚于首连 .ready——
     /// 故注册时若连接已就绪且该 token 尚未首连触发过，立即补触发恰一次
@@ -155,9 +180,9 @@ final class ConnectionStore {
                           _ h: @escaping @Sendable () async -> Void) -> ResumeToken {
         let token = ResumeToken(raw: nextResumeTokenRaw); nextResumeTokenRaw &+= 1
         resumeHandlers[token] = ResumeRegistration(threadId: threadId, handler: h)
-        // 已就绪（且连接级 initialize 已完成）且本 token 尚未首连触发过 → 立即补触发恰一次
-        // （对齐既有 setResumeHandler 语义）。initialize 未完成时绝不触发，fail-closed。
-        if phase == .ready, isConnectionInitialized, !rejoinedTokens.contains(token) {
+        // 已就绪（且**当前会话代次的**连接级 initialize 已完成）且本 token 尚未首连触发过 →
+        // 立即补触发恰一次（对齐既有 setResumeHandler 语义）。initialize 未完成/代次不符时绝不触发，fail-closed。
+        if phase == .ready, isCurrentSessionInitialized, !rejoinedTokens.contains(token) {
             rejoinedTokens.insert(token)
             Task { await h() }
         }
@@ -179,15 +204,15 @@ final class ConnectionStore {
     /// addResumeHandler 晚于首连 .ready 时，会单独补恢复新出现的可见会话。
     /// 物理重连的恢复由 observeControl 的 .ready 分支独立负责，不经此处。
     private func triggerInitialRejoinIfReady() {
-        guard phase == .ready, isConnectionInitialized else { return }
+        guard phase == .ready, isCurrentSessionInitialized else { return }
         scheduleRecoveryEpoch()
     }
 
     /// 每个 ready epoch 只创建一个恢复任务。它先让每个可见 store 恢复自己的 thread，再用一次
     /// loaded/list 恢复其余运行中 thread 的订阅副作用；新 epoch 会取消旧任务并用序号阻止迟到结果继续发 RPC。
-    /// 仅在本连接 initialize 完成后才允许启动恢复（fail-closed，杜绝过早 resume）。
+    /// 仅在本会话代次的连接级 initialize 完成后才允许启动恢复（fail-closed，杜绝陈旧 init 放行过早 resume）。
     private func scheduleRecoveryEpoch() {
-        guard isConnectionInitialized else { return }
+        guard isCurrentSessionInitialized else { return }
         recoveryTask?.cancel()
         recoveryEpoch &+= 1
         let epoch = recoveryEpoch
@@ -253,7 +278,7 @@ final class ConnectionStore {
         activeAttempt += 1
         let attempt = activeAttempt
         phase = .connecting
-        isConnectionInitialized = false   // 新连接：initialize 尚未完成，恢复/resume 暂不得触发
+        startSessionEpoch()   // 新连接：进入新会话代次，作废陈旧 initialize 状态；恢复/resume 暂不得触发
         // 新连接：重置首连恢复状态（上一次连接的 rejoin 不应抑制本次）。
         recoveryTask?.cancel()
         recoveryTask = nil
@@ -349,7 +374,7 @@ final class ConnectionStore {
         recoveryTask = nil
         recoveryEpoch &+= 1
         rejoinedTokens.removeAll()
-        isConnectionInitialized = false   // 主动断开：连接级 initialize 状态作废
+        startSessionEpoch()   // 主动断开：进入新会话代次，连接级 initialize 状态作废
         phase = .disconnected
     }
 
@@ -431,6 +456,7 @@ final class ConnectionStore {
             serverInfo = try? Self.decode(InitializeResponse.self, from: result)
             try? await client.notify(method: RPCMethod.initialized, params: nil)
             isConnectionInitialized = true   // 本连接 initialize 握手完成，恢复/resume 才放行
+            sessionInitializedEpoch = sessionEpoch   // 记录「当前会话代次已 init」
             connLog.notice("doEstablish: 握手完成")
             return (client, transport)
         } catch {
@@ -461,6 +487,10 @@ final class ConnectionStore {
     /// "Not initialized"。此方法在 `initialize` 成功返回后置位 `isConnectionInitialized`；失败
     /// 向上抛出，由 `.ready` 分支落 `.failed`（fail-closed，绝不放行恢复）。
     private func reinitializeCurrentChannel() async throws {
+        // #1 会话重建即重初始化：每次 re-handshake/re-init 都进入新代次并作废陈旧
+        // `isConnectionInitialized=true`，确保新通道 daemon（#127 在每次重握手都被重置为未初始化）
+        // 必须先 `initialize` 成功、本代次被标记为已 init 后，resume/recovery 才放行。
+        startSessionEpoch()
         let params = InitializeParams(
             clientInfo: ClientInfo(name: "CodexRemote", title: nil, version: "0.1.0"),
             capabilities: nil)
@@ -471,6 +501,7 @@ final class ConnectionStore {
         serverInfo = try? Self.decode(InitializeResponse.self, from: result)
         try? await self.rpc?.notify(method: RPCMethod.initialized, params: nil)
         isConnectionInitialized = true
+        sessionInitializedEpoch = sessionEpoch   // 当前会话代次已 init
     }
 
     // MARK: - 端到端心跳（探穿段 B：iPad→relay→Mac subprocess）
@@ -555,7 +586,7 @@ final class ConnectionStore {
                     self.recoveryTask = nil
                     self.recoveryEpoch &+= 1
                     self.phase = .reconnecting
-                    self.isConnectionInitialized = false   // 离开 .ready：连接级 initialize 作废，恢复暂不得触发
+                    self.startSessionEpoch()   // 离开 .ready：进入新会话代次，连接级 initialize 作废，恢复暂不得触发
                     self.stopHeartbeat()   // 离开 .ready：停心跳，物理重连成功（.ready）后再起
                     // 物理断线：失败断线瞬间已发出、仍等响应的在途请求，避免其永久挂起（H1）。
                     // 响应不会在新通道重放；失败后调用方/UI 可重试。control() 单消费者由本处独占，
@@ -577,7 +608,8 @@ final class ConnectionStore {
                             return
                         }
                         // re-initialize 成功后才恢复；若期间已被 .reconnecting/.connectionFailed 等取代则放弃。
-                        guard !Task.isCancelled, self.phase == .ready, self.isConnectionInitialized else { return }
+                        // 用 isCurrentSessionInitialized 强校验「当前代次已 init」，杜绝陈旧 isConnectionInitialized 放行。
+                        guard !Task.isCancelled, self.phase == .ready, self.isCurrentSessionInitialized else { return }
                         self.scheduleRecoveryEpoch()
                     }
                 case .connectionFailed:
@@ -586,7 +618,7 @@ final class ConnectionStore {
                     self.stopHeartbeat()
                     self.recoveryTask?.cancel()
                     self.recoveryTask = nil
-                    self.isConnectionInitialized = false   // 离开 .ready：连接级 initialize 作废
+                    self.startSessionEpoch()   // 离开 .ready：进入新会话代次，连接级 initialize 作废
                     self.phase = .failed(L10n.string("conn.error.connectionFailed", locale: LocaleManager.currentLocale))
                 case .trustRevoked:
                     // 收到 RejectHello = 开发机移除信任（终态，4.4）：落 .failed 并置位 needsRePairing，
@@ -595,14 +627,14 @@ final class ConnectionStore {
                     self.stopHeartbeat()
                     self.recoveryTask?.cancel()
                     self.recoveryTask = nil
-                    self.isConnectionInitialized = false   // 离开 .ready：连接级 initialize 作废
+                    self.startSessionEpoch()   // 离开 .ready：进入新会话代次，连接级 initialize 作废
                     self.phase = .failed(L10n.string("conn.error.trustRevoked", locale: LocaleManager.currentLocale))
                     self.needsRePairing = true
                 case .handshakeRejected(let reason):
                     self.stopHeartbeat()
                     self.recoveryTask?.cancel()
                     self.recoveryTask = nil
-                    self.isConnectionInitialized = false   // 离开 .ready：连接级 initialize 作废
+                    self.startSessionEpoch()   // 离开 .ready：进入新会话代次，连接级 initialize 作废
                     self.phase = .failed(Self.rejectionMessage(reason))
                     self.needsRePairing = Self.rejectionNeedsPairing(reason)
                 case .peerLeft:
