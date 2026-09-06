@@ -567,7 +567,6 @@ struct ConnectionBanner: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
         .frame(minHeight: 44)
-        .frame(maxWidth: 520)
         .background(.regularMaterial, in: Capsule())
         .overlay(Capsule().strokeBorder(.separator))
         .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
@@ -582,7 +581,6 @@ struct ConnectionBanner: View {
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
                 Text("root.reconnecting")
-                Spacer(minLength: 0)
             }
             .frame(minHeight: 44)
         case .failed(let reason):

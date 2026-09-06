@@ -108,11 +108,9 @@ struct ApprovalCardView: View {
                                  previewLines: 8,
                                  expanded: $showsFullDetail)
             }
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) { approvalButtons }
-                    .fixedSize(horizontal: true, vertical: false)
-                VStack(alignment: .leading, spacing: 8) { approvalButtons }
-            }
+            // 审批动作：纵向排列（类 desktop），「允许/拒绝/放行」竖排且各自显式高亮为可点按钮。
+            VStack(alignment: .leading, spacing: 8) { approvalButtons }
+                .frame(maxWidth: .infinity, alignment: .leading)
             .disabled(card.awaitingRecovery || approvals.expiredRecoveryIds.contains(card.id)
                       || submissionState == .submitting)
         }
@@ -169,6 +167,7 @@ struct ApprovalCardView: View {
                     + Text(" ")
                     + Text(verbatim: displayPrefix).monospaced()
             }
+            .buttonStyle(.bordered)
             .fixedSize(horizontal: false, vertical: true)
             .minimumHitTarget44()
             .accessibilityLabel(Text("approval.yesPrefix"))
@@ -176,6 +175,7 @@ struct ApprovalCardView: View {
             .disabled(!canApproveFile)
         }
         Button("approval.no", role: .destructive) { resolve(.deny) }
+            .buttonStyle(.bordered)
             .minimumHitTarget44()
     }
 
