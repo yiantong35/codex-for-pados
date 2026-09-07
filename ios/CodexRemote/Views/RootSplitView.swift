@@ -109,7 +109,7 @@ struct RootSplitView: View {
     }
 
     // 批次⑤：摘要打开/切换会话/连接就绪时触发环境信息刷新的 key（含连接态避免冷启动漏刷 I2）。
-    private var summaryEnvKey: String { "\(layout.showSummary)-\(selectedThreadId ?? "")-\(connection.phase == .ready)" }
+    private var summaryEnvKey: String { "\(selectedThreadId ?? "")-\(connection.phase == .ready)" }
 
     var body: some View {
         @Bindable var layout = layout
