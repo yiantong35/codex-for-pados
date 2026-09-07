@@ -9,11 +9,14 @@ final class ToolbarDynamicTypeTests: XCTestCase {
         .deletingLastPathComponent()                 // ios/
         .appendingPathComponent("CodexRemote/Views/RootSplitView.swift")
 
-    func test_toolbarLabel_usesScaledDynamicTypeFont() throws {
+    func test_toolbarLabel_usesFixedRegularFontIndependentOfDynamicType() throws {
         let src = try String(contentsOf: sourceURL, encoding: .utf8)
-        // 图标尺寸仍用 @ScaledMetric 驱动的 toolbarIconSize（动态类型下图标随档放大，仍落在 44pt 内）。
-        XCTAssertTrue(src.contains("@ScaledMetric(relativeTo: .body) private var toolbarIconSize"),
-                      "toolbar 图标尺寸须以 @ScaledMetric 随 Dynamic Type 缩放")
+        XCTAssertFalse(src.contains("@ScaledMetric(relativeTo: .body) private var toolbarIconSize"),
+                       "toolbar 图标不得随 Dynamic Type 缩放")
+        XCTAssertTrue(src.contains(".font(.system(size: 21, weight: .regular))"),
+                      "toolbar 图标必须固定为 21pt regular")
+        XCTAssertFalse(src.contains("weight: selected ? .semibold : .regular"),
+                       "选中状态不得改变 toolbar 图标字重")
         XCTAssertTrue(src.contains(".frame(width: 44, height: 44)"),
                       "toolbar 按钮须恒定 44×44 固定尺寸，杜绝图标固有宽/字重/缩放导致的时大时小")
         XCTAssertNil(src.range(of: "minWidth: 44, minHeight: 44"),

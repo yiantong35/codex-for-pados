@@ -433,10 +433,6 @@ struct WorkspaceToolbar: ToolbarContent {
     /// 状态胶囊数据源（design §2a）：读 loadState/isTurnRunning 渲染，nil 整块隐藏。
     let conversation: ActiveConversationHolder
 
-    /// 工具栏图标尺寸随 Dynamic Type 缩放（默认 21，更大档会自动放大），
-    /// 唯一尺寸来源：4 个布局按钮 + 齿轮 + 刷新共用，避免分段容器放大而图标不缩放的断层。
-    @ScaledMetric(relativeTo: .body) private var toolbarIconSize: CGFloat = 21
-
     var body: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
             TabBarView()
@@ -523,7 +519,9 @@ struct WorkspaceToolbar: ToolbarContent {
     ) -> some View {
         Label(label, systemImage: symbol)
             .labelStyle(.iconOnly)
-            .font(.system(size: toolbarIconSize, weight: selected ? .semibold : .regular))
+            // Toolbar icons intentionally ignore Dynamic Type: UIKit owns the outer
+            // toolbar item chrome, while this shared content remains visually stable.
+            .font(.system(size: 21, weight: .regular))
             .foregroundStyle(selected ? Color.accentColor : Color.primary)
             // 右上角 5 按钮（4 布局 + 齿轮 + 刷新）恒定 44×44 固定尺寸——不随图标固有宽（不同 SF Symbol
             // 宽窄不一）、选中字重（.semibold vs .regular）、或 Dynamic Type 缩放而变化，杜绝「时大时小」。
