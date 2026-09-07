@@ -592,27 +592,22 @@ struct ConnectionBanner: View {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 8) {
                     statusLabel("connection.banner.disconnected")
-                    Spacer(minLength: 4)
                     failureActions(reason)
                 }
-                VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 8) {
                     statusLabel("connection.banner.disconnected")
-                    HStack(spacing: 8) {
-                        Spacer(minLength: 0)
-                        failureActions(reason)
-                    }
+                    failureActions(reason)
                 }
             }
         case .rePairingRequired(let reason):
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 8) {
                     statusText(reason)
-                    Spacer(minLength: 4)
                     rePairButton
                 }
-                VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 8) {
                     statusText(reason)
-                    rePairButton.frame(maxWidth: .infinity, alignment: .trailing)
+                    rePairButton
                 }
             }
         }
