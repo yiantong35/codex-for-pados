@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: 工具栏图标尺寸在动态文字大小下稳定
 
